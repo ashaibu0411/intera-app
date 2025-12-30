@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, Pressable, TextInput, Modal } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, ScrollView, Pressable, TextInput, Modal, ActivityIndicator, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -28,17 +28,92 @@ import {
   MARKETPLACE_CATEGORIES,
   type MarketplaceListing,
 } from '@/lib/store';
+import { getMarketplaceListings } from '@/lib/marketplace-api';
+
+interface DbListing {
+  id: string;
+  seller_id: string;
+  title: string;
+  description: string;
+  price: number;
+  currency: string;
+  images: string[];
+  category: string;
+  condition: 'new' | 'used' | 'refurbished';
+  location: string | null;
+  is_store_based: boolean;
+  store_name: string | null;
+  views: number;
+  created_at: string;
+  seller?: {
+    id: string;
+    name: string;
+    username: string;
+    avatar_url: string | null;
+    location: string | null;
+  };
+}
 
 export default function MarketplaceScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedListing, setSelectedListing] = useState<MarketplaceListing | null>(null);
+  const [dbListings, setDbListings] = useState<DbListing[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const isGuest = useStore((s) => s.isGuest);
   const currentUser = useStore((s) => s.currentUser);
-  const userListings = useStore((s) => s.userListings);
 
-  const allListings = [...userListings, ...MOCK_MARKETPLACE];
+  const fetchListings = async () => {
+    try {
+      const data = await getMarketplaceListings();
+      setDbListings(data || []);
+    } catch (error) {
+      console.error('Error fetching listings:', error);
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchListings();
+  }, []);
+
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    fetchListings();
+  };
+
+  // Convert DB listings to app format
+  const supabaseListings: MarketplaceListing[] = dbListings.map((listing) => ({
+    id: listing.id,
+    seller: {
+      id: listing.seller?.id || listing.seller_id,
+      name: listing.seller?.name || 'Unknown',
+      username: listing.seller?.username || 'unknown',
+      avatar: listing.seller?.avatar_url || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop&crop=face',
+      bio: '',
+      location: listing.seller?.location || '',
+      interests: [],
+      joinedDate: '',
+    },
+    title: listing.title,
+    description: listing.description,
+    price: listing.price.toString(),
+    currency: listing.currency,
+    images: listing.images,
+    category: listing.category,
+    condition: listing.condition,
+    location: listing.location || '',
+    isStoreBased: listing.is_store_based,
+    storeName: listing.store_name || undefined,
+    createdAt: listing.created_at,
+    views: listing.views,
+  }));
+
+  const allListings = [...supabaseListings, ...MOCK_MARKETPLACE];
 
   const filteredListings = allListings.filter((listing) => {
     const matchesSearch =
@@ -167,39 +242,49 @@ export default function MarketplaceScreen() {
         <ScrollView
           className="flex-1 px-5 pt-4"
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor="#D4673A" />
+          }
         >
-          {/* Featured Banner */}
-          <Animated.View
-            entering={FadeInUp.duration(400).delay(100)}
-            className="mb-4"
-          >
-            <LinearGradient
-              colors={['#1B4D3E', '#153D31']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={{ borderRadius: 16, padding: 16 }}
-            >
-              <View className="flex-row items-center">
-                <View className="flex-1">
-                  <Text className="text-white font-bold text-base">
-                    Sell Your Products
-                  </Text>
-                  <Text className="text-white/70 text-sm mt-1">
-                    List items in minutes. Reach African communities worldwide.
-                  </Text>
-                </View>
-                <Pressable
-                  onPress={handleCreateListing}
-                  className="bg-white/20 rounded-full px-4 py-2"
+          {isLoading ? (
+            <View className="py-20 items-center">
+              <ActivityIndicator size="large" color="#D4673A" />
+              <Text className="text-gray-500 mt-4">Loading listings...</Text>
+            </View>
+          ) : (
+            <>
+              {/* Featured Banner */}
+              <Animated.View
+                entering={FadeInUp.duration(400).delay(100)}
+                className="mb-4"
+              >
+                <LinearGradient
+                  colors={['#1B4D3E', '#153D31']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={{ borderRadius: 16, padding: 16 }}
                 >
-                  <Text className="text-white font-medium">Start Selling</Text>
-                </Pressable>
-              </View>
-            </LinearGradient>
-          </Animated.View>
+                  <View className="flex-row items-center">
+                    <View className="flex-1">
+                      <Text className="text-white font-bold text-base">
+                        Sell Your Products
+                      </Text>
+                      <Text className="text-white/70 text-sm mt-1">
+                        List items in minutes. Reach African communities worldwide.
+                      </Text>
+                    </View>
+                    <Pressable
+                      onPress={handleCreateListing}
+                      className="bg-white/20 rounded-full px-4 py-2"
+                    >
+                      <Text className="text-white font-medium">Start Selling</Text>
+                    </Pressable>
+                  </View>
+                </LinearGradient>
+              </Animated.View>
 
-          {/* Listings */}
-          <View className="flex-row flex-wrap justify-between">
+              {/* Listings */}
+              <View className="flex-row flex-wrap justify-between">
             {filteredListings.map((listing, index) => (
               <Animated.View
                 key={listing.id}
@@ -250,9 +335,11 @@ export default function MarketplaceScreen() {
                 </Pressable>
               </Animated.View>
             ))}
-          </View>
+              </View>
 
-          <View className="h-8" />
+              <View className="h-8" />
+            </>
+          )}
         </ScrollView>
 
         {/* Listing Detail Modal */}

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, Pressable, TextInput, KeyboardAvoidingView, Platform, Modal, Switch } from 'react-native';
+import { View, Text, ScrollView, Pressable, TextInput, KeyboardAvoidingView, Platform, Modal, Switch, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
@@ -22,6 +22,7 @@ import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { useStore } from '@/lib/store';
+import { createBusiness } from '@/lib/marketplace-api';
 
 const BUSINESS_CATEGORIES = [
   'Food & Dining',
@@ -53,11 +54,11 @@ export default function RegisterBusinessScreen() {
   const [hours, setHours] = useState('');
   const [isAfricanMarket, setIsAfricanMarket] = useState(false);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const currentUser = useStore((s) => s.currentUser);
   const selectedLocation = useStore((s) => s.selectedLocation);
   const currentCommunity = useStore((s) => s.currentCommunity);
-  const addBusiness = useStore((s) => s.addBusiness);
 
   const userLocation = selectedLocation?.city
     ? `${selectedLocation.city}, ${selectedLocation.state || selectedLocation.country}`
@@ -100,36 +101,35 @@ export default function RegisterBusinessScreen() {
     return true;
   };
 
-  const handleSubmit = () => {
-    if (!currentUser || !coverImage) return;
+  const handleSubmit = async () => {
+    if (!currentUser || !coverImage || isSubmitting) return;
 
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setIsSubmitting(true);
 
-    const newBusiness = {
-      id: `business_${Date.now()}`,
-      owner: currentUser,
-      name: businessName.trim(),
-      category,
-      description: description.trim(),
-      image: coverImage,
-      logo: logo || undefined,
-      rating: 0,
-      reviews: 0,
-      location: userLocation,
-      address: address.trim(),
-      phone: phone.trim() || undefined,
-      email: email.trim() || undefined,
-      website: website.trim() || undefined,
-      hours: hours.trim() || 'Contact for hours',
-      isVerified: false,
-      isFeatured: false,
-      isAfricanMarket,
-      inventory: [],
-      createdAt: new Date().toISOString(),
-    };
+    try {
+      await createBusiness(currentUser.id, {
+        name: businessName.trim(),
+        category,
+        description: description.trim(),
+        image: coverImage,
+        logo: logo || undefined,
+        location: userLocation,
+        address: address.trim(),
+        phone: phone.trim() || undefined,
+        email: email.trim() || undefined,
+        website: website.trim() || undefined,
+        hours: hours.trim() || 'Contact for hours',
+        isAfricanMarket,
+      });
 
-    addBusiness(newBusiness);
-    router.back();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      router.back();
+    } catch (error) {
+      console.error('Error creating business:', error);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (!currentUser) {
@@ -406,14 +406,18 @@ export default function RegisterBusinessScreen() {
 
         {/* Bottom Button */}
         <View className="px-5 py-4 border-t border-gray-100 bg-cream">
-          <Pressable onPress={() => currentStep < 3 ? setCurrentStep(currentStep + 1) : handleSubmit()} disabled={!canProceed()}>
+          <Pressable onPress={() => currentStep < 3 ? setCurrentStep(currentStep + 1) : handleSubmit()} disabled={!canProceed() || isSubmitting}>
             <LinearGradient
-              colors={canProceed() ? ['#1B4D3E', '#153D31'] : ['#D1D5DB', '#9CA3AF']}
-              style={{ borderRadius: 16, paddingVertical: 18, alignItems: 'center' }}
+              colors={canProceed() && !isSubmitting ? ['#1B4D3E', '#153D31'] : ['#D1D5DB', '#9CA3AF']}
+              style={{ borderRadius: 16, paddingVertical: 18, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' }}
             >
-              <Text className="text-white font-bold text-lg">
-                {currentStep < 3 ? 'Continue' : 'Register Business'}
-              </Text>
+              {isSubmitting ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text className="text-white font-bold text-lg">
+                  {currentStep < 3 ? 'Continue' : 'Register Business'}
+                </Text>
+              )}
             </LinearGradient>
           </Pressable>
         </View>

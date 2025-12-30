@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, Pressable, TextInput, KeyboardAvoidingView, Platform, Modal } from 'react-native';
+import { View, Text, ScrollView, Pressable, TextInput, KeyboardAvoidingView, Platform, Modal, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
@@ -21,6 +21,7 @@ import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { useStore, MARKETPLACE_CATEGORIES } from '@/lib/store';
+import { createMarketplaceListing } from '@/lib/marketplace-api';
 
 const CONDITIONS = [
   { id: 'new', label: 'New', description: 'Brand new, unused' },
@@ -38,11 +39,11 @@ export default function CreateListingScreen() {
   const [isStoreBased, setIsStoreBased] = useState(false);
   const [storeName, setStoreName] = useState('');
   const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const currentUser = useStore((s) => s.currentUser);
   const selectedLocation = useStore((s) => s.selectedLocation);
   const currentCommunity = useStore((s) => s.currentCommunity);
-  const addMarketplaceListing = useStore((s) => s.addMarketplaceListing);
 
   const userLocation = selectedLocation?.city
     ? `${selectedLocation.city}, ${selectedLocation.state || selectedLocation.country}`
@@ -75,30 +76,33 @@ export default function CreateListingScreen() {
     category.length > 0 &&
     images.length > 0;
 
-  const handleSubmit = () => {
-    if (!canSubmit || !currentUser) return;
+  const handleSubmit = async () => {
+    if (!canSubmit || !currentUser || isSubmitting) return;
 
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setIsSubmitting(true);
 
-    const newListing = {
-      id: `listing_${Date.now()}`,
-      seller: currentUser,
-      title: title.trim(),
-      description: description.trim(),
-      price: price.trim(),
-      currency: 'USD',
-      images,
-      category,
-      condition,
-      location: userLocation,
-      isStoreBased,
-      storeName: isStoreBased ? storeName.trim() : undefined,
-      createdAt: new Date().toISOString(),
-      views: 0,
-    };
+    try {
+      await createMarketplaceListing(currentUser.id, {
+        title: title.trim(),
+        description: description.trim(),
+        price: parseFloat(price),
+        currency: 'USD',
+        images,
+        category,
+        condition,
+        location: userLocation,
+        isStoreBased,
+        storeName: isStoreBased ? storeName.trim() : undefined,
+      });
 
-    addMarketplaceListing(newListing);
-    router.back();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      router.back();
+    } catch (error) {
+      console.error('Error creating listing:', error);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (!currentUser) {
@@ -292,12 +296,16 @@ export default function CreateListingScreen() {
 
         {/* Submit Button */}
         <View className="px-5 py-4 border-t border-gray-100 bg-cream">
-          <Pressable onPress={handleSubmit} disabled={!canSubmit}>
+          <Pressable onPress={handleSubmit} disabled={!canSubmit || isSubmitting}>
             <LinearGradient
-              colors={canSubmit ? ['#D4673A', '#B85430'] : ['#D1D5DB', '#9CA3AF']}
-              style={{ borderRadius: 16, paddingVertical: 18, alignItems: 'center' }}
+              colors={canSubmit && !isSubmitting ? ['#D4673A', '#B85430'] : ['#D1D5DB', '#9CA3AF']}
+              style={{ borderRadius: 16, paddingVertical: 18, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' }}
             >
-              <Text className="text-white font-bold text-lg">List Item</Text>
+              {isSubmitting ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text className="text-white font-bold text-lg">List Item</Text>
+              )}
             </LinearGradient>
           </Pressable>
         </View>

@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, Pressable, TextInput } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, ScrollView, Pressable, TextInput, ActivityIndicator, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -30,6 +30,7 @@ import Animated, { FadeIn, FadeInUp, FadeInRight } from 'react-native-reanimated
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { useStore, MOCK_COMMUNITIES } from '@/lib/store';
+import { getBusinesses } from '@/lib/marketplace-api';
 
 // Business categories
 const CATEGORIES = [
@@ -147,23 +148,89 @@ const MOCK_BUSINESSES = [
   },
 ];
 
+interface DbBusiness {
+  id: string;
+  owner_id: string;
+  name: string;
+  category: string;
+  description: string;
+  image: string;
+  logo: string | null;
+  rating: number;
+  reviews: number;
+  location: string;
+  address: string;
+  phone: string | null;
+  email: string | null;
+  website: string | null;
+  hours: string | null;
+  is_verified: boolean;
+  is_featured: boolean;
+  is_african_market: boolean;
+  created_at: string;
+  owner?: {
+    id: string;
+    name: string;
+    username: string;
+  };
+}
+
 export default function BusinessDirectoryScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [savedBusinesses, setSavedBusinesses] = useState<string[]>([]);
+  const [dbBusinesses, setDbBusinesses] = useState<DbBusiness[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
   const currentCommunity = useStore((s) => s.currentCommunity);
   const selectedLocation = useStore((s) => s.selectedLocation);
-  const userBusinesses = useStore((s) => s.userBusinesses);
   const isGuest = useStore((s) => s.isGuest);
   const currentUser = useStore((s) => s.currentUser);
 
   const displayLocation = selectedLocation?.city || currentCommunity?.city || MOCK_COMMUNITIES[0].city;
 
-  const allBusinesses = [...userBusinesses.map(b => ({
-    ...b,
+  const fetchBusinesses = async () => {
+    try {
+      const data = await getBusinesses();
+      setDbBusinesses(data || []);
+    } catch (error) {
+      console.error('Error fetching businesses:', error);
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchBusinesses();
+  }, []);
+
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    fetchBusinesses();
+  };
+
+  // Convert DB businesses to app format
+  const supabaseBusinesses = dbBusinesses.map((b) => ({
+    id: b.id,
+    name: b.name,
+    category: b.category,
+    description: b.description,
+    image: b.image,
     logo: b.logo || b.image,
+    rating: b.rating,
+    reviews: b.reviews,
+    location: b.location,
+    address: b.address,
+    phone: b.phone,
     website: b.website,
-  })), ...MOCK_BUSINESSES];
+    hours: b.hours || 'Contact for hours',
+    isVerified: b.is_verified,
+    isFeatured: b.is_featured,
+  }));
+
+  const allBusinesses = [...supabaseBusinesses, ...MOCK_BUSINESSES];
 
   const filteredBusinesses = allBusinesses.filter((business) => {
     const matchesCategory = selectedCategory === 'all' || business.category.toLowerCase().includes(selectedCategory);
@@ -245,8 +312,21 @@ export default function BusinessDirectoryScreen() {
           </View>
         </Animated.View>
 
-        <ScrollView showsVerticalScrollIndicator={false} className="flex-1">
-          {/* Categories */}
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          className="flex-1"
+          refreshControl={
+            <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor="#1B4D3E" />
+          }
+        >
+          {isLoading ? (
+            <View className="py-20 items-center">
+              <ActivityIndicator size="large" color="#1B4D3E" />
+              <Text className="text-gray-500 mt-4">Loading businesses...</Text>
+            </View>
+          ) : (
+            <>
+              {/* Categories */}
           <Animated.View entering={FadeInUp.duration(400).delay(100)}>
             <ScrollView
               horizontal
@@ -471,6 +551,8 @@ export default function BusinessDirectoryScreen() {
               </LinearGradient>
             </Pressable>
           </Animated.View>
+            </>
+          )}
         </ScrollView>
       </SafeAreaView>
     </View>

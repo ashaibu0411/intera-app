@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, Pressable, TextInput, Modal, Linking } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, ScrollView, Pressable, TextInput, Modal, Linking, ActivityIndicator, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -27,17 +27,80 @@ import {
   FAITH_TYPES,
   type FaithEvent,
 } from '@/lib/store';
+import { getFaithEvents } from '@/lib/marketplace-api';
+
+interface DbFaithEvent {
+  id: string;
+  organizer_id: string;
+  organization_name: string;
+  organization_logo: string | null;
+  faith_type: string;
+  title: string;
+  description: string;
+  date: string;
+  time: string;
+  location: string;
+  address: string;
+  is_recurring: boolean;
+  recurring_schedule: string | null;
+  contact_phone: string | null;
+  contact_email: string | null;
+  attendees_count: number;
+  created_at: string;
+}
 
 export default function FaithCommunityScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFaithType, setSelectedFaithType] = useState<string | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<FaithEvent | null>(null);
+  const [dbEvents, setDbEvents] = useState<DbFaithEvent[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const isGuest = useStore((s) => s.isGuest);
   const currentUser = useStore((s) => s.currentUser);
-  const userFaithEvents = useStore((s) => s.userFaithEvents);
 
-  const allEvents = [...userFaithEvents, ...MOCK_FAITH_EVENTS];
+  const fetchEvents = async () => {
+    try {
+      const data = await getFaithEvents();
+      setDbEvents(data || []);
+    } catch (error) {
+      console.error('Error fetching faith events:', error);
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchEvents();
+  }, []);
+
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    fetchEvents();
+  };
+
+  // Convert DB events to app format
+  const supabaseEvents: FaithEvent[] = dbEvents.map((e) => ({
+    id: e.id,
+    organizationName: e.organization_name,
+    organizationLogo: e.organization_logo || 'https://images.unsplash.com/photo-1438032005730-c779502df39b?w=200&h=200&fit=crop',
+    faithType: e.faith_type,
+    title: e.title,
+    description: e.description,
+    date: e.date,
+    time: e.time,
+    location: e.location,
+    address: e.address,
+    isRecurring: e.is_recurring,
+    recurringSchedule: e.recurring_schedule || undefined,
+    contactPhone: e.contact_phone || undefined,
+    contactEmail: e.contact_email || undefined,
+    attendees: e.attendees_count,
+  }));
+
+  const allEvents = [...supabaseEvents, ...MOCK_FAITH_EVENTS];
 
   const filteredEvents = allEvents.filter((event) => {
     const matchesSearch =
@@ -187,8 +250,18 @@ export default function FaithCommunityScreen() {
         <ScrollView
           className="flex-1 px-5 pt-4"
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor="#C9A227" />
+          }
         >
-          {/* Info Banner */}
+          {isLoading ? (
+            <View className="py-20 items-center">
+              <ActivityIndicator size="large" color="#C9A227" />
+              <Text className="text-gray-500 mt-4">Loading events...</Text>
+            </View>
+          ) : (
+            <>
+              {/* Info Banner */}
           <Animated.View
             entering={FadeInUp.duration(400).delay(100)}
             className="mb-4"
@@ -312,6 +385,8 @@ export default function FaithCommunityScreen() {
           ))}
 
           <View className="h-8" />
+            </>
+          )}
         </ScrollView>
 
         {/* Event Detail Modal */}

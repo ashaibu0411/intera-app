@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, Pressable, TextInput, KeyboardAvoidingView, Platform, Modal, Switch } from 'react-native';
+import { View, Text, ScrollView, Pressable, TextInput, KeyboardAvoidingView, Platform, Modal, Switch, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
@@ -22,6 +22,7 @@ import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { useStore, FAITH_TYPES } from '@/lib/store';
+import { createFaithEvent } from '@/lib/marketplace-api';
 
 const RECURRING_OPTIONS = [
   'Every Sunday',
@@ -49,11 +50,11 @@ export default function CreateFaithEventScreen() {
   const [contactEmail, setContactEmail] = useState('');
   const [showFaithModal, setShowFaithModal] = useState(false);
   const [showRecurringModal, setShowRecurringModal] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const currentUser = useStore((s) => s.currentUser);
   const selectedLocation = useStore((s) => s.selectedLocation);
   const currentCommunity = useStore((s) => s.currentCommunity);
-  const addFaithEvent = useStore((s) => s.addFaithEvent);
 
   const userLocation = selectedLocation?.city
     ? `${selectedLocation.city}, ${selectedLocation.state || selectedLocation.country}`
@@ -83,31 +84,36 @@ export default function CreateFaithEventScreen() {
     time.trim().length > 0 &&
     address.trim().length > 0;
 
-  const handleSubmit = () => {
-    if (!canSubmit || !currentUser) return;
+  const handleSubmit = async () => {
+    if (!canSubmit || !currentUser || isSubmitting) return;
 
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setIsSubmitting(true);
 
-    const newEvent = {
-      id: `faith_${Date.now()}`,
-      organizationName: organizationName.trim(),
-      organizationLogo: organizationLogo || 'https://images.unsplash.com/photo-1438032005730-c779502df39b?w=200&h=200&fit=crop',
-      faithType,
-      title: title.trim(),
-      description: description.trim(),
-      date: date.trim(),
-      time: time.trim(),
-      location: userLocation,
-      address: address.trim(),
-      isRecurring,
-      recurringSchedule: isRecurring ? recurringSchedule : undefined,
-      contactPhone: contactPhone.trim() || undefined,
-      contactEmail: contactEmail.trim() || undefined,
-      attendees: 0,
-    };
+    try {
+      await createFaithEvent(currentUser.id, {
+        organizationName: organizationName.trim(),
+        organizationLogo: organizationLogo || undefined,
+        faithType,
+        title: title.trim(),
+        description: description.trim(),
+        date: date.trim(),
+        time: time.trim(),
+        location: userLocation,
+        address: address.trim(),
+        isRecurring,
+        recurringSchedule: isRecurring ? recurringSchedule : undefined,
+        contactPhone: contactPhone.trim() || undefined,
+        contactEmail: contactEmail.trim() || undefined,
+      });
 
-    addFaithEvent(newEvent);
-    router.back();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      router.back();
+    } catch (error) {
+      console.error('Error creating faith event:', error);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (!currentUser) {
@@ -338,12 +344,16 @@ export default function CreateFaithEventScreen() {
 
         {/* Submit Button */}
         <View className="px-5 py-4 border-t border-gray-100 bg-cream">
-          <Pressable onPress={handleSubmit} disabled={!canSubmit}>
+          <Pressable onPress={handleSubmit} disabled={!canSubmit || isSubmitting}>
             <LinearGradient
-              colors={canSubmit ? ['#C9A227', '#A6841F'] : ['#D1D5DB', '#9CA3AF']}
-              style={{ borderRadius: 16, paddingVertical: 18, alignItems: 'center' }}
+              colors={canSubmit && !isSubmitting ? ['#C9A227', '#A6841F'] : ['#D1D5DB', '#9CA3AF']}
+              style={{ borderRadius: 16, paddingVertical: 18, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' }}
             >
-              <Text className="text-white font-bold text-lg">Post Event</Text>
+              {isSubmitting ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text className="text-white font-bold text-lg">Post Event</Text>
+              )}
             </LinearGradient>
           </Pressable>
         </View>

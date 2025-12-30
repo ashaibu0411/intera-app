@@ -97,6 +97,30 @@ A community-driven social platform connecting Africans and the African diaspora 
 - Zustand for state management
 - React Query for async state
 - Expo Image for optimized images
+- **Supabase** for backend (authentication, database, real-time sync)
+
+## Supabase Integration
+
+The app is fully connected to Supabase for data persistence and syncing across users:
+
+### Database Tables
+- **profiles**: User profiles and account information
+- **posts**: Community feed posts
+- **comments**: Post comments
+- **likes**: Post likes
+- **conversations**: Messaging threads
+- **messages**: Individual messages
+- **marketplace_listings**: Items for sale in the marketplace
+- **businesses**: Registered businesses in the directory
+- **business_inventory**: Real-time inventory for African markets
+- **faith_events**: Faith community events and services
+- **faith_event_rsvps**: Event RSVPs
+
+### API Layer (`/src/lib/marketplace-api.ts`)
+- Full CRUD operations for marketplace listings, businesses, inventory, and faith events
+- All user-generated content syncs to Supabase
+- Pull-to-refresh on all listing screens
+- Loading states for better UX
 
 ## Color Palette
 
