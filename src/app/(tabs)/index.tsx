@@ -13,6 +13,7 @@ import {
   Heart,
   UserPlus,
   MessageCircle,
+  Briefcase,
 } from 'lucide-react-native';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -280,10 +281,10 @@ export default function HomeScreen() {
             </LinearGradient>
           </Animated.View>
 
-          {/* Quick Access Cards */}
+          {/* Quick Access Cards - Row 1 */}
           <Animated.View
             entering={FadeInUp.duration(500).delay(250)}
-            className="flex-row mx-4 mb-4"
+            className="flex-row mx-4 mb-3"
           >
             {/* Marketplace Card */}
             <Pressable
@@ -299,46 +300,52 @@ export default function HomeScreen() {
               </View>
             </Pressable>
 
+            {/* Business Directory Card */}
+            <Pressable
+              onPress={() => navigateTo('/business-directory')}
+              className="flex-1 ml-2"
+            >
+              <View className="bg-white rounded-2xl p-4 shadow-sm">
+                <View className="bg-forest-50 rounded-full p-2.5 self-start mb-2">
+                  <Briefcase size={22} color="#1B4D3E" />
+                </View>
+                <Text className="text-warmBrown font-bold">Businesses</Text>
+                <Text className="text-gray-500 text-xs mt-0.5">African-owned</Text>
+              </View>
+            </Pressable>
+          </Animated.View>
+
+          {/* Quick Access Cards - Row 2 */}
+          <Animated.View
+            entering={FadeInUp.duration(500).delay(280)}
+            className="flex-row mx-4 mb-4"
+          >
+            {/* Student Hub Card */}
+            <Pressable
+              onPress={() => navigateTo('/student-hub')}
+              className="flex-1 mr-2"
+            >
+              <View className="bg-white rounded-2xl p-4 shadow-sm">
+                <View className="bg-gold-50 rounded-full p-2.5 self-start mb-2">
+                  <GraduationCap size={22} color="#C9A227" />
+                </View>
+                <Text className="text-warmBrown font-bold">Student Hub</Text>
+                <Text className="text-gray-500 text-xs mt-0.5">Groups & Mentors</Text>
+              </View>
+            </Pressable>
+
             {/* Faith & Community Card */}
             <Pressable
               onPress={() => navigateTo('/faith-community')}
               className="flex-1 ml-2"
             >
               <View className="bg-white rounded-2xl p-4 shadow-sm">
-                <View className="bg-gold-50 rounded-full p-2.5 self-start mb-2">
-                  <Heart size={22} color="#C9A227" />
+                <View className="bg-terracotta-50 rounded-full p-2.5 self-start mb-2">
+                  <Heart size={22} color="#D4673A" />
                 </View>
-                <Text className="text-warmBrown font-bold">Faith & Community</Text>
+                <Text className="text-warmBrown font-bold">Faith Centers</Text>
                 <Text className="text-gray-500 text-xs mt-0.5">Services & Events</Text>
               </View>
-            </Pressable>
-          </Animated.View>
-
-          {/* Student Hub Card */}
-          <Animated.View
-            entering={FadeInUp.duration(500).delay(300)}
-            className="mx-4 mb-4"
-          >
-            <Pressable onPress={() => navigateTo('/student-hub')}>
-              <LinearGradient
-                colors={['#1B4D3E', '#153D31']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={{ borderRadius: 16, padding: 16 }}
-              >
-                <View className="flex-row items-center">
-                  <View className="bg-white/20 rounded-full p-3">
-                    <GraduationCap size={24} color="#FFFFFF" />
-                  </View>
-                  <View className="flex-1 ml-3">
-                    <Text className="text-white font-bold text-base">Student Hub</Text>
-                    <Text className="text-white/70 text-sm">
-                      Scholarships, Study Groups, Mentors & More
-                    </Text>
-                  </View>
-                  <ChevronRight size={20} color="#FFFFFF" />
-                </View>
-              </LinearGradient>
             </Pressable>
           </Animated.View>
 

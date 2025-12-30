@@ -40,6 +40,7 @@ function RootLayoutNav() {
         <Stack.Screen name="student-hub" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="marketplace" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="faith-community" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="business-directory" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="post/[id]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="messages" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="chat/[id]" options={{ animation: 'slide_from_right' }} />
