@@ -90,7 +90,7 @@ export default function SignUpScreen() {
           });
           setIsGuest(false);
           setIsOnboarded(true);
-          router.replace('/(tabs)');
+          router.replace('/profile-setup');
         }
       } else {
         const data = await signInWithEmail(email, password);
@@ -175,7 +175,7 @@ export default function SignUpScreen() {
         });
         setIsGuest(false);
         setIsOnboarded(true);
-        router.replace('/(tabs)');
+        router.replace('/profile-setup');
       }
     } catch (err: unknown) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);

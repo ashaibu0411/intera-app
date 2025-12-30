@@ -35,6 +35,7 @@ function RootLayoutNav() {
         <Stack.Screen name="welcome" options={{ animation: 'fade' }} />
         <Stack.Screen name="location-select" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="signup" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="profile-setup" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="onboarding" options={{ animation: 'fade' }} />
         <Stack.Screen name="student-hub" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="marketplace" options={{ animation: 'slide_from_right' }} />
