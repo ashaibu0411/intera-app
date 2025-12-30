@@ -46,6 +46,7 @@ export default function HomeScreen() {
               <View>
                 <Text className="text-3xl font-bold text-terracotta-500">Afro</Text>
                 <Text className="text-3xl font-bold text-forest-700 -mt-2">Connect</Text>
+                <Text className="text-xs text-gray-500 mt-1 italic">Connecting Africans Globally, Building Communities</Text>
               </View>
 
               <Pressable className="flex-row items-center bg-white rounded-full px-4 py-2 shadow-sm">

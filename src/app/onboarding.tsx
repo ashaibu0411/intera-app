@@ -95,8 +95,11 @@ export default function OnboardingScreen() {
               <Text className="text-4xl font-bold text-warmBrown text-center">
                 Welcome to{'\n'}AfroConnect
               </Text>
+              <Text className="text-terracotta-500 text-center mt-3 text-base font-medium italic">
+                Connecting Africans Globally, Building Communities
+              </Text>
               <Text className="text-gray-500 text-center mt-4 text-lg leading-7">
-                Connect with African communities worldwide.{'\n'}Find your people, locally and globally.
+                Find your people, locally and globally.
               </Text>
             </Animated.View>
 
