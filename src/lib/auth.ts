@@ -75,6 +75,40 @@ export async function getProfile(userId: string) {
     .from('profiles')
     .select('*')
     .eq('id', userId)
+    .maybeSingle();
+
+  // If no profile exists yet (can happen with phone auth), return null
+  if (error && error.code !== 'PGRST116') throw error;
+  return data;
+}
+
+export async function getOrCreateProfile(userId: string, userData: {
+  name?: string;
+  phone?: string;
+  email?: string;
+}) {
+  // First try to get existing profile
+  const { data: existing } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', userId)
+    .maybeSingle();
+
+  if (existing) return existing;
+
+  // Create new profile if it doesn't exist
+  const username = 'user_' + Math.random().toString(36).substring(2, 10);
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .insert({
+      id: userId,
+      name: userData.name || 'User',
+      username: username,
+      phone: userData.phone,
+      email: userData.email,
+    })
+    .select()
     .single();
 
   if (error) throw error;

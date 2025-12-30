@@ -19,7 +19,7 @@ import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { useStore } from '@/lib/store';
-import { signUpWithEmail, signInWithEmail, signUpWithPhone, verifyOtp, getProfile } from '@/lib/auth';
+import { signUpWithEmail, signInWithEmail, signUpWithPhone, verifyOtp, getProfile, getOrCreateProfile } from '@/lib/auth';
 
 type AuthMethod = 'email' | 'phone' | 'google';
 type AuthMode = 'signup' | 'signin';
@@ -146,9 +146,11 @@ export default function SignUpScreen() {
       if (data.user) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-        await new Promise(resolve => setTimeout(resolve, 500));
-
-        const profile = await getProfile(data.user.id);
+        // Use getOrCreateProfile to handle case where trigger didn't create profile
+        const profile = await getOrCreateProfile(data.user.id, {
+          name: name,
+          phone: phone,
+        });
 
         setCurrentUser({
           id: data.user.id,
