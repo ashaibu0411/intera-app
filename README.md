@@ -32,6 +32,16 @@ A community-driven social platform connecting Africans and the African diaspora 
 - Direct messaging to contact sellers
 - Product listings with images, prices, and descriptions
 - View count and listing details
+- **Create Listing** (`/create-listing`): Users can list items for sale with photos, pricing, category, condition, and description
+
+### Business Directory
+- Browse African-owned businesses by category
+- Categories: Food, Beauty, Retail, Services, Health, Education, Auto, Real Estate
+- Featured businesses with ratings and reviews
+- Quick actions: Call, Message, Directions
+- **Register Business** (`/register-business`): 3-step form to register your business with logo, cover photo, contact info, and description
+- **African Market Mode**: Special feature for grocery stores to manage real-time inventory
+- **Direct Messaging**: Contact businesses directly through the app
 
 ### Faith & Community
 - Post religious services and faith events
@@ -40,6 +50,7 @@ A community-driven social platform connecting Africans and the African diaspora 
 - Event RSVP functionality
 - Contact information (phone/email) for organizations
 - Location and address details
+- **Create Faith Event** (`/create-faith-event`): Organizations can post services and events with recurring schedules
 
 ### Student Hub
 - Scholarships discovery with deadlines and amounts
@@ -96,6 +107,12 @@ A community-driven social platform connecting Africans and the African diaspora 
 - **Warm Brown** (#2D1F1A): Text
 
 ## New Features (Latest Update)
+
+### Marketplace, Business & Faith User-Generated Content
+- **Create Listing** (`/create-listing`): List items for sale with up to 5 photos, price, category, condition (new/used/refurbished), and seller type (individual/business)
+- **Register Business** (`/register-business`): 3-step registration for businesses with cover photo, logo, contact info, business hours, and African Market toggle for inventory management
+- **Create Faith Event** (`/create-faith-event`): Post services and events with organization info, date/time, recurring schedules, and contact information
+- **Direct Messaging to Businesses**: Message businesses directly from the Business Directory
 
 ### Student Hub User-Generated Content
 - **Create Study Groups** (`/create-study-group`): Users can create their own study groups with name, subject, description, meeting schedule, online/in-person toggle, and privacy settings

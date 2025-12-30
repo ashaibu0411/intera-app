@@ -23,6 +23,8 @@ import {
   Stethoscope,
   Car,
   Home,
+  Plus,
+  MessageCircle,
 } from 'lucide-react-native';
 import Animated, { FadeIn, FadeInUp, FadeInRight } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -151,17 +153,44 @@ export default function BusinessDirectoryScreen() {
   const [savedBusinesses, setSavedBusinesses] = useState<string[]>([]);
   const currentCommunity = useStore((s) => s.currentCommunity);
   const selectedLocation = useStore((s) => s.selectedLocation);
+  const userBusinesses = useStore((s) => s.userBusinesses);
+  const isGuest = useStore((s) => s.isGuest);
+  const currentUser = useStore((s) => s.currentUser);
 
   const displayLocation = selectedLocation?.city || currentCommunity?.city || MOCK_COMMUNITIES[0].city;
 
-  const filteredBusinesses = MOCK_BUSINESSES.filter((business) => {
-    const matchesCategory = selectedCategory === 'all' || business.category === selectedCategory;
+  const allBusinesses = [...userBusinesses.map(b => ({
+    ...b,
+    logo: b.logo || b.image,
+    website: b.website,
+  })), ...MOCK_BUSINESSES];
+
+  const filteredBusinesses = allBusinesses.filter((business) => {
+    const matchesCategory = selectedCategory === 'all' || business.category.toLowerCase().includes(selectedCategory);
     const matchesSearch = business.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       business.description.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCategory && matchesSearch;
   });
 
-  const featuredBusinesses = MOCK_BUSINESSES.filter((b) => b.isFeatured);
+  const featuredBusinesses = allBusinesses.filter((b) => b.isFeatured);
+
+  const handleRegisterBusiness = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (isGuest || !currentUser) {
+      router.push('/signup');
+    } else {
+      router.push('/register-business');
+    }
+  };
+
+  const handleMessageBusiness = (businessId: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (isGuest || !currentUser) {
+      router.push('/signup');
+    } else {
+      router.push('/messages');
+    }
+  };
 
   const toggleSave = (id: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -194,6 +223,13 @@ export default function BusinessDirectoryScreen() {
                 </View>
               </View>
             </View>
+
+            <Pressable
+              onPress={handleRegisterBusiness}
+              className="bg-forest-600 rounded-full p-2.5"
+            >
+              <Plus size={22} color="#FFFFFF" />
+            </Pressable>
           </View>
 
           {/* Search */}
@@ -383,16 +419,14 @@ export default function BusinessDirectoryScreen() {
                       <Phone size={14} color="#1B4D3E" />
                       <Text className="text-forest-700 text-sm font-medium ml-1">Call</Text>
                     </Pressable>
+                    <Pressable onPress={() => handleMessageBusiness(business.id)} className="flex-row items-center flex-1">
+                      <MessageCircle size={14} color="#C9A227" />
+                      <Text className="text-gold-600 text-sm font-medium ml-1">Message</Text>
+                    </Pressable>
                     <Pressable className="flex-row items-center flex-1">
                       <MapPin size={14} color="#D4673A" />
                       <Text className="text-terracotta-500 text-sm font-medium ml-1">Directions</Text>
                     </Pressable>
-                    {business.website && (
-                      <Pressable className="flex-row items-center flex-1">
-                        <Globe size={14} color="#8B7355" />
-                        <Text className="text-warmBrown text-sm font-medium ml-1">Website</Text>
-                      </Pressable>
-                    )}
                   </View>
                 </Pressable>
               </Animated.View>
@@ -415,7 +449,7 @@ export default function BusinessDirectoryScreen() {
 
           {/* Add Your Business CTA */}
           <Animated.View entering={FadeInUp.duration(400).delay(500)} className="px-5 mt-4 mb-8">
-            <Pressable onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)}>
+            <Pressable onPress={handleRegisterBusiness}>
               <LinearGradient
                 colors={['#1B4D3E', '#153D31']}
                 start={{ x: 0, y: 0 }}

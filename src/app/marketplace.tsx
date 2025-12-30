@@ -36,8 +36,11 @@ export default function MarketplaceScreen() {
 
   const isGuest = useStore((s) => s.isGuest);
   const currentUser = useStore((s) => s.currentUser);
+  const userListings = useStore((s) => s.userListings);
 
-  const filteredListings = MOCK_MARKETPLACE.filter((listing) => {
+  const allListings = [...userListings, ...MOCK_MARKETPLACE];
+
+  const filteredListings = allListings.filter((listing) => {
     const matchesSearch =
       listing.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       listing.description.toLowerCase().includes(searchQuery.toLowerCase());
@@ -70,7 +73,7 @@ export default function MarketplaceScreen() {
     if (isGuest || !currentUser) {
       router.push('/signup');
     } else {
-      // In a real app, navigate to create listing screen
+      router.push('/create-listing');
     }
   };
 

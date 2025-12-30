@@ -132,6 +132,42 @@ export interface Event {
   createdAt: string;
 }
 
+export interface Business {
+  id: string;
+  owner: User;
+  name: string;
+  category: string;
+  description: string;
+  image: string;
+  logo?: string;
+  rating: number;
+  reviews: number;
+  location: string;
+  address: string;
+  phone?: string;
+  email?: string;
+  website?: string;
+  hours: string;
+  isVerified: boolean;
+  isFeatured: boolean;
+  isAfricanMarket: boolean;
+  inventory?: InventoryItem[];
+  createdAt: string;
+}
+
+export interface InventoryItem {
+  id: string;
+  businessId: string;
+  name: string;
+  description: string;
+  price: string;
+  image: string;
+  inStock: boolean;
+  quantity?: number;
+  category: string;
+  createdAt: string;
+}
+
 export const EVENT_CATEGORIES = [
   'Social Gathering',
   'Networking',
@@ -162,6 +198,15 @@ interface AppState {
   // Posts state
   userPosts: Post[];
 
+  // Marketplace state
+  userListings: MarketplaceListing[];
+
+  // Business state
+  userBusinesses: Business[];
+
+  // Faith events state
+  userFaithEvents: FaithEvent[];
+
   // Actions
   setCurrentUser: (user: User | null) => void;
   setIsOnboarded: (value: boolean) => void;
@@ -171,6 +216,9 @@ interface AppState {
   setCurrentCommunity: (community: Community | null) => void;
   setFeedFilter: (filter: 'local' | 'global') => void;
   addPost: (post: Post) => void;
+  addMarketplaceListing: (listing: MarketplaceListing) => void;
+  addBusiness: (business: Business) => void;
+  addFaithEvent: (event: FaithEvent) => void;
   logout: () => void;
 }
 
@@ -185,6 +233,9 @@ export const useStore = create<AppState>()(
       currentCommunity: null,
       feedFilter: 'local',
       userPosts: [],
+      userListings: [],
+      userBusinesses: [],
+      userFaithEvents: [],
 
       setCurrentUser: (user) => set({ currentUser: user }),
       setIsOnboarded: (value) => set({ isOnboarded: value }),
@@ -194,6 +245,9 @@ export const useStore = create<AppState>()(
       setCurrentCommunity: (community) => set({ currentCommunity: community }),
       setFeedFilter: (filter) => set({ feedFilter: filter }),
       addPost: (post) => set((state) => ({ userPosts: [post, ...state.userPosts] })),
+      addMarketplaceListing: (listing) => set((state) => ({ userListings: [listing, ...state.userListings] })),
+      addBusiness: (business) => set((state) => ({ userBusinesses: [business, ...state.userBusinesses] })),
+      addFaithEvent: (event) => set((state) => ({ userFaithEvents: [event, ...state.userFaithEvents] })),
       logout: () => set({ currentUser: null, isOnboarded: false, isGuest: false }),
     }),
     {

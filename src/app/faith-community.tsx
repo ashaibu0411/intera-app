@@ -35,8 +35,11 @@ export default function FaithCommunityScreen() {
 
   const isGuest = useStore((s) => s.isGuest);
   const currentUser = useStore((s) => s.currentUser);
+  const userFaithEvents = useStore((s) => s.userFaithEvents);
 
-  const filteredEvents = MOCK_FAITH_EVENTS.filter((event) => {
+  const allEvents = [...userFaithEvents, ...MOCK_FAITH_EVENTS];
+
+  const filteredEvents = allEvents.filter((event) => {
     const matchesSearch =
       event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       event.organizationName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -80,7 +83,7 @@ export default function FaithCommunityScreen() {
     if (isGuest || !currentUser) {
       router.push('/signup');
     } else {
-      // In a real app, navigate to create event screen
+      router.push('/create-faith-event');
     }
   };
 

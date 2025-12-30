@@ -48,6 +48,9 @@ function RootLayoutNav() {
         <Stack.Screen name="become-mentor" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="post-internship" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="new-arrival-help" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="create-listing" options={{ animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="register-business" options={{ animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="create-faith-event" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
       </Stack>
     </ThemeProvider>
