@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { View, Text, ScrollView, Pressable, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -20,6 +20,70 @@ import { router } from 'expo-router';
 import { PostCard } from '@/components/PostCard';
 import { useStore, MOCK_POSTS, MOCK_COMMUNITIES } from '@/lib/store';
 
+// Additional mock posts for global feed from different locations
+const GLOBAL_MOCK_POSTS = [
+  {
+    id: 'global_1',
+    author: {
+      id: 'g1',
+      name: 'Fatou Diop',
+      username: 'fatoudiop',
+      avatar: 'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=200&h=200&fit=crop&crop=face',
+      bio: 'Fashion designer from Dakar',
+      location: 'London, UK',
+      interests: ['Fashion', 'Art'],
+      joinedDate: '2024-01-10',
+    },
+    content: 'Just launched my new African-inspired fashion collection in London! So grateful for the support from the diaspora community here.',
+    images: ['https://images.unsplash.com/photo-1558171813-4c088753af8f?w=800&h=600&fit=crop'],
+    likes: 89,
+    comments: 34,
+    createdAt: '2024-12-30T08:00:00Z',
+    isLiked: false,
+    location: 'London, UK',
+  },
+  {
+    id: 'global_2',
+    author: {
+      id: 'g2',
+      name: 'Kofi Mensah',
+      username: 'kofimensah',
+      avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=200&h=200&fit=crop&crop=face',
+      bio: 'Tech entrepreneur in Accra',
+      location: 'Accra, Ghana',
+      interests: ['Tech', 'Startups'],
+      joinedDate: '2024-02-15',
+    },
+    content: 'Exciting news! Our fintech startup just secured funding to expand across West Africa. The future of African tech is bright!',
+    images: [],
+    likes: 156,
+    comments: 42,
+    createdAt: '2024-12-29T14:00:00Z',
+    isLiked: true,
+    location: 'Accra, Ghana',
+  },
+  {
+    id: 'global_3',
+    author: {
+      id: 'g3',
+      name: 'Amina Hassan',
+      username: 'aminahassan',
+      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop&crop=face',
+      bio: 'Chef and food blogger',
+      location: 'Toronto, Canada',
+      interests: ['Food', 'Culture'],
+      joinedDate: '2024-03-20',
+    },
+    content: 'Hosting a Somali cooking class this weekend in Toronto! Teaching how to make authentic sambusa and bariis. DM if interested!',
+    images: ['https://images.unsplash.com/photo-1604329760661-e71dc83f8f26?w=800&h=600&fit=crop'],
+    likes: 67,
+    comments: 28,
+    createdAt: '2024-12-28T16:00:00Z',
+    isLiked: false,
+    location: 'Toronto, Canada',
+  },
+];
+
 export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const feedFilter = useStore((s) => s.feedFilter);
@@ -27,8 +91,28 @@ export default function HomeScreen() {
   const currentCommunity = useStore((s) => s.currentCommunity);
   const isGuest = useStore((s) => s.isGuest);
   const currentUser = useStore((s) => s.currentUser);
+  const userPosts = useStore((s) => s.userPosts);
+  const selectedLocation = useStore((s) => s.selectedLocation);
 
   const displayCommunity = currentCommunity ?? MOCK_COMMUNITIES[0];
+
+  // Combine user posts with mock posts and filter based on local/global
+  const allPosts = useMemo(() => {
+    const combined = [...userPosts, ...MOCK_POSTS];
+
+    if (feedFilter === 'local') {
+      // Local: Show posts from user's selected city/community
+      const userCity = selectedLocation?.city || displayCommunity.city;
+      return combined.filter(post =>
+        post.location.toLowerCase().includes(userCity.toLowerCase())
+      );
+    } else {
+      // Global: Show all posts including from other locations
+      return [...combined, ...GLOBAL_MOCK_POSTS].sort((a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+    }
+  }, [userPosts, feedFilter, selectedLocation, displayCommunity.city]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -259,14 +343,28 @@ export default function HomeScreen() {
           </Animated.View>
 
           {/* Posts */}
-          {MOCK_POSTS.map((post, index) => (
-            <Animated.View
-              key={post.id}
-              entering={FadeInUp.duration(400).delay(350 + index * 100)}
-            >
-              <PostCard post={post} />
-            </Animated.View>
-          ))}
+          {allPosts.length > 0 ? (
+            allPosts.map((post, index) => (
+              <Animated.View
+                key={post.id}
+                entering={FadeInUp.duration(400).delay(350 + index * 100)}
+              >
+                <PostCard post={post} />
+              </Animated.View>
+            ))
+          ) : (
+            <View className="mx-4 py-12 items-center">
+              <View className="bg-gray-100 rounded-full p-4 mb-4">
+                <Users size={32} color="#9CA3AF" />
+              </View>
+              <Text className="text-warmBrown font-semibold text-lg text-center">
+                No posts yet in your area
+              </Text>
+              <Text className="text-gray-500 text-center mt-2">
+                Be the first to share something with your community!
+              </Text>
+            </View>
+          )}
         </ScrollView>
       </SafeAreaView>
     </View>

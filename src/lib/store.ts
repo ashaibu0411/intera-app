@@ -159,6 +159,9 @@ interface AppState {
   currentCommunity: Community | null;
   feedFilter: 'local' | 'global';
 
+  // Posts state
+  userPosts: Post[];
+
   // Actions
   setCurrentUser: (user: User | null) => void;
   setIsOnboarded: (value: boolean) => void;
@@ -167,6 +170,7 @@ interface AppState {
   setSelectedLocation: (location: LocationData | null) => void;
   setCurrentCommunity: (community: Community | null) => void;
   setFeedFilter: (filter: 'local' | 'global') => void;
+  addPost: (post: Post) => void;
   logout: () => void;
 }
 
@@ -180,6 +184,7 @@ export const useStore = create<AppState>()(
       selectedLocation: null,
       currentCommunity: null,
       feedFilter: 'local',
+      userPosts: [],
 
       setCurrentUser: (user) => set({ currentUser: user }),
       setIsOnboarded: (value) => set({ isOnboarded: value }),
@@ -188,6 +193,7 @@ export const useStore = create<AppState>()(
       setSelectedLocation: (location) => set({ selectedLocation: location }),
       setCurrentCommunity: (community) => set({ currentCommunity: community }),
       setFeedFilter: (filter) => set({ feedFilter: filter }),
+      addPost: (post) => set((state) => ({ userPosts: [post, ...state.userPosts] })),
       logout: () => set({ currentUser: null, isOnboarded: false, isGuest: false }),
     }),
     {

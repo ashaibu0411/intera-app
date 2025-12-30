@@ -185,6 +185,7 @@ function CreatePostForm({ user, community, onBack }: { user: any; community: any
   const [content, setContent] = useState('');
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
   const buttonScale = useSharedValue(1);
+  const addPost = useStore((s) => s.addPost);
 
   const handlePickImage = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -208,8 +209,31 @@ function CreatePostForm({ user, community, onBack }: { user: any; community: any
 
   const handlePost = () => {
     if (!content.trim()) return;
+
+    // Create new post
+    const newPost = {
+      id: `post_${Date.now()}`,
+      author: {
+        id: user.id,
+        name: user.name,
+        username: user.username,
+        avatar: user.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&h=200&fit=crop&crop=face',
+        bio: user.bio || '',
+        location: user.location || community.city,
+        interests: user.interests || [],
+        joinedDate: user.joinedDate || new Date().toISOString(),
+      },
+      content: content.trim(),
+      images: selectedImages,
+      likes: 0,
+      comments: 0,
+      createdAt: new Date().toISOString(),
+      isLiked: false,
+      location: community.city,
+    };
+
+    addPost(newPost);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    // TODO: Submit to Supabase
     router.navigate('/(tabs)');
   };
 
