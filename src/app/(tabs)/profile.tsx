@@ -1,12 +1,14 @@
 import React from 'react';
-import { View, Text, ScrollView, Pressable } from 'react-native';
+import { View, Text, ScrollView, Pressable, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Settings, MapPin, Calendar, Edit3, Users, FileText, Bookmark, LogOut } from 'lucide-react-native';
 import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
-import { MOCK_USERS, MOCK_POSTS } from '@/lib/store';
+import { router } from 'expo-router';
+import { useStore, MOCK_USERS, MOCK_POSTS } from '@/lib/store';
+import { signOut } from '@/lib/auth';
 
 const MENU_ITEMS = [
   { id: 'posts', label: 'My Posts', icon: FileText, count: 12 },
@@ -15,11 +17,62 @@ const MENU_ITEMS = [
 ];
 
 export default function ProfileScreen() {
-  const user = MOCK_USERS[0];
+  const currentUser = useStore((s) => s.currentUser);
+  const isGuest = useStore((s) => s.isGuest);
+  const logout = useStore((s) => s.logout);
+
+  // Use current user if logged in, otherwise show mock user for guests
+  const user = currentUser || MOCK_USERS[0];
   const userPosts = MOCK_POSTS.filter((p) => p.author.id === user.id);
 
   const handleMenuPress = (id: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
+  const handleEditProfile = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (isGuest || !currentUser) {
+      router.push('/signup');
+    } else {
+      router.push('/profile-setup');
+    }
+  };
+
+  const handleLogout = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    Alert.alert(
+      'Sign Out',
+      'Are you sure you want to sign out?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Sign Out',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await signOut();
+              logout();
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              router.replace('/welcome');
+            } catch (error) {
+              console.error('Logout error:', error);
+              // Still logout locally even if Supabase fails
+              logout();
+              router.replace('/welcome');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleSignUp = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    router.push('/signup');
   };
 
   return (
@@ -37,6 +90,30 @@ export default function ProfileScreen() {
         </Animated.View>
 
         <ScrollView showsVerticalScrollIndicator={false}>
+          {/* Guest Banner */}
+          {(isGuest || !currentUser) && (
+            <Animated.View
+              entering={FadeInUp.duration(400).delay(50)}
+              className="mx-5 mt-2 mb-4"
+            >
+              <Pressable onPress={handleSignUp}>
+                <LinearGradient
+                  colors={['#D4673A', '#B85430']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={{ borderRadius: 16, padding: 16 }}
+                >
+                  <Text className="text-white font-bold text-lg">
+                    Create Your Profile
+                  </Text>
+                  <Text className="text-white/80 text-sm mt-1">
+                    Sign up to save your profile, post, and connect with others
+                  </Text>
+                </LinearGradient>
+              </Pressable>
+            </Animated.View>
+          )}
+
           {/* Profile Card */}
           <Animated.View
             entering={FadeInUp.duration(400).delay(100)}
@@ -55,7 +132,10 @@ export default function ProfileScreen() {
                     style={{ width: 80, height: 80, borderRadius: 40, borderWidth: 3, borderColor: '#FFFFFF' }}
                     contentFit="cover"
                   />
-                  <Pressable className="absolute -bottom-1 -right-1 bg-terracotta-500 rounded-full p-2">
+                  <Pressable
+                    onPress={handleEditProfile}
+                    className="absolute -bottom-1 -right-1 bg-terracotta-500 rounded-full p-2"
+                  >
                     <Edit3 size={14} color="#FFFFFF" />
                   </Pressable>
                 </View>
@@ -70,7 +150,15 @@ export default function ProfileScreen() {
                 </View>
               </View>
 
-              <Text className="text-white/90 mt-4 leading-5">{user.bio}</Text>
+              {user.bio ? (
+                <Text className="text-white/90 mt-4 leading-5">{user.bio}</Text>
+              ) : (
+                <Pressable onPress={handleEditProfile}>
+                  <Text className="text-white/50 mt-4 leading-5 italic">
+                    Tap to add a bio...
+                  </Text>
+                </Pressable>
+              )}
 
               <View className="flex-row items-center mt-4">
                 <Calendar size={14} color="#FFFFFF70" />
@@ -80,16 +168,18 @@ export default function ProfileScreen() {
               </View>
 
               {/* Interests */}
-              <View className="flex-row flex-wrap mt-4">
-                {user.interests.map((interest) => (
-                  <View
-                    key={interest}
-                    className="bg-white/20 rounded-full px-3 py-1.5 mr-2 mb-2"
-                  >
-                    <Text className="text-white text-sm">{interest}</Text>
-                  </View>
-                ))}
-              </View>
+              {user.interests && user.interests.length > 0 && (
+                <View className="flex-row flex-wrap mt-4">
+                  {user.interests.map((interest) => (
+                    <View
+                      key={interest}
+                      className="bg-white/20 rounded-full px-3 py-1.5 mr-2 mb-2"
+                    >
+                      <Text className="text-white text-sm">{interest}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
             </LinearGradient>
           </Animated.View>
 
@@ -139,15 +229,27 @@ export default function ProfileScreen() {
             ))}
           </Animated.View>
 
-          {/* Logout */}
+          {/* Logout / Sign Up */}
           <Animated.View
             entering={FadeInUp.duration(400).delay(500)}
             className="mx-5 mt-4 mb-8"
           >
-            <Pressable className="flex-row items-center justify-center bg-red-50 rounded-2xl p-4">
-              <LogOut size={20} color="#EF4444" />
-              <Text className="text-red-500 font-medium ml-2">Sign Out</Text>
-            </Pressable>
+            {isGuest || !currentUser ? (
+              <Pressable
+                onPress={handleSignUp}
+                className="flex-row items-center justify-center bg-terracotta-50 rounded-2xl p-4"
+              >
+                <Text className="text-terracotta-500 font-medium">Sign Up to Save Profile</Text>
+              </Pressable>
+            ) : (
+              <Pressable
+                onPress={handleLogout}
+                className="flex-row items-center justify-center bg-red-50 rounded-2xl p-4"
+              >
+                <LogOut size={20} color="#EF4444" />
+                <Text className="text-red-500 font-medium ml-2">Sign Out</Text>
+              </Pressable>
+            )}
           </Animated.View>
         </ScrollView>
       </SafeAreaView>

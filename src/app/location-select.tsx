@@ -10,6 +10,7 @@ import {
   Check,
   Globe,
   ArrowRight,
+  X,
 } from 'lucide-react-native';
 import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -34,6 +35,10 @@ export default function LocationSelectScreen() {
   const setSelectedLocation = useStore((s) => s.setSelectedLocation);
   const setCurrentCommunity = useStore((s) => s.setCurrentCommunity);
   const setIsGuest = useStore((s) => s.setIsGuest);
+  const selectedLocation = useStore((s) => s.selectedLocation);
+
+  // Check if user already has a location (coming from home to change location)
+  const isChangingLocation = !!selectedLocation;
 
   const selectedCountryData = useMemo(
     () => COUNTRIES.find((c) => c.code === selectedCountry),
@@ -293,14 +298,24 @@ export default function LocationSelectScreen() {
         {/* Header */}
         <Animated.View entering={FadeIn.duration(300)} className="px-5 pt-4 pb-2">
           <View className="flex-row items-center mb-4">
-            {step !== 'country' && (
+            {step !== 'country' ? (
               <Pressable
                 onPress={handleBack}
                 className="bg-white rounded-full p-2 mr-3 shadow-sm"
               >
                 <ChevronLeft size={24} color="#2D1F1A" />
               </Pressable>
-            )}
+            ) : isChangingLocation ? (
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  router.back();
+                }}
+                className="bg-white rounded-full p-2 mr-3 shadow-sm"
+              >
+                <X size={24} color="#2D1F1A" />
+              </Pressable>
+            ) : null}
             <View className="flex-1">
               <Text className="text-2xl font-bold text-warmBrown">{getStepTitle()}</Text>
               <Text className="text-gray-500 text-sm mt-0.5">{getStepSubtitle()}</Text>
