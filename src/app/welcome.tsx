@@ -1,10 +1,9 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, Pressable, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Image } from 'expo-image';
 import {
-  Globe,
   Users,
   ShoppingBag,
   Heart,
@@ -14,49 +13,78 @@ import {
   Briefcase,
   ArrowRight,
   Check,
+  Sparkles,
 } from 'lucide-react-native';
-import Animated, { FadeIn, FadeInUp, FadeInRight } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInUp, FadeInRight, FadeOut } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { useStore } from '@/lib/store';
 
 const { width } = Dimensions.get('window');
 
+// African culture images that will rotate
+const CULTURE_IMAGES = [
+  {
+    uri: 'https://images.unsplash.com/photo-1523805009345-7448845a9e53?w=800&h=500&fit=crop',
+    caption: 'Traditional African Art',
+  },
+  {
+    uri: 'https://images.unsplash.com/photo-1516026672322-bc52d61a55d5?w=800&h=500&fit=crop',
+    caption: 'African Dance & Culture',
+  },
+  {
+    uri: 'https://images.unsplash.com/photo-1489749798305-4fea3ae63d43?w=800&h=500&fit=crop',
+    caption: 'African Fashion',
+  },
+  {
+    uri: 'https://images.unsplash.com/photo-1547471080-7cc2caa01a7e?w=800&h=500&fit=crop',
+    caption: 'African Wildlife & Nature',
+  },
+  {
+    uri: 'https://images.unsplash.com/photo-1504197832061-98356e3dcdcf?w=800&h=500&fit=crop',
+    caption: 'African Markets',
+  },
+  {
+    uri: 'https://images.unsplash.com/photo-1590845947698-8924d7409b56?w=800&h=500&fit=crop',
+    caption: 'African Community',
+  },
+];
+
 const FEATURES = [
   {
-    icon: Users,
-    title: 'Community Feed',
-    description: 'Connect with Africans in your local area and globally',
-    color: '#D4673A',
-  },
-  {
-    icon: ShoppingBag,
-    title: 'Marketplace',
-    description: 'Buy and sell African products, crafts, and services',
-    color: '#1B4D3E',
-  },
-  {
-    icon: Heart,
-    title: 'Faith & Community',
-    description: 'Find churches, mosques, and faith events near you',
-    color: '#C9A227',
-  },
-  {
     icon: GraduationCap,
-    title: 'Student Hub',
-    description: 'Scholarships, study groups, and mentorship',
+    title: 'Student Groups',
+    description: 'Join study groups, find scholarships, and connect with mentors',
     color: '#3A8F76',
   },
   {
     icon: Briefcase,
-    title: 'Business Directory',
-    description: 'Discover and support African-owned businesses',
+    title: 'Businesses',
+    description: 'Discover and support African-owned businesses near you',
     color: '#B85430',
+  },
+  {
+    icon: Sparkles,
+    title: 'Interest Groups',
+    description: 'Find people who share your hobbies and passions',
+    color: '#C9A227',
+  },
+  {
+    icon: Heart,
+    title: 'Faith Centers',
+    description: 'Connect with churches, mosques, and spiritual communities',
+    color: '#D4673A',
   },
   {
     icon: MessageCircle,
     title: 'Direct Messaging',
-    description: 'Connect privately with community members',
+    description: 'Chat privately with community members',
+    color: '#1B4D3E',
+  },
+  {
+    icon: Users,
+    title: 'Community Feed',
+    description: 'Stay updated with local African communities worldwide',
     color: '#6B7280',
   },
 ];
@@ -71,12 +99,23 @@ const HIGHLIGHTS = [
 
 export default function WelcomeScreen() {
   const setHasSeenWelcome = useStore((s) => s.setHasSeenWelcome);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+
+  // Rotate through culture images every 4 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentImageIndex((prev) => (prev + 1) % CULTURE_IMAGES.length);
+    }, 4000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleGetStarted = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setHasSeenWelcome(true);
     router.push('/location-select');
   };
+
+  const currentImage = CULTURE_IMAGES[currentImageIndex];
 
   return (
     <View className="flex-1 bg-cream">
@@ -93,10 +132,26 @@ export default function WelcomeScreen() {
               entering={FadeIn.duration(600)}
               className="px-6 pt-8 pb-6"
             >
-              {/* Logo */}
+              {/* AfroConnect Logo */}
               <View className="items-center mb-6">
-                <View className="bg-white/20 rounded-full p-4 mb-4">
-                  <Globe size={48} color="#FFFFFF" />
+                <View className="bg-white/20 rounded-full p-3 mb-4">
+                  <View className="bg-white rounded-full p-3">
+                    {/* Africa continent shape represented with layered circles */}
+                    <View className="w-12 h-12 items-center justify-center">
+                      <View className="absolute">
+                        <View className="w-10 h-12 rounded-t-full rounded-b-[40%] bg-forest-600" />
+                      </View>
+                      <View className="absolute top-1 left-1">
+                        <View className="w-3 h-3 rounded-full bg-terracotta-500" />
+                      </View>
+                      <View className="absolute top-4 right-1">
+                        <View className="w-2 h-2 rounded-full bg-gold-500" />
+                      </View>
+                      <View className="absolute bottom-2">
+                        <View className="w-2.5 h-2.5 rounded-full bg-terracotta-400" />
+                      </View>
+                    </View>
+                  </View>
                 </View>
                 <Text className="text-4xl font-bold text-white text-center">
                   AfroConnect
@@ -106,17 +161,50 @@ export default function WelcomeScreen() {
                 </Text>
               </View>
 
-              {/* Hero Image */}
-              <Animated.View
-                entering={FadeInUp.duration(600).delay(200)}
-                className="items-center"
-              >
-                <Image
-                  source={{ uri: 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=800&h=500&fit=crop' }}
-                  style={{ width: width - 48, height: 180, borderRadius: 16 }}
-                  contentFit="cover"
-                />
-              </Animated.View>
+              {/* Rotating Culture Image */}
+              <View className="items-center">
+                <View style={{ width: width - 48, height: 180, borderRadius: 16, overflow: 'hidden' }}>
+                  <Animated.View
+                    key={currentImageIndex}
+                    entering={FadeIn.duration(800)}
+                    exiting={FadeOut.duration(400)}
+                    style={{ position: 'absolute', width: '100%', height: '100%' }}
+                  >
+                    <Image
+                      source={{ uri: currentImage.uri }}
+                      style={{ width: '100%', height: '100%' }}
+                      contentFit="cover"
+                    />
+                    {/* Caption overlay */}
+                    <LinearGradient
+                      colors={['transparent', 'rgba(0,0,0,0.6)']}
+                      style={{
+                        position: 'absolute',
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
+                        paddingVertical: 8,
+                        paddingHorizontal: 12,
+                      }}
+                    >
+                      <Text className="text-white text-sm font-medium">
+                        {currentImage.caption}
+                      </Text>
+                    </LinearGradient>
+                  </Animated.View>
+                </View>
+                {/* Image indicator dots */}
+                <View className="flex-row mt-3">
+                  {CULTURE_IMAGES.map((_, index) => (
+                    <View
+                      key={index}
+                      className={`w-2 h-2 rounded-full mx-1 ${
+                        index === currentImageIndex ? 'bg-white' : 'bg-white/40'
+                      }`}
+                    />
+                  ))}
+                </View>
+              </View>
 
               {/* Tagline */}
               <Animated.View
