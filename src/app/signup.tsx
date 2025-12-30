@@ -12,22 +12,26 @@ import {
   User,
   Lock,
   Loader2,
+  KeyRound,
 } from 'lucide-react-native';
 import { Image } from 'expo-image';
 import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { useStore } from '@/lib/store';
-import { signUpWithEmail, signInWithEmail, getProfile } from '@/lib/auth';
+import { signUpWithEmail, signInWithEmail, signUpWithPhone, verifyOtp, getProfile } from '@/lib/auth';
 
 type AuthMethod = 'email' | 'phone' | 'google';
 type AuthMode = 'signup' | 'signin';
+type PhoneStep = 'phone' | 'otp';
 
 export default function SignUpScreen() {
   const [authMethod, setAuthMethod] = useState<AuthMethod | null>(null);
   const [authMode, setAuthMode] = useState<AuthMode>('signup');
+  const [phoneStep, setPhoneStep] = useState<PhoneStep>('phone');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [otp, setOtp] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -41,7 +45,6 @@ export default function SignUpScreen() {
 
   const handleGoogleSignIn = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    // Google sign-in requires additional setup - show info
     Alert.alert(
       'Google Sign-In',
       'Google sign-in requires additional configuration. Please use email or phone for now.',
@@ -62,7 +65,6 @@ export default function SignUpScreen() {
         if (data.user) {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-          // Wait a moment for the profile trigger to create the profile
           await new Promise(resolve => setTimeout(resolve, 500));
 
           const profile = await getProfile(data.user.id);
@@ -114,22 +116,73 @@ export default function SignUpScreen() {
     }
   };
 
-  const handlePhoneSignUp = () => {
+  const handlePhoneSendOtp = async () => {
     if (!phone || !name) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    // Phone auth requires Twilio setup in Supabase
-    Alert.alert(
-      'Phone Sign-In',
-      'Phone authentication requires additional configuration. Please use email for now.',
-      [{ text: 'OK' }]
-    );
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      await signUpWithPhone(phone, name);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setPhoneStep('otp');
+    } catch (err: any) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      setError(err.message || 'Failed to send verification code');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handlePhoneVerifyOtp = async () => {
+    if (!otp) return;
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const data = await verifyOtp(phone, otp);
+
+      if (data.user) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        const profile = await getProfile(data.user.id);
+
+        setCurrentUser({
+          id: data.user.id,
+          name: profile?.name || name,
+          username: profile?.username || `user_${phone.slice(-4)}`,
+          avatar: profile?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&h=200&fit=crop',
+          bio: profile?.bio || '',
+          location: selectedLocation ? `${selectedLocation.city}, ${selectedLocation.country}` : 'Not set',
+          interests: profile?.interests || [],
+          joinedDate: new Date().toISOString(),
+          phone: phone,
+        });
+        setIsGuest(false);
+        setIsOnboarded(true);
+        router.replace('/(tabs)');
+      }
+    } catch (err: any) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      setError(err.message || 'Invalid verification code');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleBack = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (authMethod) {
+    if (phoneStep === 'otp') {
+      setPhoneStep('phone');
+      setOtp('');
+      setError(null);
+    } else if (authMethod) {
       setAuthMethod(null);
       setError(null);
+      setPhoneStep('phone');
     } else {
       router.back();
     }
@@ -339,11 +392,7 @@ export default function SignUpScreen() {
           }}
         >
           {isLoading ? (
-            <Animated.View
-              style={{ transform: [{ rotate: '0deg' }] }}
-            >
-              <Loader2 size={24} color="#FFFFFF" />
-            </Animated.View>
+            <Loader2 size={24} color="#FFFFFF" />
           ) : (
             <Text className="text-white font-bold text-lg">
               {authMode === 'signup' ? 'Create Account' : 'Sign In'}
@@ -373,60 +422,139 @@ export default function SignUpScreen() {
   const renderPhoneForm = () => (
     <Animated.View entering={FadeIn.duration(400)} className="flex-1">
       <View className="mb-6">
-        <Text className="text-2xl font-bold text-warmBrown">Sign up with Phone</Text>
-        <Text className="text-gray-500 mt-1">We&apos;ll send you a verification code</Text>
-      </View>
-
-      {/* Name Input */}
-      <View className="mb-4">
-        <Text className="text-warmBrown font-medium mb-2">Full Name</Text>
-        <View className="flex-row items-center bg-white rounded-2xl px-4 py-3 border border-gray-200">
-          <User size={20} color="#8B7355" />
-          <TextInput
-            placeholder="Enter your name"
-            placeholderTextColor="#9CA3AF"
-            value={name}
-            onChangeText={setName}
-            className="flex-1 ml-3 text-warmBrown text-base"
-            autoCapitalize="words"
-          />
-        </View>
-      </View>
-
-      {/* Phone Input */}
-      <View className="mb-6">
-        <Text className="text-warmBrown font-medium mb-2">Phone Number</Text>
-        <View className="flex-row items-center bg-white rounded-2xl px-4 py-3 border border-gray-200">
-          <Phone size={20} color="#8B7355" />
-          <TextInput
-            placeholder="+1 (555) 000-0000"
-            placeholderTextColor="#9CA3AF"
-            value={phone}
-            onChangeText={setPhone}
-            className="flex-1 ml-3 text-warmBrown text-base"
-            keyboardType="phone-pad"
-          />
-        </View>
-        <Text className="text-gray-400 text-xs mt-2">
-          Include country code for international numbers
+        <Text className="text-2xl font-bold text-warmBrown">
+          {phoneStep === 'phone' ? 'Sign up with Phone' : 'Enter Verification Code'}
+        </Text>
+        <Text className="text-gray-500 mt-1">
+          {phoneStep === 'phone'
+            ? "We'll send you a verification code"
+            : `Code sent to ${phone}`}
         </Text>
       </View>
 
-      {/* Sign Up Button */}
-      <Pressable onPress={handlePhoneSignUp} disabled={!phone || !name}>
-        <LinearGradient
-          colors={phone && name ? ['#D4673A', '#B85430'] : ['#D1D5DB', '#9CA3AF']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={{
-            borderRadius: 16,
-            paddingVertical: 18,
-            alignItems: 'center',
-          }}
-        >
-          <Text className="text-white font-bold text-lg">Send Verification Code</Text>
-        </LinearGradient>
-      </Pressable>
+      {/* Error Message */}
+      {error && (
+        <View className="bg-red-50 border border-red-200 rounded-xl p-3 mb-4">
+          <Text className="text-red-600 text-sm">{error}</Text>
+        </View>
+      )}
+
+      {phoneStep === 'phone' ? (
+        <>
+          {/* Name Input */}
+          <View className="mb-4">
+            <Text className="text-warmBrown font-medium mb-2">Full Name</Text>
+            <View className="flex-row items-center bg-white rounded-2xl px-4 py-3 border border-gray-200">
+              <User size={20} color="#8B7355" />
+              <TextInput
+                placeholder="Enter your name"
+                placeholderTextColor="#9CA3AF"
+                value={name}
+                onChangeText={setName}
+                className="flex-1 ml-3 text-warmBrown text-base"
+                autoCapitalize="words"
+                editable={!isLoading}
+              />
+            </View>
+          </View>
+
+          {/* Phone Input */}
+          <View className="mb-6">
+            <Text className="text-warmBrown font-medium mb-2">Phone Number</Text>
+            <View className="flex-row items-center bg-white rounded-2xl px-4 py-3 border border-gray-200">
+              <Phone size={20} color="#8B7355" />
+              <TextInput
+                placeholder="+1 (555) 000-0000"
+                placeholderTextColor="#9CA3AF"
+                value={phone}
+                onChangeText={setPhone}
+                className="flex-1 ml-3 text-warmBrown text-base"
+                keyboardType="phone-pad"
+                editable={!isLoading}
+              />
+            </View>
+            <Text className="text-gray-400 text-xs mt-2">
+              Include country code (e.g., +1 for US, +234 for Nigeria)
+            </Text>
+          </View>
+
+          {/* Send Code Button */}
+          <Pressable onPress={handlePhoneSendOtp} disabled={!phone || !name || isLoading}>
+            <LinearGradient
+              colors={phone && name && !isLoading ? ['#D4673A', '#B85430'] : ['#D1D5DB', '#9CA3AF']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={{
+                borderRadius: 16,
+                paddingVertical: 18,
+                alignItems: 'center',
+                flexDirection: 'row',
+                justifyContent: 'center',
+              }}
+            >
+              {isLoading ? (
+                <Loader2 size={24} color="#FFFFFF" />
+              ) : (
+                <Text className="text-white font-bold text-lg">Send Verification Code</Text>
+              )}
+            </LinearGradient>
+          </Pressable>
+        </>
+      ) : (
+        <>
+          {/* OTP Input */}
+          <View className="mb-6">
+            <Text className="text-warmBrown font-medium mb-2">Verification Code</Text>
+            <View className="flex-row items-center bg-white rounded-2xl px-4 py-3 border border-gray-200">
+              <KeyRound size={20} color="#8B7355" />
+              <TextInput
+                placeholder="Enter 6-digit code"
+                placeholderTextColor="#9CA3AF"
+                value={otp}
+                onChangeText={setOtp}
+                className="flex-1 ml-3 text-warmBrown text-base tracking-widest"
+                keyboardType="number-pad"
+                maxLength={6}
+                editable={!isLoading}
+              />
+            </View>
+          </View>
+
+          {/* Verify Button */}
+          <Pressable onPress={handlePhoneVerifyOtp} disabled={!otp || otp.length < 6 || isLoading}>
+            <LinearGradient
+              colors={otp && otp.length >= 6 && !isLoading ? ['#D4673A', '#B85430'] : ['#D1D5DB', '#9CA3AF']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={{
+                borderRadius: 16,
+                paddingVertical: 18,
+                alignItems: 'center',
+                flexDirection: 'row',
+                justifyContent: 'center',
+              }}
+            >
+              {isLoading ? (
+                <Loader2 size={24} color="#FFFFFF" />
+              ) : (
+                <Text className="text-white font-bold text-lg">Verify & Continue</Text>
+              )}
+            </LinearGradient>
+          </Pressable>
+
+          {/* Resend Code */}
+          <Pressable
+            onPress={handlePhoneSendOtp}
+            disabled={isLoading}
+            className="mt-6 items-center"
+          >
+            <Text className="text-gray-500">
+              Didn't receive code?{' '}
+              <Text className="text-terracotta-500 font-medium">Resend</Text>
+            </Text>
+          </Pressable>
+        </>
+      )}
     </Animated.View>
   );
 
