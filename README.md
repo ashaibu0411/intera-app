@@ -48,11 +48,22 @@ A community-driven social platform connecting Africans and the African diaspora 
 - Mentorship connections with industry professionals
 - Campus events with RSVP functionality
 - Search across all student resources
+- **Create Study Groups**: Start your own study group with schedule, meeting type (online/in-person), and member limits
+- **Become a Mentor**: Apply to be a mentor with a 3-step form (professional background, expertise areas, bio & contact)
+- **Post Internships**: Companies can post internship opportunities with job details, compensation, and application info
+- **New Arrival Help**: Resource guide for international students arriving in a new city (housing, jobs, healthcare, banking, legal, community)
 
 ### Create Posts
-- Share text and images with your community
-- Location tagging
-- Image picker integration
+- Three creation options: Post, Sell Item, or Create Event
+- Posts show your actual profile name and avatar
+- Sell items with categories, pricing, condition, and images
+- Create events with date/time, location, public/private settings, and RSVP
+
+### Authentication
+- Sign Up / Log In toggle for new and existing users
+- Phone OTP authentication
+- Google sign-in option
+- Email authentication option
 
 ### Notifications
 - Activity notifications (likes, comments)
@@ -85,6 +96,16 @@ A community-driven social platform connecting Africans and the African diaspora 
 - **Warm Brown** (#2D1F1A): Text
 
 ## New Features (Latest Update)
+
+### Student Hub User-Generated Content
+- **Create Study Groups** (`/create-study-group`): Users can create their own study groups with name, subject, description, meeting schedule, online/in-person toggle, and privacy settings
+- **Become a Mentor** (`/become-mentor`): 3-step application form for professionals to become mentors - includes professional background, expertise areas (up to 3), availability, and contact info
+- **Post Internships** (`/post-internship`): Companies can post internship opportunities with company info, position details, compensation, and application instructions
+- **New Arrival Help** (`/new-arrival-help`): Comprehensive resource guide for international students with categories for housing, jobs, healthcare, transportation, banking, legal, and community resources
+
+### Home Screen Quick Access
+- 2x2 grid layout for quick access to: Marketplace, Businesses, Student Hub, Faith Centers
+- Local/Global feed filtering - Local shows posts from your city, Global shows all posts worldwide
 
 ### Working Features
 - **Location Button**: Tap the location button in the header to change your city/community

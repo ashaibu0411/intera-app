@@ -17,6 +17,10 @@ import {
   ChevronLeft,
   MapPin,
   Clock,
+  Plus,
+  UserPlus,
+  Plane,
+  Building2,
 } from 'lucide-react-native';
 import Animated, { FadeIn, FadeInUp, FadeInRight } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -154,6 +158,45 @@ const QUICK_ACTIONS = [
   { id: 'mentors', label: 'Mentors', icon: Users, color: '#3A8F76' },
 ];
 
+const ACTION_CARDS = [
+  {
+    id: 'create-group',
+    title: 'Create Study Group',
+    description: 'Start your own study group and find study partners',
+    icon: Plus,
+    color: '#1B4D3E',
+    bgColor: 'bg-forest-50',
+    route: '/create-study-group',
+  },
+  {
+    id: 'become-mentor',
+    title: 'Become a Mentor',
+    description: 'Share your expertise and help African students grow',
+    icon: UserPlus,
+    color: '#C9A227',
+    bgColor: 'bg-gold-50',
+    route: '/become-mentor',
+  },
+  {
+    id: 'post-internship',
+    title: 'Post Internship',
+    description: 'Companies: Post opportunities for African students',
+    icon: Building2,
+    color: '#D4673A',
+    bgColor: 'bg-terracotta-50',
+    route: '/post-internship',
+  },
+  {
+    id: 'new-arrival',
+    title: 'New to the City?',
+    description: 'Essential resources for international students',
+    icon: Plane,
+    color: '#3498DB',
+    bgColor: 'bg-blue-50',
+    route: '/new-arrival-help',
+  },
+];
+
 export default function StudentHubScreen() {
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -163,6 +206,11 @@ export default function StudentHubScreen() {
 
   const handleItemPress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
+  const handleActionCard = (route: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    router.push(route as any);
   };
 
   return (
@@ -224,6 +272,31 @@ export default function StudentHubScreen() {
                       <action.icon size={28} color={action.color} />
                     </View>
                     <Text className="text-xs text-warmBrown font-medium">{action.label}</Text>
+                  </Pressable>
+                </Animated.View>
+              ))}
+            </View>
+          </Animated.View>
+
+          {/* Action Cards - User Generated Content */}
+          <Animated.View entering={FadeInUp.duration(400).delay(150)} className="px-5 mt-6">
+            <Text className="text-lg font-semibold text-warmBrown mb-3">Get Involved</Text>
+            <View className="flex-row flex-wrap justify-between">
+              {ACTION_CARDS.map((card, index) => (
+                <Animated.View
+                  key={card.id}
+                  entering={FadeInUp.duration(300).delay(180 + index * 50)}
+                  className="w-[48%] mb-3"
+                >
+                  <Pressable
+                    onPress={() => handleActionCard(card.route)}
+                    className="bg-white rounded-2xl p-4 shadow-sm"
+                  >
+                    <View className={`${card.bgColor} rounded-full p-2.5 self-start mb-2`}>
+                      <card.icon size={22} color={card.color} />
+                    </View>
+                    <Text className="text-warmBrown font-bold text-sm">{card.title}</Text>
+                    <Text className="text-gray-500 text-xs mt-1" numberOfLines={2}>{card.description}</Text>
                   </Pressable>
                 </Animated.View>
               ))}

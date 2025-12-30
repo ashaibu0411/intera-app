@@ -44,6 +44,10 @@ function RootLayoutNav() {
         <Stack.Screen name="post/[id]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="messages" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="chat/[id]" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="create-study-group" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="become-mentor" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="post-internship" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="new-arrival-help" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
       </Stack>
     </ThemeProvider>
