@@ -1,0 +1,156 @@
+import React from 'react';
+import { View, Text, ScrollView, Pressable } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Settings, MapPin, Calendar, Edit3, Users, FileText, Bookmark, LogOut } from 'lucide-react-native';
+import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
+import * as Haptics from 'expo-haptics';
+import { MOCK_USERS, MOCK_POSTS } from '@/lib/store';
+
+const MENU_ITEMS = [
+  { id: 'posts', label: 'My Posts', icon: FileText, count: 12 },
+  { id: 'saved', label: 'Saved', icon: Bookmark, count: 8 },
+  { id: 'connections', label: 'Connections', icon: Users, count: 156 },
+];
+
+export default function ProfileScreen() {
+  const user = MOCK_USERS[0];
+  const userPosts = MOCK_POSTS.filter((p) => p.author.id === user.id);
+
+  const handleMenuPress = (id: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
+  return (
+    <View className="flex-1 bg-cream">
+      <SafeAreaView edges={['top']} className="flex-1">
+        {/* Header */}
+        <Animated.View
+          entering={FadeIn.duration(300)}
+          className="flex-row items-center justify-between px-5 pt-4 pb-2"
+        >
+          <Text className="text-2xl font-bold text-warmBrown">Profile</Text>
+          <Pressable className="p-2" hitSlop={8}>
+            <Settings size={24} color="#2D1F1A" />
+          </Pressable>
+        </Animated.View>
+
+        <ScrollView showsVerticalScrollIndicator={false}>
+          {/* Profile Card */}
+          <Animated.View
+            entering={FadeInUp.duration(400).delay(100)}
+            className="mx-5 mt-2"
+          >
+            <LinearGradient
+              colors={['#1B4D3E', '#153D31']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={{ borderRadius: 24, padding: 24 }}
+            >
+              <View className="flex-row items-center">
+                <View className="relative">
+                  <Image
+                    source={{ uri: user.avatar }}
+                    style={{ width: 80, height: 80, borderRadius: 40, borderWidth: 3, borderColor: '#FFFFFF' }}
+                    contentFit="cover"
+                  />
+                  <Pressable className="absolute -bottom-1 -right-1 bg-terracotta-500 rounded-full p-2">
+                    <Edit3 size={14} color="#FFFFFF" />
+                  </Pressable>
+                </View>
+
+                <View className="flex-1 ml-4">
+                  <Text className="text-white text-xl font-bold">{user.name}</Text>
+                  <Text className="text-white/70 text-sm">@{user.username}</Text>
+                  <View className="flex-row items-center mt-2">
+                    <MapPin size={14} color="#C9A227" />
+                    <Text className="text-gold-400 text-sm ml-1">{user.location}</Text>
+                  </View>
+                </View>
+              </View>
+
+              <Text className="text-white/90 mt-4 leading-5">{user.bio}</Text>
+
+              <View className="flex-row items-center mt-4">
+                <Calendar size={14} color="#FFFFFF70" />
+                <Text className="text-white/60 text-sm ml-2">
+                  Joined {new Date(user.joinedDate).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                </Text>
+              </View>
+
+              {/* Interests */}
+              <View className="flex-row flex-wrap mt-4">
+                {user.interests.map((interest) => (
+                  <View
+                    key={interest}
+                    className="bg-white/20 rounded-full px-3 py-1.5 mr-2 mb-2"
+                  >
+                    <Text className="text-white text-sm">{interest}</Text>
+                  </View>
+                ))}
+              </View>
+            </LinearGradient>
+          </Animated.View>
+
+          {/* Stats */}
+          <Animated.View
+            entering={FadeInUp.duration(400).delay(200)}
+            className="flex-row mx-5 mt-4"
+          >
+            <View className="flex-1 bg-white rounded-2xl p-4 mr-2 items-center shadow-sm">
+              <Text className="text-2xl font-bold text-terracotta-500">{userPosts.length}</Text>
+              <Text className="text-gray-500 text-sm mt-1">Posts</Text>
+            </View>
+            <View className="flex-1 bg-white rounded-2xl p-4 mx-1 items-center shadow-sm">
+              <Text className="text-2xl font-bold text-forest-700">156</Text>
+              <Text className="text-gray-500 text-sm mt-1">Connections</Text>
+            </View>
+            <View className="flex-1 bg-white rounded-2xl p-4 ml-2 items-center shadow-sm">
+              <Text className="text-2xl font-bold text-gold-500">8</Text>
+              <Text className="text-gray-500 text-sm mt-1">Communities</Text>
+            </View>
+          </Animated.View>
+
+          {/* Menu Items */}
+          <Animated.View
+            entering={FadeInUp.duration(400).delay(300)}
+            className="mx-5 mt-6"
+          >
+            <Text className="text-lg font-semibold text-warmBrown mb-3">Activity</Text>
+            {MENU_ITEMS.map((item, index) => (
+              <Animated.View
+                key={item.id}
+                entering={FadeInUp.duration(300).delay(350 + index * 50)}
+              >
+                <Pressable
+                  onPress={() => handleMenuPress(item.id)}
+                  className="flex-row items-center bg-white rounded-2xl p-4 mb-3 shadow-sm"
+                >
+                  <View className="bg-terracotta-50 rounded-full p-3">
+                    <item.icon size={20} color="#D4673A" />
+                  </View>
+                  <Text className="flex-1 text-warmBrown font-medium ml-3">{item.label}</Text>
+                  <View className="bg-gray-100 rounded-full px-3 py-1">
+                    <Text className="text-gray-600 font-medium">{item.count}</Text>
+                  </View>
+                </Pressable>
+              </Animated.View>
+            ))}
+          </Animated.View>
+
+          {/* Logout */}
+          <Animated.View
+            entering={FadeInUp.duration(400).delay(500)}
+            className="mx-5 mt-4 mb-8"
+          >
+            <Pressable className="flex-row items-center justify-center bg-red-50 rounded-2xl p-4">
+              <LogOut size={20} color="#EF4444" />
+              <Text className="text-red-500 font-medium ml-2">Sign Out</Text>
+            </Pressable>
+          </Animated.View>
+        </ScrollView>
+      </SafeAreaView>
+    </View>
+  );
+}
