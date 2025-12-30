@@ -113,6 +113,38 @@ export interface Conversation {
   updatedAt: string;
 }
 
+export interface Event {
+  id: string;
+  creator: User;
+  title: string;
+  description: string;
+  date: string;
+  time: string;
+  endTime?: string;
+  location: string;
+  address: string;
+  image?: string;
+  isPublic: boolean;
+  invitedUsers?: string[];
+  attendees: User[];
+  rsvpCount: number;
+  category: string;
+  createdAt: string;
+}
+
+export const EVENT_CATEGORIES = [
+  'Social Gathering',
+  'Networking',
+  'Cultural Celebration',
+  'Sports & Fitness',
+  'Food & Dining',
+  'Music & Entertainment',
+  'Education & Workshop',
+  'Business',
+  'Community Service',
+  'Other',
+];
+
 interface AppState {
   // User state
   currentUser: User | null;
