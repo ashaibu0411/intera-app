@@ -2,7 +2,17 @@ import React, { useState } from 'react';
 import { View, Text, ScrollView, Pressable, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { MapPin, ChevronDown, Globe, Users, GraduationCap, ChevronRight } from 'lucide-react-native';
+import {
+  MapPin,
+  ChevronDown,
+  Globe,
+  Users,
+  GraduationCap,
+  ChevronRight,
+  ShoppingBag,
+  Heart,
+  UserPlus,
+} from 'lucide-react-native';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
@@ -14,13 +24,14 @@ export default function HomeScreen() {
   const feedFilter = useStore((s) => s.feedFilter);
   const setFeedFilter = useStore((s) => s.setFeedFilter);
   const currentCommunity = useStore((s) => s.currentCommunity);
+  const isGuest = useStore((s) => s.isGuest);
+  const currentUser = useStore((s) => s.currentUser);
 
   const displayCommunity = currentCommunity ?? MOCK_COMMUNITIES[0];
 
   const onRefresh = async () => {
     setRefreshing(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    // Simulate refresh
     await new Promise((resolve) => setTimeout(resolve, 1000));
     setRefreshing(false);
   };
@@ -28,6 +39,11 @@ export default function HomeScreen() {
   const toggleFilter = (filter: 'local' | 'global') => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setFeedFilter(filter);
+  };
+
+  const navigateTo = (route: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    router.push(route as any);
   };
 
   return (
@@ -47,7 +63,9 @@ export default function HomeScreen() {
               <View>
                 <Text className="text-3xl font-bold text-terracotta-500">Afro</Text>
                 <Text className="text-3xl font-bold text-forest-700 -mt-2">Connect</Text>
-                <Text className="text-xs text-gray-500 mt-1 italic">Connecting Africans Globally, Building Communities</Text>
+                <Text className="text-xs text-gray-500 mt-1 italic">
+                  Connecting Africans Globally, Building Communities
+                </Text>
               </View>
 
               <Pressable className="flex-row items-center bg-white rounded-full px-4 py-2 shadow-sm">
@@ -107,6 +125,38 @@ export default function HomeScreen() {
           }
           contentContainerStyle={{ paddingTop: 16, paddingBottom: 20 }}
         >
+          {/* Guest Sign Up Banner */}
+          {(isGuest || !currentUser) && (
+            <Animated.View
+              entering={FadeInUp.duration(500).delay(150)}
+              className="mx-4 mb-4"
+            >
+              <Pressable onPress={() => navigateTo('/signup')}>
+                <LinearGradient
+                  colors={['#C9A227', '#A6841F']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={{ borderRadius: 16, padding: 16 }}
+                >
+                  <View className="flex-row items-center">
+                    <View className="bg-white/20 rounded-full p-2.5">
+                      <UserPlus size={22} color="#FFFFFF" />
+                    </View>
+                    <View className="flex-1 ml-3">
+                      <Text className="text-white font-bold text-base">
+                        Join AfroConnect
+                      </Text>
+                      <Text className="text-white/80 text-sm">
+                        Sign up to post, comment, and connect with the community
+                      </Text>
+                    </View>
+                    <ChevronRight size={20} color="#FFFFFF" />
+                  </View>
+                </LinearGradient>
+              </Pressable>
+            </Animated.View>
+          )}
+
           {/* Welcome Card */}
           <Animated.View
             entering={FadeInUp.duration(500).delay(200)}
@@ -134,17 +184,46 @@ export default function HomeScreen() {
             </LinearGradient>
           </Animated.View>
 
-          {/* Student Hub Card */}
+          {/* Quick Access Cards */}
           <Animated.View
             entering={FadeInUp.duration(500).delay(250)}
+            className="flex-row mx-4 mb-4"
+          >
+            {/* Marketplace Card */}
+            <Pressable
+              onPress={() => navigateTo('/marketplace')}
+              className="flex-1 mr-2"
+            >
+              <View className="bg-white rounded-2xl p-4 shadow-sm">
+                <View className="bg-terracotta-50 rounded-full p-2.5 self-start mb-2">
+                  <ShoppingBag size={22} color="#D4673A" />
+                </View>
+                <Text className="text-warmBrown font-bold">Marketplace</Text>
+                <Text className="text-gray-500 text-xs mt-0.5">Buy & Sell</Text>
+              </View>
+            </Pressable>
+
+            {/* Faith & Community Card */}
+            <Pressable
+              onPress={() => navigateTo('/faith-community')}
+              className="flex-1 ml-2"
+            >
+              <View className="bg-white rounded-2xl p-4 shadow-sm">
+                <View className="bg-gold-50 rounded-full p-2.5 self-start mb-2">
+                  <Heart size={22} color="#C9A227" />
+                </View>
+                <Text className="text-warmBrown font-bold">Faith & Community</Text>
+                <Text className="text-gray-500 text-xs mt-0.5">Services & Events</Text>
+              </View>
+            </Pressable>
+          </Animated.View>
+
+          {/* Student Hub Card */}
+          <Animated.View
+            entering={FadeInUp.duration(500).delay(300)}
             className="mx-4 mb-4"
           >
-            <Pressable
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                router.push('/student-hub');
-              }}
-            >
+            <Pressable onPress={() => navigateTo('/student-hub')}>
               <LinearGradient
                 colors={['#1B4D3E', '#153D31']}
                 start={{ x: 0, y: 0 }}
@@ -157,7 +236,9 @@ export default function HomeScreen() {
                   </View>
                   <View className="flex-1 ml-3">
                     <Text className="text-white font-bold text-base">Student Hub</Text>
-                    <Text className="text-white/70 text-sm">Scholarships, Study Groups, Mentors & More</Text>
+                    <Text className="text-white/70 text-sm">
+                      Scholarships, Study Groups, Mentors & More
+                    </Text>
                   </View>
                   <ChevronRight size={20} color="#FFFFFF" />
                 </View>
@@ -169,7 +250,7 @@ export default function HomeScreen() {
           {MOCK_POSTS.map((post, index) => (
             <Animated.View
               key={post.id}
-              entering={FadeInUp.duration(400).delay(300 + index * 100)}
+              entering={FadeInUp.duration(400).delay(350 + index * 100)}
             >
               <PostCard post={post} />
             </Animated.View>

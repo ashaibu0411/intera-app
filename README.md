@@ -2,18 +2,52 @@
 
 A community-driven social platform connecting Africans and the African diaspora globally through local neighborhoods, shared culture, business, and opportunities.
 
+**Slogan:** *Connecting Africans Globally, Building Communities*
+
 ## Features
+
+### Welcome & Onboarding
+- Detailed welcome page explaining all app features
+- Location selection (Country > State/Region > City)
+- Guest browsing mode - explore before signing up
+- Sign up with Google, Email, or Phone number
+- Global support for users worldwide
 
 ### Community Feed
 - Location-based posts from your community
 - Local/Global toggle to filter content
 - Pull-to-refresh for latest updates
 - Like, comment, and share interactions
+- Guest users can browse but need account to interact
 
 ### Search & Discovery
 - Search people, posts, events, and businesses
 - Category filters (All, People, Posts, Events, Businesses)
 - Suggested communities and popular users
+
+### Marketplace
+- Buy and sell African products, crafts, and services
+- Home-based and store-based sellers
+- Product categories: Fashion, Food, Art, Beauty, Electronics, etc.
+- Direct messaging to contact sellers
+- Product listings with images, prices, and descriptions
+- View count and listing details
+
+### Faith & Community
+- Post religious services and faith events
+- Support for multiple faith types (Christian, Islamic, Traditional African, etc.)
+- Recurring service schedules
+- Event RSVP functionality
+- Contact information (phone/email) for organizations
+- Location and address details
+
+### Student Hub
+- Scholarships discovery with deadlines and amounts
+- Study groups with member counts and meeting times
+- Internship listings from African companies
+- Mentorship connections with industry professionals
+- Campus events with RSVP functionality
+- Search across all student resources
 
 ### Create Posts
 - Share text and images with your community
@@ -31,19 +65,6 @@ A community-driven social platform connecting Africans and the African diaspora 
 - Location and interests display
 - Activity stats (posts, connections, communities)
 - Sign out functionality
-
-### Onboarding
-- Community selection
-- Interest selection
-- Welcome flow
-
-### Student Hub
-- Scholarships discovery with deadlines and amounts
-- Study groups with member counts and meeting times
-- Internship listings from African companies
-- Mentorship connections with industry professionals
-- Campus events with RSVP functionality
-- Search across all student resources
 
 ## Tech Stack
 
