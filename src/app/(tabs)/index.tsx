@@ -2,9 +2,10 @@ import React, { useState } from 'react';
 import { View, Text, ScrollView, Pressable, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { MapPin, ChevronDown, Globe, Users } from 'lucide-react-native';
+import { MapPin, ChevronDown, Globe, Users, GraduationCap, ChevronRight } from 'lucide-react-native';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
+import { router } from 'expo-router';
 import { PostCard } from '@/components/PostCard';
 import { useStore, MOCK_POSTS, MOCK_COMMUNITIES } from '@/lib/store';
 
@@ -131,6 +132,37 @@ export default function HomeScreen() {
                 </View>
               </View>
             </LinearGradient>
+          </Animated.View>
+
+          {/* Student Hub Card */}
+          <Animated.View
+            entering={FadeInUp.duration(500).delay(250)}
+            className="mx-4 mb-4"
+          >
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                router.push('/student-hub');
+              }}
+            >
+              <LinearGradient
+                colors={['#1B4D3E', '#153D31']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={{ borderRadius: 16, padding: 16 }}
+              >
+                <View className="flex-row items-center">
+                  <View className="bg-white/20 rounded-full p-3">
+                    <GraduationCap size={24} color="#FFFFFF" />
+                  </View>
+                  <View className="flex-1 ml-3">
+                    <Text className="text-white font-bold text-base">Student Hub</Text>
+                    <Text className="text-white/70 text-sm">Scholarships, Study Groups, Mentors & More</Text>
+                  </View>
+                  <ChevronRight size={20} color="#FFFFFF" />
+                </View>
+              </LinearGradient>
+            </Pressable>
           </Animated.View>
 
           {/* Posts */}

@@ -37,6 +37,14 @@ A community-driven social platform connecting Africans and the African diaspora 
 - Interest selection
 - Welcome flow
 
+### Student Hub
+- Scholarships discovery with deadlines and amounts
+- Study groups with member counts and meeting times
+- Internship listings from African companies
+- Mentorship connections with industry professionals
+- Campus events with RSVP functionality
+- Search across all student resources
+
 ## Tech Stack
 
 - Expo SDK 53
