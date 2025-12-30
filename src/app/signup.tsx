@@ -13,6 +13,7 @@ import {
   Lock,
   Loader2,
   KeyRound,
+  Users,
 } from 'lucide-react-native';
 import { Image } from 'expo-image';
 import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
@@ -33,7 +34,9 @@ export default function SignUpScreen() {
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
   const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [displayName, setDisplayName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,6 +45,11 @@ export default function SignUpScreen() {
   const setIsGuest = useStore((s) => s.setIsGuest);
   const setIsOnboarded = useStore((s) => s.setIsOnboarded);
   const selectedLocation = useStore((s) => s.selectedLocation);
+
+  // Get the name to use - display name if set, otherwise full name
+  const fullName = `${firstName} ${lastName}`.trim();
+  const communityName = displayName.trim() || fullName;
+  const hasRequiredName = firstName.trim().length > 0 && lastName.trim().length > 0;
 
   const handleGoogleSignIn = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -53,14 +61,14 @@ export default function SignUpScreen() {
   };
 
   const handleEmailSignUp = async () => {
-    if (!email || !password || (authMode === 'signup' && !name)) return;
+    if (!email || !password || (authMode === 'signup' && !hasRequiredName)) return;
 
     setIsLoading(true);
     setError(null);
 
     try {
       if (authMode === 'signup') {
-        const data = await signUpWithEmail(email, password, name);
+        const data = await signUpWithEmail(email, password, communityName);
 
         if (data.user) {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -71,7 +79,7 @@ export default function SignUpScreen() {
 
           setCurrentUser({
             id: data.user.id,
-            name: profile?.name || name,
+            name: profile?.name || communityName,
             username: profile?.username || email.split('@')[0],
             avatar: profile?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&h=200&fit=crop',
             bio: profile?.bio || '',
@@ -108,27 +116,29 @@ export default function SignUpScreen() {
           router.replace('/(tabs)');
         }
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      setError(err.message || 'An error occurred');
+      const errorMessage = err instanceof Error ? err.message : 'An error occurred';
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
   };
 
   const handlePhoneSendOtp = async () => {
-    if (!phone || !name) return;
+    if (!phone || !hasRequiredName) return;
 
     setIsLoading(true);
     setError(null);
 
     try {
-      await signUpWithPhone(phone, name);
+      await signUpWithPhone(phone, communityName);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setPhoneStep('otp');
-    } catch (err: any) {
+    } catch (err: unknown) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      setError(err.message || 'Failed to send verification code');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to send verification code';
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -148,13 +158,13 @@ export default function SignUpScreen() {
 
         // Use getOrCreateProfile to handle case where trigger didn't create profile
         const profile = await getOrCreateProfile(data.user.id, {
-          name: name,
+          name: communityName,
           phone: phone,
         });
 
         setCurrentUser({
           id: data.user.id,
-          name: profile?.name || name,
+          name: profile?.name || communityName,
           username: profile?.username || `user_${phone.slice(-4)}`,
           avatar: profile?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&h=200&fit=crop',
           bio: profile?.bio || '',
@@ -167,9 +177,10 @@ export default function SignUpScreen() {
         setIsOnboarded(true);
         router.replace('/(tabs)');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      setError(err.message || 'Invalid verification code');
+      const errorMessage = err instanceof Error ? err.message : 'Invalid verification code';
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -297,6 +308,64 @@ export default function SignUpScreen() {
     </Animated.View>
   );
 
+  const renderNameFields = () => (
+    <>
+      {/* First Name and Last Name - side by side */}
+      <View className="flex-row mb-4">
+        <View className="flex-1 mr-2">
+          <Text className="text-warmBrown font-medium mb-2">First Name</Text>
+          <View className="flex-row items-center bg-white rounded-2xl px-4 py-3 border border-gray-200">
+            <TextInput
+              placeholder="First"
+              placeholderTextColor="#9CA3AF"
+              value={firstName}
+              onChangeText={setFirstName}
+              className="flex-1 text-warmBrown text-base"
+              autoCapitalize="words"
+              editable={!isLoading}
+            />
+          </View>
+        </View>
+        <View className="flex-1 ml-2">
+          <Text className="text-warmBrown font-medium mb-2">Last Name</Text>
+          <View className="flex-row items-center bg-white rounded-2xl px-4 py-3 border border-gray-200">
+            <TextInput
+              placeholder="Last"
+              placeholderTextColor="#9CA3AF"
+              value={lastName}
+              onChangeText={setLastName}
+              className="flex-1 text-warmBrown text-base"
+              autoCapitalize="words"
+              editable={!isLoading}
+            />
+          </View>
+        </View>
+      </View>
+
+      {/* Display Name (optional) */}
+      <View className="mb-4">
+        <Text className="text-warmBrown font-medium mb-2">
+          Display Name <Text className="text-gray-400 font-normal">(optional)</Text>
+        </Text>
+        <View className="flex-row items-center bg-white rounded-2xl px-4 py-3 border border-gray-200">
+          <Users size={20} color="#8B7355" />
+          <TextInput
+            placeholder="Name the community sees"
+            placeholderTextColor="#9CA3AF"
+            value={displayName}
+            onChangeText={setDisplayName}
+            className="flex-1 ml-3 text-warmBrown text-base"
+            autoCapitalize="words"
+            editable={!isLoading}
+          />
+        </View>
+        <Text className="text-gray-400 text-xs mt-1.5">
+          Leave blank to use your full name
+        </Text>
+      </View>
+    </>
+  );
+
   const renderEmailForm = () => (
     <Animated.View entering={FadeIn.duration(400)} className="flex-1">
       <View className="mb-6">
@@ -315,24 +384,8 @@ export default function SignUpScreen() {
         </View>
       )}
 
-      {/* Name Input - only for signup */}
-      {authMode === 'signup' && (
-        <View className="mb-4">
-          <Text className="text-warmBrown font-medium mb-2">Full Name</Text>
-          <View className="flex-row items-center bg-white rounded-2xl px-4 py-3 border border-gray-200">
-            <User size={20} color="#8B7355" />
-            <TextInput
-              placeholder="Enter your name"
-              placeholderTextColor="#9CA3AF"
-              value={name}
-              onChangeText={setName}
-              className="flex-1 ml-3 text-warmBrown text-base"
-              autoCapitalize="words"
-              editable={!isLoading}
-            />
-          </View>
-        </View>
-      )}
+      {/* Name Fields - only for signup */}
+      {authMode === 'signup' && renderNameFields()}
 
       {/* Email Input */}
       <View className="mb-4">
@@ -379,10 +432,10 @@ export default function SignUpScreen() {
       {/* Sign Up/In Button */}
       <Pressable
         onPress={handleEmailSignUp}
-        disabled={!email || !password || (authMode === 'signup' && !name) || isLoading}
+        disabled={!email || !password || (authMode === 'signup' && !hasRequiredName) || isLoading}
       >
         <LinearGradient
-          colors={email && password && (authMode === 'signin' || name) && !isLoading ? ['#D4673A', '#B85430'] : ['#D1D5DB', '#9CA3AF']}
+          colors={email && password && (authMode === 'signin' || hasRequiredName) && !isLoading ? ['#D4673A', '#B85430'] : ['#D1D5DB', '#9CA3AF']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={{
@@ -443,22 +496,8 @@ export default function SignUpScreen() {
 
       {phoneStep === 'phone' ? (
         <>
-          {/* Name Input */}
-          <View className="mb-4">
-            <Text className="text-warmBrown font-medium mb-2">Full Name</Text>
-            <View className="flex-row items-center bg-white rounded-2xl px-4 py-3 border border-gray-200">
-              <User size={20} color="#8B7355" />
-              <TextInput
-                placeholder="Enter your name"
-                placeholderTextColor="#9CA3AF"
-                value={name}
-                onChangeText={setName}
-                className="flex-1 ml-3 text-warmBrown text-base"
-                autoCapitalize="words"
-                editable={!isLoading}
-              />
-            </View>
-          </View>
+          {/* Name Fields */}
+          {renderNameFields()}
 
           {/* Phone Input */}
           <View className="mb-6">
@@ -481,9 +520,9 @@ export default function SignUpScreen() {
           </View>
 
           {/* Send Code Button */}
-          <Pressable onPress={handlePhoneSendOtp} disabled={!phone || !name || isLoading}>
+          <Pressable onPress={handlePhoneSendOtp} disabled={!phone || !hasRequiredName || isLoading}>
             <LinearGradient
-              colors={phone && name && !isLoading ? ['#D4673A', '#B85430'] : ['#D1D5DB', '#9CA3AF']}
+              colors={phone && hasRequiredName && !isLoading ? ['#D4673A', '#B85430'] : ['#D1D5DB', '#9CA3AF']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={{
