@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, Pressable, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, ScrollView, Pressable, TextInput, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
@@ -11,22 +11,28 @@ import {
   ArrowRight,
   User,
   Lock,
+  Loader2,
 } from 'lucide-react-native';
 import { Image } from 'expo-image';
 import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
-import { useStore, MOCK_USERS } from '@/lib/store';
+import { useStore } from '@/lib/store';
+import { signUpWithEmail, signInWithEmail, getProfile } from '@/lib/auth';
 
 type AuthMethod = 'email' | 'phone' | 'google';
+type AuthMode = 'signup' | 'signin';
 
 export default function SignUpScreen() {
   const [authMethod, setAuthMethod] = useState<AuthMethod | null>(null);
+  const [authMode, setAuthMode] = useState<AuthMode>('signup');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const setCurrentUser = useStore((s) => s.setCurrentUser);
   const setIsGuest = useStore((s) => s.setIsGuest);
@@ -35,60 +41,95 @@ export default function SignUpScreen() {
 
   const handleGoogleSignIn = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    // Simulate Google sign-in
-    const mockUser = {
-      ...MOCK_USERS[0],
-      id: 'google-user',
-      name: 'Google User',
-      username: 'googleuser',
-      location: selectedLocation ? `${selectedLocation.city}, ${selectedLocation.country}` : 'Denver, CO',
-    };
-    setCurrentUser(mockUser);
-    setIsGuest(false);
-    setIsOnboarded(true);
-    router.replace('/(tabs)');
+    // Google sign-in requires additional setup - show info
+    Alert.alert(
+      'Google Sign-In',
+      'Google sign-in requires additional configuration. Please use email or phone for now.',
+      [{ text: 'OK' }]
+    );
   };
 
-  const handleEmailSignUp = () => {
-    if (!email || !password || !name) return;
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  const handleEmailSignUp = async () => {
+    if (!email || !password || (authMode === 'signup' && !name)) return;
 
-    const mockUser = {
-      ...MOCK_USERS[0],
-      id: 'email-user',
-      name: name,
-      username: email.split('@')[0],
-      email: email,
-      location: selectedLocation ? `${selectedLocation.city}, ${selectedLocation.country}` : 'Denver, CO',
-    };
-    setCurrentUser(mockUser);
-    setIsGuest(false);
-    setIsOnboarded(true);
-    router.replace('/(tabs)');
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      if (authMode === 'signup') {
+        const data = await signUpWithEmail(email, password, name);
+
+        if (data.user) {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+          // Wait a moment for the profile trigger to create the profile
+          await new Promise(resolve => setTimeout(resolve, 500));
+
+          const profile = await getProfile(data.user.id);
+
+          setCurrentUser({
+            id: data.user.id,
+            name: profile?.name || name,
+            username: profile?.username || email.split('@')[0],
+            avatar: profile?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&h=200&fit=crop',
+            bio: profile?.bio || '',
+            location: selectedLocation ? `${selectedLocation.city}, ${selectedLocation.country}` : 'Not set',
+            interests: profile?.interests || [],
+            joinedDate: new Date().toISOString(),
+            email: email,
+          });
+          setIsGuest(false);
+          setIsOnboarded(true);
+          router.replace('/(tabs)');
+        }
+      } else {
+        const data = await signInWithEmail(email, password);
+
+        if (data.user) {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+          const profile = await getProfile(data.user.id);
+
+          setCurrentUser({
+            id: data.user.id,
+            name: profile?.name || 'User',
+            username: profile?.username || email.split('@')[0],
+            avatar: profile?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&h=200&fit=crop',
+            bio: profile?.bio || '',
+            location: profile?.location || 'Not set',
+            interests: profile?.interests || [],
+            joinedDate: profile?.created_at || new Date().toISOString(),
+            email: email,
+          });
+          setIsGuest(false);
+          setIsOnboarded(true);
+          router.replace('/(tabs)');
+        }
+      }
+    } catch (err: any) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      setError(err.message || 'An error occurred');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handlePhoneSignUp = () => {
     if (!phone || !name) return;
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-
-    const mockUser = {
-      ...MOCK_USERS[0],
-      id: 'phone-user',
-      name: name,
-      username: `user${phone.slice(-4)}`,
-      phone: phone,
-      location: selectedLocation ? `${selectedLocation.city}, ${selectedLocation.country}` : 'Denver, CO',
-    };
-    setCurrentUser(mockUser);
-    setIsGuest(false);
-    setIsOnboarded(true);
-    router.replace('/(tabs)');
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    // Phone auth requires Twilio setup in Supabase
+    Alert.alert(
+      'Phone Sign-In',
+      'Phone authentication requires additional configuration. Please use email for now.',
+      [{ text: 'OK' }]
+    );
   };
 
   const handleBack = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (authMethod) {
       setAuthMethod(null);
+      setError(null);
     } else {
       router.back();
     }
@@ -204,25 +245,39 @@ export default function SignUpScreen() {
   const renderEmailForm = () => (
     <Animated.View entering={FadeIn.duration(400)} className="flex-1">
       <View className="mb-6">
-        <Text className="text-2xl font-bold text-warmBrown">Sign up with Email</Text>
-        <Text className="text-gray-500 mt-1">Enter your details below</Text>
+        <Text className="text-2xl font-bold text-warmBrown">
+          {authMode === 'signup' ? 'Sign up with Email' : 'Sign in with Email'}
+        </Text>
+        <Text className="text-gray-500 mt-1">
+          {authMode === 'signup' ? 'Enter your details below' : 'Welcome back!'}
+        </Text>
       </View>
 
-      {/* Name Input */}
-      <View className="mb-4">
-        <Text className="text-warmBrown font-medium mb-2">Full Name</Text>
-        <View className="flex-row items-center bg-white rounded-2xl px-4 py-3 border border-gray-200">
-          <User size={20} color="#8B7355" />
-          <TextInput
-            placeholder="Enter your name"
-            placeholderTextColor="#9CA3AF"
-            value={name}
-            onChangeText={setName}
-            className="flex-1 ml-3 text-warmBrown text-base"
-            autoCapitalize="words"
-          />
+      {/* Error Message */}
+      {error && (
+        <View className="bg-red-50 border border-red-200 rounded-xl p-3 mb-4">
+          <Text className="text-red-600 text-sm">{error}</Text>
         </View>
-      </View>
+      )}
+
+      {/* Name Input - only for signup */}
+      {authMode === 'signup' && (
+        <View className="mb-4">
+          <Text className="text-warmBrown font-medium mb-2">Full Name</Text>
+          <View className="flex-row items-center bg-white rounded-2xl px-4 py-3 border border-gray-200">
+            <User size={20} color="#8B7355" />
+            <TextInput
+              placeholder="Enter your name"
+              placeholderTextColor="#9CA3AF"
+              value={name}
+              onChangeText={setName}
+              className="flex-1 ml-3 text-warmBrown text-base"
+              autoCapitalize="words"
+              editable={!isLoading}
+            />
+          </View>
+        </View>
+      )}
 
       {/* Email Input */}
       <View className="mb-4">
@@ -237,6 +292,7 @@ export default function SignUpScreen() {
             className="flex-1 ml-3 text-warmBrown text-base"
             keyboardType="email-address"
             autoCapitalize="none"
+            editable={!isLoading}
           />
         </View>
       </View>
@@ -247,12 +303,13 @@ export default function SignUpScreen() {
         <View className="flex-row items-center bg-white rounded-2xl px-4 py-3 border border-gray-200">
           <Lock size={20} color="#8B7355" />
           <TextInput
-            placeholder="Create a password"
+            placeholder={authMode === 'signup' ? 'Create a password' : 'Enter your password'}
             placeholderTextColor="#9CA3AF"
             value={password}
             onChangeText={setPassword}
             className="flex-1 ml-3 text-warmBrown text-base"
             secureTextEntry={!showPassword}
+            editable={!isLoading}
           />
           <Pressable onPress={() => setShowPassword(!showPassword)}>
             {showPassword ? (
@@ -264,20 +321,51 @@ export default function SignUpScreen() {
         </View>
       </View>
 
-      {/* Sign Up Button */}
-      <Pressable onPress={handleEmailSignUp} disabled={!email || !password || !name}>
+      {/* Sign Up/In Button */}
+      <Pressable
+        onPress={handleEmailSignUp}
+        disabled={!email || !password || (authMode === 'signup' && !name) || isLoading}
+      >
         <LinearGradient
-          colors={email && password && name ? ['#D4673A', '#B85430'] : ['#D1D5DB', '#9CA3AF']}
+          colors={email && password && (authMode === 'signin' || name) && !isLoading ? ['#D4673A', '#B85430'] : ['#D1D5DB', '#9CA3AF']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={{
             borderRadius: 16,
             paddingVertical: 18,
             alignItems: 'center',
+            flexDirection: 'row',
+            justifyContent: 'center',
           }}
         >
-          <Text className="text-white font-bold text-lg">Create Account</Text>
+          {isLoading ? (
+            <Animated.View
+              style={{ transform: [{ rotate: '0deg' }] }}
+            >
+              <Loader2 size={24} color="#FFFFFF" />
+            </Animated.View>
+          ) : (
+            <Text className="text-white font-bold text-lg">
+              {authMode === 'signup' ? 'Create Account' : 'Sign In'}
+            </Text>
+          )}
         </LinearGradient>
+      </Pressable>
+
+      {/* Toggle Sign In/Sign Up */}
+      <Pressable
+        onPress={() => {
+          setAuthMode(authMode === 'signup' ? 'signin' : 'signup');
+          setError(null);
+        }}
+        className="mt-6 items-center"
+      >
+        <Text className="text-gray-500">
+          {authMode === 'signup' ? 'Already have an account? ' : "Don't have an account? "}
+          <Text className="text-terracotta-500 font-medium">
+            {authMode === 'signup' ? 'Sign In' : 'Sign Up'}
+          </Text>
+        </Text>
       </Pressable>
     </Animated.View>
   );
