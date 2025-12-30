@@ -126,13 +126,13 @@ export default function SignUpScreen() {
   };
 
   const handlePhoneSendOtp = async () => {
-    if (!phone || !hasRequiredName) return;
+    if (!phone || (authMode === 'signup' && !hasRequiredName)) return;
 
     setIsLoading(true);
     setError(null);
 
     try {
-      await signUpWithPhone(phone, communityName);
+      await signUpWithPhone(phone, authMode === 'signup' ? communityName : '');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setPhoneStep('otp');
     } catch (err: unknown) {
@@ -158,24 +158,30 @@ export default function SignUpScreen() {
 
         // Use getOrCreateProfile to handle case where trigger didn't create profile
         const profile = await getOrCreateProfile(data.user.id, {
-          name: communityName,
+          name: authMode === 'signup' ? communityName : undefined,
           phone: phone,
         });
 
         setCurrentUser({
           id: data.user.id,
-          name: profile?.name || communityName,
+          name: profile?.name || communityName || 'User',
           username: profile?.username || `user_${phone.slice(-4)}`,
           avatar: profile?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&h=200&fit=crop',
           bio: profile?.bio || '',
-          location: selectedLocation ? `${selectedLocation.city}, ${selectedLocation.country}` : 'Not set',
+          location: selectedLocation ? `${selectedLocation.city}, ${selectedLocation.country}` : (profile?.location || 'Not set'),
           interests: profile?.interests || [],
-          joinedDate: new Date().toISOString(),
+          joinedDate: profile?.created_at || new Date().toISOString(),
           phone: phone,
         });
         setIsGuest(false);
         setIsOnboarded(true);
-        router.replace('/profile-setup');
+
+        // For login, go to home. For signup, go to profile setup.
+        if (authMode === 'signin') {
+          router.replace('/(tabs)');
+        } else {
+          router.replace('/profile-setup');
+        }
       }
     } catch (err: unknown) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -208,12 +214,40 @@ export default function SignUpScreen() {
           <User size={32} color="#D4673A" />
         </View>
         <Text className="text-2xl font-bold text-warmBrown text-center">
-          Create Your Account
+          {authMode === 'signup' ? 'Create Your Account' : 'Welcome Back'}
         </Text>
         <Text className="text-gray-500 text-center mt-2">
-          Join the AfroConnect community
+          {authMode === 'signup' ? 'Join the AfroConnect community' : 'Sign in to your account'}
         </Text>
       </View>
+
+      {/* Auth Mode Toggle */}
+      <Animated.View entering={FadeInUp.duration(400).delay(50)} className="mb-6">
+        <View className="flex-row bg-white rounded-2xl p-1 shadow-sm">
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setAuthMode('signup');
+            }}
+            className={`flex-1 py-3 rounded-xl ${authMode === 'signup' ? 'bg-terracotta-500' : ''}`}
+          >
+            <Text className={`text-center font-semibold ${authMode === 'signup' ? 'text-white' : 'text-gray-500'}`}>
+              Sign Up
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setAuthMode('signin');
+            }}
+            className={`flex-1 py-3 rounded-xl ${authMode === 'signin' ? 'bg-terracotta-500' : ''}`}
+          >
+            <Text className={`text-center font-semibold ${authMode === 'signin' ? 'text-white' : 'text-gray-500'}`}>
+              Log In
+            </Text>
+          </Pressable>
+        </View>
+      </Animated.View>
 
       {/* Google Sign In */}
       <Animated.View entering={FadeInUp.duration(400).delay(100)}>
@@ -233,7 +267,7 @@ export default function SignUpScreen() {
         </Pressable>
       </Animated.View>
 
-      {/* Email Sign Up */}
+      {/* Email */}
       <Animated.View entering={FadeInUp.duration(400).delay(150)}>
         <Pressable
           onPress={() => {
@@ -246,13 +280,13 @@ export default function SignUpScreen() {
             <Mail size={20} color="#D4673A" />
           </View>
           <Text className="flex-1 text-warmBrown font-medium ml-4">
-            Sign up with Email
+            {authMode === 'signup' ? 'Sign up with Email' : 'Log in with Email'}
           </Text>
           <ArrowRight size={20} color="#9CA3AF" />
         </Pressable>
       </Animated.View>
 
-      {/* Phone Sign Up */}
+      {/* Phone */}
       <Animated.View entering={FadeInUp.duration(400).delay(200)}>
         <Pressable
           onPress={() => {
@@ -265,7 +299,7 @@ export default function SignUpScreen() {
             <Phone size={20} color="#1B4D3E" />
           </View>
           <Text className="flex-1 text-warmBrown font-medium ml-4">
-            Sign up with Phone
+            {authMode === 'signup' ? 'Sign up with Phone' : 'Log in with Phone'}
           </Text>
           <ArrowRight size={20} color="#9CA3AF" />
         </Pressable>
@@ -300,7 +334,7 @@ export default function SignUpScreen() {
         className="mt-auto"
       >
         <Text className="text-gray-400 text-xs text-center leading-5">
-          By signing up, you agree to our{' '}
+          By continuing, you agree to our{' '}
           <Text className="text-terracotta-500">Terms of Service</Text> and{' '}
           <Text className="text-terracotta-500">Privacy Policy</Text>
         </Text>
@@ -478,7 +512,9 @@ export default function SignUpScreen() {
     <Animated.View entering={FadeIn.duration(400)} className="flex-1">
       <View className="mb-6">
         <Text className="text-2xl font-bold text-warmBrown">
-          {phoneStep === 'phone' ? 'Sign up with Phone' : 'Enter Verification Code'}
+          {phoneStep === 'phone'
+            ? (authMode === 'signup' ? 'Sign up with Phone' : 'Log in with Phone')
+            : 'Enter Verification Code'}
         </Text>
         <Text className="text-gray-500 mt-1">
           {phoneStep === 'phone'
@@ -496,8 +532,8 @@ export default function SignUpScreen() {
 
       {phoneStep === 'phone' ? (
         <>
-          {/* Name Fields */}
-          {renderNameFields()}
+          {/* Name Fields - only for signup */}
+          {authMode === 'signup' && renderNameFields()}
 
           {/* Phone Input */}
           <View className="mb-6">
@@ -520,9 +556,12 @@ export default function SignUpScreen() {
           </View>
 
           {/* Send Code Button */}
-          <Pressable onPress={handlePhoneSendOtp} disabled={!phone || !hasRequiredName || isLoading}>
+          <Pressable
+            onPress={handlePhoneSendOtp}
+            disabled={!phone || (authMode === 'signup' && !hasRequiredName) || isLoading}
+          >
             <LinearGradient
-              colors={phone && hasRequiredName && !isLoading ? ['#D4673A', '#B85430'] : ['#D1D5DB', '#9CA3AF']}
+              colors={phone && (authMode === 'signin' || hasRequiredName) && !isLoading ? ['#D4673A', '#B85430'] : ['#D1D5DB', '#9CA3AF']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={{
@@ -539,6 +578,22 @@ export default function SignUpScreen() {
                 <Text className="text-white font-bold text-lg">Send Verification Code</Text>
               )}
             </LinearGradient>
+          </Pressable>
+
+          {/* Toggle Sign In/Sign Up */}
+          <Pressable
+            onPress={() => {
+              setAuthMode(authMode === 'signup' ? 'signin' : 'signup');
+              setError(null);
+            }}
+            className="mt-6 items-center"
+          >
+            <Text className="text-gray-500">
+              {authMode === 'signup' ? 'Already have an account? ' : "Don't have an account? "}
+              <Text className="text-terracotta-500 font-medium">
+                {authMode === 'signup' ? 'Log In' : 'Sign Up'}
+              </Text>
+            </Text>
           </Pressable>
         </>
       ) : (
