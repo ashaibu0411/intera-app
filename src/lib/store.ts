@@ -88,6 +88,31 @@ export interface LocationData {
   city: string;
 }
 
+export interface Comment {
+  id: string;
+  postId: string;
+  author: User;
+  content: string;
+  createdAt: string;
+  likes: number;
+}
+
+export interface Message {
+  id: string;
+  senderId: string;
+  receiverId: string;
+  content: string;
+  createdAt: string;
+  read: boolean;
+}
+
+export interface Conversation {
+  id: string;
+  participants: User[];
+  lastMessage: Message | null;
+  updatedAt: string;
+}
+
 interface AppState {
   // User state
   currentUser: User | null;
@@ -478,4 +503,55 @@ export const FAITH_TYPES = [
   'Hindu',
   'Interfaith',
   'Other',
+];
+
+export const MOCK_COMMENTS: Comment[] = [
+  {
+    id: '1',
+    postId: '1',
+    author: MOCK_USERS[1],
+    content: 'I know a great tailor in Aurora! Her name is Auntie Grace, she does amazing kente work. I can share her contact.',
+    createdAt: '2024-12-30T10:45:00Z',
+    likes: 5,
+  },
+  {
+    id: '2',
+    postId: '1',
+    author: MOCK_USERS[2],
+    content: 'Try Abena\'s African Tailoring on Colfax! She did my wedding dress.',
+    createdAt: '2024-12-30T10:50:00Z',
+    likes: 3,
+  },
+  {
+    id: '3',
+    postId: '1',
+    author: MOCK_USERS[0],
+    content: 'Thank you all! I\'ll check them out.',
+    createdAt: '2024-12-30T11:00:00Z',
+    likes: 2,
+  },
+  {
+    id: '4',
+    postId: '2',
+    author: MOCK_USERS[0],
+    content: 'Congratulations! Can\'t wait to try the Thieboudienne! What time does it open?',
+    createdAt: '2024-12-29T18:30:00Z',
+    likes: 8,
+  },
+  {
+    id: '5',
+    postId: '2',
+    author: MOCK_USERS[2],
+    content: 'This is amazing news! We need more African restaurants in Denver.',
+    createdAt: '2024-12-29T19:00:00Z',
+    likes: 12,
+  },
+  {
+    id: '6',
+    postId: '3',
+    author: MOCK_USERS[1],
+    content: 'Count me in! I\'ll bring some colleagues from the tech industry.',
+    createdAt: '2024-12-28T14:30:00Z',
+    likes: 4,
+  },
 ];

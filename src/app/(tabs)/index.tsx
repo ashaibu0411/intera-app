@@ -12,6 +12,7 @@ import {
   ShoppingBag,
   Heart,
   UserPlus,
+  MessageCircle,
 } from 'lucide-react-native';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -68,11 +69,22 @@ export default function HomeScreen() {
                 </Text>
               </View>
 
-              <Pressable className="flex-row items-center bg-white rounded-full px-4 py-2 shadow-sm">
-                <MapPin size={16} color="#D4673A" />
-                <Text className="text-warmBrown font-medium ml-2">{displayCommunity.city}</Text>
-                <ChevronDown size={16} color="#8B7355" className="ml-1" />
-              </Pressable>
+              <View className="flex-row items-center">
+                <Pressable
+                  onPress={() => navigateTo('/messages')}
+                  className="bg-white rounded-full p-2.5 shadow-sm mr-2"
+                >
+                  <MessageCircle size={20} color="#1B4D3E" />
+                </Pressable>
+                <Pressable
+                  onPress={() => navigateTo('/location-select')}
+                  className="flex-row items-center bg-white rounded-full px-4 py-2 shadow-sm"
+                >
+                  <MapPin size={16} color="#D4673A" />
+                  <Text className="text-warmBrown font-medium ml-2">{displayCommunity.city}</Text>
+                  <ChevronDown size={16} color="#8B7355" className="ml-1" />
+                </Pressable>
+              </View>
             </View>
 
             {/* Filter Tabs */}

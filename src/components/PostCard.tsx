@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { View, Text, Pressable } from 'react-native';
+import { View, Text, Pressable, Share } from 'react-native';
 import { Image } from 'expo-image';
 import { Heart, MessageCircle, Share2, MoreHorizontal, MapPin } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, withSequence, withTiming } from 'react-native-reanimated';
 import { formatDistanceToNow } from 'date-fns';
+import { router } from 'expo-router';
 import type { Post } from '@/lib/store';
 
 interface PostCardProps {
@@ -55,6 +56,30 @@ export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
     transform: [{ scale: cardScale.value }],
   }));
 
+  const handleOpenPost = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push(`/post/${post.id}`);
+  };
+
+  const handleComment = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push(`/post/${post.id}`);
+    onComment?.(post.id);
+  };
+
+  const handleShare = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      await Share.share({
+        message: `Check out this post from ${post.author.name} on AfroConnect:\n\n"${post.content}"\n\nJoin our community: afroconnect.app`,
+        title: 'Share Post',
+      });
+      onShare?.(post.id);
+    } catch (error) {
+      console.log('Share error:', error);
+    }
+  };
+
   const timeAgo = formatDistanceToNow(new Date(post.createdAt), { addSuffix: true });
 
   return (
@@ -62,6 +87,7 @@ export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
       style={cardAnimatedStyle}
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
+      onPress={handleOpenPost}
       className="bg-white rounded-2xl mx-4 mb-4 shadow-sm overflow-hidden"
     >
       {/* Header */}
@@ -117,14 +143,14 @@ export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
         </Pressable>
 
         <Pressable
-          onPress={() => onComment?.(post.id)}
+          onPress={handleComment}
           className="flex-row items-center mr-6"
         >
           <MessageCircle size={22} color="#8B7355" />
           <Text className="ml-2 text-sm text-gray-500">{post.comments}</Text>
         </Pressable>
 
-        <Pressable onPress={() => onShare?.(post.id)} className="flex-row items-center">
+        <Pressable onPress={handleShare} className="flex-row items-center">
           <Share2 size={20} color="#8B7355" />
         </Pressable>
       </View>

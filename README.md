@@ -83,3 +83,17 @@ A community-driven social platform connecting Africans and the African diaspora 
 - **Gold** (#C9A227): Highlights
 - **Cream** (#FAF7F2): Background
 - **Warm Brown** (#2D1F1A): Text
+
+## New Features (Latest Update)
+
+### Working Features
+- **Location Button**: Tap the location button in the header to change your city/community
+- **Post Comments**: Tap any post to view comments, add your own comments, and see the full discussion
+- **Share Posts**: Share posts using the native share sheet to any app on your device
+- **Messaging**: Access messages from the home screen header, view conversations, and send messages
+
+### Messaging System
+- Conversation list with unread indicators
+- Real-time chat interface
+- Message history with timestamps
+- Contact sellers and community members directly
