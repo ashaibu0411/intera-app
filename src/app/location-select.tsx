@@ -11,6 +11,8 @@ import {
   Globe,
   ArrowRight,
   X,
+  Zap,
+  Clock,
 } from 'lucide-react-native';
 import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -25,10 +27,47 @@ import {
 import { getOrCreateCommunity, joinCommunity } from '@/lib/communities';
 import { getCurrentUser } from '@/lib/auth';
 
-type Step = 'country' | 'state' | 'city';
+type Step = 'quick' | 'country' | 'state' | 'city';
+
+// Build a flat list of all cities with their full location info
+interface CityOption {
+  city: string;
+  state: string;
+  country: string;
+  countryCode: string;
+}
+
+const ALL_CITIES: CityOption[] = [];
+Object.entries(CITIES_BY_STATE).forEach(([state, cities]) => {
+  // Find which country this state belongs to
+  let countryCode = '';
+  let countryName = '';
+  for (const [code, states] of Object.entries(STATES_BY_COUNTRY)) {
+    if (states.includes(state)) {
+      countryCode = code;
+      const country = COUNTRIES.find(c => c.code === code);
+      countryName = country?.name || '';
+      break;
+    }
+  }
+  cities.forEach(city => {
+    ALL_CITIES.push({
+      city,
+      state,
+      country: countryName,
+      countryCode,
+    });
+  });
+});
 
 export default function LocationSelectScreen() {
-  const [step, setStep] = useState<Step>('country');
+  const selectedLocation = useStore((s) => s.selectedLocation);
+
+  // Check if user already has a location (coming from home to change location)
+  const isChangingLocation = !!selectedLocation;
+
+  // Start with quick search if user is changing location, otherwise normal flow
+  const [step, setStep] = useState<Step>(isChangingLocation ? 'quick' : 'country');
   const [selectedCountry, setSelectedCountry] = useState<string | null>(null);
   const [selectedState, setSelectedState] = useState<string | null>(null);
   const [selectedCity, setSelectedCity] = useState<string | null>(null);
@@ -37,10 +76,6 @@ export default function LocationSelectScreen() {
   const setSelectedLocation = useStore((s) => s.setSelectedLocation);
   const setCurrentCommunity = useStore((s) => s.setCurrentCommunity);
   const setIsGuest = useStore((s) => s.setIsGuest);
-  const selectedLocation = useStore((s) => s.selectedLocation);
-
-  // Check if user already has a location (coming from home to change location)
-  const isChangingLocation = !!selectedLocation;
 
   const selectedCountryData = useMemo(
     () => COUNTRIES.find((c) => c.code === selectedCountry),
@@ -78,6 +113,18 @@ export default function LocationSelectScreen() {
     );
   }, [searchQuery, cities]);
 
+  // Quick search across ALL cities
+  const quickSearchCities = useMemo(() => {
+    if (!searchQuery) return ALL_CITIES;
+    const query = searchQuery.toLowerCase();
+    return ALL_CITIES.filter(
+      (c) =>
+        c.city.toLowerCase().includes(query) ||
+        c.state.toLowerCase().includes(query) ||
+        c.country.toLowerCase().includes(query)
+    );
+  }, [searchQuery]);
+
   const handleCountrySelect = (code: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setSelectedCountry(code);
@@ -107,6 +154,62 @@ export default function LocationSelectScreen() {
     setSelectedCity(city);
   };
 
+  // Quick city selection (direct jump)
+  const handleQuickCitySelect = async (cityOption: CityOption) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    setSelectedLocation({
+      country: cityOption.country,
+      state: cityOption.state || undefined,
+      city: cityOption.city,
+    });
+
+    // Try to get or create the community in Supabase
+    const dbCommunity = await getOrCreateCommunity(
+      cityOption.city,
+      cityOption.state || null,
+      cityOption.country
+    );
+
+    if (dbCommunity) {
+      const user = await getCurrentUser();
+      if (user) {
+        await joinCommunity(user.id, dbCommunity.id);
+      }
+
+      setCurrentCommunity({
+        id: dbCommunity.id,
+        name: dbCommunity.name,
+        city: dbCommunity.city,
+        state: dbCommunity.state ?? undefined,
+        country: dbCommunity.country,
+        memberCount: dbCommunity.member_count,
+        image: dbCommunity.image_url || 'https://images.unsplash.com/photo-1489392191049-fc10c97e64b6?w=400&h=300&fit=crop',
+      });
+    } else {
+      const matchingCommunity = MOCK_COMMUNITIES.find(
+        (c) => c.city.toLowerCase() === cityOption.city.toLowerCase()
+      );
+
+      if (matchingCommunity) {
+        setCurrentCommunity(matchingCommunity);
+      } else {
+        setCurrentCommunity({
+          id: 'custom',
+          name: `${cityOption.city} Africans`,
+          city: cityOption.city,
+          state: cityOption.state ?? undefined,
+          country: cityOption.country,
+          memberCount: 1,
+          image: 'https://images.unsplash.com/photo-1489392191049-fc10c97e64b6?w=400&h=300&fit=crop',
+        });
+      }
+    }
+
+    setIsGuest(true);
+    router.replace('/(tabs)');
+  };
+
   const handleBack = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSearchQuery('');
@@ -117,6 +220,9 @@ export default function LocationSelectScreen() {
         setStep('country');
       }
     } else if (step === 'state') {
+      setStep('country');
+    } else if (step === 'quick') {
+      // From quick search, go back to normal flow
       setStep('country');
     }
   };
@@ -185,6 +291,8 @@ export default function LocationSelectScreen() {
 
   const getStepTitle = () => {
     switch (step) {
+      case 'quick':
+        return 'Switch City';
       case 'country':
         return 'Select Your Country';
       case 'state':
@@ -196,6 +304,8 @@ export default function LocationSelectScreen() {
 
   const getStepSubtitle = () => {
     switch (step) {
+      case 'quick':
+        return 'Search any city to switch instantly';
       case 'country':
         return 'Where are you located?';
       case 'state':
@@ -207,6 +317,61 @@ export default function LocationSelectScreen() {
 
   const renderList = () => {
     switch (step) {
+      case 'quick':
+        return (
+          <>
+            {/* Option to use full flow */}
+            <Animated.View entering={FadeInUp.duration(300)}>
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setStep('country');
+                  setSearchQuery('');
+                }}
+                className="flex-row items-center p-4 rounded-2xl mb-4 bg-forest-50 border border-forest-200"
+              >
+                <View className="w-10 h-10 rounded-full items-center justify-center mr-3 bg-forest-100">
+                  <Globe size={20} color="#1B4D3E" />
+                </View>
+                <View className="flex-1">
+                  <Text className="font-semibold text-forest-700">Browse by Country</Text>
+                  <Text className="text-forest-600 text-xs">Select country → state → city</Text>
+                </View>
+                <ChevronRight size={20} color="#1B4D3E" />
+              </Pressable>
+            </Animated.View>
+
+            {/* All cities list */}
+            <Text className="text-gray-500 text-xs font-medium mb-2 ml-1">
+              {searchQuery ? 'SEARCH RESULTS' : 'ALL AVAILABLE CITIES'}
+            </Text>
+            {quickSearchCities.slice(0, 20).map((cityOption, index) => (
+              <Animated.View
+                key={`${cityOption.city}-${cityOption.state}`}
+                entering={FadeInUp.duration(300).delay(index * 20)}
+              >
+                <Pressable
+                  onPress={() => handleQuickCitySelect(cityOption)}
+                  className="flex-row items-center p-4 rounded-2xl mb-2 bg-white"
+                >
+                  <View className="w-10 h-10 rounded-full items-center justify-center mr-3 bg-terracotta-50">
+                    <Zap size={20} color="#D4673A" />
+                  </View>
+                  <View className="flex-1">
+                    <Text className="font-medium text-base text-warmBrown">
+                      {cityOption.city}
+                    </Text>
+                    <Text className="text-gray-500 text-sm">
+                      {cityOption.state}, {cityOption.country}
+                    </Text>
+                  </View>
+                  <ArrowRight size={18} color="#9CA3AF" />
+                </Pressable>
+              </Animated.View>
+            ))}
+          </>
+        );
+
       case 'country':
         return filteredCountries.map((country, index) => (
           <Animated.View
@@ -325,7 +490,17 @@ export default function LocationSelectScreen() {
         {/* Header */}
         <Animated.View entering={FadeIn.duration(300)} className="px-5 pt-4 pb-2">
           <View className="flex-row items-center mb-4">
-            {step !== 'country' ? (
+            {step === 'quick' ? (
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  router.back();
+                }}
+                className="bg-white rounded-full p-2 mr-3 shadow-sm"
+              >
+                <X size={24} color="#2D1F1A" />
+              </Pressable>
+            ) : step !== 'country' ? (
               <Pressable
                 onPress={handleBack}
                 className="bg-white rounded-full p-2 mr-3 shadow-sm"
@@ -349,23 +524,34 @@ export default function LocationSelectScreen() {
             </View>
           </View>
 
-          {/* Progress */}
-          <View className="flex-row mb-4">
-            <View className={`flex-1 h-1 rounded-full mx-0.5 ${selectedCountry ? 'bg-terracotta-500' : 'bg-gray-200'}`} />
-            <View className={`flex-1 h-1 rounded-full mx-0.5 ${selectedState || (selectedCountry && states.length === 0) ? 'bg-terracotta-500' : 'bg-gray-200'}`} />
-            <View className={`flex-1 h-1 rounded-full mx-0.5 ${selectedCity ? 'bg-terracotta-500' : 'bg-gray-200'}`} />
-          </View>
+          {/* Progress - hide for quick mode */}
+          {step !== 'quick' && (
+            <View className="flex-row mb-4">
+              <View className={`flex-1 h-1 rounded-full mx-0.5 ${selectedCountry ? 'bg-terracotta-500' : 'bg-gray-200'}`} />
+              <View className={`flex-1 h-1 rounded-full mx-0.5 ${selectedState || (selectedCountry && states.length === 0) ? 'bg-terracotta-500' : 'bg-gray-200'}`} />
+              <View className={`flex-1 h-1 rounded-full mx-0.5 ${selectedCity ? 'bg-terracotta-500' : 'bg-gray-200'}`} />
+            </View>
+          )}
 
           {/* Search */}
           <View className="flex-row items-center bg-white rounded-2xl px-4 py-3 shadow-sm">
             <Search size={20} color="#8B7355" />
             <TextInput
-              placeholder={`Search ${step === 'country' ? 'countries' : step === 'state' ? 'states/regions' : 'cities'}...`}
+              placeholder={step === 'quick' ? 'Search any city (e.g. Denver, Atlanta)...' : `Search ${step === 'country' ? 'countries' : step === 'state' ? 'states/regions' : 'cities'}...`}
               placeholderTextColor="#9CA3AF"
               value={searchQuery}
               onChangeText={setSearchQuery}
               className="flex-1 ml-3 text-warmBrown text-base"
+              autoFocus={step === 'quick'}
             />
+            {searchQuery.length > 0 && (
+              <Pressable
+                onPress={() => setSearchQuery('')}
+                className="p-1"
+              >
+                <X size={18} color="#9CA3AF" />
+              </Pressable>
+            )}
           </View>
         </Animated.View>
 
