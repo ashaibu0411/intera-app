@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Share,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
@@ -33,12 +34,16 @@ import {
   MOCK_POSTS,
   MOCK_COMMENTS,
   type Comment,
+  type Post,
 } from '@/lib/store';
+import { getPost } from '@/lib/posts';
 
 export default function PostDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const scrollViewRef = useRef<ScrollView>(null);
   const [commentText, setCommentText] = useState('');
+  const [dbPost, setDbPost] = useState<Post | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   const isGuest = useStore((s) => s.isGuest);
   const currentUser = useStore((s) => s.currentUser);
@@ -48,12 +53,76 @@ export default function PostDetailScreen() {
   const userComments = useStore((s) => s.userComments);
   const addComment = useStore((s) => s.addComment);
 
-  // Search in both user-created posts and mock posts
+  // Fetch post from database if not found locally
+  useEffect(() => {
+    const fetchPost = async () => {
+      if (!id) {
+        setIsLoading(false);
+        return;
+      }
+
+      // Check local posts first
+      const foundInUserPosts = userPosts.find((p) => p.id === id);
+      if (foundInUserPosts) {
+        setIsLoading(false);
+        return;
+      }
+
+      const foundInMockPosts = MOCK_POSTS.find((p) => p.id === id);
+      if (foundInMockPosts) {
+        setIsLoading(false);
+        return;
+      }
+
+      // Not found locally, try database
+      try {
+        console.log('[PostDetail] Fetching post from database:', id);
+        const postData = await getPost(id);
+        if (postData) {
+          const formattedPost: Post = {
+            id: postData.id,
+            author: {
+              id: postData.author?.id || postData.author_id,
+              name: postData.author?.name || 'Unknown',
+              username: postData.author?.username || 'unknown',
+              avatar: postData.author?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&h=200&fit=crop&crop=face',
+              bio: postData.author?.bio || '',
+              location: postData.author?.location || '',
+              interests: postData.author?.interests || [],
+              joinedDate: postData.author?.created_at || new Date().toISOString(),
+            },
+            content: postData.content,
+            images: postData.images || [],
+            likes: 0,
+            comments: 0,
+            createdAt: postData.created_at,
+            isLiked: false,
+            location: postData.location || '',
+          };
+          console.log('[PostDetail] Found post in database');
+          setDbPost(formattedPost);
+        }
+      } catch (error) {
+        console.log('[PostDetail] Error fetching post:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchPost();
+  }, [id, userPosts]);
+
+  // Search in both user-created posts, mock posts, and database posts
   const post = useMemo(() => {
     const foundInUserPosts = userPosts.find((p) => p.id === id);
     if (foundInUserPosts) return foundInUserPosts;
-    return MOCK_POSTS.find((p) => p.id === id);
-  }, [id, userPosts]);
+
+    const foundInMockPosts = MOCK_POSTS.find((p) => p.id === id);
+    if (foundInMockPosts) return foundInMockPosts;
+
+    // Return database post if found
+    return dbPost;
+  }, [id, userPosts, dbPost]);
 
   const comments = useMemo(() => {
     const mockComments = MOCK_COMMENTS.filter((c) => c.postId === id);
@@ -76,10 +145,26 @@ export default function PostDetailScreen() {
     transform: [{ scale: likeScale.value }],
   }));
 
+  // Show loading while fetching
+  if (isLoading) {
+    return (
+      <View className="flex-1 bg-cream items-center justify-center">
+        <ActivityIndicator size="large" color="#D4673A" />
+        <Text className="text-gray-500 mt-4">Loading post...</Text>
+      </View>
+    );
+  }
+
   if (!post) {
     return (
       <View className="flex-1 bg-cream items-center justify-center">
         <Text className="text-gray-500">Post not found</Text>
+        <Pressable
+          onPress={() => router.back()}
+          className="mt-4 bg-terracotta-500 px-6 py-3 rounded-full"
+        >
+          <Text className="text-white font-semibold">Go Back</Text>
+        </Pressable>
       </View>
     );
   }
