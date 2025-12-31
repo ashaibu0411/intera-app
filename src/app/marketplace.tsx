@@ -17,6 +17,7 @@ import {
   Home,
   X,
   Heart,
+  Trash2,
 } from 'lucide-react-native';
 import Animated, { FadeIn, FadeInUp, FadeInRight } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -65,6 +66,8 @@ export default function MarketplaceScreen() {
   const isGuest = useStore((s) => s.isGuest);
   const currentUser = useStore((s) => s.currentUser);
   const userListings = useStore((s) => s.userListings);
+  const deleteMarketplaceListing = useStore((s) => s.deleteMarketplaceListing);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   const fetchListings = async () => {
     try {
@@ -151,6 +154,18 @@ export default function MarketplaceScreen() {
     } else {
       router.push('/create-listing');
     }
+  };
+
+  const isOwnListing = (listing: MarketplaceListing) => {
+    return currentUser && listing.seller.id === currentUser.id;
+  };
+
+  const handleDeleteListing = () => {
+    if (!selectedListing) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    deleteMarketplaceListing(selectedListing.id);
+    setShowDeleteModal(false);
+    setSelectedListing(null);
   };
 
   return (
@@ -471,31 +486,87 @@ export default function MarketplaceScreen() {
                   </View>
                 </ScrollView>
 
-                {/* Contact Button */}
+                {/* Contact Button or Delete Button */}
                 <View className="px-5 py-4 border-t border-gray-100 bg-white">
-                  <Pressable onPress={handleContactSeller}>
-                    <LinearGradient
-                      colors={['#D4673A', '#B85430']}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={{
-                        borderRadius: 16,
-                        paddingVertical: 16,
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
-                    >
-                      <MessageCircle size={20} color="#FFFFFF" />
-                      <Text className="text-white font-bold text-lg ml-2">
-                        Contact Seller
-                      </Text>
-                    </LinearGradient>
-                  </Pressable>
+                  {isOwnListing(selectedListing) ? (
+                    <View className="flex-row">
+                      <Pressable
+                        onPress={() => setShowDeleteModal(true)}
+                        className="flex-1 flex-row items-center justify-center py-4 rounded-2xl bg-red-50 mr-2"
+                      >
+                        <Trash2 size={20} color="#EF4444" />
+                        <Text className="text-red-500 font-bold text-base ml-2">
+                          Delete Listing
+                        </Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={() => setSelectedListing(null)}
+                        className="flex-1 flex-row items-center justify-center py-4 rounded-2xl bg-gray-100"
+                      >
+                        <Text className="text-warmBrown font-bold text-base">
+                          Close
+                        </Text>
+                      </Pressable>
+                    </View>
+                  ) : (
+                    <Pressable onPress={handleContactSeller}>
+                      <LinearGradient
+                        colors={['#D4673A', '#B85430']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={{
+                          borderRadius: 16,
+                          paddingVertical: 16,
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <MessageCircle size={20} color="#FFFFFF" />
+                        <Text className="text-white font-bold text-lg ml-2">
+                          Contact Seller
+                        </Text>
+                      </LinearGradient>
+                    </Pressable>
+                  )}
                 </View>
               </SafeAreaView>
             </View>
           )}
+        </Modal>
+
+        {/* Delete Confirmation Modal */}
+        <Modal visible={showDeleteModal} animationType="fade" transparent>
+          <View className="flex-1 bg-black/50 justify-center items-center px-6">
+            <View className="bg-white rounded-3xl w-full max-w-sm p-6">
+              <View className="items-center mb-4">
+                <View className="bg-red-100 rounded-full p-4 mb-4">
+                  <Trash2 size={32} color="#EF4444" />
+                </View>
+                <Text className="text-xl font-bold text-warmBrown text-center">
+                  Delete Listing?
+                </Text>
+                <Text className="text-gray-500 text-center mt-2">
+                  Are you sure you want to delete this listing? This action cannot be undone.
+                </Text>
+              </View>
+
+              <View className="flex-row mt-4">
+                <Pressable
+                  onPress={() => setShowDeleteModal(false)}
+                  className="flex-1 py-4 rounded-xl bg-gray-100 mr-2"
+                >
+                  <Text className="text-warmBrown font-semibold text-center">Cancel</Text>
+                </Pressable>
+                <Pressable
+                  onPress={handleDeleteListing}
+                  className="flex-1 py-4 rounded-xl bg-red-500 ml-2"
+                >
+                  <Text className="text-white font-semibold text-center">Delete</Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
         </Modal>
       </SafeAreaView>
     </View>

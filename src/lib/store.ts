@@ -268,6 +268,7 @@ interface AppState {
   addConnection: (user: User) => void;
   removeConnection: (userId: string) => void;
   addMarketplaceListing: (listing: MarketplaceListing) => void;
+  deleteMarketplaceListing: (listingId: string) => void;
   addBusiness: (business: Business) => void;
   deleteBusiness: (businessId: string) => void;
   addFaithEvent: (event: FaithEvent) => void;
@@ -331,6 +332,9 @@ export const useStore = create<AppState>()(
         connections: state.connections.filter((c) => c.id !== userId),
       })),
       addMarketplaceListing: (listing) => set((state) => ({ userListings: [listing, ...state.userListings] })),
+      deleteMarketplaceListing: (listingId) => set((state) => ({
+        userListings: state.userListings.filter((l) => l.id !== listingId),
+      })),
       addBusiness: (business) => set((state) => ({ userBusinesses: [business, ...state.userBusinesses] })),
       deleteBusiness: (businessId) => set((state) => ({
         userBusinesses: state.userBusinesses.filter((b) => b.id !== businessId),
