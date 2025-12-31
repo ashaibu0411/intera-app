@@ -201,6 +201,23 @@ The app is fully connected to Supabase for data persistence and syncing across u
 - **Opens in Browser**: Tap any article to read the full story in your browser
 - **Auto-Updates**: News refreshes when you change cities or pull-to-refresh
 
+### Events Tab - Discover Local & Global Events
+- **Dedicated Events Tab**: Calendar icon in the bottom navigation for discovering events
+- **Local/Global Toggle**: Switch between events near you and events happening worldwide
+- **Category Filters**: Filter events by type:
+  - Social Gatherings
+  - Cultural Celebrations
+  - Food & Dining
+  - Music & Entertainment
+  - Networking
+  - Education & Workshop
+- **Event Cards**: Beautiful cards showing event image, date badge, title, description, time, location, and attendee count
+- **RSVP System**: Mark yourself as "Interested" or "Going" for any event
+- **This Week Section**: Quick horizontal scroll of upcoming events in the next 7 days
+- **Stats Dashboard**: See total events, how many you're going to, and interested in
+- **Create Events**: Plus button to create your own events
+- **Event Details**: Tap any event for full details with host info and location
+
 ### Seller Pro Subscription (RevenueCat)
 - **First 50 in-app sales are FREE** - no fees for new sellers
 - **Cash/offline payments are ALWAYS FREE** - only in-app payments require Seller Pro after 50 sales
