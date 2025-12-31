@@ -3,7 +3,7 @@ import { View, Text, ScrollView, Pressable, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Settings, MapPin, Calendar, Edit3, Users, FileText, Bookmark, LogOut } from 'lucide-react-native';
+import { Settings, MapPin, Calendar, Edit3, Users, FileText, Bookmark, LogOut, Star, ChevronRight, Play } from 'lucide-react-native';
 import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
@@ -17,9 +17,13 @@ export default function ProfileScreen() {
   const userCreatedPosts = useStore((s) => s.userPosts);
   const savedPostIds = useStore((s) => s.savedPostIds);
   const connections = useStore((s) => s.connections);
+  const lifeEvents = useStore((s) => s.lifeEvents);
 
   // Use current user if logged in, otherwise show mock user for guests
   const user = currentUser || MOCK_USERS[0];
+
+  // Filter life events for current user
+  const userLifeEvents = lifeEvents.filter((e) => e.userId === currentUser?.id);
 
   // Count posts from both user-created and mock posts
   const mockUserPosts = MOCK_POSTS.filter((p) => currentUser && p.author.id === currentUser.id);
@@ -242,6 +246,111 @@ export default function ProfileScreen() {
                 </Pressable>
               </Animated.View>
             ))}
+          </Animated.View>
+
+          {/* Life Events Section */}
+          <Animated.View
+            entering={FadeInUp.duration(400).delay(400)}
+            className="mx-5 mt-6"
+          >
+            <View className="flex-row items-center justify-between mb-3">
+              <Text className="text-lg font-semibold text-warmBrown">Life Events</Text>
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  router.push('/life-events');
+                }}
+                className="flex-row items-center"
+              >
+                <Text className="text-terracotta-500 font-medium mr-1">View All</Text>
+                <ChevronRight size={16} color="#D4673A" />
+              </Pressable>
+            </View>
+
+            {userLifeEvents.length > 0 ? (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }}>
+                {userLifeEvents.slice(0, 5).map((event, index) => (
+                  <Pressable
+                    key={event.id}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      router.push('/life-events');
+                    }}
+                    className="mr-3"
+                    style={{ width: 140 }}
+                  >
+                    <View className="bg-white rounded-2xl overflow-hidden shadow-sm">
+                      {event.images.length > 0 ? (
+                        <Image
+                          source={{ uri: event.images[0] }}
+                          style={{ width: 140, height: 100 }}
+                          contentFit="cover"
+                        />
+                      ) : event.video ? (
+                        <View className="w-full h-[100px] bg-gray-900 items-center justify-center">
+                          <Play size={24} color="#FFFFFF" fill="#FFFFFF" />
+                        </View>
+                      ) : (
+                        <View className="w-full h-[100px] bg-terracotta-100 items-center justify-center">
+                          <Star size={24} color="#D4673A" />
+                        </View>
+                      )}
+                      <View className="p-3">
+                        <Text className="text-warmBrown font-semibold text-sm" numberOfLines={1}>
+                          {event.title}
+                        </Text>
+                        <Text className="text-gray-500 text-xs mt-1 capitalize">
+                          {event.category}
+                        </Text>
+                      </View>
+                    </View>
+                  </Pressable>
+                ))}
+                {/* Add More Card */}
+                <Pressable
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    router.push('/life-events');
+                  }}
+                  className="mr-3"
+                  style={{ width: 140 }}
+                >
+                  <View className="bg-terracotta-50 rounded-2xl h-[168px] items-center justify-center border-2 border-dashed border-terracotta-200">
+                    <View className="bg-terracotta-100 rounded-full p-3 mb-2">
+                      <Star size={20} color="#D4673A" />
+                    </View>
+                    <Text className="text-terracotta-500 font-medium text-sm">Add Event</Text>
+                  </View>
+                </Pressable>
+              </ScrollView>
+            ) : (
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  router.push('/life-events');
+                }}
+              >
+                <LinearGradient
+                  colors={['#FEF3C7', '#FDE68A']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={{ borderRadius: 16, padding: 20 }}
+                >
+                  <View className="flex-row items-center">
+                    <View className="bg-gold-500 rounded-full p-3">
+                      <Star size={24} color="#FFFFFF" />
+                    </View>
+                    <View className="flex-1 ml-4">
+                      <Text className="text-warmBrown font-bold">Share Your Milestones</Text>
+                      <Text className="text-warmBrown/70 text-sm mt-1">
+                        Document weddings, graduations, new babies & more
+                      </Text>
+                    </View>
+                    <ChevronRight size={20} color="#92400E" />
+                  </View>
+                </LinearGradient>
+              </Pressable>
+            )}
           </Animated.View>
 
           {/* Logout / Sign Up */}

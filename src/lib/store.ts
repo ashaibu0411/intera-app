@@ -169,6 +169,30 @@ export interface InventoryItem {
   createdAt: string;
 }
 
+export interface LifeEvent {
+  id: string;
+  userId: string;
+  title: string;
+  description: string;
+  category: 'wedding' | 'graduation' | 'birthday' | 'newborn' | 'achievement' | 'travel' | 'anniversary' | 'other';
+  date: string;
+  images: string[];
+  video?: string;
+  location?: string;
+  createdAt: string;
+}
+
+export const LIFE_EVENT_CATEGORIES = [
+  { id: 'wedding', label: 'Wedding', icon: 'Heart' },
+  { id: 'graduation', label: 'Graduation', icon: 'GraduationCap' },
+  { id: 'birthday', label: 'Birthday', icon: 'Cake' },
+  { id: 'newborn', label: 'New Baby', icon: 'Baby' },
+  { id: 'achievement', label: 'Achievement', icon: 'Trophy' },
+  { id: 'travel', label: 'Travel', icon: 'Plane' },
+  { id: 'anniversary', label: 'Anniversary', icon: 'Calendar' },
+  { id: 'other', label: 'Other', icon: 'Star' },
+] as const;
+
 export const EVENT_CATEGORIES = [
   'Social Gathering',
   'Networking',
@@ -212,6 +236,9 @@ interface AppState {
   // Faith events state
   userFaithEvents: FaithEvent[];
 
+  // Life events state
+  lifeEvents: LifeEvent[];
+
   // Settings
   notificationsEnabled: boolean;
 
@@ -231,6 +258,8 @@ interface AppState {
   addMarketplaceListing: (listing: MarketplaceListing) => void;
   addBusiness: (business: Business) => void;
   addFaithEvent: (event: FaithEvent) => void;
+  addLifeEvent: (event: LifeEvent) => void;
+  deleteLifeEvent: (eventId: string) => void;
   setNotificationsEnabled: (enabled: boolean) => void;
   logout: () => void;
 }
@@ -251,6 +280,7 @@ export const useStore = create<AppState>()(
       userListings: [],
       userBusinesses: [],
       userFaithEvents: [],
+      lifeEvents: [],
       notificationsEnabled: true,
 
       setCurrentUser: (user) => set({ currentUser: user }),
@@ -280,6 +310,10 @@ export const useStore = create<AppState>()(
       addMarketplaceListing: (listing) => set((state) => ({ userListings: [listing, ...state.userListings] })),
       addBusiness: (business) => set((state) => ({ userBusinesses: [business, ...state.userBusinesses] })),
       addFaithEvent: (event) => set((state) => ({ userFaithEvents: [event, ...state.userFaithEvents] })),
+      addLifeEvent: (event) => set((state) => ({ lifeEvents: [event, ...state.lifeEvents] })),
+      deleteLifeEvent: (eventId) => set((state) => ({
+        lifeEvents: state.lifeEvents.filter((e) => e.id !== eventId),
+      })),
       setNotificationsEnabled: (enabled) => set({ notificationsEnabled: enabled }),
       logout: () => set({ currentUser: null, isOnboarded: false, isGuest: false }),
     }),
@@ -296,6 +330,7 @@ export const useStore = create<AppState>()(
         userPosts: state.userPosts,
         savedPostIds: state.savedPostIds,
         connections: state.connections,
+        lifeEvents: state.lifeEvents,
         notificationsEnabled: state.notificationsEnabled,
       }),
     }
