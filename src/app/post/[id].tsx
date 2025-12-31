@@ -36,13 +36,14 @@ import {
   type Comment,
   type Post,
 } from '@/lib/store';
-import { getPost } from '@/lib/posts';
+import { getPost, getComments } from '@/lib/posts';
 
 export default function PostDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const scrollViewRef = useRef<ScrollView>(null);
   const [commentText, setCommentText] = useState('');
   const [dbPost, setDbPost] = useState<Post | null>(null);
+  const [dbComments, setDbComments] = useState<Comment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const isGuest = useStore((s) => s.isGuest);
@@ -53,12 +54,41 @@ export default function PostDetailScreen() {
   const userComments = useStore((s) => s.userComments);
   const addComment = useStore((s) => s.addComment);
 
-  // Fetch post from database if not found locally
+  // Fetch post and comments from database
   useEffect(() => {
-    const fetchPost = async () => {
+    const fetchPostAndComments = async () => {
       if (!id) {
         setIsLoading(false);
         return;
+      }
+
+      // Always fetch comments from database
+      try {
+        console.log('[PostDetail] Fetching comments from database for post:', id);
+        const commentsData = await getComments(id);
+        if (commentsData && commentsData.length > 0) {
+          const formattedComments: Comment[] = commentsData.map((c: any) => ({
+            id: c.id,
+            postId: c.post_id,
+            author: {
+              id: c.author?.id || c.author_id,
+              name: c.author?.name || 'Unknown',
+              username: c.author?.username || 'unknown',
+              avatar: c.author?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&h=200&fit=crop&crop=face',
+              bio: c.author?.bio || '',
+              location: c.author?.location || '',
+              interests: c.author?.interests || [],
+              joinedDate: c.author?.created_at || new Date().toISOString(),
+            },
+            content: c.content,
+            createdAt: c.created_at,
+            likes: 0,
+          }));
+          console.log('[PostDetail] Found comments:', formattedComments.length);
+          setDbComments(formattedComments);
+        }
+      } catch (error) {
+        console.log('[PostDetail] Error fetching comments:', error);
       }
 
       // Check local posts first
@@ -109,7 +139,7 @@ export default function PostDetailScreen() {
       }
     };
 
-    fetchPost();
+    fetchPostAndComments();
   }, [id, userPosts]);
 
   // Search in both user-created posts, mock posts, and database posts
@@ -125,10 +155,31 @@ export default function PostDetailScreen() {
   }, [id, userPosts, dbPost]);
 
   const comments = useMemo(() => {
-    const mockComments = MOCK_COMMENTS.filter((c) => c.postId === id);
-    const savedComments = userComments.filter((c) => c.postId === id);
-    return [...mockComments, ...savedComments];
-  }, [id, userComments]);
+    // Combine all comment sources, avoiding duplicates
+    const commentMap = new Map<string, Comment>();
+
+    // Add database comments first
+    dbComments.forEach(c => commentMap.set(c.id, c));
+
+    // Add mock comments
+    MOCK_COMMENTS.filter((c) => c.postId === id).forEach(c => {
+      if (!commentMap.has(c.id)) {
+        commentMap.set(c.id, c);
+      }
+    });
+
+    // Add user's local comments
+    userComments.filter((c) => c.postId === id).forEach(c => {
+      if (!commentMap.has(c.id)) {
+        commentMap.set(c.id, c);
+      }
+    });
+
+    // Sort by date
+    return Array.from(commentMap.values()).sort((a, b) =>
+      new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    );
+  }, [id, userComments, dbComments]);
 
   const isLiked = id ? likedPostIds.includes(id) : false;
   const baseLikes = post?.likes ?? 0;
