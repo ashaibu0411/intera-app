@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
+import { Video, ResizeMode } from 'expo-av';
 import {
   ChevronLeft,
   Heart,
@@ -19,6 +20,9 @@ import {
   Send,
   MoreHorizontal,
   MapPin,
+  Play,
+  Volume2,
+  VolumeX,
 } from 'lucide-react-native';
 import Animated, { FadeIn, FadeInUp, useSharedValue, useAnimatedStyle, withSpring, withSequence } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -39,8 +43,14 @@ export default function PostDetailScreen() {
 
   const isGuest = useStore((s) => s.isGuest);
   const currentUser = useStore((s) => s.currentUser);
+  const userPosts = useStore((s) => s.userPosts);
 
-  const post = useMemo(() => MOCK_POSTS.find((p) => p.id === id), [id]);
+  // Search in both user-created posts and mock posts
+  const post = useMemo(() => {
+    const foundInUserPosts = userPosts.find((p) => p.id === id);
+    if (foundInUserPosts) return foundInUserPosts;
+    return MOCK_POSTS.find((p) => p.id === id);
+  }, [id, userPosts]);
 
   const comments = useMemo(() => {
     const mockComments = MOCK_COMMENTS.filter((c) => c.postId === id);
@@ -49,6 +59,9 @@ export default function PostDetailScreen() {
 
   const [isLiked, setIsLiked] = useState(post?.isLiked ?? false);
   const [likeCount, setLikeCount] = useState(post?.likes ?? 0);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isMuted, setIsMuted] = useState(true);
+  const videoRef = useRef<Video>(null);
   const likeScale = useSharedValue(1);
 
   const likeAnimatedStyle = useAnimatedStyle(() => ({
@@ -199,6 +212,63 @@ export default function PostDetailScreen() {
                     style={{ width: '100%', height: 250, borderRadius: 12 }}
                     contentFit="cover"
                   />
+                </View>
+              )}
+
+              {/* Post Video */}
+              {post.video && (
+                <View className="px-4 pb-3">
+                  <Pressable
+                    onPress={async () => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      if (videoRef.current) {
+                        if (isPlaying) {
+                          await videoRef.current.pauseAsync();
+                        } else {
+                          await videoRef.current.playAsync();
+                        }
+                        setIsPlaying(!isPlaying);
+                      }
+                    }}
+                    className="relative"
+                  >
+                    <Video
+                      ref={videoRef}
+                      source={{ uri: post.video }}
+                      style={{ width: '100%', height: 300, borderRadius: 12, backgroundColor: '#000' }}
+                      resizeMode={ResizeMode.CONTAIN}
+                      isLooping
+                      isMuted={isMuted}
+                      onPlaybackStatusUpdate={(status) => {
+                        if (status.isLoaded) {
+                          setIsPlaying(status.isPlaying);
+                        }
+                      }}
+                    />
+                    {!isPlaying && (
+                      <View className="absolute inset-0 items-center justify-center" style={{ borderRadius: 12 }}>
+                        <View className="bg-black/50 rounded-full p-4">
+                          <Play size={32} color="#FFFFFF" fill="#FFFFFF" />
+                        </View>
+                      </View>
+                    )}
+                    <Pressable
+                      onPress={async () => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        if (videoRef.current) {
+                          await videoRef.current.setIsMutedAsync(!isMuted);
+                          setIsMuted(!isMuted);
+                        }
+                      }}
+                      className="absolute bottom-3 right-3 bg-black/50 rounded-full p-2"
+                    >
+                      {isMuted ? (
+                        <VolumeX size={18} color="#FFFFFF" />
+                      ) : (
+                        <Volume2 size={18} color="#FFFFFF" />
+                      )}
+                    </Pressable>
+                  </Pressable>
                 </View>
               )}
 
