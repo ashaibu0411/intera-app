@@ -21,7 +21,9 @@ export async function getOrCreateCommunity(city: string, state: string | null, c
   }
 
   if (existing) {
-    return existing as DbCommunity;
+    // Update member count based on actual community_members
+    const updatedCommunity = await updateCommunityMemberCount(existing.id);
+    return updatedCommunity || (existing as DbCommunity);
   }
 
   // Create new community if it doesn't exist
@@ -34,7 +36,7 @@ export async function getOrCreateCommunity(city: string, state: string | null, c
       city,
       state,
       country,
-      member_count: 1, // Starting with first member
+      member_count: 0, // Start at 0, will be updated when users actually join
       image_url: `https://images.unsplash.com/photo-1449824913935-59a10b8d2000?w=400&h=300&fit=crop`, // Default city image
     })
     .select()
@@ -48,6 +50,35 @@ export async function getOrCreateCommunity(city: string, state: string | null, c
   return newCommunity as DbCommunity;
 }
 
+// Update community member count based on actual members in community_members table
+export async function updateCommunityMemberCount(communityId: string): Promise<DbCommunity | null> {
+  // Count actual members
+  const { count, error: countError } = await supabase
+    .from('community_members')
+    .select('*', { count: 'exact', head: true })
+    .eq('community_id', communityId);
+
+  if (countError) {
+    console.error('Error counting members:', countError);
+    return null;
+  }
+
+  // Update the community with correct count
+  const { data, error: updateError } = await supabase
+    .from('communities')
+    .update({ member_count: count || 0 })
+    .eq('id', communityId)
+    .select()
+    .single();
+
+  if (updateError) {
+    console.error('Error updating member count:', updateError);
+    return null;
+  }
+
+  return data as DbCommunity;
+}
+
 // Join a user to a community
 export async function joinCommunity(userId: string, communityId: string): Promise<boolean> {
   // Check if already a member
@@ -59,7 +90,7 @@ export async function joinCommunity(userId: string, communityId: string): Promis
     .maybeSingle();
 
   if (existing) {
-    return true; // Already a member
+    return true; // Already a member, don't add again
   }
 
   // Add as member
@@ -75,15 +106,8 @@ export async function joinCommunity(userId: string, communityId: string): Promis
     return false;
   }
 
-  // Increment member count
-  const { error: updateError } = await supabase.rpc('increment_member_count', {
-    community_id_input: communityId,
-  });
-
-  if (updateError) {
-    // Fallback: manually update if RPC doesn't exist
-    console.log('RPC not available, using fallback');
-  }
+  // Update member count based on actual count
+  await updateCommunityMemberCount(communityId);
 
   return true;
 }
@@ -101,14 +125,8 @@ export async function leaveCommunity(userId: string, communityId: string): Promi
     return false;
   }
 
-  // Decrement member count
-  const { error: updateError } = await supabase.rpc('decrement_member_count', {
-    community_id_input: communityId,
-  });
-
-  if (updateError) {
-    console.log('RPC not available, using fallback');
-  }
+  // Update member count based on actual count
+  await updateCommunityMemberCount(communityId);
 
   return true;
 }
