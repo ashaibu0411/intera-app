@@ -64,6 +64,7 @@ export default function MarketplaceScreen() {
 
   const isGuest = useStore((s) => s.isGuest);
   const currentUser = useStore((s) => s.currentUser);
+  const userListings = useStore((s) => s.userListings);
 
   const fetchListings = async () => {
     try {
@@ -113,7 +114,7 @@ export default function MarketplaceScreen() {
     views: listing.views,
   }));
 
-  const allListings = [...supabaseListings, ...MOCK_MARKETPLACE];
+  const allListings = [...userListings, ...supabaseListings, ...MOCK_MARKETPLACE];
 
   const filteredListings = allListings.filter((listing) => {
     const matchesSearch =

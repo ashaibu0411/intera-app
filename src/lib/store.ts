@@ -374,6 +374,7 @@ export const useStore = create<AppState>()(
         connections: state.connections,
         lifeEvents: state.lifeEvents,
         userBusinesses: state.userBusinesses,
+        userListings: state.userListings,
         eventRsvps: state.eventRsvps,
         notificationsEnabled: state.notificationsEnabled,
       }),
