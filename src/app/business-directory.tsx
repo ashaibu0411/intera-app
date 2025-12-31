@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, Pressable, TextInput, ActivityIndicator, RefreshControl, Linking, Alert } from 'react-native';
+import { View, Text, ScrollView, Pressable, TextInput, ActivityIndicator, RefreshControl, Linking, Alert, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -312,6 +312,27 @@ export default function BusinessDirectoryScreen() {
     }
   };
 
+  const handleGetDirections = (address: string, businessName: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (!address) {
+      Alert.alert('No Address', `${businessName} hasn't added an address yet.`);
+      return;
+    }
+    // Encode address for maps URL
+    const encodedAddress = encodeURIComponent(address);
+    // Try to open in Apple Maps on iOS, Google Maps on Android
+    const mapsUrl = Platform.OS === 'ios'
+      ? `maps://app?daddr=${encodedAddress}`
+      : `geo:0,0?q=${encodedAddress}`;
+
+    Linking.openURL(mapsUrl).catch(() => {
+      // Fallback to Google Maps web URL
+      Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodedAddress}`).catch(() => {
+        Alert.alert('Cannot Open Maps', 'Unable to open maps application.');
+      });
+    });
+  };
+
   const toggleSave = (id: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSavedBusinesses((prev) =>
@@ -569,7 +590,10 @@ export default function BusinessDirectoryScreen() {
                       <Text className="text-gold-600 text-sm font-medium ml-1">Message</Text>
                     </Pressable>
                     {!business.acceptsBookings && (
-                      <Pressable className="flex-row items-center flex-1">
+                      <Pressable
+                        onPress={() => handleGetDirections(business.address, business.name)}
+                        className="flex-row items-center flex-1"
+                      >
                         <MapPin size={14} color="#D4673A" />
                         <Text className="text-terracotta-500 text-sm font-medium ml-1">Directions</Text>
                       </Pressable>

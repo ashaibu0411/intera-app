@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, Pressable, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
@@ -7,10 +7,11 @@ import {
   Search,
   MessageSquarePlus,
   Circle,
+  Store,
 } from 'lucide-react-native';
 import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { formatDistanceToNow } from 'date-fns';
 import { useStore, MOCK_USERS, type User } from '@/lib/store';
 
@@ -47,9 +48,22 @@ const MOCK_CONVERSATIONS: ConversationPreview[] = [
 ];
 
 export default function MessagesScreen() {
+  const { businessId, businessName } = useLocalSearchParams<{ businessId?: string; businessName?: string }>();
   const [searchQuery, setSearchQuery] = useState('');
   const isGuest = useStore((s) => s.isGuest);
   const currentUser = useStore((s) => s.currentUser);
+
+  // If a business was passed in, open a chat with that business directly
+  useEffect(() => {
+    if (businessId && businessName && currentUser && !isGuest) {
+      // Create a unique conversation ID for this business
+      const conversationId = `business_${businessId}`;
+      // Navigate to chat with the business
+      router.replace(
+        `/chat/${conversationId}?name=${encodeURIComponent(businessName)}&avatar=${encodeURIComponent('https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=200&h=200&fit=crop')}&isBusiness=true`
+      );
+    }
+  }, [businessId, businessName, currentUser, isGuest]);
 
   const handleBack = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
