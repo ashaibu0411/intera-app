@@ -7,7 +7,7 @@ import * as Haptics from 'expo-haptics';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, withSequence, withTiming } from 'react-native-reanimated';
 import { formatDistanceToNow } from 'date-fns';
 import { router } from 'expo-router';
-import { useStore, type Post } from '@/lib/store';
+import { useStore, MOCK_COMMENTS, type Post } from '@/lib/store';
 
 interface PostCardProps {
   post: Post;
@@ -21,6 +21,7 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
   const likedPostIds = useStore((s) => s.likedPostIds);
   const toggleLikePost = useStore((s) => s.toggleLikePost);
+  const userComments = useStore((s) => s.userComments);
 
   const isLiked = likedPostIds.includes(post.id);
   const baseLikes = post.likes;
@@ -28,6 +29,11 @@ export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
   const likeCount = post.isLiked
     ? (isLiked ? baseLikes : baseLikes - 1)
     : (isLiked ? baseLikes + 1 : baseLikes);
+
+  // Calculate total comment count: mock comments + user comments for this post
+  const mockCommentsCount = MOCK_COMMENTS.filter((c) => c.postId === post.id).length;
+  const userCommentsCount = userComments.filter((c) => c.postId === post.id).length;
+  const commentCount = mockCommentsCount + userCommentsCount;
 
   const [isPlaying, setIsPlaying] = React.useState(false);
   const [isMuted, setIsMuted] = React.useState(true);
@@ -217,7 +223,7 @@ export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
           className="flex-row items-center mr-6"
         >
           <MessageCircle size={22} color="#8B7355" />
-          <Text className="ml-2 text-sm text-gray-500">{post.comments}</Text>
+          <Text className="ml-2 text-sm text-gray-500">{commentCount}</Text>
         </Pressable>
 
         <Pressable onPress={handleShare} className="flex-row items-center">
