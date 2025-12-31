@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { View, Text, Pressable, Share } from 'react-native';
 import { Image } from 'expo-image';
-import { Heart, MessageCircle, Share2, MoreHorizontal, MapPin } from 'lucide-react-native';
+import { Video, ResizeMode } from 'expo-av';
+import { Heart, MessageCircle, Share2, MoreHorizontal, MapPin, Play, Volume2, VolumeX } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, withSequence, withTiming } from 'react-native-reanimated';
 import { formatDistanceToNow } from 'date-fns';
@@ -20,6 +21,9 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
   const [isLiked, setIsLiked] = useState(post.isLiked);
   const [likeCount, setLikeCount] = useState(post.likes);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isMuted, setIsMuted] = useState(true);
+  const videoRef = useRef<Video>(null);
   const likeScale = useSharedValue(1);
 
   const handleLike = () => {
@@ -65,6 +69,26 @@ export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push(`/post/${post.id}`);
     onComment?.(post.id);
+  };
+
+  const handleVideoPlayPause = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (videoRef.current) {
+      if (isPlaying) {
+        await videoRef.current.pauseAsync();
+      } else {
+        await videoRef.current.playAsync();
+      }
+      setIsPlaying(!isPlaying);
+    }
+  };
+
+  const handleToggleMute = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (videoRef.current) {
+      await videoRef.current.setIsMutedAsync(!isMuted);
+      setIsMuted(!isMuted);
+    }
   };
 
   const handleShare = async () => {
@@ -124,6 +148,49 @@ export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
             style={{ width: '100%', height: 200, borderRadius: 12 }}
             contentFit="cover"
           />
+        </View>
+      )}
+
+      {/* Video */}
+      {post.video && (
+        <View className="px-4 pb-3">
+          <Pressable onPress={handleVideoPlayPause} className="relative">
+            <Video
+              ref={videoRef}
+              source={{ uri: post.video }}
+              style={{ width: '100%', height: 250, borderRadius: 12, backgroundColor: '#000' }}
+              resizeMode={ResizeMode.CONTAIN}
+              isLooping
+              isMuted={isMuted}
+              onPlaybackStatusUpdate={(status) => {
+                if (status.isLoaded) {
+                  setIsPlaying(status.isPlaying);
+                }
+              }}
+            />
+            {/* Play/Pause overlay */}
+            {!isPlaying && (
+              <View
+                className="absolute inset-0 items-center justify-center"
+                style={{ borderRadius: 12 }}
+              >
+                <View className="bg-black/50 rounded-full p-4">
+                  <Play size={32} color="#FFFFFF" fill="#FFFFFF" />
+                </View>
+              </View>
+            )}
+            {/* Mute button */}
+            <Pressable
+              onPress={handleToggleMute}
+              className="absolute bottom-3 right-3 bg-black/50 rounded-full p-2"
+            >
+              {isMuted ? (
+                <VolumeX size={18} color="#FFFFFF" />
+              ) : (
+                <Volume2 size={18} color="#FFFFFF" />
+              )}
+            </Pressable>
+          </Pressable>
         </View>
       )}
 

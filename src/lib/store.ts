@@ -293,6 +293,10 @@ export const useStore = create<AppState>()(
         hasSeenWelcome: state.hasSeenWelcome,
         selectedLocation: state.selectedLocation,
         currentCommunity: state.currentCommunity,
+        userPosts: state.userPosts,
+        savedPostIds: state.savedPostIds,
+        connections: state.connections,
+        notificationsEnabled: state.notificationsEnabled,
       }),
     }
   )
