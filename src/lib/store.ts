@@ -252,6 +252,9 @@ interface AppState {
   // Event RSVPs state
   eventRsvps: EventRsvp[];
 
+  // Seller stats
+  inAppSalesCount: number;
+
   // Settings
   notificationsEnabled: boolean;
 
@@ -282,6 +285,7 @@ interface AppState {
   setNotificationsEnabled: (enabled: boolean) => void;
   setLocationDetectionDismissed: (dismissed: boolean) => void;
   setLastDetectedCity: (city: string | null) => void;
+  incrementInAppSalesCount: () => void;
   logout: () => void;
 }
 
@@ -307,6 +311,7 @@ export const useStore = create<AppState>()(
       userFaithEvents: [],
       lifeEvents: [],
       eventRsvps: [],
+      inAppSalesCount: 0,
       notificationsEnabled: true,
 
       setCurrentUser: (user) => set({ currentUser: user }),
@@ -374,6 +379,7 @@ export const useStore = create<AppState>()(
       setNotificationsEnabled: (enabled) => set({ notificationsEnabled: enabled }),
       setLocationDetectionDismissed: (dismissed) => set({ locationDetectionDismissed: dismissed }),
       setLastDetectedCity: (city) => set({ lastDetectedCity: city }),
+      incrementInAppSalesCount: () => set((state) => ({ inAppSalesCount: state.inAppSalesCount + 1 })),
       logout: () => set({ currentUser: null, isOnboarded: false, isGuest: false }),
     }),
     {
@@ -392,6 +398,7 @@ export const useStore = create<AppState>()(
         savedPostIds: state.savedPostIds,
         likedPostIds: state.likedPostIds,
         userComments: state.userComments,
+        inAppSalesCount: state.inAppSalesCount,
         connections: state.connections,
         lifeEvents: state.lifeEvents,
         userBusinesses: state.userBusinesses,

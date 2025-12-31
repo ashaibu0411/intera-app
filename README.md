@@ -180,3 +180,19 @@ The app is fully connected to Supabase for data persistence and syncing across u
 - Premium paywall screen (`/paywall`) with beautiful UI
 - Premium status badge displayed on user profile
 - "Go Premium" button on profile for non-subscribers
+
+### Seller Pro Subscription (RevenueCat)
+- **First 50 in-app sales are FREE** - no fees for new sellers
+- **Cash/offline payments are ALWAYS FREE** - only in-app payments require Seller Pro after 50 sales
+- **Monthly Plan**: $9.99/month
+- **Annual Plan**: $79.99/year (33% savings)
+- **Seller Pro Features**:
+  - Unlimited in-app payment processing
+  - Sales analytics and performance tracking
+  - Verified seller badge on listings
+  - Secure payment processing
+  - Lower transaction fees
+- Seller Pro paywall screen (`/seller-pro-paywall`) with sales progress tracking
+- Automatic sales counting for in-app transactions
+- Helper utilities in `src/lib/sellerPro.ts` for checking seller status
+
