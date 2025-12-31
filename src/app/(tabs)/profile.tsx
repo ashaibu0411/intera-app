@@ -10,23 +10,31 @@ import { router } from 'expo-router';
 import { useStore, MOCK_USERS, MOCK_POSTS } from '@/lib/store';
 import { signOut } from '@/lib/auth';
 
-const MENU_ITEMS = [
-  { id: 'posts', label: 'My Posts', icon: FileText, count: 12 },
-  { id: 'saved', label: 'Saved', icon: Bookmark, count: 8 },
-  { id: 'connections', label: 'Connections', icon: Users, count: 156 },
-];
-
 export default function ProfileScreen() {
   const currentUser = useStore((s) => s.currentUser);
   const isGuest = useStore((s) => s.isGuest);
   const logout = useStore((s) => s.logout);
+  const userCreatedPosts = useStore((s) => s.userPosts);
+  const savedPostIds = useStore((s) => s.savedPostIds);
+  const connections = useStore((s) => s.connections);
 
   // Use current user if logged in, otherwise show mock user for guests
   const user = currentUser || MOCK_USERS[0];
-  const userPosts = MOCK_POSTS.filter((p) => p.author.id === user.id);
 
-  const handleMenuPress = (id: string) => {
+  // Count posts from both user-created and mock posts
+  const mockUserPosts = MOCK_POSTS.filter((p) => currentUser && p.author.id === currentUser.id);
+  const totalPosts = userCreatedPosts.length + mockUserPosts.length;
+
+  // Dynamic menu items with real counts
+  const menuItems = [
+    { id: 'posts', label: 'My Posts', icon: FileText, count: totalPosts, route: '/my-posts' },
+    { id: 'saved', label: 'Saved', icon: Bookmark, count: savedPostIds.length, route: '/saved-posts' },
+    { id: 'connections', label: 'Connections', icon: Users, count: connections.length, route: '/connections' },
+  ];
+
+  const handleMenuPress = (route: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push(route as any);
   };
 
   const handleEditProfile = () => {
@@ -189,16 +197,16 @@ export default function ProfileScreen() {
             className="flex-row mx-5 mt-4"
           >
             <View className="flex-1 bg-white rounded-2xl p-4 mr-2 items-center shadow-sm">
-              <Text className="text-2xl font-bold text-terracotta-500">{userPosts.length}</Text>
+              <Text className="text-2xl font-bold text-terracotta-500">{totalPosts}</Text>
               <Text className="text-gray-500 text-sm mt-1">Posts</Text>
             </View>
             <View className="flex-1 bg-white rounded-2xl p-4 mx-1 items-center shadow-sm">
-              <Text className="text-2xl font-bold text-forest-700">156</Text>
+              <Text className="text-2xl font-bold text-forest-700">{connections.length}</Text>
               <Text className="text-gray-500 text-sm mt-1">Connections</Text>
             </View>
             <View className="flex-1 bg-white rounded-2xl p-4 ml-2 items-center shadow-sm">
-              <Text className="text-2xl font-bold text-gold-500">8</Text>
-              <Text className="text-gray-500 text-sm mt-1">Communities</Text>
+              <Text className="text-2xl font-bold text-gold-500">{savedPostIds.length}</Text>
+              <Text className="text-gray-500 text-sm mt-1">Saved</Text>
             </View>
           </Animated.View>
 
@@ -208,13 +216,13 @@ export default function ProfileScreen() {
             className="mx-5 mt-6"
           >
             <Text className="text-lg font-semibold text-warmBrown mb-3">Activity</Text>
-            {MENU_ITEMS.map((item, index) => (
+            {menuItems.map((item, index) => (
               <Animated.View
                 key={item.id}
                 entering={FadeInUp.duration(300).delay(350 + index * 50)}
               >
                 <Pressable
-                  onPress={() => handleMenuPress(item.id)}
+                  onPress={() => handleMenuPress(item.route)}
                   className="flex-row items-center bg-white rounded-2xl p-4 mb-3 shadow-sm"
                 >
                   <View className="bg-terracotta-50 rounded-full p-3">

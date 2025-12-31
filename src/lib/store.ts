@@ -197,6 +197,10 @@ interface AppState {
 
   // Posts state
   userPosts: Post[];
+  savedPostIds: string[];
+
+  // Connections state
+  connections: User[];
 
   // Marketplace state
   userListings: MarketplaceListing[];
@@ -216,6 +220,9 @@ interface AppState {
   setCurrentCommunity: (community: Community | null) => void;
   setFeedFilter: (filter: 'local' | 'global') => void;
   addPost: (post: Post) => void;
+  toggleSavePost: (postId: string) => void;
+  addConnection: (user: User) => void;
+  removeConnection: (userId: string) => void;
   addMarketplaceListing: (listing: MarketplaceListing) => void;
   addBusiness: (business: Business) => void;
   addFaithEvent: (event: FaithEvent) => void;
@@ -233,6 +240,8 @@ export const useStore = create<AppState>()(
       currentCommunity: null,
       feedFilter: 'local',
       userPosts: [],
+      savedPostIds: [],
+      connections: [],
       userListings: [],
       userBusinesses: [],
       userFaithEvents: [],
@@ -245,6 +254,19 @@ export const useStore = create<AppState>()(
       setCurrentCommunity: (community) => set({ currentCommunity: community }),
       setFeedFilter: (filter) => set({ feedFilter: filter }),
       addPost: (post) => set((state) => ({ userPosts: [post, ...state.userPosts] })),
+      toggleSavePost: (postId) => set((state) => ({
+        savedPostIds: state.savedPostIds.includes(postId)
+          ? state.savedPostIds.filter((id) => id !== postId)
+          : [...state.savedPostIds, postId],
+      })),
+      addConnection: (user) => set((state) => ({
+        connections: state.connections.some((c) => c.id === user.id)
+          ? state.connections
+          : [...state.connections, user],
+      })),
+      removeConnection: (userId) => set((state) => ({
+        connections: state.connections.filter((c) => c.id !== userId),
+      })),
       addMarketplaceListing: (listing) => set((state) => ({ userListings: [listing, ...state.userListings] })),
       addBusiness: (business) => set((state) => ({ userBusinesses: [business, ...state.userBusinesses] })),
       addFaithEvent: (event) => set((state) => ({ userFaithEvents: [event, ...state.userFaithEvents] })),

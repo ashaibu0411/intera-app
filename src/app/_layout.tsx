@@ -51,6 +51,9 @@ function RootLayoutNav() {
         <Stack.Screen name="create-listing" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="register-business" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="create-faith-event" options={{ animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="my-posts" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="saved-posts" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="connections" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
       </Stack>
     </ThemeProvider>
