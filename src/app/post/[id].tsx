@@ -36,7 +36,7 @@ import {
   type Comment,
   type Post,
 } from '@/lib/store';
-import { getPost, getComments } from '@/lib/posts';
+import { getPost, getComments, createComment } from '@/lib/posts';
 
 export default function PostDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -249,7 +249,7 @@ export default function PostDetailScreen() {
     }
   };
 
-  const handleSendComment = () => {
+  const handleSendComment = async () => {
     if (!commentText.trim()) return;
 
     if (isGuest || !currentUser) {
@@ -269,8 +269,41 @@ export default function PostDetailScreen() {
       likes: 0,
     };
 
+    // Save locally for immediate feedback
     addComment(newComment);
     setCommentText('');
+
+    // Also save to database so others can see it
+    try {
+      console.log('[PostDetail] Saving comment to database...');
+      const dbComment = await createComment(id || '', currentUser.id, commentText.trim());
+      if (dbComment) {
+        console.log('[PostDetail] Comment saved to database');
+        // Update the local comment with the database ID
+        const formattedComment: Comment = {
+          id: dbComment.id,
+          postId: dbComment.post_id,
+          author: {
+            id: dbComment.author?.id || dbComment.author_id,
+            name: dbComment.author?.name || currentUser.name,
+            username: dbComment.author?.username || currentUser.username,
+            avatar: dbComment.author?.avatar_url || currentUser.avatar,
+            bio: dbComment.author?.bio || '',
+            location: dbComment.author?.location || '',
+            interests: dbComment.author?.interests || [],
+            joinedDate: dbComment.author?.created_at || new Date().toISOString(),
+          },
+          content: dbComment.content,
+          createdAt: dbComment.created_at,
+          likes: 0,
+        };
+        // Add the database comment to show it properly
+        setDbComments(prev => [...prev, formattedComment]);
+      }
+    } catch (error) {
+      console.log('[PostDetail] Error saving comment to database:', error);
+      // Comment is still saved locally, so user sees it
+    }
 
     // Scroll to bottom after adding comment
     setTimeout(() => {

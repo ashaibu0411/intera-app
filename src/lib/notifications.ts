@@ -112,6 +112,38 @@ export async function cancelAllNotifications(): Promise<void> {
   await Notifications.cancelAllScheduledNotificationsAsync();
 }
 
+// Send notification for new comment on user's post
+export async function sendNewCommentNotification(
+  commenterName: string,
+  commentContent: string,
+  postId: string
+): Promise<void> {
+  const store = useStore.getState();
+  if (!store.notificationsEnabled) {
+    return;
+  }
+
+  const hasPermission = await areNotificationsEnabled();
+  if (!hasPermission) {
+    return;
+  }
+
+  // Truncate content if too long
+  const truncatedContent = commentContent.length > 80
+    ? commentContent.substring(0, 80) + '...'
+    : commentContent;
+
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: `${commenterName} commented on your post`,
+      body: truncatedContent,
+      data: { postId, type: 'new_comment' },
+      sound: true,
+    },
+    trigger: null, // Send immediately
+  });
+}
+
 // Get notification response listener (for when user taps notification)
 export function addNotificationResponseListener(
   callback: (response: Notifications.NotificationResponse) => void
