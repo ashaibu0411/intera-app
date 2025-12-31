@@ -41,10 +41,13 @@ import { getPost, getComments, createComment } from '@/lib/posts';
 export default function PostDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const scrollViewRef = useRef<ScrollView>(null);
+  const commentInputRef = useRef<TextInput>(null);
   const [commentText, setCommentText] = useState('');
   const [dbPost, setDbPost] = useState<Post | null>(null);
   const [dbComments, setDbComments] = useState<Comment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [likedCommentIds, setLikedCommentIds] = useState<Set<string>>(new Set());
+  const [replyingTo, setReplyingTo] = useState<{ id: string; name: string } | null>(null);
 
   const isGuest = useStore((s) => s.isGuest);
   const currentUser = useStore((s) => s.currentUser);
@@ -181,6 +184,53 @@ export default function PostDetailScreen() {
     );
   }, [id, userComments, dbComments]);
 
+  // Get like count for a comment (base + 1 if user liked it)
+  const getCommentLikeCount = (comment: Comment) => {
+    const baseLikes = comment.likes || 0;
+    const isLikedByUser = likedCommentIds.has(comment.id);
+    return isLikedByUser ? baseLikes + 1 : baseLikes;
+  };
+
+  // Handle liking a comment
+  const handleLikeComment = (commentId: string) => {
+    if (isGuest || !currentUser) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      router.push('/signup');
+      return;
+    }
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setLikedCommentIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(commentId)) {
+        newSet.delete(commentId);
+      } else {
+        newSet.add(commentId);
+      }
+      return newSet;
+    });
+  };
+
+  // Handle replying to a comment
+  const handleReplyToComment = (comment: Comment) => {
+    if (isGuest || !currentUser) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      router.push('/signup');
+      return;
+    }
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setReplyingTo({ id: comment.id, name: comment.author.name });
+    setCommentText(`@${comment.author.username} `);
+    commentInputRef.current?.focus();
+  };
+
+  // Cancel reply
+  const handleCancelReply = () => {
+    setReplyingTo(null);
+    setCommentText('');
+  };
+
   const isLiked = id ? likedPostIds.includes(id) : false;
   const baseLikes = post?.likes ?? 0;
   const likeCount = post?.isLiked
@@ -260,11 +310,13 @@ export default function PostDetailScreen() {
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
+    const commentContent = commentText.trim();
+
     const newComment: Comment = {
       id: `comment-${Date.now()}`,
       postId: id || '',
       author: currentUser,
-      content: commentText.trim(),
+      content: commentContent,
       createdAt: new Date().toISOString(),
       likes: 0,
     };
@@ -272,11 +324,12 @@ export default function PostDetailScreen() {
     // Save locally for immediate feedback
     addComment(newComment);
     setCommentText('');
+    setReplyingTo(null); // Clear reply state
 
     // Also save to database so others can see it
     try {
       console.log('[PostDetail] Saving comment to database...');
-      const dbComment = await createComment(id || '', currentUser.id, commentText.trim());
+      const dbComment = await createComment(id || '', currentUser.id, commentContent);
       if (dbComment) {
         console.log('[PostDetail] Comment saved to database');
         // Update the local comment with the database ID
@@ -522,14 +575,25 @@ export default function PostDetailScreen() {
                           {comment.content}
                         </Text>
                         <View className="flex-row items-center mt-2">
-                          <Pressable className="flex-row items-center">
-                            <Heart size={16} color="#8B7355" />
-                            <Text className="text-xs text-gray-500 ml-1">
-                              {comment.likes}
+                          <Pressable
+                            onPress={() => handleLikeComment(comment.id)}
+                            className="flex-row items-center active:opacity-60"
+                          >
+                            <Heart
+                              size={16}
+                              color={likedCommentIds.has(comment.id) ? '#D4673A' : '#8B7355'}
+                              fill={likedCommentIds.has(comment.id) ? '#D4673A' : 'transparent'}
+                            />
+                            <Text className={`text-xs ml-1 ${likedCommentIds.has(comment.id) ? 'text-terracotta-500' : 'text-gray-500'}`}>
+                              {getCommentLikeCount(comment)}
                             </Text>
                           </Pressable>
-                          <Pressable className="flex-row items-center ml-4">
-                            <Text className="text-xs text-gray-500">Reply</Text>
+                          <Pressable
+                            onPress={() => handleReplyToComment(comment)}
+                            className="flex-row items-center ml-4 active:opacity-60"
+                          >
+                            <MessageCircle size={14} color="#8B7355" />
+                            <Text className="text-xs text-gray-500 ml-1">Reply</Text>
                           </Pressable>
                         </View>
                       </View>
@@ -543,6 +607,17 @@ export default function PostDetailScreen() {
           {/* Comment Input */}
           <View className="bg-white border-t border-gray-100 px-4 py-3">
             <SafeAreaView edges={['bottom']}>
+              {/* Reply indicator */}
+              {replyingTo && (
+                <View className="flex-row items-center justify-between mb-2 bg-gray-50 rounded-lg px-3 py-2">
+                  <Text className="text-sm text-gray-600">
+                    Replying to <Text className="font-semibold text-terracotta-500">{replyingTo.name}</Text>
+                  </Text>
+                  <Pressable onPress={handleCancelReply} className="p-1">
+                    <Text className="text-xs text-gray-400">Cancel</Text>
+                  </Pressable>
+                </View>
+              )}
               <View className="flex-row items-center">
                 <Image
                   source={{
@@ -553,9 +628,12 @@ export default function PostDetailScreen() {
                 />
                 <View className="flex-1 flex-row items-center bg-gray-100 rounded-full ml-3 px-4 py-2">
                   <TextInput
+                    ref={commentInputRef}
                     placeholder={
                       isGuest || !currentUser
                         ? 'Sign up to comment...'
+                        : replyingTo
+                        ? `Reply to ${replyingTo.name}...`
                         : 'Write a comment...'
                     }
                     placeholderTextColor="#9CA3AF"
