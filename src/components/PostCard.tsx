@@ -1,12 +1,14 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { View, Text, Pressable, Share } from 'react-native';
+import { View, Text, Pressable, Share, Alert } from 'react-native';
 import { Image } from 'expo-image';
 import { Video, ResizeMode } from 'expo-av';
 import { Heart, MessageCircle, Share2, MoreHorizontal, MapPin, Play, Volume2, VolumeX } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
+import * as Clipboard from 'expo-clipboard';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, withSequence, withTiming } from 'react-native-reanimated';
 import { formatDistanceToNow } from 'date-fns';
 import { router } from 'expo-router';
+import * as DropdownMenu from 'zeego/dropdown-menu';
 import { useStore, MOCK_COMMENTS, type Post } from '@/lib/store';
 import { getCommentsCount } from '@/lib/posts';
 
@@ -22,10 +24,16 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
   const likedPostIds = useStore((s) => s.likedPostIds);
   const toggleLikePost = useStore((s) => s.toggleLikePost);
+  const savedPostIds = useStore((s) => s.savedPostIds);
+  const toggleSavePost = useStore((s) => s.toggleSavePost);
+  const currentUser = useStore((s) => s.currentUser);
+  const deletePost = useStore((s) => s.deletePost);
   const userComments = useStore((s) => s.userComments);
   const [dbCommentCount, setDbCommentCount] = useState<number>(0);
 
   const isLiked = likedPostIds.includes(post.id);
+  const isSaved = savedPostIds.includes(post.id);
+  const isOwnPost = currentUser?.id === post.author.id;
   const baseLikes = post.likes;
   // If the post was originally liked but we unliked it, subtract 1. If it wasn't liked but we liked it, add 1.
   const likeCount = post.isLiked
@@ -129,6 +137,60 @@ export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
     }
   };
 
+  // Menu action handlers
+  const handleSavePost = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    toggleSavePost(post.id);
+  };
+
+  const handleCopyLink = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    await Clipboard.setStringAsync(`afroconnect.app/post/${post.id}`);
+    Alert.alert('Copied', 'Post link copied to clipboard');
+  };
+
+  const handleReportPost = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Alert.alert(
+      'Report Post',
+      'Are you sure you want to report this post for inappropriate content?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Report',
+          style: 'destructive',
+          onPress: () => {
+            Alert.alert('Reported', 'Thank you for your report. We will review this post.');
+          },
+        },
+      ]
+    );
+  };
+
+  const handleDeletePost = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    Alert.alert(
+      'Delete Post',
+      'Are you sure you want to delete this post? This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            deletePost(post.id);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          },
+        },
+      ]
+    );
+  };
+
+  const handleViewProfile = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push(`/profile/${post.author.id}` as any);
+  };
+
   const timeAgo = formatDistanceToNow(new Date(post.createdAt), { addSuffix: true });
 
   return (
@@ -155,9 +217,38 @@ export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
             <Text className="text-sm text-gray-400">{timeAgo}</Text>
           </View>
         </View>
-        <Pressable className="p-2" hitSlop={8}>
-          <MoreHorizontal size={20} color="#8B7355" />
-        </Pressable>
+        <DropdownMenu.Root>
+          <DropdownMenu.Trigger>
+            <Pressable className="p-2" hitSlop={8}>
+              <MoreHorizontal size={20} color="#8B7355" />
+            </Pressable>
+          </DropdownMenu.Trigger>
+          <DropdownMenu.Content>
+            <DropdownMenu.Item key="save" onSelect={handleSavePost}>
+              <DropdownMenu.ItemTitle>
+                {isSaved ? 'Unsave Post' : 'Save Post'}
+              </DropdownMenu.ItemTitle>
+            </DropdownMenu.Item>
+            <DropdownMenu.Item key="copy" onSelect={handleCopyLink}>
+              <DropdownMenu.ItemTitle>Copy Link</DropdownMenu.ItemTitle>
+            </DropdownMenu.Item>
+            {!isOwnPost && (
+              <DropdownMenu.Item key="profile" onSelect={handleViewProfile}>
+                <DropdownMenu.ItemTitle>View Profile</DropdownMenu.ItemTitle>
+              </DropdownMenu.Item>
+            )}
+            {!isOwnPost && (
+              <DropdownMenu.Item key="report" onSelect={handleReportPost} destructive>
+                <DropdownMenu.ItemTitle>Report Post</DropdownMenu.ItemTitle>
+              </DropdownMenu.Item>
+            )}
+            {isOwnPost && (
+              <DropdownMenu.Item key="delete" onSelect={handleDeletePost} destructive>
+                <DropdownMenu.ItemTitle>Delete Post</DropdownMenu.ItemTitle>
+              </DropdownMenu.Item>
+            )}
+          </DropdownMenu.Content>
+        </DropdownMenu.Root>
       </View>
 
       {/* Content */}

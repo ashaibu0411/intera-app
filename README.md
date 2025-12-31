@@ -154,6 +154,12 @@ The app is fully connected to Supabase for data persistence and syncing across u
 - **Location Change Modal**: When a new city is detected, you can choose to switch to the new city's community, stay in your current community, or dismiss future location prompts
 - **Post Comments**: Tap any post to view comments, add your own comments, and see the full discussion
 - **Share Posts**: Share posts using the native share sheet to any app on your device
+- **Post Options Menu**: Tap the three dots on any post to access options:
+  - Save/Unsave Post - Bookmark posts to view later
+  - Copy Link - Copy a shareable link to clipboard
+  - View Profile - Visit the author's profile (for other people's posts)
+  - Report Post - Flag inappropriate content (for other people's posts)
+  - Delete Post - Remove your own posts
 - **Messaging**: Access messages from the home screen header, view conversations, and send messages
 
 ### Messaging System
