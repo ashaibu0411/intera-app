@@ -71,6 +71,45 @@ export default function MarketplaceScreen() {
   const markListingAsSold = useStore((s) => s.markListingAsSold);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showSoldModal, setShowSoldModal] = useState(false);
+  const [listingToModify, setListingToModify] = useState<MarketplaceListing | null>(null);
+
+  // Handle opening delete modal
+  const handleOpenDeleteModal = () => {
+    if (!selectedListing) return;
+    setListingToModify(selectedListing);
+    setSelectedListing(null); // Close the detail modal first
+    setTimeout(() => {
+      setShowDeleteModal(true);
+    }, 100);
+  };
+
+  // Handle opening sold modal
+  const handleOpenSoldModal = () => {
+    if (!selectedListing) return;
+    setListingToModify(selectedListing);
+    setSelectedListing(null); // Close the detail modal first
+    setTimeout(() => {
+      setShowSoldModal(true);
+    }, 100);
+  };
+
+  // Handle delete confirmation
+  const handleConfirmDelete = () => {
+    if (!listingToModify) return;
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    deleteMarketplaceListing(listingToModify.id);
+    setShowDeleteModal(false);
+    setListingToModify(null);
+  };
+
+  // Handle mark as sold confirmation
+  const handleConfirmSold = () => {
+    if (!listingToModify) return;
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    markListingAsSold(listingToModify.id);
+    setShowSoldModal(false);
+    setListingToModify(null);
+  };
 
   const fetchListings = async () => {
     try {
@@ -518,7 +557,7 @@ export default function MarketplaceScreen() {
                       <View className="flex-row">
                         {!selectedListing.isSold && (
                           <Pressable
-                            onPress={() => setShowSoldModal(true)}
+                            onPress={handleOpenSoldModal}
                             className="flex-1 flex-row items-center justify-center py-4 rounded-2xl bg-green-50 mr-2"
                           >
                             <CheckCircle size={20} color="#16a34a" />
@@ -528,7 +567,7 @@ export default function MarketplaceScreen() {
                           </Pressable>
                         )}
                         <Pressable
-                          onPress={() => setShowDeleteModal(true)}
+                          onPress={handleOpenDeleteModal}
                           className={`flex-1 flex-row items-center justify-center py-4 rounded-2xl bg-red-50 ${!selectedListing.isSold ? 'mr-2' : ''}`}
                         >
                           <Trash2 size={20} color="#EF4444" />
@@ -569,7 +608,10 @@ export default function MarketplaceScreen() {
         <Modal visible={showDeleteModal} animationType="fade" transparent onRequestClose={() => setShowDeleteModal(false)}>
           <Pressable
             className="flex-1 bg-black/50 justify-center items-center px-6"
-            onPress={() => setShowDeleteModal(false)}
+            onPress={() => {
+              setShowDeleteModal(false);
+              setListingToModify(null);
+            }}
           >
             <Pressable
               className="bg-white rounded-3xl w-full max-w-sm p-6"
@@ -592,19 +634,14 @@ export default function MarketplaceScreen() {
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                     setShowDeleteModal(false);
+                    setListingToModify(null);
                   }}
                   className="flex-1 py-4 rounded-xl bg-gray-100 mr-2 active:opacity-70"
                 >
                   <Text className="text-warmBrown font-semibold text-center">Cancel</Text>
                 </Pressable>
                 <Pressable
-                  onPress={() => {
-                    if (!selectedListing) return;
-                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                    deleteMarketplaceListing(selectedListing.id);
-                    setShowDeleteModal(false);
-                    setSelectedListing(null);
-                  }}
+                  onPress={handleConfirmDelete}
                   className="flex-1 py-4 rounded-xl bg-red-500 ml-2 active:opacity-70"
                 >
                   <Text className="text-white font-semibold text-center">Delete</Text>
@@ -618,7 +655,10 @@ export default function MarketplaceScreen() {
         <Modal visible={showSoldModal} animationType="fade" transparent onRequestClose={() => setShowSoldModal(false)}>
           <Pressable
             className="flex-1 bg-black/50 justify-center items-center px-6"
-            onPress={() => setShowSoldModal(false)}
+            onPress={() => {
+              setShowSoldModal(false);
+              setListingToModify(null);
+            }}
           >
             <Pressable
               className="bg-white rounded-3xl w-full max-w-sm p-6"
@@ -641,19 +681,14 @@ export default function MarketplaceScreen() {
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                     setShowSoldModal(false);
+                    setListingToModify(null);
                   }}
                   className="flex-1 py-4 rounded-xl bg-gray-100 mr-2 active:opacity-70"
                 >
                   <Text className="text-warmBrown font-semibold text-center">Cancel</Text>
                 </Pressable>
                 <Pressable
-                  onPress={() => {
-                    if (!selectedListing) return;
-                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                    markListingAsSold(selectedListing.id);
-                    setShowSoldModal(false);
-                    setSelectedListing(null);
-                  }}
+                  onPress={handleConfirmSold}
                   className="flex-1 py-4 rounded-xl bg-green-500 ml-2 active:opacity-70"
                 >
                   <Text className="text-white font-semibold text-center">Mark Sold</Text>
