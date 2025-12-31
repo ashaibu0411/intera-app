@@ -566,9 +566,15 @@ export default function MarketplaceScreen() {
         </Modal>
 
         {/* Delete Confirmation Modal */}
-        <Modal visible={showDeleteModal} animationType="fade" transparent>
-          <View className="flex-1 bg-black/50 justify-center items-center px-6">
-            <View className="bg-white rounded-3xl w-full max-w-sm p-6">
+        <Modal visible={showDeleteModal} animationType="fade" transparent onRequestClose={() => setShowDeleteModal(false)}>
+          <Pressable
+            className="flex-1 bg-black/50 justify-center items-center px-6"
+            onPress={() => setShowDeleteModal(false)}
+          >
+            <Pressable
+              className="bg-white rounded-3xl w-full max-w-sm p-6"
+              onPress={(e) => e.stopPropagation()}
+            >
               <View className="items-center mb-4">
                 <View className="bg-red-100 rounded-full p-4 mb-4">
                   <Trash2 size={32} color="#EF4444" />
@@ -583,26 +589,41 @@ export default function MarketplaceScreen() {
 
               <View className="flex-row mt-4">
                 <Pressable
-                  onPress={() => setShowDeleteModal(false)}
-                  className="flex-1 py-4 rounded-xl bg-gray-100 mr-2"
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setShowDeleteModal(false);
+                  }}
+                  className="flex-1 py-4 rounded-xl bg-gray-100 mr-2 active:opacity-70"
                 >
                   <Text className="text-warmBrown font-semibold text-center">Cancel</Text>
                 </Pressable>
                 <Pressable
-                  onPress={handleDeleteListing}
-                  className="flex-1 py-4 rounded-xl bg-red-500 ml-2"
+                  onPress={() => {
+                    if (!selectedListing) return;
+                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                    deleteMarketplaceListing(selectedListing.id);
+                    setShowDeleteModal(false);
+                    setSelectedListing(null);
+                  }}
+                  className="flex-1 py-4 rounded-xl bg-red-500 ml-2 active:opacity-70"
                 >
                   <Text className="text-white font-semibold text-center">Delete</Text>
                 </Pressable>
               </View>
-            </View>
-          </View>
+            </Pressable>
+          </Pressable>
         </Modal>
 
         {/* Mark as Sold Confirmation Modal */}
-        <Modal visible={showSoldModal} animationType="fade" transparent>
-          <View className="flex-1 bg-black/50 justify-center items-center px-6">
-            <View className="bg-white rounded-3xl w-full max-w-sm p-6">
+        <Modal visible={showSoldModal} animationType="fade" transparent onRequestClose={() => setShowSoldModal(false)}>
+          <Pressable
+            className="flex-1 bg-black/50 justify-center items-center px-6"
+            onPress={() => setShowSoldModal(false)}
+          >
+            <Pressable
+              className="bg-white rounded-3xl w-full max-w-sm p-6"
+              onPress={(e) => e.stopPropagation()}
+            >
               <View className="items-center mb-4">
                 <View className="bg-green-100 rounded-full p-4 mb-4">
                   <CheckCircle size={32} color="#16a34a" />
@@ -617,20 +638,29 @@ export default function MarketplaceScreen() {
 
               <View className="flex-row mt-4">
                 <Pressable
-                  onPress={() => setShowSoldModal(false)}
-                  className="flex-1 py-4 rounded-xl bg-gray-100 mr-2"
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setShowSoldModal(false);
+                  }}
+                  className="flex-1 py-4 rounded-xl bg-gray-100 mr-2 active:opacity-70"
                 >
                   <Text className="text-warmBrown font-semibold text-center">Cancel</Text>
                 </Pressable>
                 <Pressable
-                  onPress={handleMarkAsSold}
-                  className="flex-1 py-4 rounded-xl bg-green-500 ml-2"
+                  onPress={() => {
+                    if (!selectedListing) return;
+                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                    markListingAsSold(selectedListing.id);
+                    setShowSoldModal(false);
+                    setSelectedListing(null);
+                  }}
+                  className="flex-1 py-4 rounded-xl bg-green-500 ml-2 active:opacity-70"
                 >
                   <Text className="text-white font-semibold text-center">Mark Sold</Text>
                 </Pressable>
               </View>
-            </View>
-          </View>
+            </Pressable>
+          </Pressable>
         </Modal>
       </SafeAreaView>
     </View>

@@ -105,8 +105,10 @@ export default function HomeScreen() {
   // Fetch posts from database
   const fetchDbPosts = async () => {
     try {
+      console.log('[Home] Fetching posts from database...');
       const posts = await getPosts();
-      if (posts) {
+      console.log('[Home] Fetched posts:', posts?.length || 0);
+      if (posts && posts.length > 0) {
         // Convert database posts to app format
         const formattedPosts: Post[] = posts.map((p: any) => ({
           id: p.id,
@@ -128,10 +130,11 @@ export default function HomeScreen() {
           isLiked: false,
           location: p.location || '',
         }));
+        console.log('[Home] Formatted posts:', formattedPosts.length);
         setDbPosts(formattedPosts);
       }
     } catch (error) {
-      console.log('Error fetching posts from database:', error);
+      console.log('[Home] Error fetching posts from database:', error);
     }
   };
 
@@ -195,11 +198,25 @@ export default function HomeScreen() {
     const combined = Array.from(postMap.values());
 
     if (feedFilter === 'local') {
-      // Local: Show posts from user's selected city/community
+      // Local: Show all database posts + posts matching user's city
       const userCity = selectedLocation?.city || displayCommunity.city;
-      return combined.filter(post =>
-        post.location?.toLowerCase().includes(userCity.toLowerCase())
-      ).sort((a, b) =>
+
+      // Filter posts that match the local city OR are from the database (community posts)
+      const localPosts = combined.filter(post => {
+        // Always show posts from database (they're from the community)
+        const isDbPost = dbPosts.some(dbPost => dbPost.id === post.id);
+        if (isDbPost) return true;
+
+        // Show user's own posts
+        const isUserPost = userPosts.some(userPost => userPost.id === post.id);
+        if (isUserPost) return true;
+
+        // For mock posts, filter by location
+        if (!post.location) return true;
+        return post.location.toLowerCase().includes(userCity.toLowerCase());
+      });
+
+      return localPosts.sort((a, b) =>
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       );
     } else {
