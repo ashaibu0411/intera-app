@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, Pressable, TextInput, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, ScrollView, Pressable, TextInput, ActivityIndicator, RefreshControl, Linking, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -275,13 +275,29 @@ export default function BusinessDirectoryScreen() {
     }
   };
 
-  const handleMessageBusiness = (businessId: string) => {
+  const handleMessageBusiness = (businessId: string, businessName: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     if (isGuest || !currentUser) {
       router.push('/signup');
     } else {
-      router.push('/messages');
+      router.push({
+        pathname: '/messages',
+        params: { businessId, businessName },
+      });
     }
+  };
+
+  const handleCallBusiness = (phone: string | null | undefined, businessName: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (!phone) {
+      Alert.alert('No Phone Number', `${businessName} hasn't added a phone number yet.`);
+      return;
+    }
+    // Clean phone number and make call
+    const cleanPhone = phone.replace(/[^0-9+]/g, '');
+    Linking.openURL(`tel:${cleanPhone}`).catch(() => {
+      Alert.alert('Cannot Make Call', 'Unable to open phone app.');
+    });
   };
 
   const handleBookAppointment = (businessId: string, businessName: string) => {
@@ -541,11 +557,14 @@ export default function BusinessDirectoryScreen() {
                         <Text className="text-emerald-600 text-sm font-medium ml-1">Book</Text>
                       </Pressable>
                     )}
-                    <Pressable className="flex-row items-center flex-1">
+                    <Pressable
+                      onPress={() => handleCallBusiness(business.phone, business.name)}
+                      className="flex-row items-center flex-1"
+                    >
                       <Phone size={14} color="#1B4D3E" />
                       <Text className="text-forest-700 text-sm font-medium ml-1">Call</Text>
                     </Pressable>
-                    <Pressable onPress={() => handleMessageBusiness(business.id)} className="flex-row items-center flex-1">
+                    <Pressable onPress={() => handleMessageBusiness(business.id, business.name)} className="flex-row items-center flex-1">
                       <MessageCircle size={14} color="#C9A227" />
                       <Text className="text-gold-600 text-sm font-medium ml-1">Message</Text>
                     </Pressable>

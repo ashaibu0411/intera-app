@@ -17,6 +17,8 @@ import {
   X,
   Store,
   CheckCircle,
+  Calendar,
+  CalendarCheck,
 } from 'lucide-react-native';
 import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -211,25 +213,60 @@ export default function MyBusinessesScreen() {
                     </View>
 
                     {/* Action Buttons */}
-                    <View className="flex-row mt-6 mb-4">
-                      <Pressable
-                        onPress={() => {
-                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                          // Would navigate to edit business screen
-                          setSelectedBusiness(null);
-                        }}
-                        className="flex-1 mr-2 bg-forest-600 rounded-xl py-4 flex-row items-center justify-center"
-                      >
-                        <Edit3 size={18} color="#FFFFFF" />
-                        <Text className="text-white font-semibold ml-2">Edit</Text>
-                      </Pressable>
-                      <Pressable
-                        onPress={() => handleDeleteBusiness(selectedBusiness)}
-                        className="flex-1 ml-2 bg-red-50 rounded-xl py-4 flex-row items-center justify-center"
-                      >
-                        <Trash2 size={18} color="#EF4444" />
-                        <Text className="text-red-500 font-semibold ml-2">Delete</Text>
-                      </Pressable>
+                    <View className="mt-6 mb-4">
+                      {/* Booking Management Buttons */}
+                      <View className="flex-row mb-3">
+                        <Pressable
+                          onPress={() => {
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                            setSelectedBusiness(null);
+                            router.push({
+                              pathname: '/business-appointments',
+                              params: { businessId: selectedBusiness.id, businessName: selectedBusiness.name },
+                            });
+                          }}
+                          className="flex-1 mr-2 bg-emerald-50 rounded-xl py-4 flex-row items-center justify-center"
+                        >
+                          <CalendarCheck size={18} color="#10B981" />
+                          <Text className="text-emerald-600 font-semibold ml-2">Appointments</Text>
+                        </Pressable>
+                        <Pressable
+                          onPress={() => {
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                            setSelectedBusiness(null);
+                            router.push({
+                              pathname: '/manage-booking-calendar',
+                              params: { businessId: selectedBusiness.id, businessName: selectedBusiness.name },
+                            });
+                          }}
+                          className="flex-1 ml-2 bg-blue-50 rounded-xl py-4 flex-row items-center justify-center"
+                        >
+                          <Calendar size={18} color="#2563EB" />
+                          <Text className="text-blue-600 font-semibold ml-2">Calendar</Text>
+                        </Pressable>
+                      </View>
+
+                      {/* Edit/Delete Buttons */}
+                      <View className="flex-row">
+                        <Pressable
+                          onPress={() => {
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            // Would navigate to edit business screen
+                            setSelectedBusiness(null);
+                          }}
+                          className="flex-1 mr-2 bg-forest-600 rounded-xl py-4 flex-row items-center justify-center"
+                        >
+                          <Edit3 size={18} color="#FFFFFF" />
+                          <Text className="text-white font-semibold ml-2">Edit</Text>
+                        </Pressable>
+                        <Pressable
+                          onPress={() => handleDeleteBusiness(selectedBusiness)}
+                          className="flex-1 ml-2 bg-red-50 rounded-xl py-4 flex-row items-center justify-center"
+                        >
+                          <Trash2 size={18} color="#EF4444" />
+                          <Text className="text-red-500 font-semibold ml-2">Delete</Text>
+                        </Pressable>
+                      </View>
                     </View>
                   </View>
                 </ScrollView>
