@@ -191,6 +191,7 @@ interface DbBusiness {
   is_verified: boolean;
   is_featured: boolean;
   is_african_market: boolean;
+  accepts_bookings?: boolean;
   created_at: string;
   owner?: {
     id: string;
@@ -252,7 +253,7 @@ export default function BusinessDirectoryScreen() {
     hours: b.hours || 'Contact for hours',
     isVerified: b.is_verified,
     isFeatured: b.is_featured,
-    acceptsBookings: b.category === 'beauty' || b.category === 'health', // Auto-enable for beauty/health
+    acceptsBookings: b.accepts_bookings ?? false, // Use actual DB value
   }));
 
   const allBusinesses = [...supabaseBusinesses, ...MOCK_BUSINESSES];

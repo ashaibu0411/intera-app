@@ -144,6 +144,7 @@ export async function createBusiness(
     website?: string;
     hours: string;
     isAfricanMarket: boolean;
+    acceptsBookings?: boolean;
   }
 ) {
   const { data, error } = await supabase
@@ -162,6 +163,7 @@ export async function createBusiness(
       website: business.website,
       hours: business.hours,
       is_african_market: business.isAfricanMarket,
+      accepts_bookings: business.acceptsBookings || false,
       rating: 0,
       reviews: 0,
       is_verified: false,

@@ -15,6 +15,7 @@ import {
   Building2,
   Store,
   ShoppingBasket,
+  CalendarCheck,
 } from 'lucide-react-native';
 import { Image } from 'expo-image';
 import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
@@ -53,6 +54,7 @@ export default function RegisterBusinessScreen() {
   const [website, setWebsite] = useState('');
   const [hours, setHours] = useState('');
   const [isAfricanMarket, setIsAfricanMarket] = useState(false);
+  const [acceptsBookings, setAcceptsBookings] = useState(false);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -120,6 +122,7 @@ export default function RegisterBusinessScreen() {
         website: website.trim() || undefined,
         hours: hours.trim() || 'Contact for hours',
         isAfricanMarket,
+        acceptsBookings,
       });
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -352,6 +355,33 @@ export default function RegisterBusinessScreen() {
                     />
                   </View>
                 </View>
+
+                {/* Accept Bookings Toggle */}
+                <View className="bg-emerald-50 rounded-2xl p-4 flex-row items-center justify-between">
+                  <View className="flex-row items-center flex-1 mr-4">
+                    <View className="bg-emerald-100 rounded-full p-2 mr-3">
+                      <CalendarCheck size={20} color="#10B981" />
+                    </View>
+                    <View className="flex-1">
+                      <Text className="text-warmBrown font-semibold">Accept Appointments</Text>
+                      <Text className="text-gray-500 text-sm mt-0.5">Let customers book appointments online (great for salons, barbershops, etc.)</Text>
+                    </View>
+                  </View>
+                  <Switch
+                    value={acceptsBookings}
+                    onValueChange={setAcceptsBookings}
+                    trackColor={{ false: '#D1D5DB', true: '#10B981' }}
+                    thumbColor="#FFFFFF"
+                  />
+                </View>
+
+                {acceptsBookings && (
+                  <View className="bg-blue-50 rounded-xl p-3 mt-3">
+                    <Text className="text-blue-700 text-sm">
+                      After registering, go to My Businesses → tap your business → Calendar to set up your services, hours, and availability.
+                    </Text>
+                  </View>
+                )}
               </Animated.View>
             )}
 
