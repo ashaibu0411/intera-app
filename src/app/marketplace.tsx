@@ -18,6 +18,7 @@ import {
   X,
   Heart,
   Trash2,
+  CheckCircle,
 } from 'lucide-react-native';
 import Animated, { FadeIn, FadeInUp, FadeInRight } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -67,7 +68,9 @@ export default function MarketplaceScreen() {
   const currentUser = useStore((s) => s.currentUser);
   const userListings = useStore((s) => s.userListings);
   const deleteMarketplaceListing = useStore((s) => s.deleteMarketplaceListing);
+  const markListingAsSold = useStore((s) => s.markListingAsSold);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showSoldModal, setShowSoldModal] = useState(false);
 
   const fetchListings = async () => {
     try {
@@ -162,9 +165,17 @@ export default function MarketplaceScreen() {
 
   const handleDeleteListing = () => {
     if (!selectedListing) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     deleteMarketplaceListing(selectedListing.id);
     setShowDeleteModal(false);
+    setSelectedListing(null);
+  };
+
+  const handleMarkAsSold = () => {
+    if (!selectedListing) return;
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    markListingAsSold(selectedListing.id);
+    setShowSoldModal(false);
     setSelectedListing(null);
   };
 
@@ -318,7 +329,14 @@ export default function MarketplaceScreen() {
                       style={{ width: '100%', height: 140 }}
                       contentFit="cover"
                     />
-                    {listing.isStoreBased && (
+                    {listing.isSold && (
+                      <View className="absolute inset-0 bg-black/40 items-center justify-center">
+                        <View className="bg-green-500 rounded-full px-3 py-1">
+                          <Text className="text-white font-bold text-sm">SOLD</Text>
+                        </View>
+                      </View>
+                    )}
+                    {listing.isStoreBased && !listing.isSold && (
                       <View className="absolute top-2 left-2 bg-forest-700 rounded-full px-2 py-1 flex-row items-center">
                         <Store size={10} color="#FFFFFF" />
                         <Text className="text-white text-xs ml-1">Store</Text>
@@ -486,27 +504,39 @@ export default function MarketplaceScreen() {
                   </View>
                 </ScrollView>
 
-                {/* Contact Button or Delete Button */}
+                {/* Contact Button or Owner Actions */}
                 <View className="px-5 py-4 border-t border-gray-100 bg-white">
                   {isOwnListing(selectedListing) ? (
-                    <View className="flex-row">
-                      <Pressable
-                        onPress={() => setShowDeleteModal(true)}
-                        className="flex-1 flex-row items-center justify-center py-4 rounded-2xl bg-red-50 mr-2"
-                      >
-                        <Trash2 size={20} color="#EF4444" />
-                        <Text className="text-red-500 font-bold text-base ml-2">
-                          Delete Listing
-                        </Text>
-                      </Pressable>
-                      <Pressable
-                        onPress={() => setSelectedListing(null)}
-                        className="flex-1 flex-row items-center justify-center py-4 rounded-2xl bg-gray-100"
-                      >
-                        <Text className="text-warmBrown font-bold text-base">
-                          Close
-                        </Text>
-                      </Pressable>
+                    <View>
+                      {/* Show sold badge if already sold */}
+                      {selectedListing.isSold && (
+                        <View className="flex-row items-center justify-center py-3 mb-3 bg-green-100 rounded-xl">
+                          <CheckCircle size={20} color="#16a34a" />
+                          <Text className="text-green-600 font-bold ml-2">Item Sold</Text>
+                        </View>
+                      )}
+                      <View className="flex-row">
+                        {!selectedListing.isSold && (
+                          <Pressable
+                            onPress={() => setShowSoldModal(true)}
+                            className="flex-1 flex-row items-center justify-center py-4 rounded-2xl bg-green-50 mr-2"
+                          >
+                            <CheckCircle size={20} color="#16a34a" />
+                            <Text className="text-green-600 font-bold text-base ml-2">
+                              Mark Sold
+                            </Text>
+                          </Pressable>
+                        )}
+                        <Pressable
+                          onPress={() => setShowDeleteModal(true)}
+                          className={`flex-1 flex-row items-center justify-center py-4 rounded-2xl bg-red-50 ${!selectedListing.isSold ? 'mr-2' : ''}`}
+                        >
+                          <Trash2 size={20} color="#EF4444" />
+                          <Text className="text-red-500 font-bold text-base ml-2">
+                            Delete
+                          </Text>
+                        </Pressable>
+                      </View>
                     </View>
                   ) : (
                     <Pressable onPress={handleContactSeller}>
@@ -563,6 +593,40 @@ export default function MarketplaceScreen() {
                   className="flex-1 py-4 rounded-xl bg-red-500 ml-2"
                 >
                   <Text className="text-white font-semibold text-center">Delete</Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Mark as Sold Confirmation Modal */}
+        <Modal visible={showSoldModal} animationType="fade" transparent>
+          <View className="flex-1 bg-black/50 justify-center items-center px-6">
+            <View className="bg-white rounded-3xl w-full max-w-sm p-6">
+              <View className="items-center mb-4">
+                <View className="bg-green-100 rounded-full p-4 mb-4">
+                  <CheckCircle size={32} color="#16a34a" />
+                </View>
+                <Text className="text-xl font-bold text-warmBrown text-center">
+                  Mark as Sold?
+                </Text>
+                <Text className="text-gray-500 text-center mt-2">
+                  This will mark your item as sold. It will still be visible but shown as sold.
+                </Text>
+              </View>
+
+              <View className="flex-row mt-4">
+                <Pressable
+                  onPress={() => setShowSoldModal(false)}
+                  className="flex-1 py-4 rounded-xl bg-gray-100 mr-2"
+                >
+                  <Text className="text-warmBrown font-semibold text-center">Cancel</Text>
+                </Pressable>
+                <Pressable
+                  onPress={handleMarkAsSold}
+                  className="flex-1 py-4 rounded-xl bg-green-500 ml-2"
+                >
+                  <Text className="text-white font-semibold text-center">Mark Sold</Text>
                 </Pressable>
               </View>
             </View>

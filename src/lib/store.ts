@@ -63,6 +63,7 @@ export interface MarketplaceListing {
   storeName?: string;
   createdAt: string;
   views: number;
+  isSold?: boolean;
 }
 
 export interface FaithEvent {
@@ -269,6 +270,7 @@ interface AppState {
   removeConnection: (userId: string) => void;
   addMarketplaceListing: (listing: MarketplaceListing) => void;
   deleteMarketplaceListing: (listingId: string) => void;
+  markListingAsSold: (listingId: string) => void;
   addBusiness: (business: Business) => void;
   deleteBusiness: (businessId: string) => void;
   addFaithEvent: (event: FaithEvent) => void;
@@ -334,6 +336,11 @@ export const useStore = create<AppState>()(
       addMarketplaceListing: (listing) => set((state) => ({ userListings: [listing, ...state.userListings] })),
       deleteMarketplaceListing: (listingId) => set((state) => ({
         userListings: state.userListings.filter((l) => l.id !== listingId),
+      })),
+      markListingAsSold: (listingId) => set((state) => ({
+        userListings: state.userListings.map((l) =>
+          l.id === listingId ? { ...l, isSold: true } : l
+        ),
       })),
       addBusiness: (business) => set((state) => ({ userBusinesses: [business, ...state.userBusinesses] })),
       deleteBusiness: (businessId) => set((state) => ({

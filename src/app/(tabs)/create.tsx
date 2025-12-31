@@ -27,6 +27,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useStore, MOCK_COMMUNITIES, MARKETPLACE_CATEGORIES, EVENT_CATEGORIES } from '@/lib/store';
 import { router } from 'expo-router';
 import { sendNewPostNotification } from '@/lib/notifications';
+import { createPost as createDbPost } from '@/lib/posts';
 
 type CreateMode = 'select' | 'post' | 'sell' | 'event';
 
@@ -255,7 +256,16 @@ function CreatePostForm({ user, community, onBack }: { user: any; community: any
       location: community.city,
     };
 
+    // Save to local store first
     addPost(newPost);
+
+    // Try to save to database as well (so other users can see it)
+    try {
+      await createDbPost(user.id, content.trim(), selectedImages, community.city);
+    } catch (dbError) {
+      console.log('Database save failed, but local save succeeded:', dbError);
+    }
+
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
     // Send notification to other users in the community

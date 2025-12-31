@@ -19,9 +19,10 @@ import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { PostCard } from '@/components/PostCard';
-import { useStore, MOCK_POSTS, MOCK_COMMUNITIES } from '@/lib/store';
+import { useStore, MOCK_POSTS, MOCK_COMMUNITIES, type Post } from '@/lib/store';
 import { getCommunityByLocation, subscribeToCommunityUpdates } from '@/lib/communities';
 import { DbCommunity } from '@/lib/supabase';
+import { getPosts } from '@/lib/posts';
 
 // Additional mock posts for global feed from different locations
 const GLOBAL_MOCK_POSTS = [
@@ -90,6 +91,7 @@ const GLOBAL_MOCK_POSTS = [
 export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [realCommunity, setRealCommunity] = useState<DbCommunity | null>(null);
+  const [dbPosts, setDbPosts] = useState<Post[]>([]);
   const feedFilter = useStore((s) => s.feedFilter);
   const setFeedFilter = useStore((s) => s.setFeedFilter);
   const currentCommunity = useStore((s) => s.currentCommunity);
@@ -99,6 +101,43 @@ export default function HomeScreen() {
   const selectedLocation = useStore((s) => s.selectedLocation);
 
   const displayCommunity = currentCommunity ?? MOCK_COMMUNITIES[0];
+
+  // Fetch posts from database
+  const fetchDbPosts = async () => {
+    try {
+      const posts = await getPosts();
+      if (posts) {
+        // Convert database posts to app format
+        const formattedPosts: Post[] = posts.map((p: any) => ({
+          id: p.id,
+          author: {
+            id: p.author?.id || p.author_id,
+            name: p.author?.name || 'Unknown',
+            username: p.author?.username || 'unknown',
+            avatar: p.author?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&h=200&fit=crop&crop=face',
+            bio: p.author?.bio || '',
+            location: p.author?.location || '',
+            interests: p.author?.interests || [],
+            joinedDate: p.author?.created_at || new Date().toISOString(),
+          },
+          content: p.content,
+          images: p.images || [],
+          likes: p.likes?.[0]?.count || 0,
+          comments: p.comments?.[0]?.count || 0,
+          createdAt: p.created_at,
+          isLiked: false,
+          location: p.location || '',
+        }));
+        setDbPosts(formattedPosts);
+      }
+    } catch (error) {
+      console.log('Error fetching posts from database:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchDbPosts();
+  }, []);
 
   // Fetch real community data from Supabase
   useEffect(() => {
@@ -131,15 +170,37 @@ export default function HomeScreen() {
   // Get the member count - use real data if available, otherwise mock
   const memberCount = realCommunity?.member_count ?? displayCommunity.memberCount;
 
-  // Combine user posts with mock posts and filter based on local/global
+  // Combine user posts with database posts and mock posts, filter based on local/global
   const allPosts = useMemo(() => {
-    const combined = [...userPosts, ...MOCK_POSTS];
+    // Combine all sources, avoiding duplicates by ID
+    const postMap = new Map<string, Post>();
+
+    // Add user posts first (highest priority)
+    userPosts.forEach(post => postMap.set(post.id, post));
+
+    // Add database posts (from other users)
+    dbPosts.forEach(post => {
+      if (!postMap.has(post.id)) {
+        postMap.set(post.id, post);
+      }
+    });
+
+    // Add mock posts
+    MOCK_POSTS.forEach(post => {
+      if (!postMap.has(post.id)) {
+        postMap.set(post.id, post);
+      }
+    });
+
+    const combined = Array.from(postMap.values());
 
     if (feedFilter === 'local') {
       // Local: Show posts from user's selected city/community
       const userCity = selectedLocation?.city || displayCommunity.city;
       return combined.filter(post =>
-        post.location.toLowerCase().includes(userCity.toLowerCase())
+        post.location?.toLowerCase().includes(userCity.toLowerCase())
+      ).sort((a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       );
     } else {
       // Global: Show all posts including from other locations
@@ -147,12 +208,12 @@ export default function HomeScreen() {
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       );
     }
-  }, [userPosts, feedFilter, selectedLocation, displayCommunity.city]);
+  }, [userPosts, dbPosts, feedFilter, selectedLocation, displayCommunity.city]);
 
   const onRefresh = async () => {
     setRefreshing(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    await fetchDbPosts();
     setRefreshing(false);
   };
 
