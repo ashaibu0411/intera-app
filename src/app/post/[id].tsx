@@ -44,6 +44,8 @@ export default function PostDetailScreen() {
   const isGuest = useStore((s) => s.isGuest);
   const currentUser = useStore((s) => s.currentUser);
   const userPosts = useStore((s) => s.userPosts);
+  const likedPostIds = useStore((s) => s.likedPostIds);
+  const toggleLikePost = useStore((s) => s.toggleLikePost);
 
   // Search in both user-created posts and mock posts
   const post = useMemo(() => {
@@ -57,8 +59,12 @@ export default function PostDetailScreen() {
     return [...mockComments, ...localComments];
   }, [id, localComments]);
 
-  const [isLiked, setIsLiked] = useState(post?.isLiked ?? false);
-  const [likeCount, setLikeCount] = useState(post?.likes ?? 0);
+  const isLiked = id ? likedPostIds.includes(id) : false;
+  const baseLikes = post?.likes ?? 0;
+  const likeCount = post?.isLiked
+    ? (isLiked ? baseLikes : baseLikes - 1)
+    : (isLiked ? baseLikes + 1 : baseLikes);
+
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
   const videoRef = useRef<Video>(null);
@@ -88,12 +94,9 @@ export default function PostDetailScreen() {
       withSpring(1, { damping: 6, stiffness: 200 })
     );
 
-    if (isLiked) {
-      setLikeCount((prev) => prev - 1);
-    } else {
-      setLikeCount((prev) => prev + 1);
+    if (id) {
+      toggleLikePost(id);
     }
-    setIsLiked(!isLiked);
   };
 
   const handleShare = async () => {

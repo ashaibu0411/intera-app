@@ -223,6 +223,7 @@ interface AppState {
   // Posts state
   userPosts: Post[];
   savedPostIds: string[];
+  likedPostIds: string[];
 
   // Connections state
   connections: User[];
@@ -253,6 +254,7 @@ interface AppState {
   addPost: (post: Post) => void;
   deletePost: (postId: string) => void;
   toggleSavePost: (postId: string) => void;
+  toggleLikePost: (postId: string) => void;
   addConnection: (user: User) => void;
   removeConnection: (userId: string) => void;
   addMarketplaceListing: (listing: MarketplaceListing) => void;
@@ -277,6 +279,7 @@ export const useStore = create<AppState>()(
       feedFilter: 'local',
       userPosts: [],
       savedPostIds: [],
+      likedPostIds: [],
       connections: [],
       userListings: [],
       userBusinesses: [],
@@ -299,6 +302,11 @@ export const useStore = create<AppState>()(
         savedPostIds: state.savedPostIds.includes(postId)
           ? state.savedPostIds.filter((id) => id !== postId)
           : [...state.savedPostIds, postId],
+      })),
+      toggleLikePost: (postId) => set((state) => ({
+        likedPostIds: state.likedPostIds.includes(postId)
+          ? state.likedPostIds.filter((id) => id !== postId)
+          : [...state.likedPostIds, postId],
       })),
       addConnection: (user) => set((state) => ({
         connections: state.connections.some((c) => c.id === user.id)
@@ -333,6 +341,7 @@ export const useStore = create<AppState>()(
         currentCommunity: state.currentCommunity,
         userPosts: state.userPosts,
         savedPostIds: state.savedPostIds,
+        likedPostIds: state.likedPostIds,
         connections: state.connections,
         lifeEvents: state.lifeEvents,
         userBusinesses: state.userBusinesses,

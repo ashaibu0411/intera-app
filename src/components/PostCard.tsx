@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useRef } from 'react';
 import { View, Text, Pressable, Share } from 'react-native';
 import { Image } from 'expo-image';
 import { Video, ResizeMode } from 'expo-av';
@@ -7,7 +7,7 @@ import * as Haptics from 'expo-haptics';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, withSequence, withTiming } from 'react-native-reanimated';
 import { formatDistanceToNow } from 'date-fns';
 import { router } from 'expo-router';
-import type { Post } from '@/lib/store';
+import { useStore, type Post } from '@/lib/store';
 
 interface PostCardProps {
   post: Post;
@@ -19,10 +19,18 @@ interface PostCardProps {
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
-  const [isLiked, setIsLiked] = useState(post.isLiked);
-  const [likeCount, setLikeCount] = useState(post.likes);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isMuted, setIsMuted] = useState(true);
+  const likedPostIds = useStore((s) => s.likedPostIds);
+  const toggleLikePost = useStore((s) => s.toggleLikePost);
+
+  const isLiked = likedPostIds.includes(post.id);
+  const baseLikes = post.likes;
+  // If the post was originally liked but we unliked it, subtract 1. If it wasn't liked but we liked it, add 1.
+  const likeCount = post.isLiked
+    ? (isLiked ? baseLikes : baseLikes - 1)
+    : (isLiked ? baseLikes + 1 : baseLikes);
+
+  const [isPlaying, setIsPlaying] = React.useState(false);
+  const [isMuted, setIsMuted] = React.useState(true);
   const videoRef = useRef<Video>(null);
   const likeScale = useSharedValue(1);
 
@@ -33,12 +41,7 @@ export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
       withSpring(1, { damping: 6, stiffness: 200 })
     );
 
-    if (isLiked) {
-      setLikeCount((prev) => prev - 1);
-    } else {
-      setLikeCount((prev) => prev + 1);
-    }
-    setIsLiked(!isLiked);
+    toggleLikePost(post.id);
     onLike?.(post.id);
   };
 
