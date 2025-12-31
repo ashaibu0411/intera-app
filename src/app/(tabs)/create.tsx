@@ -407,6 +407,7 @@ function CreateListingForm({ user, community, onBack }: { user: any; community: 
   const [condition, setCondition] = useState<'new' | 'used' | 'refurbished'>('new');
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const addMarketplaceListing = useStore((s) => s.addMarketplaceListing);
 
   const handlePickImage = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -424,12 +425,43 @@ function CreateListingForm({ user, community, onBack }: { user: any; community: 
   };
 
   const handleSubmit = () => {
-    if (!title.trim() || !price || !category) return;
+    if (!title.trim() || !price || !category || selectedImages.length === 0) return;
+
+    // Create the listing object
+    const newListing = {
+      id: `local-${Date.now()}`,
+      seller: {
+        id: user.id,
+        name: user.name,
+        username: user.username,
+        avatar: user.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&h=200&fit=crop&crop=face',
+        bio: user.bio || '',
+        location: user.location || community.city,
+        interests: user.interests || [],
+        joinedDate: user.joinedDate || new Date().toISOString(),
+      },
+      title: title.trim(),
+      description: description.trim(),
+      price: price,
+      currency: 'USD',
+      images: selectedImages,
+      category,
+      condition,
+      location: community.city,
+      isStoreBased: false,
+      storeName: undefined,
+      createdAt: new Date().toISOString(),
+      views: 0,
+    };
+
+    // Save to store
+    addMarketplaceListing(newListing);
+
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     router.navigate('/(tabs)');
   };
 
-  const canSubmit = title.trim().length > 0 && price.length > 0 && category.length > 0;
+  const canSubmit = title.trim().length > 0 && price.length > 0 && category.length > 0 && selectedImages.length > 0;
 
   return (
     <View className="flex-1 bg-cream">
