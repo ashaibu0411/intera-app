@@ -159,3 +159,16 @@ The app is fully connected to Supabase for data persistence and syncing across u
 - Real-time chat interface
 - Message history with timestamps
 - Contact sellers and community members directly
+
+### Premium Subscription (RevenueCat)
+- **Monthly Plan**: $4.99/month
+- **Annual Plan**: $39.99/year (33% savings)
+- **Premium Features**:
+  - Verified gold badge on profile
+  - Unlimited posts (no daily limits)
+  - Priority customer support
+  - Ad-free experience
+  - Access to exclusive communities
+- Premium paywall screen (`/paywall`) with beautiful UI
+- Premium status badge displayed on user profile
+- "Go Premium" button on profile for non-subscribers

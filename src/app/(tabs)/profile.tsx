@@ -3,12 +3,13 @@ import { View, Text, ScrollView, Pressable, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Settings, MapPin, Calendar, Edit3, Users, FileText, Bookmark, LogOut, Star, ChevronRight, Play, Briefcase, Plus, Store } from 'lucide-react-native';
+import { Settings, MapPin, Calendar, Edit3, Users, FileText, Bookmark, LogOut, Star, ChevronRight, Play, Briefcase, Plus, Store, Crown } from 'lucide-react-native';
 import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { useStore, MOCK_USERS, MOCK_POSTS } from '@/lib/store';
 import { signOut } from '@/lib/auth';
+import { usePremium } from '@/hooks/usePremium';
 
 export default function ProfileScreen() {
   const currentUser = useStore((s) => s.currentUser);
@@ -19,6 +20,7 @@ export default function ProfileScreen() {
   const connections = useStore((s) => s.connections);
   const lifeEvents = useStore((s) => s.lifeEvents);
   const userBusinesses = useStore((s) => s.userBusinesses);
+  const { isPremium, isEnabled: isPremiumEnabled } = usePremium();
 
   // Use current user if logged in, otherwise show mock user for guests
   const user = currentUser || MOCK_USERS[0];
@@ -161,7 +163,14 @@ export default function ProfileScreen() {
                 </View>
 
                 <View className="flex-1 ml-4">
-                  <Text className="text-white text-xl font-bold">{user.name}</Text>
+                  <View className="flex-row items-center">
+                    <Text className="text-white text-xl font-bold">{user.name}</Text>
+                    {isPremium && (
+                      <View className="bg-gold-500 rounded-full p-1 ml-2">
+                        <Crown size={12} color="#FFFFFF" />
+                      </View>
+                    )}
+                  </View>
                   <Text className="text-white/70 text-sm">@{user.username}</Text>
                   <View className="flex-row items-center mt-2">
                     <MapPin size={14} color="#C9A227" />
@@ -202,6 +211,59 @@ export default function ProfileScreen() {
               )}
             </LinearGradient>
           </Animated.View>
+
+          {/* Premium Section */}
+          {currentUser && !isGuest && (
+            <Animated.View
+              entering={FadeInUp.duration(400).delay(150)}
+              className="mx-5 mt-4"
+            >
+              {isPremium ? (
+                <View className="bg-gradient-to-r from-gold-100 to-gold-50 rounded-2xl overflow-hidden">
+                  <LinearGradient
+                    colors={['#FEF3C7', '#FDE68A']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={{ borderRadius: 16, padding: 16, flexDirection: 'row', alignItems: 'center' }}
+                  >
+                    <View className="bg-gold-500 rounded-full p-2.5">
+                      <Crown size={20} color="#FFFFFF" />
+                    </View>
+                    <View className="flex-1 ml-3">
+                      <Text className="text-warmBrown font-bold text-base">Premium Member</Text>
+                      <Text className="text-warmBrown/70 text-sm">You have access to all premium features</Text>
+                    </View>
+                    <View className="bg-gold-500 rounded-full px-3 py-1">
+                      <Text className="text-white font-semibold text-xs">Active</Text>
+                    </View>
+                  </LinearGradient>
+                </View>
+              ) : isPremiumEnabled ? (
+                <Pressable
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                    router.push('/paywall');
+                  }}
+                >
+                  <LinearGradient
+                    colors={['#C9A227', '#92740C']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={{ borderRadius: 16, padding: 16, flexDirection: 'row', alignItems: 'center' }}
+                  >
+                    <View className="bg-white/20 rounded-full p-2.5">
+                      <Crown size={20} color="#FFFFFF" />
+                    </View>
+                    <View className="flex-1 ml-3">
+                      <Text className="text-white font-bold text-base">Go Premium</Text>
+                      <Text className="text-white/80 text-sm">Get verified badge, unlimited posts & more</Text>
+                    </View>
+                    <ChevronRight size={20} color="#FFFFFF" />
+                  </LinearGradient>
+                </Pressable>
+              ) : null}
+            </Animated.View>
+          )}
 
           {/* Stats */}
           <Animated.View

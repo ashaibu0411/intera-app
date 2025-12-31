@@ -64,6 +64,7 @@ function RootLayoutNav() {
         <Stack.Screen name="settings" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="life-events" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="my-businesses" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="paywall" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
       </Stack>
     </ThemeProvider>
