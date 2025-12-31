@@ -161,7 +161,7 @@ export default function PostDetailScreen() {
     // Combine all comment sources, avoiding duplicates
     const commentMap = new Map<string, Comment>();
 
-    // Add database comments first
+    // Add database comments first (these are the source of truth)
     dbComments.forEach(c => commentMap.set(c.id, c));
 
     // Add mock comments
@@ -171,8 +171,19 @@ export default function PostDetailScreen() {
       }
     });
 
-    // Add user's local comments
+    // Add user's local comments, but skip temp comments if we already have db version
+    // Temp comments start with "temp-comment-" and contain the same content as db comments
     userComments.filter((c) => c.postId === id).forEach(c => {
+      // Skip temp comments - they're just for immediate feedback
+      if (c.id.startsWith('temp-comment-')) {
+        // Check if we already have a db comment with same content from same author
+        const hasDuplicateDbComment = dbComments.some(
+          dbC => dbC.content === c.content && dbC.author.id === c.author.id
+        );
+        if (hasDuplicateDbComment) {
+          return; // Skip this temp comment
+        }
+      }
       if (!commentMap.has(c.id)) {
         commentMap.set(c.id, c);
       }
@@ -311,9 +322,10 @@ export default function PostDetailScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     const commentContent = commentText.trim();
+    const tempId = `temp-comment-${Date.now()}`;
 
     const newComment: Comment = {
-      id: `comment-${Date.now()}`,
+      id: tempId,
       postId: id || '',
       author: currentUser,
       content: commentContent,
@@ -332,7 +344,8 @@ export default function PostDetailScreen() {
       const dbComment = await createComment(id || '', currentUser.id, commentContent);
       if (dbComment) {
         console.log('[PostDetail] Comment saved to database');
-        // Update the local comment with the database ID
+        // Update dbComments with the real database comment
+        // This will replace the temp comment in the combined list
         const formattedComment: Comment = {
           id: dbComment.id,
           postId: dbComment.post_id,
@@ -350,7 +363,6 @@ export default function PostDetailScreen() {
           createdAt: dbComment.created_at,
           likes: 0,
         };
-        // Add the database comment to show it properly
         setDbComments(prev => [...prev, formattedComment]);
       }
     } catch (error) {
