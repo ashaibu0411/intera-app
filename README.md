@@ -150,6 +150,8 @@ The app is fully connected to Supabase for data persistence and syncing across u
 
 ### Working Features
 - **Location Button**: Tap the location button in the header to change your city/community
+- **Automatic City Detection**: The app automatically detects your current city using device location and prompts you to switch communities if you've moved to a new city
+- **Location Change Modal**: When a new city is detected, you can choose to switch to the new city's community, stay in your current community, or dismiss future location prompts
 - **Post Comments**: Tap any post to view comments, add your own comments, and see the full discussion
 - **Share Posts**: Share posts using the native share sheet to any app on your device
 - **Messaging**: Access messages from the home screen header, view conversations, and send messages

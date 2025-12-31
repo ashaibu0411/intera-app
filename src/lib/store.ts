@@ -221,6 +221,8 @@ interface AppState {
 
   // Location state
   selectedLocation: LocationData | null;
+  locationDetectionDismissed: boolean;
+  lastDetectedCity: string | null;
 
   // Community state
   currentCommunity: Community | null;
@@ -278,6 +280,8 @@ interface AppState {
   deleteLifeEvent: (eventId: string) => void;
   setEventRsvp: (eventId: string, status: 'interested' | 'going' | null) => void;
   setNotificationsEnabled: (enabled: boolean) => void;
+  setLocationDetectionDismissed: (dismissed: boolean) => void;
+  setLastDetectedCity: (city: string | null) => void;
   logout: () => void;
 }
 
@@ -289,6 +293,8 @@ export const useStore = create<AppState>()(
       isGuest: false,
       hasSeenWelcome: false,
       selectedLocation: null,
+      locationDetectionDismissed: false,
+      lastDetectedCity: null,
       currentCommunity: null,
       feedFilter: 'local',
       userPosts: [],
@@ -366,6 +372,8 @@ export const useStore = create<AppState>()(
         return { eventRsvps: [...state.eventRsvps, { eventId, status }] };
       }),
       setNotificationsEnabled: (enabled) => set({ notificationsEnabled: enabled }),
+      setLocationDetectionDismissed: (dismissed) => set({ locationDetectionDismissed: dismissed }),
+      setLastDetectedCity: (city) => set({ lastDetectedCity: city }),
       logout: () => set({ currentUser: null, isOnboarded: false, isGuest: false }),
     }),
     {
@@ -377,6 +385,8 @@ export const useStore = create<AppState>()(
         isGuest: state.isGuest,
         hasSeenWelcome: state.hasSeenWelcome,
         selectedLocation: state.selectedLocation,
+        locationDetectionDismissed: state.locationDetectionDismissed,
+        lastDetectedCity: state.lastDetectedCity,
         currentCommunity: state.currentCommunity,
         userPosts: state.userPosts,
         savedPostIds: state.savedPostIds,

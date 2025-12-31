@@ -233,43 +233,52 @@ function CreatePostForm({ user, community, onBack }: { user: any; community: any
   const handlePost = async () => {
     if (!content.trim()) return;
 
-    // Create new post
-    const newPost = {
-      id: `post_${Date.now()}`,
-      author: {
-        id: user.id,
-        name: user.name,
-        username: user.username,
-        avatar: user.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&h=200&fit=crop&crop=face',
-        bio: user.bio || '',
-        location: user.location || community.city,
-        interests: user.interests || [],
-        joinedDate: user.joinedDate || new Date().toISOString(),
-      },
-      content: content.trim(),
-      images: selectedImages,
-      video: selectedVideo ?? undefined,
-      likes: 0,
-      comments: 0,
-      createdAt: new Date().toISOString(),
-      isLiked: false,
-      location: community.city,
-    };
+    let postId = `post_${Date.now()}`;
+    let savedToDb = false;
 
-    // Save to local store first
-    addPost(newPost);
-
-    // Try to save to database as well (so other users can see it)
+    // Try to save to database first (so other users can see it)
     try {
-      await createDbPost(user.id, content.trim(), selectedImages, community.city);
+      const dbPost = await createDbPost(user.id, content.trim(), selectedImages, community.city);
+      if (dbPost?.id) {
+        postId = dbPost.id;
+        savedToDb = true;
+      }
     } catch (dbError) {
-      console.log('Database save failed, but local save succeeded:', dbError);
+      console.log('Database save failed, will save locally:', dbError);
+    }
+
+    // Only save to local store if database save failed
+    // This prevents duplicates when database save succeeds
+    if (!savedToDb) {
+      const newPost = {
+        id: postId,
+        author: {
+          id: user.id,
+          name: user.name,
+          username: user.username,
+          avatar: user.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&h=200&fit=crop&crop=face',
+          bio: user.bio || '',
+          location: user.location || community.city,
+          interests: user.interests || [],
+          joinedDate: user.joinedDate || new Date().toISOString(),
+        },
+        content: content.trim(),
+        images: selectedImages,
+        video: selectedVideo ?? undefined,
+        likes: 0,
+        comments: 0,
+        createdAt: new Date().toISOString(),
+        isLiked: false,
+        location: community.city,
+      };
+
+      addPost(newPost);
     }
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
     // Send notification to other users in the community
-    await sendNewPostNotification(user.name, content.trim(), newPost.id);
+    await sendNewPostNotification(user.name, content.trim(), postId);
 
     router.navigate('/(tabs)');
   };

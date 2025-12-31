@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { View, Text, ScrollView, Pressable, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -18,11 +18,15 @@ import {
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { PostCard } from '@/components/PostCard';
+import { LocationChangeModal } from '@/components/LocationChangeModal';
 import { useStore, MOCK_POSTS, MOCK_COMMUNITIES, type Post } from '@/lib/store';
-import { getCommunityByLocation, subscribeToCommunityUpdates, getCommunityMemberCount } from '@/lib/communities';
+import { getCommunityByLocation, subscribeToCommunityUpdates, getOrCreateCommunity, joinCommunity } from '@/lib/communities';
 import { DbCommunity } from '@/lib/supabase';
 import { getPosts } from '@/lib/posts';
+import { detectCurrentLocation, isLocationDifferent, type DetectedLocation } from '@/lib/locationDetection';
+import { getCurrentUser } from '@/lib/auth';
 
 // Additional mock posts for global feed from different locations
 const GLOBAL_MOCK_POSTS = [
@@ -92,6 +96,9 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [realCommunity, setRealCommunity] = useState<DbCommunity | null>(null);
   const [dbPosts, setDbPosts] = useState<Post[]>([]);
+  const [showLocationModal, setShowLocationModal] = useState(false);
+  const [detectedLocation, setDetectedLocation] = useState<DetectedLocation | null>(null);
+
   const feedFilter = useStore((s) => s.feedFilter);
   const setFeedFilter = useStore((s) => s.setFeedFilter);
   const currentCommunity = useStore((s) => s.currentCommunity);
@@ -99,6 +106,12 @@ export default function HomeScreen() {
   const currentUser = useStore((s) => s.currentUser);
   const userPosts = useStore((s) => s.userPosts);
   const selectedLocation = useStore((s) => s.selectedLocation);
+  const locationDetectionDismissed = useStore((s) => s.locationDetectionDismissed);
+  const lastDetectedCity = useStore((s) => s.lastDetectedCity);
+  const setSelectedLocation = useStore((s) => s.setSelectedLocation);
+  const setCurrentCommunity = useStore((s) => s.setCurrentCommunity);
+  const setLocationDetectionDismissed = useStore((s) => s.setLocationDetectionDismissed);
+  const setLastDetectedCity = useStore((s) => s.setLastDetectedCity);
 
   const displayCommunity = currentCommunity ?? MOCK_COMMUNITIES[0];
 
@@ -142,6 +155,13 @@ export default function HomeScreen() {
     fetchDbPosts();
   }, []);
 
+  // Refresh posts when screen comes into focus (e.g., after creating a post)
+  useFocusEffect(
+    useCallback(() => {
+      fetchDbPosts();
+    }, [])
+  );
+
   // Fetch real community data from Supabase
   const fetchCommunity = async () => {
     const city = selectedLocation?.city || displayCommunity.city;
@@ -156,6 +176,106 @@ export default function HomeScreen() {
   useEffect(() => {
     fetchCommunity();
   }, [selectedLocation, displayCommunity.city, displayCommunity.country]);
+
+  // Detect user's current location and show modal if it changed
+  useEffect(() => {
+    const checkLocation = async () => {
+      // Skip if user dismissed the detection permanently
+      if (locationDetectionDismissed) return;
+
+      // Only check if user has a selected location
+      if (!selectedLocation) return;
+
+      try {
+        const detected = await detectCurrentLocation();
+        if (!detected) return;
+
+        console.log('[Home] Detected location:', detected.city, detected.country);
+
+        // Check if detected city is different from current AND from last detected
+        const isDifferent = isLocationDifferent(detected, selectedLocation);
+        const isSameAsLastDetected = lastDetectedCity?.toLowerCase() === detected.city.toLowerCase();
+
+        if (isDifferent && !isSameAsLastDetected) {
+          setDetectedLocation(detected);
+          setShowLocationModal(true);
+        }
+      } catch (error) {
+        console.log('[Home] Location detection error:', error);
+      }
+    };
+
+    // Check location after a short delay to avoid blocking initial render
+    const timer = setTimeout(checkLocation, 2000);
+    return () => clearTimeout(timer);
+  }, [selectedLocation, locationDetectionDismissed, lastDetectedCity]);
+
+  // Handle confirming location switch
+  const handleConfirmLocationSwitch = async () => {
+    if (!detectedLocation) return;
+
+    setShowLocationModal(false);
+    setLastDetectedCity(detectedLocation.city);
+
+    // Update the selected location
+    setSelectedLocation({
+      country: detectedLocation.country,
+      state: detectedLocation.state,
+      city: detectedLocation.city,
+    });
+
+    // Get or create community for new location
+    const dbCommunity = await getOrCreateCommunity(
+      detectedLocation.city,
+      detectedLocation.state || null,
+      detectedLocation.country
+    );
+
+    if (dbCommunity) {
+      // Join the community if user is logged in
+      const user = await getCurrentUser();
+      if (user) {
+        await joinCommunity(user.id, dbCommunity.id);
+      }
+
+      setCurrentCommunity({
+        id: dbCommunity.id,
+        name: dbCommunity.name,
+        city: dbCommunity.city,
+        state: dbCommunity.state ?? undefined,
+        country: dbCommunity.country,
+        memberCount: dbCommunity.member_count,
+        image: dbCommunity.image_url || 'https://images.unsplash.com/photo-1489392191049-fc10c97e64b6?w=400&h=300&fit=crop',
+      });
+    } else {
+      // Fallback to custom community
+      setCurrentCommunity({
+        id: 'custom',
+        name: `${detectedLocation.city} Africans`,
+        city: detectedLocation.city,
+        state: detectedLocation.state,
+        country: detectedLocation.country,
+        memberCount: 1,
+        image: 'https://images.unsplash.com/photo-1489392191049-fc10c97e64b6?w=400&h=300&fit=crop',
+      });
+    }
+
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  };
+
+  // Handle keeping current location
+  const handleKeepCurrentLocation = () => {
+    setShowLocationModal(false);
+    if (detectedLocation) {
+      setLastDetectedCity(detectedLocation.city);
+    }
+  };
+
+  // Handle dismissing location detection permanently
+  const handleDismissLocationDetection = () => {
+    setShowLocationModal(false);
+    setLocationDetectionDismissed(true);
+  };
 
   // Subscribe to real-time community updates
   useEffect(() => {
@@ -489,6 +609,18 @@ export default function HomeScreen() {
           )}
         </ScrollView>
       </SafeAreaView>
+
+      {/* Location Change Modal */}
+      <LocationChangeModal
+        visible={showLocationModal}
+        detectedCity={detectedLocation?.city ?? ''}
+        detectedCountry={detectedLocation?.country ?? ''}
+        currentCity={displayCommunity.city}
+        currentCountry={displayCommunity.country}
+        onConfirm={handleConfirmLocationSwitch}
+        onKeepCurrent={handleKeepCurrentLocation}
+        onDismiss={handleDismissLocationDetection}
+      />
     </View>
   );
 }
