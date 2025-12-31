@@ -182,6 +182,25 @@ The app is fully connected to Supabase for data persistence and syncing across u
 - Premium status badge displayed on user profile
 - "Go Premium" button on profile for non-subscribers
 
+### Connect - Meet People Nearby
+- **New Tab**: Dedicated Connect tab in the bottom navigation for meeting people in your neighborhood
+- **Profile Discovery**: Browse profiles of people near you with photos, bio, and interests
+- **Looking For Filters**: Filter by what people are looking for:
+  - Friends - Social connections
+  - Dating - Romantic connections
+  - Networking - Professional connections
+  - All - Open to everything
+- **Like & Connect**: Heart profiles you're interested in and connect to start conversations
+- **Connected Status**: Once connected, message button appears for direct chat
+- **Stats Dashboard**: See how many people are nearby, connected, and liked
+
+### Local News Feed
+- **City-Specific News**: Local news section on the home feed showing relevant articles for your city
+- **News Categories**: Culture, Business, Education, Food, Community, Politics, Tech, Entertainment
+- **Compact Cards**: Horizontal scroll of news cards with images, headlines, sources, and timestamps
+- **Opens in Browser**: Tap any article to read the full story in your browser
+- **Auto-Updates**: News refreshes when you change cities or pull-to-refresh
+
 ### Seller Pro Subscription (RevenueCat)
 - **First 50 in-app sales are FREE** - no fees for new sellers
 - **Cash/offline payments are ALWAYS FREE** - only in-app payments require Seller Pro after 50 sales

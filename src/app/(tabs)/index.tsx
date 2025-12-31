@@ -14,17 +14,20 @@ import {
   UserPlus,
   MessageCircle,
   Briefcase,
+  Newspaper,
 } from 'lucide-react-native';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { PostCard } from '@/components/PostCard';
+import { NewsCard } from '@/components/NewsCard';
 import { LocationChangeModal } from '@/components/LocationChangeModal';
-import { useStore, MOCK_POSTS, MOCK_COMMUNITIES, type Post } from '@/lib/store';
+import { useStore, MOCK_POSTS, MOCK_COMMUNITIES, type Post, type NewsArticle } from '@/lib/store';
 import { getCommunityByLocation, subscribeToCommunityUpdates, getOrCreateCommunity, joinCommunity } from '@/lib/communities';
 import { DbCommunity } from '@/lib/supabase';
 import { getPosts } from '@/lib/posts';
+import { getLocalNews } from '@/lib/news';
 import { detectCurrentLocation, isLocationDifferent, type DetectedLocation } from '@/lib/locationDetection';
 import { getCurrentUser } from '@/lib/auth';
 
@@ -96,6 +99,7 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [realCommunity, setRealCommunity] = useState<DbCommunity | null>(null);
   const [dbPosts, setDbPosts] = useState<Post[]>([]);
+  const [localNews, setLocalNews] = useState<NewsArticle[]>([]);
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [detectedLocation, setDetectedLocation] = useState<DetectedLocation | null>(null);
 
@@ -154,6 +158,21 @@ export default function HomeScreen() {
   useEffect(() => {
     fetchDbPosts();
   }, []);
+
+  // Fetch local news
+  const fetchNews = async () => {
+    try {
+      const city = selectedLocation?.city || displayCommunity.city;
+      const news = await getLocalNews(city, 4);
+      setLocalNews(news);
+    } catch (error) {
+      console.log('[Home] Error fetching news:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchNews();
+  }, [selectedLocation, displayCommunity.city]);
 
   // Refresh posts when screen comes into focus (e.g., after creating a post)
   useFocusEffect(
@@ -353,6 +372,7 @@ export default function HomeScreen() {
     await Promise.all([
       fetchDbPosts(),
       fetchCommunity(),
+      fetchNews(),
     ]);
     setRefreshing(false);
   };
@@ -583,6 +603,35 @@ export default function HomeScreen() {
               </View>
             </Pressable>
           </Animated.View>
+
+          {/* Local News Section - Only show in local feed */}
+          {feedFilter === 'local' && localNews.length > 0 && (
+            <Animated.View
+              entering={FadeInUp.duration(500).delay(310)}
+              className="mb-4"
+            >
+              <View className="flex-row items-center justify-between px-4 mb-3">
+                <View className="flex-row items-center">
+                  <View className="bg-terracotta-50 rounded-full p-2 mr-2">
+                    <Newspaper size={18} color="#D4673A" />
+                  </View>
+                  <Text className="text-warmBrown font-bold text-lg">Local News</Text>
+                </View>
+                <Text className="text-gray-400 text-xs">{displayCommunity.city}</Text>
+              </View>
+
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
+                style={{ flexGrow: 0 }}
+              >
+                {localNews.map((article) => (
+                  <NewsCard key={article.id} article={article} variant="compact" />
+                ))}
+              </ScrollView>
+            </Animated.View>
+          )}
 
           {/* Posts */}
           {allPosts.length > 0 ? (

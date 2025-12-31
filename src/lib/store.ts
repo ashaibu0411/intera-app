@@ -188,6 +188,26 @@ export interface EventRsvp {
   status: 'interested' | 'going';
 }
 
+export interface NeighborProfile {
+  id: string;
+  user: User;
+  lookingFor: 'friends' | 'dating' | 'networking' | 'all';
+  aboutMe: string;
+  isVisible: boolean;
+  lastActive: string;
+}
+
+export interface NewsArticle {
+  id: string;
+  title: string;
+  description: string;
+  url: string;
+  imageUrl?: string;
+  source: string;
+  publishedAt: string;
+  category?: string;
+}
+
 export const LIFE_EVENT_CATEGORIES = [
   { id: 'wedding', label: 'Wedding', icon: 'Heart' },
   { id: 'graduation', label: 'Graduation', icon: 'GraduationCap' },
@@ -252,6 +272,11 @@ interface AppState {
   // Event RSVPs state
   eventRsvps: EventRsvp[];
 
+  // Connect/Neighbor state
+  neighborProfile: NeighborProfile | null;
+  connectedNeighbors: string[];  // IDs of users we've connected with
+  likedNeighbors: string[];  // IDs of users we've "liked"
+
   // Seller stats
   inAppSalesCount: number;
 
@@ -286,6 +311,10 @@ interface AppState {
   setLocationDetectionDismissed: (dismissed: boolean) => void;
   setLastDetectedCity: (city: string | null) => void;
   incrementInAppSalesCount: () => void;
+  setNeighborProfile: (profile: NeighborProfile | null) => void;
+  toggleLikeNeighbor: (userId: string) => void;
+  addConnectedNeighbor: (userId: string) => void;
+  removeConnectedNeighbor: (userId: string) => void;
   logout: () => void;
 }
 
@@ -311,6 +340,9 @@ export const useStore = create<AppState>()(
       userFaithEvents: [],
       lifeEvents: [],
       eventRsvps: [],
+      neighborProfile: null,
+      connectedNeighbors: [],
+      likedNeighbors: [],
       inAppSalesCount: 0,
       notificationsEnabled: true,
 
@@ -380,6 +412,20 @@ export const useStore = create<AppState>()(
       setLocationDetectionDismissed: (dismissed) => set({ locationDetectionDismissed: dismissed }),
       setLastDetectedCity: (city) => set({ lastDetectedCity: city }),
       incrementInAppSalesCount: () => set((state) => ({ inAppSalesCount: state.inAppSalesCount + 1 })),
+      setNeighborProfile: (profile) => set({ neighborProfile: profile }),
+      toggleLikeNeighbor: (userId) => set((state) => ({
+        likedNeighbors: state.likedNeighbors.includes(userId)
+          ? state.likedNeighbors.filter((id) => id !== userId)
+          : [...state.likedNeighbors, userId],
+      })),
+      addConnectedNeighbor: (userId) => set((state) => ({
+        connectedNeighbors: state.connectedNeighbors.includes(userId)
+          ? state.connectedNeighbors
+          : [...state.connectedNeighbors, userId],
+      })),
+      removeConnectedNeighbor: (userId) => set((state) => ({
+        connectedNeighbors: state.connectedNeighbors.filter((id) => id !== userId),
+      })),
       logout: () => set({ currentUser: null, isOnboarded: false, isGuest: false }),
     }),
     {
@@ -405,6 +451,9 @@ export const useStore = create<AppState>()(
         userListings: state.userListings,
         eventRsvps: state.eventRsvps,
         notificationsEnabled: state.notificationsEnabled,
+        neighborProfile: state.neighborProfile,
+        connectedNeighbors: state.connectedNeighbors,
+        likedNeighbors: state.likedNeighbors,
       }),
     }
   )

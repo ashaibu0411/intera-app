@@ -2,7 +2,7 @@ import React from 'react';
 import { Tabs } from 'expo-router';
 import { View } from 'react-native';
 import { Image } from 'expo-image';
-import { Home, Search, PlusSquare, Bell, User } from 'lucide-react-native';
+import { Home, Search, PlusSquare, Bell, User, Users } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useStore } from '@/lib/store';
 
@@ -47,6 +47,16 @@ export default function TabLayout() {
           tabBarIcon: ({ color, focused }) => (
             <View className={`items-center justify-center ${focused ? 'scale-110' : ''}`}>
               <Search size={26} color={color} strokeWidth={focused ? 2.5 : 2} />
+            </View>
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="connect"
+        options={{
+          tabBarIcon: ({ color, focused }) => (
+            <View className={`items-center justify-center ${focused ? 'scale-110' : ''}`}>
+              <Users size={26} color={color} strokeWidth={focused ? 2.5 : 2} />
             </View>
           ),
         }}
