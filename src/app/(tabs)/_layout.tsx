@@ -1,10 +1,14 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { View } from 'react-native';
+import { Image } from 'expo-image';
 import { Home, Search, PlusSquare, Bell, User } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
+import { useStore } from '@/lib/store';
 
 export default function TabLayout() {
+  const currentUserAvatar = useStore((s) => s.currentUser?.avatar);
+
   return (
     <Tabs
       screenOptions={{
@@ -72,7 +76,26 @@ export default function TabLayout() {
         options={{
           tabBarIcon: ({ color, focused }) => (
             <View className={`items-center justify-center ${focused ? 'scale-110' : ''}`}>
-              <User size={26} color={color} strokeWidth={focused ? 2.5 : 2} />
+              {currentUserAvatar ? (
+                <View
+                  style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: 14,
+                    borderWidth: focused ? 2 : 1.5,
+                    borderColor: focused ? '#D4673A' : color,
+                    overflow: 'hidden',
+                  }}
+                >
+                  <Image
+                    source={{ uri: currentUserAvatar }}
+                    style={{ width: '100%', height: '100%' }}
+                    contentFit="cover"
+                  />
+                </View>
+              ) : (
+                <User size={26} color={color} strokeWidth={focused ? 2.5 : 2} />
+              )}
             </View>
           ),
         }}
