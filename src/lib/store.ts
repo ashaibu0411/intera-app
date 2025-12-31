@@ -257,6 +257,7 @@ interface AppState {
   removeConnection: (userId: string) => void;
   addMarketplaceListing: (listing: MarketplaceListing) => void;
   addBusiness: (business: Business) => void;
+  deleteBusiness: (businessId: string) => void;
   addFaithEvent: (event: FaithEvent) => void;
   addLifeEvent: (event: LifeEvent) => void;
   deleteLifeEvent: (eventId: string) => void;
@@ -309,6 +310,9 @@ export const useStore = create<AppState>()(
       })),
       addMarketplaceListing: (listing) => set((state) => ({ userListings: [listing, ...state.userListings] })),
       addBusiness: (business) => set((state) => ({ userBusinesses: [business, ...state.userBusinesses] })),
+      deleteBusiness: (businessId) => set((state) => ({
+        userBusinesses: state.userBusinesses.filter((b) => b.id !== businessId),
+      })),
       addFaithEvent: (event) => set((state) => ({ userFaithEvents: [event, ...state.userFaithEvents] })),
       addLifeEvent: (event) => set((state) => ({ lifeEvents: [event, ...state.lifeEvents] })),
       deleteLifeEvent: (eventId) => set((state) => ({
@@ -331,6 +335,7 @@ export const useStore = create<AppState>()(
         savedPostIds: state.savedPostIds,
         connections: state.connections,
         lifeEvents: state.lifeEvents,
+        userBusinesses: state.userBusinesses,
         notificationsEnabled: state.notificationsEnabled,
       }),
     }

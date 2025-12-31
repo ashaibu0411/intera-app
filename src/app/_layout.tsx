@@ -63,6 +63,7 @@ function RootLayoutNav() {
         <Stack.Screen name="connections" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="settings" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="life-events" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="my-businesses" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
       </Stack>
     </ThemeProvider>

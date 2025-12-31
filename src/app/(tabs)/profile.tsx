@@ -3,7 +3,7 @@ import { View, Text, ScrollView, Pressable, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Settings, MapPin, Calendar, Edit3, Users, FileText, Bookmark, LogOut, Star, ChevronRight, Play } from 'lucide-react-native';
+import { Settings, MapPin, Calendar, Edit3, Users, FileText, Bookmark, LogOut, Star, ChevronRight, Play, Briefcase, Plus, Store } from 'lucide-react-native';
 import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
@@ -18,6 +18,7 @@ export default function ProfileScreen() {
   const savedPostIds = useStore((s) => s.savedPostIds);
   const connections = useStore((s) => s.connections);
   const lifeEvents = useStore((s) => s.lifeEvents);
+  const userBusinesses = useStore((s) => s.userBusinesses);
 
   // Use current user if logged in, otherwise show mock user for guests
   const user = currentUser || MOCK_USERS[0];
@@ -347,6 +348,110 @@ export default function ProfileScreen() {
                       </Text>
                     </View>
                     <ChevronRight size={20} color="#92400E" />
+                  </View>
+                </LinearGradient>
+              </Pressable>
+            )}
+          </Animated.View>
+
+          {/* My Businesses Section */}
+          <Animated.View
+            entering={FadeInUp.duration(400).delay(450)}
+            className="mx-5 mt-6"
+          >
+            <View className="flex-row items-center justify-between mb-3">
+              <Text className="text-lg font-semibold text-warmBrown">My Businesses</Text>
+              {userBusinesses.length > 0 && (
+                <Pressable
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    router.push('/my-businesses');
+                  }}
+                  className="flex-row items-center"
+                >
+                  <Text className="text-forest-600 font-medium mr-1">View All</Text>
+                  <ChevronRight size={16} color="#1B4D3E" />
+                </Pressable>
+              )}
+            </View>
+
+            {userBusinesses.length > 0 ? (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }}>
+                {userBusinesses.slice(0, 5).map((business) => (
+                  <Pressable
+                    key={business.id}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      router.push('/my-businesses');
+                    }}
+                    className="mr-3"
+                    style={{ width: 160 }}
+                  >
+                    <View className="bg-white rounded-2xl overflow-hidden shadow-sm">
+                      <Image
+                        source={{ uri: business.image }}
+                        style={{ width: 160, height: 100 }}
+                        contentFit="cover"
+                      />
+                      <View className="p-3">
+                        <Text className="text-warmBrown font-semibold text-sm" numberOfLines={1}>
+                          {business.name}
+                        </Text>
+                        <Text className="text-gray-500 text-xs mt-1">
+                          {business.category}
+                        </Text>
+                        {business.isVerified && (
+                          <View className="flex-row items-center mt-1">
+                            <View className="bg-forest-100 rounded-full px-2 py-0.5">
+                              <Text className="text-forest-700 text-xs font-medium">Verified</Text>
+                            </View>
+                          </View>
+                        )}
+                      </View>
+                    </View>
+                  </Pressable>
+                ))}
+                {/* Add More Business Card */}
+                <Pressable
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    router.push('/register-business');
+                  }}
+                  className="mr-3"
+                  style={{ width: 160 }}
+                >
+                  <View className="bg-forest-50 rounded-2xl h-[168px] items-center justify-center border-2 border-dashed border-forest-200">
+                    <View className="bg-forest-100 rounded-full p-3 mb-2">
+                      <Plus size={20} color="#1B4D3E" />
+                    </View>
+                    <Text className="text-forest-700 font-medium text-sm">Add Business</Text>
+                  </View>
+                </Pressable>
+              </ScrollView>
+            ) : (
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  router.push('/register-business');
+                }}
+              >
+                <LinearGradient
+                  colors={['#1B4D3E', '#153D31']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={{ borderRadius: 16, padding: 20 }}
+                >
+                  <View className="flex-row items-center">
+                    <View className="bg-white/20 rounded-full p-3">
+                      <Store size={24} color="#FFFFFF" />
+                    </View>
+                    <View className="flex-1 ml-4">
+                      <Text className="text-white font-bold">Add Your Business</Text>
+                      <Text className="text-white/70 text-sm mt-1">
+                        List your African-owned business in our directory
+                      </Text>
+                    </View>
+                    <ChevronRight size={20} color="#FFFFFF" />
                   </View>
                 </LinearGradient>
               </Pressable>
