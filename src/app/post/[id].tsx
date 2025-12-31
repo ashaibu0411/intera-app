@@ -39,13 +39,14 @@ export default function PostDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const scrollViewRef = useRef<ScrollView>(null);
   const [commentText, setCommentText] = useState('');
-  const [localComments, setLocalComments] = useState<Comment[]>([]);
 
   const isGuest = useStore((s) => s.isGuest);
   const currentUser = useStore((s) => s.currentUser);
   const userPosts = useStore((s) => s.userPosts);
   const likedPostIds = useStore((s) => s.likedPostIds);
   const toggleLikePost = useStore((s) => s.toggleLikePost);
+  const userComments = useStore((s) => s.userComments);
+  const addComment = useStore((s) => s.addComment);
 
   // Search in both user-created posts and mock posts
   const post = useMemo(() => {
@@ -56,8 +57,9 @@ export default function PostDetailScreen() {
 
   const comments = useMemo(() => {
     const mockComments = MOCK_COMMENTS.filter((c) => c.postId === id);
-    return [...mockComments, ...localComments];
-  }, [id, localComments]);
+    const savedComments = userComments.filter((c) => c.postId === id);
+    return [...mockComments, ...savedComments];
+  }, [id, userComments]);
 
   const isLiked = id ? likedPostIds.includes(id) : false;
   const baseLikes = post?.likes ?? 0;
@@ -123,7 +125,7 @@ export default function PostDetailScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     const newComment: Comment = {
-      id: `local-${Date.now()}`,
+      id: `comment-${Date.now()}`,
       postId: id || '',
       author: currentUser,
       content: commentText.trim(),
@@ -131,7 +133,7 @@ export default function PostDetailScreen() {
       likes: 0,
     };
 
-    setLocalComments((prev) => [...prev, newComment]);
+    addComment(newComment);
     setCommentText('');
 
     // Scroll to bottom after adding comment

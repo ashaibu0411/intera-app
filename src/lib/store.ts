@@ -224,6 +224,7 @@ interface AppState {
   userPosts: Post[];
   savedPostIds: string[];
   likedPostIds: string[];
+  userComments: Comment[];
 
   // Connections state
   connections: User[];
@@ -255,6 +256,7 @@ interface AppState {
   deletePost: (postId: string) => void;
   toggleSavePost: (postId: string) => void;
   toggleLikePost: (postId: string) => void;
+  addComment: (comment: Comment) => void;
   addConnection: (user: User) => void;
   removeConnection: (userId: string) => void;
   addMarketplaceListing: (listing: MarketplaceListing) => void;
@@ -280,6 +282,7 @@ export const useStore = create<AppState>()(
       userPosts: [],
       savedPostIds: [],
       likedPostIds: [],
+      userComments: [],
       connections: [],
       userListings: [],
       userBusinesses: [],
@@ -308,6 +311,7 @@ export const useStore = create<AppState>()(
           ? state.likedPostIds.filter((id) => id !== postId)
           : [...state.likedPostIds, postId],
       })),
+      addComment: (comment) => set((state) => ({ userComments: [...state.userComments, comment] })),
       addConnection: (user) => set((state) => ({
         connections: state.connections.some((c) => c.id === user.id)
           ? state.connections
@@ -342,6 +346,7 @@ export const useStore = create<AppState>()(
         userPosts: state.userPosts,
         savedPostIds: state.savedPostIds,
         likedPostIds: state.likedPostIds,
+        userComments: state.userComments,
         connections: state.connections,
         lifeEvents: state.lifeEvents,
         userBusinesses: state.userBusinesses,
