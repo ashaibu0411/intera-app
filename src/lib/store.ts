@@ -212,6 +212,9 @@ interface AppState {
   // Faith events state
   userFaithEvents: FaithEvent[];
 
+  // Settings
+  notificationsEnabled: boolean;
+
   // Actions
   setCurrentUser: (user: User | null) => void;
   setIsOnboarded: (value: boolean) => void;
@@ -228,6 +231,7 @@ interface AppState {
   addMarketplaceListing: (listing: MarketplaceListing) => void;
   addBusiness: (business: Business) => void;
   addFaithEvent: (event: FaithEvent) => void;
+  setNotificationsEnabled: (enabled: boolean) => void;
   logout: () => void;
 }
 
@@ -247,6 +251,7 @@ export const useStore = create<AppState>()(
       userListings: [],
       userBusinesses: [],
       userFaithEvents: [],
+      notificationsEnabled: true,
 
       setCurrentUser: (user) => set({ currentUser: user }),
       setIsOnboarded: (value) => set({ isOnboarded: value }),
@@ -275,6 +280,7 @@ export const useStore = create<AppState>()(
       addMarketplaceListing: (listing) => set((state) => ({ userListings: [listing, ...state.userListings] })),
       addBusiness: (business) => set((state) => ({ userBusinesses: [business, ...state.userBusinesses] })),
       addFaithEvent: (event) => set((state) => ({ userFaithEvents: [event, ...state.userFaithEvents] })),
+      setNotificationsEnabled: (enabled) => set({ notificationsEnabled: enabled }),
       logout: () => set({ currentUser: null, isOnboarded: false, isGuest: false }),
     }),
     {

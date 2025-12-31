@@ -5,6 +5,8 @@ import { StatusBar } from 'expo-status-bar';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
+import { useEffect } from 'react';
+import { requestNotificationPermissions } from '@/lib/notifications';
 
 export const unstable_settings = {
   initialRouteName: '(tabs)',
@@ -28,6 +30,11 @@ const AfroConnectTheme = {
 };
 
 function RootLayoutNav() {
+  // Request notification permissions on app launch
+  useEffect(() => {
+    requestNotificationPermissions();
+  }, []);
+
   return (
     <ThemeProvider value={AfroConnectTheme}>
       <Stack screenOptions={{ headerShown: false }}>
@@ -54,6 +61,7 @@ function RootLayoutNav() {
         <Stack.Screen name="my-posts" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="saved-posts" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="connections" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="settings" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
       </Stack>
     </ThemeProvider>

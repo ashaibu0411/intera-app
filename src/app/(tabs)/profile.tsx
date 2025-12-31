@@ -92,7 +92,14 @@ export default function ProfileScreen() {
           className="flex-row items-center justify-between px-5 pt-4 pb-2"
         >
           <Text className="text-2xl font-bold text-warmBrown">Profile</Text>
-          <Pressable className="p-2" hitSlop={8}>
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.push('/settings');
+            }}
+            className="p-2"
+            hitSlop={8}
+          >
             <Settings size={24} color="#2D1F1A" />
           </Pressable>
         </Animated.View>

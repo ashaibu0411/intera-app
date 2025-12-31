@@ -26,6 +26,7 @@ import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { useStore, MOCK_COMMUNITIES, MARKETPLACE_CATEGORIES, EVENT_CATEGORIES } from '@/lib/store';
 import { router } from 'expo-router';
+import { sendNewPostNotification } from '@/lib/notifications';
 
 type CreateMode = 'select' | 'post' | 'sell' | 'event';
 
@@ -228,7 +229,7 @@ function CreatePostForm({ user, community, onBack }: { user: any; community: any
     setSelectedVideo(null);
   };
 
-  const handlePost = () => {
+  const handlePost = async () => {
     if (!content.trim()) return;
 
     // Create new post
@@ -256,6 +257,10 @@ function CreatePostForm({ user, community, onBack }: { user: any; community: any
 
     addPost(newPost);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    // Send notification to other users in the community
+    await sendNewPostNotification(user.name, content.trim(), newPost.id);
+
     router.navigate('/(tabs)');
   };
 
