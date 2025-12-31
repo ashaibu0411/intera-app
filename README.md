@@ -250,4 +250,26 @@ The app is fully connected to Supabase for data persistence and syncing across u
   - Businesses can define their services, pricing, and availability
   - Support for in-app payments (future) and pay-at-location options
 
+### Business Pro Subscription (For Barbershops & Salons)
+- **First 25 bookings are FREE** - businesses can try the booking system at no cost
+- **After 25 bookings**: Requires Business Pro subscription to continue accepting bookings
+- **Monthly Plan**: $29.99/month
+- **Annual Plan**: $239.99/year (33% savings - $19.99/month)
+- **Business Pro Features**:
+  - Unlimited appointment bookings
+  - Business analytics and revenue tracking
+  - Instant booking notifications
+  - Verified business badge
+  - Customer management
+  - Flexible scheduling tools
+- **Business Management Screens**:
+  - `/business-appointments` - View and manage incoming appointments (Confirm, Complete, Decline)
+  - `/manage-booking-calendar` - Set business hours, add services, block dates
+  - `/business-pro-paywall` - Upgrade to Business Pro subscription
+- **Booking Settings**:
+  - Set open/close times for each day of the week
+  - Add services with name, description, duration, and price
+  - Configure advance booking days (how far ahead customers can book)
+  - Set buffer time between appointments
+
 

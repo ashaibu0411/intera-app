@@ -230,6 +230,29 @@ export interface EventRsvp {
   status: 'interested' | 'going';
 }
 
+export interface BusinessBookingSettings {
+  businessId: string;
+  isBookingEnabled: boolean;
+  hasBusinessPro: boolean; // Subscription status
+  businessProExpiresAt?: string;
+  bookingHours: BusinessHours[];
+  blockedDates: string[]; // Dates when business is closed
+  blockedTimeSlots: { date: string; time: string }[]; // Specific blocked slots
+  appointmentBuffer: number; // Minutes between appointments
+  advanceBookingDays: number; // How many days in advance can customers book
+  services: BusinessService[];
+  totalBookingsReceived: number; // Track for free tier (first 25 bookings free)
+}
+
+export interface BusinessHours {
+  day: 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
+  isOpen: boolean;
+  openTime: string; // "09:00"
+  closeTime: string; // "18:00"
+  breakStart?: string; // Optional lunch break
+  breakEnd?: string;
+}
+
 export interface NeighborProfile {
   id: string;
   user: User;
@@ -323,6 +346,9 @@ interface AppState {
   userAppointments: Appointment[];  // Appointments user has booked
   businessAppointments: Appointment[];  // Appointments for user's businesses
 
+  // Business booking settings
+  businessBookingSettings: BusinessBookingSettings[];
+
   // Seller stats
   inAppSalesCount: number;
 
@@ -365,6 +391,14 @@ interface AppState {
   updateAppointmentStatus: (appointmentId: string, status: Appointment['status']) => void;
   cancelAppointment: (appointmentId: string) => void;
   addBusinessAppointment: (appointment: Appointment) => void;
+  // Business booking settings actions
+  setBusinessBookingSettings: (settings: BusinessBookingSettings) => void;
+  updateBusinessBookingSettings: (businessId: string, updates: Partial<BusinessBookingSettings>) => void;
+  addBlockedDate: (businessId: string, date: string) => void;
+  removeBlockedDate: (businessId: string, date: string) => void;
+  addBlockedTimeSlot: (businessId: string, date: string, time: string) => void;
+  removeBlockedTimeSlot: (businessId: string, date: string, time: string) => void;
+  incrementBusinessBookings: (businessId: string) => void;
   logout: () => void;
 }
 
@@ -395,6 +429,7 @@ export const useStore = create<AppState>()(
       likedNeighbors: [],
       userAppointments: [],
       businessAppointments: [],
+      businessBookingSettings: [],
       inAppSalesCount: 0,
       notificationsEnabled: true,
 
@@ -500,6 +535,63 @@ export const useStore = create<AppState>()(
       addBusinessAppointment: (appointment) => set((state) => ({
         businessAppointments: [appointment, ...state.businessAppointments],
       })),
+      // Business booking settings actions
+      setBusinessBookingSettings: (settings) => set((state) => {
+        const existing = state.businessBookingSettings.findIndex(
+          (s) => s.businessId === settings.businessId
+        );
+        if (existing >= 0) {
+          const updated = [...state.businessBookingSettings];
+          updated[existing] = settings;
+          return { businessBookingSettings: updated };
+        }
+        return { businessBookingSettings: [...state.businessBookingSettings, settings] };
+      }),
+      updateBusinessBookingSettings: (businessId, updates) => set((state) => ({
+        businessBookingSettings: state.businessBookingSettings.map((s) =>
+          s.businessId === businessId ? { ...s, ...updates } : s
+        ),
+      })),
+      addBlockedDate: (businessId, date) => set((state) => ({
+        businessBookingSettings: state.businessBookingSettings.map((s) =>
+          s.businessId === businessId
+            ? { ...s, blockedDates: [...s.blockedDates, date] }
+            : s
+        ),
+      })),
+      removeBlockedDate: (businessId, date) => set((state) => ({
+        businessBookingSettings: state.businessBookingSettings.map((s) =>
+          s.businessId === businessId
+            ? { ...s, blockedDates: s.blockedDates.filter((d) => d !== date) }
+            : s
+        ),
+      })),
+      addBlockedTimeSlot: (businessId, date, time) => set((state) => ({
+        businessBookingSettings: state.businessBookingSettings.map((s) =>
+          s.businessId === businessId
+            ? { ...s, blockedTimeSlots: [...s.blockedTimeSlots, { date, time }] }
+            : s
+        ),
+      })),
+      removeBlockedTimeSlot: (businessId, date, time) => set((state) => ({
+        businessBookingSettings: state.businessBookingSettings.map((s) =>
+          s.businessId === businessId
+            ? {
+                ...s,
+                blockedTimeSlots: s.blockedTimeSlots.filter(
+                  (slot) => !(slot.date === date && slot.time === time)
+                ),
+              }
+            : s
+        ),
+      })),
+      incrementBusinessBookings: (businessId) => set((state) => ({
+        businessBookingSettings: state.businessBookingSettings.map((s) =>
+          s.businessId === businessId
+            ? { ...s, totalBookingsReceived: s.totalBookingsReceived + 1 }
+            : s
+        ),
+      })),
       logout: () => set({ currentUser: null, isOnboarded: false, isGuest: false }),
     }),
     {
@@ -530,6 +622,7 @@ export const useStore = create<AppState>()(
         likedNeighbors: state.likedNeighbors,
         userAppointments: state.userAppointments,
         businessAppointments: state.businessAppointments,
+        businessBookingSettings: state.businessBookingSettings,
       }),
     }
   )
