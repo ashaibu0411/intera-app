@@ -154,6 +154,10 @@ export interface Business {
   isFeatured: boolean;
   isAfricanMarket: boolean;
   inventory?: InventoryItem[];
+  // Booking features
+  acceptsBookings?: boolean;
+  services?: BusinessService[];
+  bookingHours?: { day: string; open: string; close: string }[];
   createdAt: string;
 }
 
@@ -167,6 +171,44 @@ export interface InventoryItem {
   inStock: boolean;
   quantity?: number;
   category: string;
+  createdAt: string;
+}
+
+export interface BusinessService {
+  id: string;
+  businessId: string;
+  name: string;
+  description: string;
+  duration: number; // in minutes
+  price: number;
+  currency: string;
+  category: string;
+  image?: string;
+  isActive: boolean;
+}
+
+export interface TimeSlot {
+  id: string;
+  time: string; // "09:00", "09:30", etc.
+  isAvailable: boolean;
+}
+
+export interface Appointment {
+  id: string;
+  businessId: string;
+  businessName: string;
+  businessImage?: string;
+  customerId: string;
+  customerName: string;
+  customerAvatar?: string;
+  customerPhone?: string;
+  service: BusinessService;
+  date: string; // "2025-01-15"
+  time: string; // "10:00 AM"
+  status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
+  isPaid: boolean;
+  paymentMethod?: 'in_app' | 'cash' | 'card_on_site';
+  notes?: string;
   createdAt: string;
 }
 
@@ -277,6 +319,10 @@ interface AppState {
   connectedNeighbors: string[];  // IDs of users we've connected with
   likedNeighbors: string[];  // IDs of users we've "liked"
 
+  // Appointments state
+  userAppointments: Appointment[];  // Appointments user has booked
+  businessAppointments: Appointment[];  // Appointments for user's businesses
+
   // Seller stats
   inAppSalesCount: number;
 
@@ -315,6 +361,10 @@ interface AppState {
   toggleLikeNeighbor: (userId: string) => void;
   addConnectedNeighbor: (userId: string) => void;
   removeConnectedNeighbor: (userId: string) => void;
+  addAppointment: (appointment: Appointment) => void;
+  updateAppointmentStatus: (appointmentId: string, status: Appointment['status']) => void;
+  cancelAppointment: (appointmentId: string) => void;
+  addBusinessAppointment: (appointment: Appointment) => void;
   logout: () => void;
 }
 
@@ -343,6 +393,8 @@ export const useStore = create<AppState>()(
       neighborProfile: null,
       connectedNeighbors: [],
       likedNeighbors: [],
+      userAppointments: [],
+      businessAppointments: [],
       inAppSalesCount: 0,
       notificationsEnabled: true,
 
@@ -426,6 +478,28 @@ export const useStore = create<AppState>()(
       removeConnectedNeighbor: (userId) => set((state) => ({
         connectedNeighbors: state.connectedNeighbors.filter((id) => id !== userId),
       })),
+      addAppointment: (appointment) => set((state) => ({
+        userAppointments: [appointment, ...state.userAppointments],
+      })),
+      updateAppointmentStatus: (appointmentId, status) => set((state) => ({
+        userAppointments: state.userAppointments.map((a) =>
+          a.id === appointmentId ? { ...a, status } : a
+        ),
+        businessAppointments: state.businessAppointments.map((a) =>
+          a.id === appointmentId ? { ...a, status } : a
+        ),
+      })),
+      cancelAppointment: (appointmentId) => set((state) => ({
+        userAppointments: state.userAppointments.map((a) =>
+          a.id === appointmentId ? { ...a, status: 'cancelled' as const } : a
+        ),
+        businessAppointments: state.businessAppointments.map((a) =>
+          a.id === appointmentId ? { ...a, status: 'cancelled' as const } : a
+        ),
+      })),
+      addBusinessAppointment: (appointment) => set((state) => ({
+        businessAppointments: [appointment, ...state.businessAppointments],
+      })),
       logout: () => set({ currentUser: null, isOnboarded: false, isGuest: false }),
     }),
     {
@@ -454,6 +528,8 @@ export const useStore = create<AppState>()(
         neighborProfile: state.neighborProfile,
         connectedNeighbors: state.connectedNeighbors,
         likedNeighbors: state.likedNeighbors,
+        userAppointments: state.userAppointments,
+        businessAppointments: state.businessAppointments,
       }),
     }
   )

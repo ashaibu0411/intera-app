@@ -25,6 +25,7 @@ import {
   Home,
   Plus,
   MessageCircle,
+  CalendarCheck,
 } from 'lucide-react-native';
 import Animated, { FadeIn, FadeInUp, FadeInRight } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -63,6 +64,7 @@ const MOCK_BUSINESSES = [
     hours: 'Mon-Sat: 11AM-10PM',
     isVerified: true,
     isFeatured: true,
+    acceptsBookings: false,
   },
   {
     id: '2',
@@ -79,6 +81,7 @@ const MOCK_BUSINESSES = [
     hours: 'Tue-Sun: 9AM-7PM',
     isVerified: true,
     isFeatured: true,
+    acceptsBookings: true,
   },
   {
     id: '3',
@@ -95,6 +98,7 @@ const MOCK_BUSINESSES = [
     hours: 'Mon-Sat: 10AM-6PM',
     isVerified: true,
     isFeatured: false,
+    acceptsBookings: false,
   },
   {
     id: '4',
@@ -112,6 +116,7 @@ const MOCK_BUSINESSES = [
     hours: 'Mon-Fri: 9AM-5PM',
     isVerified: true,
     isFeatured: false,
+    acceptsBookings: false,
   },
   {
     id: '5',
@@ -128,6 +133,7 @@ const MOCK_BUSINESSES = [
     hours: 'Mon-Sat: 8AM-6PM',
     isVerified: false,
     isFeatured: false,
+    acceptsBookings: false,
   },
   {
     id: '6',
@@ -145,6 +151,24 @@ const MOCK_BUSINESSES = [
     hours: 'Mon-Fri: 8AM-5PM',
     isVerified: true,
     isFeatured: true,
+    acceptsBookings: true,
+  },
+  {
+    id: '7',
+    name: "King's Kutz Barbershop",
+    category: 'beauty',
+    description: 'Premium barbershop specializing in fades, lineups, and beard grooming. Book online!',
+    image: 'https://images.unsplash.com/photo-1585747860715-2ba37e788b70?w=800&h=600&fit=crop',
+    logo: 'https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=200&h=200&fit=crop',
+    rating: 4.9,
+    reviews: 203,
+    location: 'Denver, CO',
+    address: '321 Five Points, Denver, CO 80205',
+    phone: '+1 (303) 555-0777',
+    hours: 'Mon-Sat: 9AM-7PM',
+    isVerified: true,
+    isFeatured: true,
+    acceptsBookings: true,
   },
 ];
 
@@ -228,6 +252,7 @@ export default function BusinessDirectoryScreen() {
     hours: b.hours || 'Contact for hours',
     isVerified: b.is_verified,
     isFeatured: b.is_featured,
+    acceptsBookings: b.category === 'beauty' || b.category === 'health', // Auto-enable for beauty/health
   }));
 
   const allBusinesses = [...supabaseBusinesses, ...MOCK_BUSINESSES];
@@ -256,6 +281,18 @@ export default function BusinessDirectoryScreen() {
       router.push('/signup');
     } else {
       router.push('/messages');
+    }
+  };
+
+  const handleBookAppointment = (businessId: string, businessName: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (isGuest || !currentUser) {
+      router.push('/signup');
+    } else {
+      router.push({
+        pathname: '/book-appointment',
+        params: { businessId, businessName },
+      });
     }
   };
 
@@ -495,6 +532,15 @@ export default function BusinessDirectoryScreen() {
 
                   {/* Quick Actions */}
                   <View className="flex-row mt-3 pt-3 border-t border-gray-100">
+                    {business.acceptsBookings && (
+                      <Pressable
+                        onPress={() => handleBookAppointment(business.id, business.name)}
+                        className="flex-row items-center flex-1"
+                      >
+                        <CalendarCheck size={14} color="#10B981" />
+                        <Text className="text-emerald-600 text-sm font-medium ml-1">Book</Text>
+                      </Pressable>
+                    )}
                     <Pressable className="flex-row items-center flex-1">
                       <Phone size={14} color="#1B4D3E" />
                       <Text className="text-forest-700 text-sm font-medium ml-1">Call</Text>
@@ -503,10 +549,12 @@ export default function BusinessDirectoryScreen() {
                       <MessageCircle size={14} color="#C9A227" />
                       <Text className="text-gold-600 text-sm font-medium ml-1">Message</Text>
                     </Pressable>
-                    <Pressable className="flex-row items-center flex-1">
-                      <MapPin size={14} color="#D4673A" />
-                      <Text className="text-terracotta-500 text-sm font-medium ml-1">Directions</Text>
-                    </Pressable>
+                    {!business.acceptsBookings && (
+                      <Pressable className="flex-row items-center flex-1">
+                        <MapPin size={14} color="#D4673A" />
+                        <Text className="text-terracotta-500 text-sm font-medium ml-1">Directions</Text>
+                      </Pressable>
+                    )}
                   </View>
                 </Pressable>
               </Animated.View>

@@ -233,3 +233,21 @@ The app is fully connected to Supabase for data persistence and syncing across u
 - Automatic sales counting for in-app transactions
 - Helper utilities in `src/lib/sellerPro.ts` for checking seller status
 
+### Business Appointments & Booking System
+- **Book Appointments**: Users can book appointments with barbershops, salons, and health services directly from the Business Directory
+- **4-Step Booking Flow** (`/book-appointment`):
+  1. Select Service - Browse and choose from available services with pricing and duration
+  2. Pick Date & Time - Interactive calendar with available time slots
+  3. Payment Method - Choose to pay in-app or at the location (cash)
+  4. Confirm Booking - Review details and confirm appointment
+- **My Appointments** (`/my-appointments`):
+  - View upcoming, past, and cancelled appointments
+  - Appointment stats dashboard
+  - Quick actions: Call, Message, or Cancel appointments
+  - Status tracking (Pending, Confirmed, Completed, Cancelled)
+- **Business Integration**:
+  - "Book" button appears on businesses that accept appointments (Beauty, Health categories)
+  - Businesses can define their services, pricing, and availability
+  - Support for in-app payments (future) and pay-at-location options
+
+
