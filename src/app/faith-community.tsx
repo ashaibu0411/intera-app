@@ -17,6 +17,8 @@ import {
   ChevronLeft,
   X,
   RefreshCw,
+  Star,
+  CheckCircle,
 } from 'lucide-react-native';
 import Animated, { FadeIn, FadeInUp, FadeInRight } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -26,8 +28,9 @@ import {
   MOCK_FAITH_EVENTS,
   FAITH_TYPES,
   type FaithEvent,
+  type EventRsvp,
 } from '@/lib/store';
-import { getFaithEvents } from '@/lib/marketplace-api';
+import { getFaithEvents, rsvpToFaithEvent } from '@/lib/marketplace-api';
 
 interface DbFaithEvent {
   id: string;
@@ -59,6 +62,8 @@ export default function FaithCommunityScreen() {
 
   const isGuest = useStore((s) => s.isGuest);
   const currentUser = useStore((s) => s.currentUser);
+  const eventRsvps = useStore((s) => s.eventRsvps);
+  const setEventRsvp = useStore((s) => s.setEventRsvp);
 
   const fetchEvents = async () => {
     try {
@@ -121,13 +126,37 @@ export default function FaithCommunityScreen() {
     setSelectedEvent(event);
   };
 
-  const handleRSVP = () => {
+  const getEventRsvpStatus = (eventId: string): 'interested' | 'going' | null => {
+    const rsvp = eventRsvps.find((r) => r.eventId === eventId);
+    return rsvp?.status ?? null;
+  };
+
+  const handleRsvpSelect = async (status: 'interested' | 'going') => {
+    if (!selectedEvent) return;
+
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
     if (isGuest || !currentUser) {
       router.push('/signup');
+      return;
+    }
+
+    const currentStatus = getEventRsvpStatus(selectedEvent.id);
+
+    // Toggle off if clicking same status
+    if (currentStatus === status) {
+      setEventRsvp(selectedEvent.id, null);
     } else {
-      // In a real app, this would handle RSVP
-      setSelectedEvent(null);
+      setEventRsvp(selectedEvent.id, status);
+
+      // Also call API if it's a DB event and user is going
+      if (status === 'going' && !selectedEvent.id.startsWith('mock-')) {
+        try {
+          await rsvpToFaithEvent(selectedEvent.id, currentUser.id);
+        } catch (error) {
+          console.error('Error RSVPing to event:', error);
+        }
+      }
     }
   };
 
@@ -158,6 +187,24 @@ export default function FaithCommunityScreen() {
       day: 'numeric',
       year: 'numeric',
     });
+  };
+
+  const getRsvpBadge = (eventId: string) => {
+    const status = getEventRsvpStatus(eventId);
+    if (!status) return null;
+
+    return (
+      <View className={`flex-row items-center px-2 py-1 rounded-full ${status === 'going' ? 'bg-green-100' : 'bg-gold-100'}`}>
+        {status === 'going' ? (
+          <CheckCircle size={12} color="#16a34a" />
+        ) : (
+          <Star size={12} color="#C9A227" />
+        )}
+        <Text className={`ml-1 text-xs font-medium ${status === 'going' ? 'text-green-600' : 'text-gold-700'}`}>
+          {status === 'going' ? 'Going' : 'Interested'}
+        </Text>
+      </View>
+    );
   };
 
   return (
@@ -339,7 +386,10 @@ export default function FaithCommunityScreen() {
                         )}
                       </View>
                     </View>
-                    <ChevronRight size={20} color="#9CA3AF" />
+                    <View className="items-end">
+                      {getRsvpBadge(event.id)}
+                      <ChevronRight size={20} color="#9CA3AF" className="mt-1" />
+                    </View>
                   </View>
 
                   {/* Event Title */}
@@ -467,6 +517,65 @@ export default function FaithCommunityScreen() {
                       )}
                     </LinearGradient>
 
+                    {/* RSVP Tabs */}
+                    <View className="bg-white rounded-2xl p-4 mb-6">
+                      <Text className="text-lg font-semibold text-warmBrown mb-3">
+                        Are you attending?
+                      </Text>
+                      <View className="flex-row">
+                        <Pressable
+                          onPress={() => handleRsvpSelect('interested')}
+                          className={`flex-1 flex-row items-center justify-center py-3 rounded-xl mr-2 ${
+                            getEventRsvpStatus(selectedEvent.id) === 'interested'
+                              ? 'bg-gold-500'
+                              : 'bg-gold-50'
+                          }`}
+                        >
+                          <Star
+                            size={18}
+                            color={getEventRsvpStatus(selectedEvent.id) === 'interested' ? '#FFFFFF' : '#C9A227'}
+                            fill={getEventRsvpStatus(selectedEvent.id) === 'interested' ? '#FFFFFF' : 'transparent'}
+                          />
+                          <Text
+                            className={`ml-2 font-semibold ${
+                              getEventRsvpStatus(selectedEvent.id) === 'interested'
+                                ? 'text-white'
+                                : 'text-gold-700'
+                            }`}
+                          >
+                            Interested
+                          </Text>
+                        </Pressable>
+                        <Pressable
+                          onPress={() => handleRsvpSelect('going')}
+                          className={`flex-1 flex-row items-center justify-center py-3 rounded-xl ml-2 ${
+                            getEventRsvpStatus(selectedEvent.id) === 'going'
+                              ? 'bg-green-500'
+                              : 'bg-green-50'
+                          }`}
+                        >
+                          <CheckCircle
+                            size={18}
+                            color={getEventRsvpStatus(selectedEvent.id) === 'going' ? '#FFFFFF' : '#16a34a'}
+                          />
+                          <Text
+                            className={`ml-2 font-semibold ${
+                              getEventRsvpStatus(selectedEvent.id) === 'going'
+                                ? 'text-white'
+                                : 'text-green-600'
+                            }`}
+                          >
+                            Going
+                          </Text>
+                        </Pressable>
+                      </View>
+                      {getEventRsvpStatus(selectedEvent.id) && (
+                        <Text className="text-gray-500 text-sm text-center mt-3">
+                          Tap again to remove your RSVP
+                        </Text>
+                      )}
+                    </View>
+
                     {/* Description */}
                     <View className="mb-6">
                       <Text className="text-lg font-semibold text-warmBrown mb-2">
@@ -533,27 +642,31 @@ export default function FaithCommunityScreen() {
                   </View>
                 </ScrollView>
 
-                {/* RSVP Button */}
+                {/* Bottom RSVP Summary */}
                 <View className="px-5 py-4 border-t border-gray-100 bg-white">
-                  <Pressable onPress={handleRSVP}>
-                    <LinearGradient
-                      colors={['#C9A227', '#A6841F']}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={{
-                        borderRadius: 16,
-                        paddingVertical: 16,
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
-                    >
-                      <Calendar size={20} color="#FFFFFF" />
-                      <Text className="text-white font-bold text-lg ml-2">
-                        RSVP to This Event
-                      </Text>
-                    </LinearGradient>
-                  </Pressable>
+                  {getEventRsvpStatus(selectedEvent.id) ? (
+                    <View className="flex-row items-center justify-center py-4">
+                      {getEventRsvpStatus(selectedEvent.id) === 'going' ? (
+                        <>
+                          <CheckCircle size={24} color="#16a34a" />
+                          <Text className="text-green-600 font-bold text-lg ml-2">
+                            You're going to this event!
+                          </Text>
+                        </>
+                      ) : (
+                        <>
+                          <Star size={24} color="#C9A227" fill="#C9A227" />
+                          <Text className="text-gold-700 font-bold text-lg ml-2">
+                            You're interested in this event
+                          </Text>
+                        </>
+                      )}
+                    </View>
+                  ) : (
+                    <Text className="text-gray-500 text-center py-4">
+                      Select "Interested" or "Going" above to RSVP
+                    </Text>
+                  )}
                 </View>
               </SafeAreaView>
             </View>

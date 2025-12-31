@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, ScrollView, Pressable, TextInput, KeyboardAvoidingView, Platform, Modal, Switch, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import {
   ChevronLeft,
   Camera,
@@ -41,8 +42,8 @@ export default function CreateFaithEventScreen() {
   const [faithType, setFaithType] = useState('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [date, setDate] = useState('');
-  const [time, setTime] = useState('');
+  const [date, setDate] = useState<Date>(new Date());
+  const [time, setTime] = useState<Date>(new Date());
   const [address, setAddress] = useState('');
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurringSchedule, setRecurringSchedule] = useState('');
@@ -50,6 +51,8 @@ export default function CreateFaithEventScreen() {
   const [contactEmail, setContactEmail] = useState('');
   const [showFaithModal, setShowFaithModal] = useState(false);
   const [showRecurringModal, setShowRecurringModal] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const currentUser = useStore((s) => s.currentUser);
@@ -76,18 +79,52 @@ export default function CreateFaithEventScreen() {
     }
   };
 
+  const formatDisplayDate = (d: Date) => {
+    return d.toLocaleDateString('en-US', {
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  };
+
+  const formatDisplayTime = (t: Date) => {
+    return t.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+  };
+
+  const handleDateChange = (event: any, selectedDate?: Date) => {
+    if (Platform.OS === 'android') {
+      setShowDatePicker(false);
+    }
+    if (selectedDate) {
+      setDate(selectedDate);
+    }
+  };
+
+  const handleTimeChange = (event: any, selectedTime?: Date) => {
+    if (Platform.OS === 'android') {
+      setShowTimePicker(false);
+    }
+    if (selectedTime) {
+      setTime(selectedTime);
+    }
+  };
+
   const canSubmit = organizationName.trim().length > 0 &&
     faithType.length > 0 &&
     title.trim().length > 0 &&
     description.trim().length >= 20 &&
-    date.trim().length > 0 &&
-    time.trim().length > 0 &&
     address.trim().length > 0;
 
   const handleSubmit = async () => {
     if (!canSubmit || !currentUser || isSubmitting) return;
 
     setIsSubmitting(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     try {
       await createFaithEvent(currentUser.id, {
@@ -96,8 +133,8 @@ export default function CreateFaithEventScreen() {
         faithType,
         title: title.trim(),
         description: description.trim(),
-        date: date.trim(),
-        time: time.trim(),
+        date: date.toISOString(),
+        time: formatDisplayTime(time),
         location: userLocation,
         address: address.trim(),
         isRecurring,
@@ -210,34 +247,38 @@ export default function CreateFaithEventScreen() {
                 />
               </View>
 
-              {/* Date */}
+              {/* Date Picker */}
               <View className="mb-4">
                 <Text className="text-warmBrown font-semibold mb-2">Date *</Text>
-                <View className="flex-row items-center bg-white rounded-xl px-4">
+                <Pressable
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setShowDatePicker(true);
+                  }}
+                  className="flex-row items-center bg-white rounded-xl px-4 py-3.5"
+                >
                   <Calendar size={20} color="#C9A227" />
-                  <TextInput
-                    placeholder="e.g., January 5, 2025"
-                    placeholderTextColor="#9CA3AF"
-                    value={date}
-                    onChangeText={setDate}
-                    className="flex-1 py-3.5 ml-3 text-warmBrown"
-                  />
-                </View>
+                  <Text className="flex-1 ml-3 text-warmBrown">
+                    {formatDisplayDate(date)}
+                  </Text>
+                </Pressable>
               </View>
 
-              {/* Time */}
+              {/* Time Picker */}
               <View className="mb-4">
                 <Text className="text-warmBrown font-semibold mb-2">Time *</Text>
-                <View className="flex-row items-center bg-white rounded-xl px-4">
+                <Pressable
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setShowTimePicker(true);
+                  }}
+                  className="flex-row items-center bg-white rounded-xl px-4 py-3.5"
+                >
                   <Clock size={20} color="#C9A227" />
-                  <TextInput
-                    placeholder="e.g., 10:00 AM"
-                    placeholderTextColor="#9CA3AF"
-                    value={time}
-                    onChangeText={setTime}
-                    className="flex-1 py-3.5 ml-3 text-warmBrown"
-                  />
-                </View>
+                  <Text className="flex-1 ml-3 text-warmBrown">
+                    {formatDisplayTime(time)}
+                  </Text>
+                </Pressable>
               </View>
 
               {/* Address */}
@@ -357,6 +398,61 @@ export default function CreateFaithEventScreen() {
             </LinearGradient>
           </Pressable>
         </View>
+
+        {/* Date Picker Modal */}
+        <Modal visible={showDatePicker} animationType="slide" transparent>
+          <View className="flex-1 bg-black/50 justify-end">
+            <View className="bg-cream rounded-t-3xl">
+              <View className="flex-row items-center justify-between px-5 py-4 border-b border-gray-100">
+                <Text className="text-lg font-bold text-warmBrown">Select Date</Text>
+                <Pressable
+                  onPress={() => setShowDatePicker(false)}
+                  className="bg-gold-500 rounded-full px-4 py-2"
+                >
+                  <Text className="text-white font-semibold">Done</Text>
+                </Pressable>
+              </View>
+              <View className="px-5 py-4 items-center">
+                <DateTimePicker
+                  value={date}
+                  mode="date"
+                  display="spinner"
+                  onChange={handleDateChange}
+                  minimumDate={new Date()}
+                  textColor="#2D1F1A"
+                  style={{ width: '100%', height: 200 }}
+                />
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Time Picker Modal */}
+        <Modal visible={showTimePicker} animationType="slide" transparent>
+          <View className="flex-1 bg-black/50 justify-end">
+            <View className="bg-cream rounded-t-3xl">
+              <View className="flex-row items-center justify-between px-5 py-4 border-b border-gray-100">
+                <Text className="text-lg font-bold text-warmBrown">Select Time</Text>
+                <Pressable
+                  onPress={() => setShowTimePicker(false)}
+                  className="bg-gold-500 rounded-full px-4 py-2"
+                >
+                  <Text className="text-white font-semibold">Done</Text>
+                </Pressable>
+              </View>
+              <View className="px-5 py-4 items-center">
+                <DateTimePicker
+                  value={time}
+                  mode="time"
+                  display="spinner"
+                  onChange={handleTimeChange}
+                  textColor="#2D1F1A"
+                  style={{ width: '100%', height: 200 }}
+                />
+              </View>
+            </View>
+          </View>
+        </Modal>
 
         {/* Faith Type Modal */}
         <Modal visible={showFaithModal} animationType="slide" transparent>

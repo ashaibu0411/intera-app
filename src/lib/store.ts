@@ -182,6 +182,11 @@ export interface LifeEvent {
   createdAt: string;
 }
 
+export interface EventRsvp {
+  eventId: string;
+  status: 'interested' | 'going';
+}
+
 export const LIFE_EVENT_CATEGORIES = [
   { id: 'wedding', label: 'Wedding', icon: 'Heart' },
   { id: 'graduation', label: 'Graduation', icon: 'GraduationCap' },
@@ -241,6 +246,9 @@ interface AppState {
   // Life events state
   lifeEvents: LifeEvent[];
 
+  // Event RSVPs state
+  eventRsvps: EventRsvp[];
+
   // Settings
   notificationsEnabled: boolean;
 
@@ -265,6 +273,7 @@ interface AppState {
   addFaithEvent: (event: FaithEvent) => void;
   addLifeEvent: (event: LifeEvent) => void;
   deleteLifeEvent: (eventId: string) => void;
+  setEventRsvp: (eventId: string, status: 'interested' | 'going' | null) => void;
   setNotificationsEnabled: (enabled: boolean) => void;
   logout: () => void;
 }
@@ -288,6 +297,7 @@ export const useStore = create<AppState>()(
       userBusinesses: [],
       userFaithEvents: [],
       lifeEvents: [],
+      eventRsvps: [],
       notificationsEnabled: true,
 
       setCurrentUser: (user) => set({ currentUser: user }),
@@ -330,6 +340,20 @@ export const useStore = create<AppState>()(
       deleteLifeEvent: (eventId) => set((state) => ({
         lifeEvents: state.lifeEvents.filter((e) => e.id !== eventId),
       })),
+      setEventRsvp: (eventId, status) => set((state) => {
+        if (status === null) {
+          return { eventRsvps: state.eventRsvps.filter((r) => r.eventId !== eventId) };
+        }
+        const existing = state.eventRsvps.find((r) => r.eventId === eventId);
+        if (existing) {
+          return {
+            eventRsvps: state.eventRsvps.map((r) =>
+              r.eventId === eventId ? { ...r, status } : r
+            ),
+          };
+        }
+        return { eventRsvps: [...state.eventRsvps, { eventId, status }] };
+      }),
       setNotificationsEnabled: (enabled) => set({ notificationsEnabled: enabled }),
       logout: () => set({ currentUser: null, isOnboarded: false, isGuest: false }),
     }),
@@ -350,6 +374,7 @@ export const useStore = create<AppState>()(
         connections: state.connections,
         lifeEvents: state.lifeEvents,
         userBusinesses: state.userBusinesses,
+        eventRsvps: state.eventRsvps,
         notificationsEnabled: state.notificationsEnabled,
       }),
     }
