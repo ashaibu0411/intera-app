@@ -20,7 +20,7 @@ import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { PostCard } from '@/components/PostCard';
 import { useStore, MOCK_POSTS, MOCK_COMMUNITIES, type Post } from '@/lib/store';
-import { getCommunityByLocation, subscribeToCommunityUpdates } from '@/lib/communities';
+import { getCommunityByLocation, subscribeToCommunityUpdates, getCommunityMemberCount } from '@/lib/communities';
 import { DbCommunity } from '@/lib/supabase';
 import { getPosts } from '@/lib/posts';
 
@@ -143,17 +143,17 @@ export default function HomeScreen() {
   }, []);
 
   // Fetch real community data from Supabase
+  const fetchCommunity = async () => {
+    const city = selectedLocation?.city || displayCommunity.city;
+    const country = selectedLocation?.country || displayCommunity.country;
+
+    const community = await getCommunityByLocation(city, country);
+    if (community) {
+      setRealCommunity(community);
+    }
+  };
+
   useEffect(() => {
-    const fetchCommunity = async () => {
-      const city = selectedLocation?.city || displayCommunity.city;
-      const country = selectedLocation?.country || displayCommunity.country;
-
-      const community = await getCommunityByLocation(city, country);
-      if (community) {
-        setRealCommunity(community);
-      }
-    };
-
     fetchCommunity();
   }, [selectedLocation, displayCommunity.city, displayCommunity.country]);
 
@@ -230,7 +230,10 @@ export default function HomeScreen() {
   const onRefresh = async () => {
     setRefreshing(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    await fetchDbPosts();
+    await Promise.all([
+      fetchDbPosts(),
+      fetchCommunity(),
+    ]);
     setRefreshing(false);
   };
 

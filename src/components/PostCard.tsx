@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { View, Text, Pressable, Share } from 'react-native';
 import { Image } from 'expo-image';
 import { Video, ResizeMode } from 'expo-av';
@@ -8,6 +8,7 @@ import Animated, { useSharedValue, useAnimatedStyle, withSpring, withSequence, w
 import { formatDistanceToNow } from 'date-fns';
 import { router } from 'expo-router';
 import { useStore, MOCK_COMMENTS, type Post } from '@/lib/store';
+import { getCommentsCount } from '@/lib/posts';
 
 interface PostCardProps {
   post: Post;
@@ -22,6 +23,7 @@ export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
   const likedPostIds = useStore((s) => s.likedPostIds);
   const toggleLikePost = useStore((s) => s.toggleLikePost);
   const userComments = useStore((s) => s.userComments);
+  const [dbCommentCount, setDbCommentCount] = useState<number>(0);
 
   const isLiked = likedPostIds.includes(post.id);
   const baseLikes = post.likes;
@@ -30,10 +32,24 @@ export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
     ? (isLiked ? baseLikes : baseLikes - 1)
     : (isLiked ? baseLikes + 1 : baseLikes);
 
-  // Calculate total comment count: mock comments + user comments for this post
+  // Fetch comment count from database
+  useEffect(() => {
+    const fetchCommentCount = async () => {
+      try {
+        const count = await getCommentsCount(post.id);
+        setDbCommentCount(count);
+      } catch (error) {
+        // Silently fail, use local count
+      }
+    };
+    fetchCommentCount();
+  }, [post.id]);
+
+  // Calculate total comment count: database count OR (mock comments + user comments for this post)
   const mockCommentsCount = MOCK_COMMENTS.filter((c) => c.postId === post.id).length;
   const userCommentsCount = userComments.filter((c) => c.postId === post.id).length;
-  const commentCount = mockCommentsCount + userCommentsCount;
+  // Use database count if available, otherwise use local counts
+  const commentCount = dbCommentCount > 0 ? dbCommentCount : (mockCommentsCount + userCommentsCount + (post.comments || 0));
 
   const [isPlaying, setIsPlaying] = React.useState(false);
   const [isMuted, setIsMuted] = React.useState(true);
