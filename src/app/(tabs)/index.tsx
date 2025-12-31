@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { View, Text, ScrollView, Pressable, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -20,6 +20,8 @@ import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { PostCard } from '@/components/PostCard';
 import { useStore, MOCK_POSTS, MOCK_COMMUNITIES } from '@/lib/store';
+import { getCommunityByLocation, subscribeToCommunityUpdates } from '@/lib/communities';
+import { DbCommunity } from '@/lib/supabase';
 
 // Additional mock posts for global feed from different locations
 const GLOBAL_MOCK_POSTS = [
@@ -87,6 +89,7 @@ const GLOBAL_MOCK_POSTS = [
 
 export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
+  const [realCommunity, setRealCommunity] = useState<DbCommunity | null>(null);
   const feedFilter = useStore((s) => s.feedFilter);
   const setFeedFilter = useStore((s) => s.setFeedFilter);
   const currentCommunity = useStore((s) => s.currentCommunity);
@@ -96,6 +99,37 @@ export default function HomeScreen() {
   const selectedLocation = useStore((s) => s.selectedLocation);
 
   const displayCommunity = currentCommunity ?? MOCK_COMMUNITIES[0];
+
+  // Fetch real community data from Supabase
+  useEffect(() => {
+    const fetchCommunity = async () => {
+      const city = selectedLocation?.city || displayCommunity.city;
+      const country = selectedLocation?.country || displayCommunity.country;
+
+      const community = await getCommunityByLocation(city, country);
+      if (community) {
+        setRealCommunity(community);
+      }
+    };
+
+    fetchCommunity();
+  }, [selectedLocation, displayCommunity.city, displayCommunity.country]);
+
+  // Subscribe to real-time community updates
+  useEffect(() => {
+    if (!realCommunity?.id) return;
+
+    const unsubscribe = subscribeToCommunityUpdates(realCommunity.id, (updated) => {
+      setRealCommunity(updated);
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [realCommunity?.id]);
+
+  // Get the member count - use real data if available, otherwise mock
+  const memberCount = realCommunity?.member_count ?? displayCommunity.memberCount;
 
   // Combine user posts with mock posts and filter based on local/global
   const allPosts = useMemo(() => {
@@ -271,7 +305,7 @@ export default function HomeScreen() {
                     Welcome to {displayCommunity.city}
                   </Text>
                   <Text className="text-white/80 mt-1">
-                    {displayCommunity.memberCount.toLocaleString()} community members
+                    {memberCount.toLocaleString()} community members
                   </Text>
                 </View>
                 <View className="bg-white/20 rounded-full p-3">

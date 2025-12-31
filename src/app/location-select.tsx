@@ -22,6 +22,8 @@ import {
   CITIES_BY_STATE,
   MOCK_COMMUNITIES,
 } from '@/lib/store';
+import { getOrCreateCommunity, joinCommunity } from '@/lib/communities';
+import { getCurrentUser } from '@/lib/auth';
 
 type Step = 'country' | 'state' | 'city';
 
@@ -119,7 +121,7 @@ export default function LocationSelectScreen() {
     }
   };
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     const countryName = selectedCountryData?.name || '';
@@ -130,24 +132,49 @@ export default function LocationSelectScreen() {
       city: selectedCity || '',
     });
 
-    // Find or create a matching community
-    const matchingCommunity = MOCK_COMMUNITIES.find(
-      (c) => c.city.toLowerCase() === selectedCity?.toLowerCase()
+    // Try to get or create the community in Supabase
+    const dbCommunity = await getOrCreateCommunity(
+      selectedCity || '',
+      selectedState || null,
+      countryName
     );
 
-    if (matchingCommunity) {
-      setCurrentCommunity(matchingCommunity);
-    } else {
-      // Create a placeholder community
+    if (dbCommunity) {
+      // If user is logged in, join the community
+      const user = await getCurrentUser();
+      if (user) {
+        await joinCommunity(user.id, dbCommunity.id);
+      }
+
+      // Set the community with real data
       setCurrentCommunity({
-        id: 'custom',
-        name: `${selectedCity} Africans`,
-        city: selectedCity || '',
-        state: selectedState ?? undefined,
-        country: countryName,
-        memberCount: Math.floor(Math.random() * 5000) + 500,
-        image: 'https://images.unsplash.com/photo-1489392191049-fc10c97e64b6?w=400&h=300&fit=crop',
+        id: dbCommunity.id,
+        name: dbCommunity.name,
+        city: dbCommunity.city,
+        state: dbCommunity.state ?? undefined,
+        country: dbCommunity.country,
+        memberCount: dbCommunity.member_count,
+        image: dbCommunity.image_url || 'https://images.unsplash.com/photo-1489392191049-fc10c97e64b6?w=400&h=300&fit=crop',
       });
+    } else {
+      // Fallback to mock community if Supabase fails
+      const matchingCommunity = MOCK_COMMUNITIES.find(
+        (c) => c.city.toLowerCase() === selectedCity?.toLowerCase()
+      );
+
+      if (matchingCommunity) {
+        setCurrentCommunity(matchingCommunity);
+      } else {
+        setCurrentCommunity({
+          id: 'custom',
+          name: `${selectedCity} Africans`,
+          city: selectedCity || '',
+          state: selectedState ?? undefined,
+          country: countryName,
+          memberCount: 1,
+          image: 'https://images.unsplash.com/photo-1489392191049-fc10c97e64b6?w=400&h=300&fit=crop',
+        });
+      }
     }
 
     setIsGuest(true);
