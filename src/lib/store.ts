@@ -20,6 +20,7 @@ export interface Post {
   author: User;
   content: string;
   images: string[];
+  video?: string;
   likes: number;
   comments: number;
   createdAt: string;
@@ -220,6 +221,7 @@ interface AppState {
   setCurrentCommunity: (community: Community | null) => void;
   setFeedFilter: (filter: 'local' | 'global') => void;
   addPost: (post: Post) => void;
+  deletePost: (postId: string) => void;
   toggleSavePost: (postId: string) => void;
   addConnection: (user: User) => void;
   removeConnection: (userId: string) => void;
@@ -254,6 +256,9 @@ export const useStore = create<AppState>()(
       setCurrentCommunity: (community) => set({ currentCommunity: community }),
       setFeedFilter: (filter) => set({ feedFilter: filter }),
       addPost: (post) => set((state) => ({ userPosts: [post, ...state.userPosts] })),
+      deletePost: (postId) => set((state) => ({
+        userPosts: state.userPosts.filter((p) => p.id !== postId),
+      })),
       toggleSavePost: (postId) => set((state) => ({
         savedPostIds: state.savedPostIds.includes(postId)
           ? state.savedPostIds.filter((id) => id !== postId)

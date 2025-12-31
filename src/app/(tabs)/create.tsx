@@ -5,6 +5,7 @@ import { Image } from 'expo-image';
 import {
   X,
   ImagePlus,
+  Video,
   MapPin,
   Send,
   FileText,
@@ -184,6 +185,7 @@ function CreateSelectScreen({ onSelect, user }: { onSelect: (mode: CreateMode) =
 function CreatePostForm({ user, community, onBack }: { user: any; community: any; onBack: () => void }) {
   const [content, setContent] = useState('');
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
+  const [selectedVideo, setSelectedVideo] = useState<string | null>(null);
   const buttonScale = useSharedValue(1);
   const addPost = useStore((s) => s.addPost);
 
@@ -202,9 +204,28 @@ function CreatePostForm({ user, community, onBack }: { user: any; community: any
     }
   };
 
+  const handlePickVideo = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['videos'],
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets.length > 0) {
+      setSelectedVideo(result.assets[0].uri);
+      // Clear images if video is selected (can't have both)
+      setSelectedImages([]);
+    }
+  };
+
   const removeImage = (index: number) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSelectedImages((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const removeVideo = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setSelectedVideo(null);
   };
 
   const handlePost = () => {
@@ -225,6 +246,7 @@ function CreatePostForm({ user, community, onBack }: { user: any; community: any
       },
       content: content.trim(),
       images: selectedImages,
+      video: selectedVideo ?? undefined,
       likes: 0,
       comments: 0,
       createdAt: new Date().toISOString(),
@@ -323,14 +345,43 @@ function CreatePostForm({ user, community, onBack }: { user: any; community: any
                 </ScrollView>
               </View>
             )}
+
+            {/* Selected Video */}
+            {selectedVideo && (
+              <View className="px-5 pb-4">
+                <View className="relative bg-gray-900 rounded-xl overflow-hidden" style={{ height: 200 }}>
+                  <View className="flex-1 items-center justify-center">
+                    <View className="bg-white/20 rounded-full p-4">
+                      <Video size={32} color="#FFFFFF" />
+                    </View>
+                    <Text className="text-white/80 mt-2 text-sm">Video selected</Text>
+                  </View>
+                  <Pressable onPress={removeVideo} className="absolute top-2 right-2 bg-warmBrown rounded-full p-1.5">
+                    <X size={14} color="#FFFFFF" />
+                  </Pressable>
+                </View>
+              </View>
+            )}
           </ScrollView>
 
           {/* Bottom Actions */}
           <View className="px-5 py-4 border-t border-gray-100 bg-white">
             <View className="flex-row items-center">
-              <Pressable onPress={handlePickImage} className="flex-row items-center bg-terracotta-50 rounded-full px-4 py-2.5">
-                <ImagePlus size={20} color="#D4673A" />
-                <Text className="text-terracotta-500 font-medium ml-2">Add Photo</Text>
+              <Pressable
+                onPress={handlePickImage}
+                disabled={!!selectedVideo}
+                className={`flex-row items-center rounded-full px-4 py-2.5 ${selectedVideo ? 'bg-gray-100' : 'bg-terracotta-50'}`}
+              >
+                <ImagePlus size={20} color={selectedVideo ? '#9CA3AF' : '#D4673A'} />
+                <Text className={`font-medium ml-2 ${selectedVideo ? 'text-gray-400' : 'text-terracotta-500'}`}>Photo</Text>
+              </Pressable>
+              <Pressable
+                onPress={handlePickVideo}
+                disabled={selectedImages.length > 0}
+                className={`flex-row items-center rounded-full px-4 py-2.5 ml-2 ${selectedImages.length > 0 ? 'bg-gray-100' : 'bg-forest-50'}`}
+              >
+                <Video size={20} color={selectedImages.length > 0 ? '#9CA3AF' : '#1B4D3E'} />
+                <Text className={`font-medium ml-2 ${selectedImages.length > 0 ? 'text-gray-400' : 'text-forest-700'}`}>Video</Text>
               </Pressable>
               <View className="flex-1" />
               <Text className="text-gray-400 text-sm">{content.length}/500</Text>
