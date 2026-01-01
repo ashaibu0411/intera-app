@@ -641,6 +641,7 @@ export const COUNTRIES = [
   { code: 'FR', name: 'France', hasStates: false },
   { code: 'AU', name: 'Australia', hasStates: true },
   { code: 'AE', name: 'United Arab Emirates', hasStates: true },
+  { code: 'IN', name: 'India', hasStates: true },
 ];
 
 export const STATES_BY_COUNTRY: Record<string, string[]> = {
@@ -654,6 +655,7 @@ export const STATES_BY_COUNTRY: Record<string, string[]> = {
   DE: ['Berlin', 'Bavaria', 'Hamburg', 'Hesse', 'North Rhine-Westphalia'],
   AU: ['New South Wales', 'Victoria', 'Queensland', 'Western Australia', 'South Australia'],
   AE: ['Dubai', 'Abu Dhabi', 'Sharjah', 'Ajman'],
+  IN: ['Maharashtra', 'Delhi', 'Karnataka', 'Tamil Nadu', 'Telangana', 'Gujarat', 'West Bengal', 'Rajasthan', 'Uttar Pradesh', 'Kerala'],
 };
 
 export const CITIES_BY_STATE: Record<string, string[]> = {
@@ -668,6 +670,16 @@ export const CITIES_BY_STATE: Record<string, string[]> = {
   'Lagos': ['Lagos Island', 'Ikeja', 'Victoria Island', 'Lekki', 'Surulere'],
   'Nairobi': ['Nairobi Central', 'Westlands', 'Karen', 'Kilimani', 'Lavington'],
   'Gauteng': ['Johannesburg', 'Pretoria', 'Soweto', 'Sandton', 'Centurion'],
+  'Maharashtra': ['Mumbai', 'Pune', 'Nagpur', 'Nashik', 'Thane'],
+  'Delhi': ['New Delhi', 'North Delhi', 'South Delhi', 'East Delhi', 'West Delhi'],
+  'Karnataka': ['Bangalore', 'Mysore', 'Mangalore', 'Hubli', 'Belgaum'],
+  'Tamil Nadu': ['Chennai', 'Coimbatore', 'Madurai', 'Tiruchirappalli', 'Salem'],
+  'Telangana': ['Hyderabad', 'Warangal', 'Nizamabad', 'Karimnagar', 'Khammam'],
+  'Gujarat': ['Ahmedabad', 'Surat', 'Vadodara', 'Rajkot', 'Gandhinagar'],
+  'West Bengal': ['Kolkata', 'Howrah', 'Durgapur', 'Asansol', 'Siliguri'],
+  'Rajasthan': ['Jaipur', 'Jodhpur', 'Udaipur', 'Kota', 'Ajmer'],
+  'Uttar Pradesh': ['Lucknow', 'Kanpur', 'Varanasi', 'Agra', 'Noida'],
+  'Kerala': ['Kochi', 'Thiruvananthapuram', 'Kozhikode', 'Thrissur', 'Kollam'],
 };
 
 // Mock data for initial development
