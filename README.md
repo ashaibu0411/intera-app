@@ -219,8 +219,11 @@ The app is fully connected to Supabase for data persistence and syncing across u
 - **Stats Dashboard**: See how many people are nearby, connected, and liked
 
 ### Local News Feed
-- **City-Specific News**: Local news section on the home feed showing relevant articles for your city
-- **News Categories**: Culture, Business, Education, Food, Community, Politics, Tech, Entertainment
+- **Regional News**: News adapts to your location - if you're in Aurora, you'll see Colorado-wide news
+- **Real News API**: Integrates with GNews API for real, current news (requires API key in ENV tab)
+- **Smart Fallback**: Shows relevant mock news when API key not configured
+- **Location-Aware**: Searches by city first, then expands to state/region if needed
+- **News Categories**: Culture, Business, Education, Food, Community, Politics, Tech, Entertainment, Health
 - **Compact Cards**: Horizontal scroll of news cards with images, headlines, sources, and timestamps
 - **Opens in Browser**: Tap any article to read the full story in your browser
 - **Auto-Updates**: News refreshes when you change cities or pull-to-refresh

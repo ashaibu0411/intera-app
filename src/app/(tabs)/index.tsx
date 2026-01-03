@@ -174,7 +174,9 @@ export default function HomeScreen() {
   const fetchNews = async () => {
     try {
       const city = selectedLocation?.city || displayCommunity.city;
-      const news = await getLocalNews(city, 4);
+      const state = selectedLocation?.state || displayCommunity.state;
+      const country = selectedLocation?.country || displayCommunity.country;
+      const news = await getLocalNews(city, 4, state, country);
       setLocalNews(news);
     } catch (error) {
       console.log('[Home] Error fetching news:', error);
