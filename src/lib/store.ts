@@ -285,6 +285,58 @@ export interface NewsArticle {
   category?: string;
 }
 
+// Serve & Connect - Talent Directory for Churches/Organizations
+export interface ServeTalent {
+  id: string;
+  user: User;
+  category: string;
+  skills: string[];
+  experience: string;
+  bio: string;
+  isAvailable: boolean;
+  availabilityNote?: string;
+  location: string;
+  willingToTravel: boolean;
+  travelRadius?: string;
+  faithBackground?: string;
+  contactPhone?: string;
+  contactEmail?: string;
+  portfolioImages?: string[];
+  videoLink?: string;
+  rating: number;
+  reviewCount: number;
+  createdAt: string;
+  lastActive: string;
+}
+
+export const TALENT_CATEGORIES = [
+  { id: 'musician', label: 'Musician', icon: 'Music' },
+  { id: 'worship_leader', label: 'Worship Leader', icon: 'Mic' },
+  { id: 'singer', label: 'Singer/Vocalist', icon: 'Mic2' },
+  { id: 'sound_tech', label: 'Sound/AV Tech', icon: 'Speaker' },
+  { id: 'media', label: 'Media/Graphics', icon: 'Camera' },
+  { id: 'youth_leader', label: 'Youth Leader', icon: 'Users' },
+  { id: 'usher', label: 'Usher/Greeter', icon: 'DoorOpen' },
+  { id: 'children_ministry', label: 'Children Ministry', icon: 'Baby' },
+  { id: 'prayer_team', label: 'Prayer Team', icon: 'Heart' },
+  { id: 'counselor', label: 'Counselor', icon: 'MessageCircle' },
+  { id: 'event_coordinator', label: 'Event Coordinator', icon: 'Calendar' },
+  { id: 'admin', label: 'Administrative', icon: 'ClipboardList' },
+  { id: 'translator', label: 'Translator', icon: 'Languages' },
+  { id: 'other', label: 'Other', icon: 'Star' },
+] as const;
+
+export const TALENT_SKILLS = {
+  musician: ['Piano/Keyboard', 'Guitar', 'Bass', 'Drums', 'Saxophone', 'Trumpet', 'Violin', 'Traditional African Drums', 'Choir Director'],
+  worship_leader: ['Contemporary Worship', 'Traditional Hymns', 'Gospel', 'African Worship', 'Multilingual Worship'],
+  singer: ['Solo', 'Backup Vocals', 'Choir', 'Gospel', 'Contemporary', 'Traditional'],
+  sound_tech: ['Mixing Board', 'Live Sound', 'Recording', 'Streaming Setup', 'ProPresenter', 'Lighting'],
+  media: ['Video Production', 'Photography', 'Graphic Design', 'Social Media', 'Live Streaming'],
+  youth_leader: ['Teen Ministry', 'Young Adults', 'Campus Ministry', 'Youth Camps'],
+  children_ministry: ['Sunday School', 'VBS', 'Nursery', 'Kids Worship'],
+  other: ['Hospitality', 'Food Service', 'Security', 'Parking', 'Transportation'],
+} as Record<string, string[]>;
+
 export const LIFE_EVENT_CATEGORIES = [
   { id: 'wedding', label: 'Wedding', icon: 'Heart' },
   { id: 'graduation', label: 'Graduation', icon: 'GraduationCap' },
@@ -367,6 +419,10 @@ interface AppState {
   // Settings
   notificationsEnabled: boolean;
 
+  // Serve & Connect - Talent Directory
+  userTalentProfile: ServeTalent | null;
+  savedTalentIds: string[];
+
   // Actions
   setCurrentUser: (user: User | null) => void;
   setIsOnboarded: (value: boolean) => void;
@@ -411,6 +467,10 @@ interface AppState {
   addBlockedTimeSlot: (businessId: string, date: string, time: string) => void;
   removeBlockedTimeSlot: (businessId: string, date: string, time: string) => void;
   incrementBusinessBookings: (businessId: string) => void;
+  // Serve & Connect - Talent Directory actions
+  setUserTalentProfile: (profile: ServeTalent | null) => void;
+  updateUserTalentProfile: (updates: Partial<ServeTalent>) => void;
+  toggleSaveTalent: (talentId: string) => void;
   logout: () => void;
 }
 
@@ -444,6 +504,8 @@ export const useStore = create<AppState>()(
       businessBookingSettings: [],
       inAppSalesCount: 0,
       notificationsEnabled: true,
+      userTalentProfile: null,
+      savedTalentIds: [],
 
       setCurrentUser: (user) => set({ currentUser: user }),
       setIsOnboarded: (value) => set({ isOnboarded: value }),
@@ -603,6 +665,18 @@ export const useStore = create<AppState>()(
             ? { ...s, totalBookingsReceived: s.totalBookingsReceived + 1 }
             : s
         ),
+      })),
+      // Serve & Connect - Talent Directory actions
+      setUserTalentProfile: (profile) => set({ userTalentProfile: profile }),
+      updateUserTalentProfile: (updates) => set((state) => ({
+        userTalentProfile: state.userTalentProfile
+          ? { ...state.userTalentProfile, ...updates }
+          : null,
+      })),
+      toggleSaveTalent: (talentId) => set((state) => ({
+        savedTalentIds: state.savedTalentIds.includes(talentId)
+          ? state.savedTalentIds.filter((id) => id !== talentId)
+          : [...state.savedTalentIds, talentId],
       })),
       logout: () => set({ currentUser: null, isOnboarded: false, isGuest: false }),
     }),
@@ -1511,6 +1585,186 @@ export const FAITH_TYPES = [
   'Hindu',
   'Interfaith',
   'Other',
+];
+
+export const MOCK_TALENTS: ServeTalent[] = [
+  {
+    id: 'talent-1',
+    user: {
+      id: 'talent-user-1',
+      name: 'David Mensah',
+      username: 'davidmensah',
+      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop',
+      bio: 'Worship leader and musician with 10+ years experience',
+      location: 'Denver, CO',
+      interests: ['Music', 'Worship', 'Community'],
+      joinedDate: '2024-01-15',
+    },
+    category: 'musician',
+    skills: ['Piano/Keyboard', 'Guitar', 'Choir Director'],
+    experience: '10+ years',
+    bio: 'Passionate worship leader with experience in contemporary and traditional African worship styles. Available to serve churches, events, and conferences.',
+    isAvailable: true,
+    availabilityNote: 'Available weekends and Wednesday evenings',
+    location: 'Denver, CO',
+    willingToTravel: true,
+    travelRadius: '50 miles',
+    faithBackground: 'Christian',
+    contactEmail: 'david.mensah@email.com',
+    contactPhone: '+1 (303) 555-0101',
+    portfolioImages: [
+      'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=300&fit=crop',
+      'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&h=300&fit=crop',
+    ],
+    rating: 4.9,
+    reviewCount: 23,
+    createdAt: '2024-06-01T00:00:00Z',
+    lastActive: '2025-01-02T10:00:00Z',
+  },
+  {
+    id: 'talent-2',
+    user: {
+      id: 'talent-user-2',
+      name: 'Grace Okonkwo',
+      username: 'graceokonkwo',
+      avatar: 'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=200&h=200&fit=crop',
+      bio: 'Gospel singer and vocal coach',
+      location: 'Aurora, CO',
+      interests: ['Singing', 'Teaching', 'Gospel'],
+      joinedDate: '2024-03-20',
+    },
+    category: 'singer',
+    skills: ['Solo', 'Choir', 'Gospel', 'Contemporary'],
+    experience: '8 years',
+    bio: 'Anointed gospel vocalist available for church services, weddings, and special events. I bring energy and spirit to every performance.',
+    isAvailable: true,
+    location: 'Aurora, CO',
+    willingToTravel: true,
+    travelRadius: '100 miles',
+    faithBackground: 'Christian',
+    contactEmail: 'grace.okonkwo@email.com',
+    rating: 4.8,
+    reviewCount: 15,
+    createdAt: '2024-07-15T00:00:00Z',
+    lastActive: '2025-01-01T14:00:00Z',
+  },
+  {
+    id: 'talent-3',
+    user: {
+      id: 'talent-user-3',
+      name: 'Emmanuel Adeyemi',
+      username: 'emmanueladeyemi',
+      avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=200&h=200&fit=crop',
+      bio: 'Sound engineer and AV specialist',
+      location: 'Denver, CO',
+      interests: ['Audio', 'Technology', 'Church Tech'],
+      joinedDate: '2024-02-10',
+    },
+    category: 'sound_tech',
+    skills: ['Mixing Board', 'Live Sound', 'Streaming Setup', 'ProPresenter'],
+    experience: '6 years',
+    bio: 'Professional sound engineer with experience in church settings. I handle live sound mixing, streaming setup, and ProPresenter operations.',
+    isAvailable: true,
+    availabilityNote: 'Available Sundays and for special events',
+    location: 'Denver, CO',
+    willingToTravel: false,
+    faithBackground: 'Christian',
+    contactPhone: '+1 (720) 555-0202',
+    rating: 5.0,
+    reviewCount: 31,
+    createdAt: '2024-04-01T00:00:00Z',
+    lastActive: '2025-01-03T08:00:00Z',
+  },
+  {
+    id: 'talent-4',
+    user: {
+      id: 'talent-user-4',
+      name: 'Fatima Hassan',
+      username: 'fatimahassan',
+      avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop',
+      bio: 'Youth ministry leader and counselor',
+      location: 'Lakewood, CO',
+      interests: ['Youth', 'Mentoring', 'Education'],
+      joinedDate: '2024-05-05',
+    },
+    category: 'youth_leader',
+    skills: ['Teen Ministry', 'Young Adults', 'Campus Ministry'],
+    experience: '5 years',
+    bio: 'Dedicated youth leader passionate about guiding the next generation. Experience with teen programs, campus outreach, and young adult ministries.',
+    isAvailable: true,
+    location: 'Lakewood, CO',
+    willingToTravel: true,
+    travelRadius: '30 miles',
+    faithBackground: 'Islamic',
+    contactEmail: 'fatima.hassan@email.com',
+    rating: 4.7,
+    reviewCount: 12,
+    createdAt: '2024-08-20T00:00:00Z',
+    lastActive: '2024-12-30T16:00:00Z',
+  },
+  {
+    id: 'talent-5',
+    user: {
+      id: 'talent-user-5',
+      name: 'Samuel Kwame',
+      username: 'samuelkwame',
+      avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&h=200&fit=crop',
+      bio: 'Traditional African drummer and worship musician',
+      location: 'Denver, CO',
+      interests: ['Drums', 'African Music', 'Culture'],
+      joinedDate: '2024-04-12',
+    },
+    category: 'musician',
+    skills: ['Traditional African Drums', 'Drums', 'Choir Director'],
+    experience: '15+ years',
+    bio: 'Master of traditional African drumming bringing authentic rhythms to worship. Available for African-themed services, cultural events, and celebrations.',
+    isAvailable: true,
+    availabilityNote: 'Flexible schedule - contact for availability',
+    location: 'Denver, CO',
+    willingToTravel: true,
+    travelRadius: '200 miles',
+    faithBackground: 'Christian',
+    contactPhone: '+1 (303) 555-0303',
+    contactEmail: 'samuel.kwame@email.com',
+    portfolioImages: [
+      'https://images.unsplash.com/photo-1504704911898-68304a7d2807?w=400&h=300&fit=crop',
+    ],
+    rating: 4.9,
+    reviewCount: 28,
+    createdAt: '2024-05-10T00:00:00Z',
+    lastActive: '2025-01-02T20:00:00Z',
+  },
+  {
+    id: 'talent-6',
+    user: {
+      id: 'talent-user-6',
+      name: 'Amara Johnson',
+      username: 'amarajohnson',
+      avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=200&h=200&fit=crop',
+      bio: 'Media director and graphic designer',
+      location: 'Denver, CO',
+      interests: ['Design', 'Photography', 'Social Media'],
+      joinedDate: '2024-06-18',
+    },
+    category: 'media',
+    skills: ['Video Production', 'Photography', 'Graphic Design', 'Social Media'],
+    experience: '7 years',
+    bio: 'Creative media professional helping churches tell their stories through compelling visuals. Experienced in event coverage, social media management, and brand design.',
+    isAvailable: true,
+    location: 'Denver, CO',
+    willingToTravel: true,
+    travelRadius: '75 miles',
+    faithBackground: 'Christian',
+    contactEmail: 'amara.johnson@email.com',
+    portfolioImages: [
+      'https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?w=400&h=300&fit=crop',
+      'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=400&h=300&fit=crop',
+    ],
+    rating: 4.8,
+    reviewCount: 19,
+    createdAt: '2024-07-01T00:00:00Z',
+    lastActive: '2025-01-01T12:00:00Z',
+  },
 ];
 
 export const MOCK_COMMENTS: Comment[] = [

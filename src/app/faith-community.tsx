@@ -308,6 +308,41 @@ export default function FaithCommunityScreen() {
             </View>
           ) : (
             <>
+              {/* Serve & Connect Banner */}
+          <Animated.View
+            entering={FadeInUp.duration(400).delay(50)}
+            className="mb-4"
+          >
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                router.push('/serve-connect');
+              }}
+            >
+              <LinearGradient
+                colors={['#1B4D3E', '#0D3329']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={{ borderRadius: 16, padding: 16 }}
+              >
+                <View className="flex-row items-center">
+                  <View className="bg-white/20 rounded-full p-3 mr-4">
+                    <Users size={24} color="#FFFFFF" />
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-white font-bold text-base">
+                      Serve & Connect
+                    </Text>
+                    <Text className="text-white/80 text-sm mt-1">
+                      Find musicians, volunteers, or offer your skills to serve churches.
+                    </Text>
+                  </View>
+                  <ChevronRight size={24} color="#FFFFFF" />
+                </View>
+              </LinearGradient>
+            </Pressable>
+          </Animated.View>
+
               {/* Info Banner */}
           <Animated.View
             entering={FadeInUp.duration(400).delay(100)}

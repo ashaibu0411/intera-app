@@ -58,6 +58,8 @@ function RootLayoutNav() {
         <Stack.Screen name="create-listing" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="register-business" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="create-faith-event" options={{ animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="serve-connect" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="register-talent" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="create-event" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="my-posts" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="saved-posts" options={{ animation: 'slide_from_right' }} />

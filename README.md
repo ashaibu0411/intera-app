@@ -51,6 +51,15 @@ A community-driven social platform connecting Africans and the African diaspora 
 - Contact information (phone/email) for organizations
 - Location and address details
 - **Create Faith Event** (`/create-faith-event`): Organizations can post services and events with recurring schedules
+- **Serve & Connect** (`/serve-connect`): Talent directory for churches and organizations to find musicians, volunteers, and skilled helpers
+  - Browse available talent by category (Musicians, Worship Leaders, Singers, Sound/AV Tech, Media, Youth Leaders, etc.)
+  - Filter by availability and search by skills
+  - View detailed profiles with experience, skills, portfolio images, and contact info
+  - Save favorite talent profiles for later
+  - **Register as Talent** (`/register-talent`): 3-step registration to offer your skills to churches
+    - Select service category and skills
+    - Add experience, bio, and faith background
+    - Set availability, travel preferences, and contact information
 
 ### Student Hub
 - Scholarships discovery with deadlines and amounts
