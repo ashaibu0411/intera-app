@@ -322,8 +322,22 @@ These 10 major features make AfroConnect superior to Facebook, Nextdoor, and any
 ### 6. Heritage Hub (`/heritage-hub`)
 - **Cultural preservation and learning center**
 - **Traditional Recipes**: Share and discover authentic African recipes with stories
-- **Language Learning Pods**: Join groups learning Swahili, Yoruba, Twi, Amharic, etc.
-- **Family Trees**: Document your lineage and connect with relatives (coming soon)
+- **Language Learning Pods** (`/language-pod`): Join groups learning Swahili, Yoruba, Twi, Amharic, Igbo, Wolof, etc.
+  - Pod details with host info, schedule, and member count
+  - **Phrases Tab**: Common phrases with pronunciation guides
+  - **Translation Tab**: Basic translation feature to help communicate in the language you're learning
+  - Join/Leave pod functionality
+- **Create Language Pod** (`/create-language-pod`): Host your own language learning group
+  - 3-step form: Select language & level → Pod details → Schedule
+  - Set max participants and online/in-person
+- **Family Trees** (`/family-tree`): Document your lineage and preserve your heritage
+  - Visual family tree grouped by generations
+  - Member detail cards with photos, birth/death years, birthplace, and bio
+  - Add family members with relationship types
+  - Public/Private privacy settings
+- **Create Family Tree** (`/create-family-tree`): Start documenting your family history
+  - 3-step form: Name & description → Add family members → Review
+  - Add members with relationships, birth info, and stories
 - Recipe categories: Main Dishes, Soups & Stews, Sides, Desserts, Drinks, Snacks
 - Language levels: Beginner, Intermediate, Advanced
 
