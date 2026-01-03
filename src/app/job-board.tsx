@@ -1,8 +1,8 @@
-import { useState } from 'react';
-import { View, Text, ScrollView, Pressable, Image, TextInput, Modal, Alert } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, ScrollView, Pressable, Image, TextInput, Modal, Alert, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Briefcase, MapPin, Clock, DollarSign, Search, Filter, Plus, X, ChevronRight, Users, Star, CheckCircle, ArrowLeft } from 'lucide-react-native';
+import { MapPin, Clock, DollarSign, Search, Plus, X, ChevronRight, Users, Star, CheckCircle, ArrowLeft } from 'lucide-react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useStore } from '@/lib/store';
 import { useAdvancedFeatures, type JobPosting, type SkillListing } from '@/lib/advancedFeatures';
@@ -121,6 +121,26 @@ const MOCK_SKILLS: SkillListing[] = [
   },
 ];
 
+const getJobTypeLabel = (type: string) => {
+  const labels: Record<string, string> = {
+    full_time: 'Full-time',
+    part_time: 'Part-time',
+    contract: 'Contract',
+    gig: 'Gig',
+    internship: 'Internship',
+    volunteer: 'Volunteer',
+  };
+  return labels[type] ?? type;
+};
+
+const getSalaryDisplay = (salary?: JobPosting['salary']) => {
+  if (!salary) return 'Salary not specified';
+  const { min, max, period } = salary;
+  if (period === 'hourly') return `$${min}-$${max}/hr`;
+  if (period === 'yearly') return `$${(min / 1000).toFixed(0)}k-$${(max / 1000).toFixed(0)}k/yr`;
+  return `$${min}-$${max}/${period}`;
+};
+
 export default function JobBoardScreen() {
   const [activeTab, setActiveTab] = useState<'jobs' | 'skills'>('jobs');
   const [searchQuery, setSearchQuery] = useState('');
@@ -129,7 +149,11 @@ export default function JobBoardScreen() {
   const [selectedJob, setSelectedJob] = useState<JobPosting | null>(null);
   const [selectedSkill, setSelectedSkill] = useState<SkillListing | null>(null);
 
-  const { jobPostings = [], skillListings = [], addJobPosting } = useAdvancedFeatures();
+  const advancedFeatures = useAdvancedFeatures();
+  const jobPostings = advancedFeatures?.jobPostings ?? [];
+  const skillListings = advancedFeatures?.skillListings ?? [];
+  const addJobPosting = advancedFeatures?.addJobPosting;
+
   const allJobs = [...jobPostings, ...MOCK_JOBS];
   const allSkills = [...skillListings, ...MOCK_SKILLS];
 
@@ -140,41 +164,19 @@ export default function JobBoardScreen() {
     return matchesSearch && matchesCategory;
   });
 
-  const getJobTypeLabel = (type: string) => {
-    const labels: { [key: string]: string } = {
-      full_time: 'Full-time',
-      part_time: 'Part-time',
-      contract: 'Contract',
-      gig: 'Gig',
-      internship: 'Internship',
-      volunteer: 'Volunteer',
-    };
-    return labels[type] ?? type;
-  };
-
-  const getSalaryDisplay = (salary?: JobPosting['salary']) => {
-    if (!salary) return 'Salary not specified';
-    const { min, max, currency, period } = salary;
-    if (period === 'hourly') return `$${min}-$${max}/hr`;
-    if (period === 'yearly') return `$${(min / 1000).toFixed(0)}k-$${(max / 1000).toFixed(0)}k/yr`;
-    return `$${min}-$${max}/${period}`;
+  const handleBack = () => {
+    router.back();
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#FAF7F2' }} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       {/* Custom Header */}
-      <View className="flex-row items-center justify-between px-4 py-3 bg-white border-b border-gray-100">
-        <Pressable
-          onPress={() => router.back()}
-          className="p-2 -ml-2"
-        >
+      <View style={styles.header}>
+        <Pressable onPress={handleBack} style={styles.backButton}>
           <ArrowLeft size={24} color="#1B4D3E" />
         </Pressable>
-        <Text className="text-lg font-bold text-gray-900">Jobs & Skills</Text>
-        <Pressable
-          onPress={() => setShowPostJob(true)}
-          className="bg-amber-100 p-2 rounded-full"
-        >
+        <Text style={styles.headerTitle}>Jobs & Skills</Text>
+        <Pressable onPress={() => setShowPostJob(true)} style={styles.addButton}>
           <Plus size={20} color="#D4673A" />
         </Pressable>
       </View>
@@ -379,7 +381,38 @@ export default function JobBoardScreen() {
   );
 }
 
-function PostJobModal({ onClose, onSubmit }: { onClose: () => void; onSubmit: (job: JobPosting) => void }) {
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#FAF7F2',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: 'white',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  backButton: {
+    padding: 8,
+    marginLeft: -8,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#111827',
+  },
+  addButton: {
+    backgroundColor: '#FEF3C7',
+    padding: 8,
+    borderRadius: 999,
+  },
+});
+
+function PostJobModal({ onClose, onSubmit }: { onClose: () => void; onSubmit?: (job: JobPosting) => void }) {
   const currentUser = useStore((s) => s.currentUser);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -389,7 +422,7 @@ function PostJobModal({ onClose, onSubmit }: { onClose: () => void; onSubmit: (j
   const [isRemote, setIsRemote] = useState(false);
 
   const handleSubmit = () => {
-    if (!title.trim() || !description.trim()) return;
+    if (!title.trim() || !description.trim() || !onSubmit) return;
 
     const job: JobPosting = {
       id: uuidv4(),
@@ -510,26 +543,6 @@ function PostJobModal({ onClose, onSubmit }: { onClose: () => void; onSubmit: (j
 }
 
 function JobDetailModal({ job, onClose }: { job: JobPosting; onClose: () => void }) {
-  const getJobTypeLabel = (type: string) => {
-    const labels: { [key: string]: string } = {
-      full_time: 'Full-time',
-      part_time: 'Part-time',
-      contract: 'Contract',
-      gig: 'Gig',
-      internship: 'Internship',
-      volunteer: 'Volunteer',
-    };
-    return labels[type] ?? type;
-  };
-
-  const getSalaryDisplay = (salary?: JobPosting['salary']) => {
-    if (!salary) return 'Salary not specified';
-    const { min, max, period } = salary;
-    if (period === 'hourly') return `$${min}-$${max}/hr`;
-    if (period === 'yearly') return `$${(min / 1000).toFixed(0)}k-$${(max / 1000).toFixed(0)}k/yr`;
-    return `$${min}-$${max}/${period}`;
-  };
-
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#FAF7F2' }}>
       <View className="flex-row items-center justify-between p-4 border-b border-gray-200 bg-white">
