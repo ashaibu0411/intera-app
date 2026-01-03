@@ -454,11 +454,11 @@ export default function HeritageHubScreen() {
       </ScrollView>
 
       {/* Recipe Detail Modal */}
-      <Modal visible={!!selectedRecipe} animationType="slide" presentationStyle="pageSheet">
-        {selectedRecipe && (
+      {selectedRecipe && (
+        <Modal visible={true} animationType="slide" presentationStyle="pageSheet">
           <RecipeDetailModal recipe={selectedRecipe} onClose={() => setSelectedRecipe(null)} />
-        )}
-      </Modal>
+        </Modal>
+      )}
     </SafeAreaView>
   );
 }
@@ -466,15 +466,17 @@ export default function HeritageHubScreen() {
 function RecipeDetailModal({ recipe, onClose }: { recipe: TraditionalRecipe; onClose: () => void }) {
   return (
     <View style={{ flex: 1, backgroundColor: '#FAF7F2' }}>
-      <View className="flex-row items-center justify-between p-4 bg-white border-b border-gray-100 pt-12">
-        <Pressable onPress={onClose}>
-          <X size={24} color="#6B7280" />
-        </Pressable>
-        <Text className="text-lg font-bold text-gray-900">Recipe</Text>
-        <Pressable className="bg-red-100 p-2 rounded-full">
-          <Heart size={20} color="#EF4444" />
-        </Pressable>
-      </View>
+      <SafeAreaView style={{ backgroundColor: '#FFFFFF' }} edges={['top']}>
+        <View className="flex-row items-center justify-between p-4 bg-white border-b border-gray-100">
+          <Pressable onPress={onClose}>
+            <X size={24} color="#6B7280" />
+          </Pressable>
+          <Text className="text-lg font-bold text-gray-900">Recipe</Text>
+          <Pressable className="bg-red-100 p-2 rounded-full">
+            <Heart size={20} color="#EF4444" />
+          </Pressable>
+        </View>
+      </SafeAreaView>
 
       <ScrollView className="flex-1">
         {recipe.images[0] && (
