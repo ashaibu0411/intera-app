@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { View, Text, ScrollView, Pressable, Image, Modal } from 'react-native';
 import { router } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BookOpen, Users, Globe, ChefHat, Heart, X, ChevronRight, Star, Clock, TreePine, Languages, ChevronLeft } from 'lucide-react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useAdvancedFeatures, type TraditionalRecipe, type LanguagePod, type FamilyTree } from '@/lib/advancedFeatures';
@@ -160,6 +160,7 @@ const MOCK_TREES: FamilyTree[] = [
 export default function HeritageHubScreen() {
   const [activeTab, setActiveTab] = useState('Recipes');
   const [selectedRecipe, setSelectedRecipe] = useState<TraditionalRecipe | null>(null);
+  const insets = useSafeAreaInsets();
 
   const { recipes, languagePods, familyTrees } = useAdvancedFeatures();
   const allRecipes = [...recipes, ...MOCK_RECIPES];
@@ -181,7 +182,7 @@ export default function HeritageHubScreen() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#FAF7F2' }} edges={['top']}>
+    <View style={{ flex: 1, backgroundColor: '#FAF7F2', paddingTop: insets.top }}>
       {/* Custom Header */}
       <View className="flex-row items-center justify-between px-4 py-3 bg-white border-b border-gray-100">
         <Pressable onPress={() => router.back()} className="p-2 -ml-2">
@@ -192,7 +193,7 @@ export default function HeritageHubScreen() {
       </View>
 
       {/* Hero Banner */}
-      <Animated.View entering={FadeInDown.delay(100)} className="mx-4 mt-2 bg-emerald-800 rounded-2xl p-4">
+      <Animated.View entering={FadeInDown.delay(100)} style={{ marginHorizontal: 16, marginTop: 8, backgroundColor: '#065f46', borderRadius: 16, padding: 16 }}>
         <View className="flex-row items-center">
           <BookOpen size={24} color="white" />
           <Text className="text-white font-bold text-lg ml-2">Preserve Your Heritage</Text>
@@ -203,7 +204,7 @@ export default function HeritageHubScreen() {
       </Animated.View>
 
       {/* Global Translator Button */}
-      <Animated.View entering={FadeInDown.delay(150)} className="mx-4 mt-3">
+      <Animated.View entering={FadeInDown.delay(150)} style={{ marginHorizontal: 16, marginTop: 12 }}>
         <Pressable
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -459,7 +460,7 @@ export default function HeritageHubScreen() {
           <RecipeDetailModal recipe={selectedRecipe} onClose={() => setSelectedRecipe(null)} />
         </Modal>
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 
