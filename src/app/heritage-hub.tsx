@@ -1,13 +1,11 @@
 import { useState } from 'react';
-import { View, Text, ScrollView, Pressable, Image, TextInput, Modal } from 'react-native';
+import { View, Text, ScrollView, Pressable, Image, Modal } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { BookOpen, Users, Globe, ChefHat, Heart, Plus, X, ChevronRight, Star, Clock, Play, TreePine, Languages } from 'lucide-react-native';
+import { BookOpen, Users, Globe, ChefHat, Heart, X, ChevronRight, Star, Clock, TreePine, Languages } from 'lucide-react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import { useStore } from '@/lib/store';
 import { useAdvancedFeatures, type TraditionalRecipe, type LanguagePod, type FamilyTree } from '@/lib/advancedFeatures';
 import * as Haptics from 'expo-haptics';
-import { v4 as uuidv4 } from 'uuid';
 
 const TABS = ['Recipes', 'Languages', 'Family Trees'];
 
