@@ -545,82 +545,13 @@ export default function HomeScreen() {
             </LinearGradient>
           </Animated.View>
 
-          {/* Quick Access Cards - Row 1 */}
+          {/* Community Features Section */}
           <Animated.View
             entering={FadeInUp.duration(500).delay(250)}
-            className="flex-row mx-4 mb-3"
-          >
-            {/* Marketplace Card */}
-            <Pressable
-              onPress={() => navigateTo('/marketplace')}
-              className="flex-1 mr-2"
-            >
-              <View className="bg-white rounded-2xl p-4 shadow-sm">
-                <View className="bg-terracotta-50 rounded-full p-2.5 self-start mb-2">
-                  <ShoppingBag size={22} color="#D4673A" />
-                </View>
-                <Text className="text-warmBrown font-bold">Marketplace</Text>
-                <Text className="text-gray-500 text-xs mt-0.5">Buy & Sell</Text>
-              </View>
-            </Pressable>
-
-            {/* Business Directory Card */}
-            <Pressable
-              onPress={() => navigateTo('/business-directory')}
-              className="flex-1 ml-2"
-            >
-              <View className="bg-white rounded-2xl p-4 shadow-sm">
-                <View className="bg-forest-50 rounded-full p-2.5 self-start mb-2">
-                  <Briefcase size={22} color="#1B4D3E" />
-                </View>
-                <Text className="text-warmBrown font-bold">Businesses</Text>
-                <Text className="text-gray-500 text-xs mt-0.5">African-owned</Text>
-              </View>
-            </Pressable>
-          </Animated.View>
-
-          {/* Quick Access Cards - Row 2 */}
-          <Animated.View
-            entering={FadeInUp.duration(500).delay(280)}
-            className="flex-row mx-4 mb-4"
-          >
-            {/* Student Hub Card */}
-            <Pressable
-              onPress={() => navigateTo('/student-hub')}
-              className="flex-1 mr-2"
-            >
-              <View className="bg-white rounded-2xl p-4 shadow-sm">
-                <View className="bg-gold-50 rounded-full p-2.5 self-start mb-2">
-                  <GraduationCap size={22} color="#C9A227" />
-                </View>
-                <Text className="text-warmBrown font-bold">Student Hub</Text>
-                <Text className="text-gray-500 text-xs mt-0.5">Groups & Mentors</Text>
-              </View>
-            </Pressable>
-
-            {/* Faith & Community Card */}
-            <Pressable
-              onPress={() => navigateTo('/faith-community')}
-              className="flex-1 ml-2"
-            >
-              <View className="bg-white rounded-2xl p-4 shadow-sm">
-                <View className="bg-terracotta-50 rounded-full p-2.5 self-start mb-2">
-                  <Heart size={22} color="#D4673A" />
-                </View>
-                <Text className="text-warmBrown font-bold">Faith Centers</Text>
-                <Text className="text-gray-500 text-xs mt-0.5">Services & Events</Text>
-              </View>
-            </Pressable>
-          </Animated.View>
-
-          {/* Advanced Features Section */}
-          <Animated.View
-            entering={FadeInUp.duration(500).delay(300)}
             className="mx-4 mb-4"
           >
             <View className="flex-row items-center justify-between mb-3">
-              <Text className="text-warmBrown font-bold text-lg">Community Features</Text>
-              <Text className="text-gray-400 text-xs">NEW</Text>
+              <Text className="text-warmBrown font-bold text-lg">Explore</Text>
             </View>
 
             <ScrollView
@@ -629,6 +560,54 @@ export default function HomeScreen() {
               style={{ marginHorizontal: -16, flexGrow: 0 }}
               contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
             >
+              {/* Marketplace */}
+              <Pressable onPress={() => navigateTo('/marketplace')}>
+                <LinearGradient
+                  colors={['#D4673A', '#B85430']}
+                  style={{ borderRadius: 16, padding: 16, width: 140 }}
+                >
+                  <ShoppingBag size={24} color="white" />
+                  <Text className="text-white font-bold mt-2">Marketplace</Text>
+                  <Text className="text-white/80 text-xs">Buy & Sell</Text>
+                </LinearGradient>
+              </Pressable>
+
+              {/* Businesses */}
+              <Pressable onPress={() => navigateTo('/business-directory')}>
+                <LinearGradient
+                  colors={['#1B4D3E', '#0D3329']}
+                  style={{ borderRadius: 16, padding: 16, width: 140 }}
+                >
+                  <Briefcase size={24} color="white" />
+                  <Text className="text-white font-bold mt-2">Businesses</Text>
+                  <Text className="text-white/80 text-xs">African-owned</Text>
+                </LinearGradient>
+              </Pressable>
+
+              {/* Student Hub */}
+              <Pressable onPress={() => navigateTo('/student-hub')}>
+                <LinearGradient
+                  colors={['#C9A227', '#A6841F']}
+                  style={{ borderRadius: 16, padding: 16, width: 140 }}
+                >
+                  <GraduationCap size={24} color="white" />
+                  <Text className="text-white font-bold mt-2">Student Hub</Text>
+                  <Text className="text-white/80 text-xs">Groups & Mentors</Text>
+                </LinearGradient>
+              </Pressable>
+
+              {/* Faith Centers */}
+              <Pressable onPress={() => navigateTo('/faith-community')}>
+                <LinearGradient
+                  colors={['#7C3AED', '#6D28D9']}
+                  style={{ borderRadius: 16, padding: 16, width: 140 }}
+                >
+                  <Heart size={24} color="white" />
+                  <Text className="text-white font-bold mt-2">Faith Centers</Text>
+                  <Text className="text-white/80 text-xs">Services & Events</Text>
+                </LinearGradient>
+              </Pressable>
+
               {/* Trust Score */}
               <Pressable onPress={() => navigateTo('/trust-score')}>
                 <LinearGradient
