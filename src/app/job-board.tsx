@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, Pressable, Image, TextInput, Modal, Alert, StyleSheet } from 'react-native';
+import { useState } from 'react';
+import { View, Text, ScrollView, Pressable, Image, TextInput, Modal, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { MapPin, Clock, DollarSign, Search, Plus, X, ChevronRight, Users, Star, CheckCircle, ArrowLeft } from 'lucide-react-native';
+import { MapPin, Clock, DollarSign, Search, Plus, X, ChevronRight, Users, Star, CheckCircle, ChevronLeft } from 'lucide-react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useStore } from '@/lib/store';
 import { useAdvancedFeatures, type JobPosting, type SkillListing } from '@/lib/advancedFeatures';
@@ -169,14 +169,14 @@ export default function JobBoardScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView className="flex-1 bg-[#FAF7F2]" edges={['top']}>
       {/* Custom Header */}
-      <View style={styles.header}>
-        <Pressable onPress={handleBack} style={styles.backButton}>
-          <ArrowLeft size={24} color="#1B4D3E" />
+      <View className="flex-row items-center justify-between px-4 py-3 bg-white border-b border-gray-100">
+        <Pressable onPress={handleBack} className="p-2 -ml-2">
+          <ChevronLeft size={24} color="#1B4D3E" />
         </Pressable>
-        <Text style={styles.headerTitle}>Jobs & Skills</Text>
-        <Pressable onPress={() => setShowPostJob(true)} style={styles.addButton}>
+        <Text className="text-lg font-bold text-gray-900">Jobs & Skills</Text>
+        <Pressable onPress={() => setShowPostJob(true)} className="bg-amber-100 p-2 rounded-full">
           <Plus size={20} color="#D4673A" />
         </Pressable>
       </View>
@@ -380,37 +380,6 @@ export default function JobBoardScreen() {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FAF7F2',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: 'white',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
-  backButton: {
-    padding: 8,
-    marginLeft: -8,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#111827',
-  },
-  addButton: {
-    backgroundColor: '#FEF3C7',
-    padding: 8,
-    borderRadius: 999,
-  },
-});
 
 function PostJobModal({ onClose, onSubmit }: { onClose: () => void; onSubmit?: (job: JobPosting) => void }) {
   const currentUser = useStore((s) => s.currentUser);
