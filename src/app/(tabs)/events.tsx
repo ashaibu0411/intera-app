@@ -296,7 +296,14 @@ export default function EventsScreen() {
 
   const handleCreateEvent = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    router.push('/create-event' as any);
+    const isGuest = useStore.getState().isGuest;
+    const currentUser = useStore.getState().currentUser;
+
+    if (isGuest || !currentUser) {
+      router.push('/signup');
+    } else {
+      router.push('/create-event');
+    }
   };
 
   return (
