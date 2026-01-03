@@ -265,12 +265,48 @@ export interface SusuContribution {
   circleId: string;
   memberId: string;
   memberName: string;
+  memberAvatar?: string;
   round: number;
   amount: number;
-  status: 'pending' | 'paid' | 'late' | 'missed';
+  status: 'pending' | 'paid' | 'late' | 'missed' | 'confirmed';
+  paymentMethod: 'cash' | 'card' | 'bank_transfer' | 'mobile_money' | 'other';
   dueDate: string;
   paidAt?: string;
+  confirmedAt?: string;
+  confirmedBy?: string;
+  transactionId?: string;
+  receiptUrl?: string;
   notes?: string;
+}
+
+export interface SusuPayout {
+  id: string;
+  circleId: string;
+  recipientId: string;
+  recipientName: string;
+  round: number;
+  amount: number;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  payoutMethod: 'cash' | 'bank_transfer' | 'mobile_money';
+  scheduledDate: string;
+  completedAt?: string;
+  confirmedByRecipient: boolean;
+  notes?: string;
+}
+
+export interface SusuDispute {
+  id: string;
+  circleId: string;
+  reporterId: string;
+  reporterName: string;
+  againstUserId?: string;
+  againstUserName?: string;
+  type: 'missed_payment' | 'payout_issue' | 'fraud' | 'other';
+  description: string;
+  status: 'open' | 'investigating' | 'resolved' | 'escalated';
+  resolution?: string;
+  createdAt: string;
+  resolvedAt?: string;
 }
 
 // ============================================
@@ -1026,6 +1062,8 @@ interface AdvancedFeaturesState {
   // Susu Circles
   susuCircles: SusuCircle[];
   susuContributions: SusuContribution[];
+  susuPayouts: SusuPayout[];
+  susuDisputes: SusuDispute[];
 
   // Job Board
   jobPostings: JobPosting[];
@@ -1081,6 +1119,13 @@ interface AdvancedFeaturesState {
   addSusuCircle: (circle: SusuCircle) => void;
   joinSusuCircle: (circleId: string, member: SusuMember) => void;
   addSusuContribution: (contribution: SusuContribution) => void;
+  updateSusuContribution: (contributionId: string, updates: Partial<SusuContribution>) => void;
+  confirmSusuContribution: (contributionId: string, confirmedBy: string) => void;
+  addSusuPayout: (payout: SusuPayout) => void;
+  updateSusuPayout: (payoutId: string, updates: Partial<SusuPayout>) => void;
+  addSusuDispute: (dispute: SusuDispute) => void;
+  resolveSusuDispute: (disputeId: string, resolution: string) => void;
+  updateSusuCircle: (circleId: string, updates: Partial<SusuCircle>) => void;
   addJobPosting: (job: JobPosting) => void;
   applyToJob: (application: JobApplication) => void;
   addSkillListing: (listing: SkillListing) => void;
@@ -1135,6 +1180,8 @@ export const useAdvancedFeatures = create<AdvancedFeaturesState>()(
       resourceGuides: [],
       susuCircles: [],
       susuContributions: [],
+      susuPayouts: [],
+      susuDisputes: [],
       jobPostings: [],
       jobApplications: [],
       skillListings: [],
@@ -1236,6 +1283,54 @@ export const useAdvancedFeatures = create<AdvancedFeaturesState>()(
 
       addSusuContribution: (contribution) => set((state) => ({
         susuContributions: [contribution, ...state.susuContributions]
+      })),
+
+      updateSusuContribution: (contributionId, updates) => set((state) => ({
+        susuContributions: state.susuContributions.map((c) =>
+          c.id === contributionId ? { ...c, ...updates } : c
+        )
+      })),
+
+      confirmSusuContribution: (contributionId, confirmedBy) => set((state) => ({
+        susuContributions: state.susuContributions.map((c) =>
+          c.id === contributionId ? {
+            ...c,
+            status: 'confirmed' as const,
+            confirmedAt: new Date().toISOString(),
+            confirmedBy
+          } : c
+        )
+      })),
+
+      addSusuPayout: (payout) => set((state) => ({
+        susuPayouts: [payout, ...state.susuPayouts]
+      })),
+
+      updateSusuPayout: (payoutId, updates) => set((state) => ({
+        susuPayouts: state.susuPayouts.map((p) =>
+          p.id === payoutId ? { ...p, ...updates } : p
+        )
+      })),
+
+      addSusuDispute: (dispute) => set((state) => ({
+        susuDisputes: [dispute, ...state.susuDisputes]
+      })),
+
+      resolveSusuDispute: (disputeId, resolution) => set((state) => ({
+        susuDisputes: state.susuDisputes.map((d) =>
+          d.id === disputeId ? {
+            ...d,
+            status: 'resolved' as const,
+            resolution,
+            resolvedAt: new Date().toISOString()
+          } : d
+        )
+      })),
+
+      updateSusuCircle: (circleId, updates) => set((state) => ({
+        susuCircles: state.susuCircles.map((c) =>
+          c.id === circleId ? { ...c, ...updates } : c
+        )
       })),
 
       addJobPosting: (job) => set((state) => ({

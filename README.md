@@ -298,10 +298,28 @@ These 10 major features make AfroConnect superior to Facebook, Nextdoor, and any
 ### 3. Susu Savings Circles (`/susu-circles`)
 - **Traditional African rotating savings system** (Susu/Esusu/Stokvel)
 - Create or join savings circles with trusted community members
-- Track contribution schedules and payout order
-- Member trust scores displayed for transparency
-- Support for different contribution amounts and frequencies
-- View circle history and upcoming payouts
+- **Payment Tracking System**:
+  - Multiple payment methods: Card, Bank Transfer, Mobile Money (M-Pesa, Venmo), Cash
+  - Real-time contribution progress bar showing who has paid
+  - Payment status tracking: Pending → Paid → Confirmed
+  - Organizer confirmation system for accountability
+- **Organizer Dashboard**:
+  - View all member payments at a glance
+  - Confirm cash/manual payments with one tap
+  - Track confirmed vs pending vs late payments
+  - See payment method used by each member
+- **Member Accountability**:
+  - Trust scores displayed for transparency
+  - Contribution history for each member
+  - Missed payment tracking
+  - Total contributed amount
+- **4 Tab Interface**:
+  - Overview: Pool size, round info, next payout recipient
+  - Payments: Current round contribution status for all members
+  - Members: Trust scores, contribution stats, payout status
+  - History: Complete payment history grouped by round
+- Support for different contribution amounts and frequencies (weekly/biweekly/monthly)
+- View circle rules and upcoming payouts
 
 ### 4. Job Board & Skills Marketplace (`/job-board`)
 - **Community-powered employment** connecting diaspora job seekers and employers
