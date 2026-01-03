@@ -321,6 +321,14 @@ These 10 major features make AfroConnect superior to Facebook, Nextdoor, and any
 
 ### 6. Heritage Hub (`/heritage-hub`)
 - **Cultural preservation and learning center**
+- **Global Translator** (`/translator`): Translate anywhere in the world
+  - **Type or Speak**: Voice input with microphone button or type your text
+  - **15+ Languages**: English, Swahili, Yoruba, Igbo, Hausa, Amharic, Wolof, Zulu, Xhosa, Twi, French, Portuguese, Arabic, Somali, Kinyarwanda
+  - **Swap languages** instantly with one tap
+  - **Quick Phrases**: Common phrases for fast translation
+  - **Listen to Translation**: Hear how to pronounce the translation
+  - **Copy to Clipboard**: Share translations easily
+  - **Recent Translations**: Access your translation history
 - **Traditional Recipes**: Share and discover authentic African recipes with stories
 - **Language Learning Pods** (`/language-pod`): Join groups learning Swahili, Yoruba, Twi, Amharic, Igbo, Wolof, etc.
   - Pod details with host info, schedule, and member count

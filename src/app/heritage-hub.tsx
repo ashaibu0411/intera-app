@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { View, Text, ScrollView, Pressable, Image, TextInput, Modal } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { BookOpen, Users, Globe, ChefHat, Heart, Plus, X, ChevronRight, Star, Clock, Play, TreePine } from 'lucide-react-native';
+import { BookOpen, Users, Globe, ChefHat, Heart, Plus, X, ChevronRight, Star, Clock, Play, TreePine, Languages } from 'lucide-react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useStore } from '@/lib/store';
 import { useAdvancedFeatures, type TraditionalRecipe, type LanguagePod, type FamilyTree } from '@/lib/advancedFeatures';
@@ -203,6 +203,26 @@ export default function HeritageHubScreen() {
         <Text className="text-white/80 text-sm mt-2">
           Share recipes, learn languages, and build your family tree with the community.
         </Text>
+      </Animated.View>
+
+      {/* Global Translator Button */}
+      <Animated.View entering={FadeInDown.delay(150)} className="mx-4 mt-3">
+        <Pressable
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            router.push('/translator');
+          }}
+          className="bg-gradient-to-r from-amber-500 to-orange-500 bg-amber-500 rounded-xl p-4 flex-row items-center"
+        >
+          <View className="bg-white/20 p-2 rounded-full">
+            <Languages size={24} color="white" />
+          </View>
+          <View className="flex-1 ml-3">
+            <Text className="text-white font-bold text-lg">Global Translator</Text>
+            <Text className="text-white/80 text-sm">Speak or type to translate instantly</Text>
+          </View>
+          <ChevronRight size={24} color="white" />
+        </Pressable>
       </Animated.View>
 
       {/* Tabs */}

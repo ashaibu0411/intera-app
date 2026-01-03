@@ -89,6 +89,8 @@ function RootLayoutNav() {
         <Stack.Screen name="manage-booking-calendar" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="business-pro-paywall" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
         <Stack.Screen name="seller-pro-paywall" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+        {/* Global Translator */}
+        <Stack.Screen name="translator" options={{ animation: 'slide_from_right' }} />
       </Stack>
     </ThemeProvider>
   );
