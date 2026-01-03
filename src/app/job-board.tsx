@@ -1,9 +1,7 @@
 import { useState } from 'react';
-import { View, Text, ScrollView, Pressable, Image, TextInput, Modal, Alert } from 'react-native';
-import { router } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { MapPin, Clock, DollarSign, Search, Plus, X, ChevronRight, Users, Star, CheckCircle, ChevronLeft } from 'lucide-react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import { View, Text, ScrollView, Pressable, Image, TextInput, Modal, Alert, StyleSheet } from 'react-native';
+import { Stack, router } from 'expo-router';
+import { MapPin, Clock, DollarSign, Search, Plus, X, ChevronRight, Users, Star, CheckCircle } from 'lucide-react-native';
 import { useStore } from '@/lib/store';
 import { useAdvancedFeatures, type JobPosting, type SkillListing } from '@/lib/advancedFeatures';
 import * as Haptics from 'expo-haptics';
@@ -55,26 +53,6 @@ const MOCK_JOBS: JobPosting[] = [
     status: 'open',
     createdAt: '2025-01-03',
   },
-  {
-    id: '3',
-    posterId: '3',
-    posterName: 'Sarah M.',
-    posterAvatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100',
-    posterType: 'individual',
-    title: 'Part-time Nanny',
-    description: 'Looking for a caring nanny to help with two children (ages 3 and 5) on weekday afternoons.',
-    type: 'part_time',
-    category: 'Other',
-    skills: ['Childcare', 'First Aid', 'Patience'],
-    location: 'Dallas, TX',
-    isRemote: false,
-    salary: { min: 20, max: 25, currency: 'USD', period: 'hourly' },
-    requirements: ['Experience with young children', 'CPR certified', 'Background check'],
-    benefits: ['Flexible hours', 'Family environment'],
-    applicationsCount: 5,
-    status: 'open',
-    createdAt: '2025-01-07',
-  },
 ];
 
 const MOCK_SKILLS: SkillListing[] = [
@@ -84,7 +62,7 @@ const MOCK_SKILLS: SkillListing[] = [
     userName: 'David Okonkwo',
     userAvatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100',
     title: 'Professional Photographer',
-    description: 'Specializing in portraits, events, and product photography. 8 years of experience capturing beautiful moments.',
+    description: 'Specializing in portraits, events, and product photography. 8 years of experience.',
     category: 'Creative',
     skills: ['Portrait Photography', 'Event Coverage', 'Photo Editing'],
     hourlyRate: 75,
@@ -105,7 +83,7 @@ const MOCK_SKILLS: SkillListing[] = [
     userName: 'Fatou Diallo',
     userAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100',
     title: 'Professional Braider & Hair Stylist',
-    description: 'Expert in all African braiding styles including knotless braids, cornrows, twists, and locs. Mobile service available.',
+    description: 'Expert in all African braiding styles including knotless braids, cornrows, twists, and locs.',
     category: 'Beauty',
     skills: ['Braiding', 'Locs', 'Natural Hair Care'],
     hourlyRate: 50,
@@ -164,33 +142,32 @@ export default function JobBoardScreen() {
     return matchesSearch && matchesCategory;
   });
 
-  const handleBack = () => {
-    router.back();
-  };
-
   return (
-    <SafeAreaView className="flex-1 bg-[#FAF7F2]" edges={['top']}>
-      {/* Custom Header */}
-      <View className="flex-row items-center justify-between px-4 py-3 bg-white border-b border-gray-100">
-        <Pressable onPress={handleBack} className="p-2 -ml-2">
-          <ChevronLeft size={24} color="#1B4D3E" />
-        </Pressable>
-        <Text className="text-lg font-bold text-gray-900">Jobs & Skills</Text>
-        <Pressable onPress={() => setShowPostJob(true)} className="bg-amber-100 p-2 rounded-full">
-          <Plus size={20} color="#D4673A" />
-        </Pressable>
-      </View>
+    <View style={styles.container}>
+      <Stack.Screen
+        options={{
+          headerShown: true,
+          title: 'Jobs & Skills',
+          headerStyle: { backgroundColor: '#FAF7F2' },
+          headerTintColor: '#1B4D3E',
+          headerRight: () => (
+            <Pressable onPress={() => setShowPostJob(true)} style={styles.headerButton}>
+              <Plus size={20} color="#D4673A" />
+            </Pressable>
+          ),
+        }}
+      />
 
       {/* Tabs */}
-      <View className="flex-row mx-4 mt-2 bg-gray-100 rounded-xl p-1">
+      <View style={styles.tabContainer}>
         <Pressable
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             setActiveTab('jobs');
           }}
-          className={`flex-1 py-2.5 rounded-lg ${activeTab === 'jobs' ? 'bg-white shadow-sm' : ''}`}
+          style={[styles.tab, activeTab === 'jobs' && styles.tabActive]}
         >
-          <Text className={`text-center font-semibold ${activeTab === 'jobs' ? 'text-gray-900' : 'text-gray-500'}`}>
+          <Text style={[styles.tabText, activeTab === 'jobs' && styles.tabTextActive]}>
             Job Board
           </Text>
         </Pressable>
@@ -199,22 +176,22 @@ export default function JobBoardScreen() {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             setActiveTab('skills');
           }}
-          className={`flex-1 py-2.5 rounded-lg ${activeTab === 'skills' ? 'bg-white shadow-sm' : ''}`}
+          style={[styles.tab, activeTab === 'skills' && styles.tabActive]}
         >
-          <Text className={`text-center font-semibold ${activeTab === 'skills' ? 'text-gray-900' : 'text-gray-500'}`}>
+          <Text style={[styles.tabText, activeTab === 'skills' && styles.tabTextActive]}>
             Hire Skills
           </Text>
         </Pressable>
       </View>
 
       {/* Search */}
-      <View className="mx-4 mt-4 flex-row items-center bg-white rounded-xl px-4 py-3">
+      <View style={styles.searchContainer}>
         <Search size={20} color="#9CA3AF" />
         <TextInput
           value={searchQuery}
           onChangeText={setSearchQuery}
           placeholder={activeTab === 'jobs' ? 'Search jobs...' : 'Search skills...'}
-          className="flex-1 ml-3 text-gray-900"
+          style={styles.searchInput}
           placeholderTextColor="#9CA3AF"
         />
       </View>
@@ -224,9 +201,8 @@ export default function JobBoardScreen() {
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          className="mt-3 px-4"
-          style={{ flexGrow: 0 }}
-          contentContainerStyle={{ paddingRight: 16 }}
+          style={styles.categoriesScroll}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingRight: 32 }}
         >
           {JOB_CATEGORIES.map((cat) => (
             <Pressable
@@ -235,9 +211,9 @@ export default function JobBoardScreen() {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 setSelectedCategory(cat);
               }}
-              className={`px-4 py-2 rounded-full mr-2 ${selectedCategory === cat ? 'bg-emerald-800' : 'bg-white'}`}
+              style={[styles.categoryPill, selectedCategory === cat && styles.categoryPillActive]}
             >
-              <Text className={`font-medium ${selectedCategory === cat ? 'text-white' : 'text-gray-700'}`}>
+              <Text style={[styles.categoryText, selectedCategory === cat && styles.categoryTextActive]}>
                 {cat}
               </Text>
             </Pressable>
@@ -245,139 +221,135 @@ export default function JobBoardScreen() {
         </ScrollView>
       )}
 
-      <ScrollView className="flex-1 mt-4" showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {activeTab === 'jobs' ? (
-          <View className="px-4">
-            {filteredJobs.map((job, index) => (
-              <Animated.View key={job.id} entering={FadeInDown.delay(index * 100)}>
-                <Pressable
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    setSelectedJob(job);
-                  }}
-                  className="bg-white rounded-2xl p-4 mb-3 shadow-sm"
-                >
-                  <View className="flex-row items-start">
-                    <Image source={{ uri: job.posterAvatar }} className="w-12 h-12 rounded-xl" />
-                    <View className="flex-1 ml-3">
-                      <Text className="text-gray-900 font-bold text-lg">{job.title}</Text>
-                      <Text className="text-gray-600 text-sm">{job.businessName ?? job.posterName}</Text>
-                    </View>
-                    <View className={`px-2 py-1 rounded-full ${job.isRemote ? 'bg-blue-100' : 'bg-gray-100'}`}>
-                      <Text className={`text-xs font-medium ${job.isRemote ? 'text-blue-700' : 'text-gray-600'}`}>
-                        {job.isRemote ? 'Remote' : 'On-site'}
-                      </Text>
-                    </View>
+          <View style={styles.content}>
+            {filteredJobs.map((job) => (
+              <Pressable
+                key={job.id}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setSelectedJob(job);
+                }}
+                style={styles.card}
+              >
+                <View style={styles.cardHeader}>
+                  <Image source={{ uri: job.posterAvatar }} style={styles.avatar} />
+                  <View style={styles.cardHeaderText}>
+                    <Text style={styles.cardTitle}>{job.title}</Text>
+                    <Text style={styles.cardSubtitle}>{job.businessName ?? job.posterName}</Text>
                   </View>
-
-                  <Text className="text-gray-600 text-sm mt-3" numberOfLines={2}>{job.description}</Text>
-
-                  <View className="flex-row flex-wrap mt-3 gap-2">
-                    <View className="flex-row items-center bg-emerald-50 px-2 py-1 rounded-full">
-                      <DollarSign size={12} color="#059669" />
-                      <Text className="text-emerald-700 text-xs ml-1">{getSalaryDisplay(job.salary)}</Text>
-                    </View>
-                    <View className="flex-row items-center bg-amber-50 px-2 py-1 rounded-full">
-                      <Clock size={12} color="#D4673A" />
-                      <Text className="text-amber-700 text-xs ml-1">{getJobTypeLabel(job.type)}</Text>
-                    </View>
-                    <View className="flex-row items-center bg-gray-100 px-2 py-1 rounded-full">
-                      <MapPin size={12} color="#6B7280" />
-                      <Text className="text-gray-600 text-xs ml-1">{job.location}</Text>
-                    </View>
+                  <View style={[styles.badge, job.isRemote ? styles.badgeBlue : styles.badgeGray]}>
+                    <Text style={[styles.badgeText, job.isRemote ? styles.badgeTextBlue : styles.badgeTextGray]}>
+                      {job.isRemote ? 'Remote' : 'On-site'}
+                    </Text>
                   </View>
+                </View>
 
-                  <View className="flex-row items-center justify-between mt-4 pt-3 border-t border-gray-100">
-                    <View className="flex-row items-center">
-                      <Users size={14} color="#6B7280" />
-                      <Text className="text-gray-500 text-sm ml-1">{job.applicationsCount} applicants</Text>
-                    </View>
-                    <View className="flex-row items-center">
-                      <Text className="text-emerald-700 font-medium">Apply</Text>
-                      <ChevronRight size={16} color="#047857" />
-                    </View>
+                <Text style={styles.cardDescription} numberOfLines={2}>{job.description}</Text>
+
+                <View style={styles.tagsRow}>
+                  <View style={styles.tagGreen}>
+                    <DollarSign size={12} color="#059669" />
+                    <Text style={styles.tagGreenText}>{getSalaryDisplay(job.salary)}</Text>
                   </View>
-                </Pressable>
-              </Animated.View>
+                  <View style={styles.tagAmber}>
+                    <Clock size={12} color="#D4673A" />
+                    <Text style={styles.tagAmberText}>{getJobTypeLabel(job.type)}</Text>
+                  </View>
+                  <View style={styles.tagGray}>
+                    <MapPin size={12} color="#6B7280" />
+                    <Text style={styles.tagGrayText}>{job.location}</Text>
+                  </View>
+                </View>
+
+                <View style={styles.cardFooter}>
+                  <View style={styles.footerLeft}>
+                    <Users size={14} color="#6B7280" />
+                    <Text style={styles.footerText}>{job.applicationsCount} applicants</Text>
+                  </View>
+                  <View style={styles.footerRight}>
+                    <Text style={styles.applyText}>Apply</Text>
+                    <ChevronRight size={16} color="#047857" />
+                  </View>
+                </View>
+              </Pressable>
             ))}
           </View>
         ) : (
-          <View className="px-4">
-            {allSkills.map((skill, index) => (
-              <Animated.View key={skill.id} entering={FadeInDown.delay(index * 100)}>
-                <Pressable
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    setSelectedSkill(skill);
-                  }}
-                  className="bg-white rounded-2xl p-4 mb-3 shadow-sm"
-                >
-                  <View className="flex-row items-start">
-                    <Image source={{ uri: skill.userAvatar }} className="w-14 h-14 rounded-full" />
-                    <View className="flex-1 ml-3">
-                      <View className="flex-row items-center">
-                        <Text className="text-gray-900 font-bold text-lg">{skill.userName}</Text>
-                        {skill.isVerified && (
-                          <CheckCircle size={16} color="#059669" style={{ marginLeft: 6 }} />
-                        )}
-                      </View>
-                      <Text className="text-emerald-700 font-medium">{skill.title}</Text>
-                      <View className="flex-row items-center mt-1">
-                        <Star size={14} color="#F59E0B" fill="#F59E0B" />
-                        <Text className="text-gray-700 text-sm ml-1">{skill.rating}</Text>
-                        <Text className="text-gray-400 text-sm ml-1">({skill.completedJobs} jobs)</Text>
-                      </View>
+          <View style={styles.content}>
+            {allSkills.map((skill) => (
+              <Pressable
+                key={skill.id}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setSelectedSkill(skill);
+                }}
+                style={styles.card}
+              >
+                <View style={styles.cardHeader}>
+                  <Image source={{ uri: skill.userAvatar }} style={styles.avatarRound} />
+                  <View style={styles.cardHeaderText}>
+                    <View style={styles.nameRow}>
+                      <Text style={styles.cardTitle}>{skill.userName}</Text>
+                      {skill.isVerified && <CheckCircle size={16} color="#059669" style={{ marginLeft: 6 }} />}
+                    </View>
+                    <Text style={styles.skillTitle}>{skill.title}</Text>
+                    <View style={styles.ratingRow}>
+                      <Star size={14} color="#F59E0B" fill="#F59E0B" />
+                      <Text style={styles.ratingText}>{skill.rating}</Text>
+                      <Text style={styles.ratingJobs}>({skill.completedJobs} jobs)</Text>
                     </View>
                   </View>
+                </View>
 
-                  <Text className="text-gray-600 text-sm mt-3" numberOfLines={2}>{skill.description}</Text>
+                <Text style={styles.cardDescription} numberOfLines={2}>{skill.description}</Text>
 
-                  <View className="flex-row flex-wrap mt-3 gap-2">
-                    {skill.skills.slice(0, 3).map((s, idx) => (
-                      <View key={idx} className="bg-gray-100 px-3 py-1 rounded-full">
-                        <Text className="text-gray-700 text-xs">{s}</Text>
-                      </View>
-                    ))}
-                  </View>
+                <View style={styles.skillTags}>
+                  {skill.skills.slice(0, 3).map((s, idx) => (
+                    <View key={idx} style={styles.skillTag}>
+                      <Text style={styles.skillTagText}>{s}</Text>
+                    </View>
+                  ))}
+                </View>
 
-                  <View className="flex-row items-center justify-between mt-4 pt-3 border-t border-gray-100">
-                    <Text className="text-emerald-700 font-bold text-lg">
-                      ${skill.hourlyRate}/hr
+                <View style={styles.cardFooter}>
+                  <Text style={styles.rateText}>${skill.hourlyRate}/hr</Text>
+                  <View style={[styles.availabilityBadge, skill.availability === 'available' ? styles.availableGreen : styles.availableGray]}>
+                    <Text style={[styles.availabilityText, skill.availability === 'available' ? styles.availableTextGreen : styles.availableTextGray]}>
+                      {skill.availability}
                     </Text>
-                    <View className={`px-3 py-1 rounded-full ${skill.availability === 'available' ? 'bg-green-100' : 'bg-gray-100'}`}>
-                      <Text className={`text-sm font-medium capitalize ${skill.availability === 'available' ? 'text-green-700' : 'text-gray-600'}`}>
-                        {skill.availability}
-                      </Text>
-                    </View>
                   </View>
-                </Pressable>
-              </Animated.View>
+                </View>
+              </Pressable>
             ))}
           </View>
         )}
 
-        <View className="h-8" />
+        <View style={{ height: 32 }} />
       </ScrollView>
 
       {/* Post Job Modal */}
-      <Modal visible={showPostJob} animationType="slide" presentationStyle="pageSheet">
-        <PostJobModal onClose={() => setShowPostJob(false)} onSubmit={addJobPosting} />
-      </Modal>
+      {showPostJob && (
+        <Modal visible={true} animationType="slide" presentationStyle="pageSheet">
+          <PostJobModal onClose={() => setShowPostJob(false)} onSubmit={addJobPosting} />
+        </Modal>
+      )}
 
       {/* Job Detail Modal */}
-      <Modal visible={!!selectedJob} animationType="slide" presentationStyle="pageSheet">
-        {selectedJob && (
+      {selectedJob && (
+        <Modal visible={true} animationType="slide" presentationStyle="pageSheet">
           <JobDetailModal job={selectedJob} onClose={() => setSelectedJob(null)} />
-        )}
-      </Modal>
+        </Modal>
+      )}
 
       {/* Skill Detail Modal */}
-      <Modal visible={!!selectedSkill} animationType="slide" presentationStyle="pageSheet">
-        {selectedSkill && (
+      {selectedSkill && (
+        <Modal visible={true} animationType="slide" presentationStyle="pageSheet">
           <SkillDetailModal skill={selectedSkill} onClose={() => setSelectedSkill(null)} />
-        )}
-      </Modal>
-    </SafeAreaView>
+        </Modal>
+      )}
+    </View>
   );
 }
 
@@ -406,12 +378,7 @@ function PostJobModal({ onClose, onSubmit }: { onClose: () => void; onSubmit?: (
       skills: [],
       location: location.trim() || 'Not specified',
       isRemote,
-      salary: salary ? {
-        min: parseInt(salary),
-        max: parseInt(salary) + 10,
-        currency: 'USD',
-        period: 'hourly',
-      } : undefined,
+      salary: salary ? { min: parseInt(salary), max: parseInt(salary) + 10, currency: 'USD', period: 'hourly' } : undefined,
       requirements: [],
       benefits: [],
       applicationsCount: 0,
@@ -425,171 +392,79 @@ function PostJobModal({ onClose, onSubmit }: { onClose: () => void; onSubmit?: (
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#FAF7F2' }}>
-      <View className="flex-row items-center justify-between p-4 border-b border-gray-200 bg-white">
-        <Pressable onPress={onClose}>
-          <X size={24} color="#6B7280" />
-        </Pressable>
-        <Text className="text-lg font-bold text-gray-900">Post a Job</Text>
+    <View style={modalStyles.container}>
+      <View style={modalStyles.header}>
+        <Pressable onPress={onClose}><X size={24} color="#6B7280" /></Pressable>
+        <Text style={modalStyles.headerTitle}>Post a Job</Text>
         <Pressable
           onPress={handleSubmit}
           disabled={!title.trim() || !description.trim()}
-          className={`px-4 py-2 rounded-full ${title.trim() && description.trim() ? 'bg-emerald-800' : 'bg-gray-200'}`}
+          style={[modalStyles.submitButton, title.trim() && description.trim() ? modalStyles.submitActive : modalStyles.submitDisabled]}
         >
-          <Text className={`font-semibold ${title.trim() && description.trim() ? 'text-white' : 'text-gray-400'}`}>
-            Post
-          </Text>
+          <Text style={[modalStyles.submitText, title.trim() && description.trim() ? modalStyles.submitTextActive : modalStyles.submitTextDisabled]}>Post</Text>
         </Pressable>
       </View>
 
-      <ScrollView className="flex-1 p-4">
-        <Text className="text-gray-700 font-medium mb-2">Job Title</Text>
-        <TextInput
-          value={title}
-          onChangeText={setTitle}
-          placeholder="e.g., Line Cook, Web Developer"
-          className="bg-white p-4 rounded-xl text-gray-900 mb-4"
-        />
+      <ScrollView style={modalStyles.content}>
+        <Text style={modalStyles.label}>Job Title</Text>
+        <TextInput value={title} onChangeText={setTitle} placeholder="e.g., Line Cook, Web Developer" style={modalStyles.input} />
 
-        <Text className="text-gray-700 font-medium mb-2">Description</Text>
-        <TextInput
-          value={description}
-          onChangeText={setDescription}
-          placeholder="Describe the role and responsibilities..."
-          className="bg-white p-4 rounded-xl text-gray-900 mb-4"
-          multiline
-          numberOfLines={4}
-          style={{ minHeight: 100 }}
-        />
+        <Text style={modalStyles.label}>Description</Text>
+        <TextInput value={description} onChangeText={setDescription} placeholder="Describe the role..." style={[modalStyles.input, { minHeight: 100 }]} multiline />
 
-        <Text className="text-gray-700 font-medium mb-2">Location</Text>
-        <TextInput
-          value={location}
-          onChangeText={setLocation}
-          placeholder="e.g., Houston, TX"
-          className="bg-white p-4 rounded-xl text-gray-900 mb-4"
-        />
+        <Text style={modalStyles.label}>Location</Text>
+        <TextInput value={location} onChangeText={setLocation} placeholder="e.g., Houston, TX" style={modalStyles.input} />
 
-        <View className="flex-row items-center mb-4">
-          <Pressable
-            onPress={() => setIsRemote(!isRemote)}
-            className={`w-6 h-6 rounded-md border-2 mr-3 items-center justify-center ${isRemote ? 'bg-emerald-800 border-emerald-800' : 'border-gray-300'}`}
-          >
+        <View style={modalStyles.checkboxRow}>
+          <Pressable onPress={() => setIsRemote(!isRemote)} style={[modalStyles.checkbox, isRemote && modalStyles.checkboxActive]}>
             {isRemote && <CheckCircle size={14} color="white" />}
           </Pressable>
-          <Text className="text-gray-700">This is a remote position</Text>
+          <Text style={modalStyles.checkboxLabel}>This is a remote position</Text>
         </View>
 
-        <Text className="text-gray-700 font-medium mb-2">Hourly Rate ($)</Text>
-        <TextInput
-          value={salary}
-          onChangeText={setSalary}
-          placeholder="e.g., 20"
-          keyboardType="numeric"
-          className="bg-white p-4 rounded-xl text-gray-900 mb-4"
-        />
+        <Text style={modalStyles.label}>Hourly Rate ($)</Text>
+        <TextInput value={salary} onChangeText={setSalary} placeholder="e.g., 20" keyboardType="numeric" style={modalStyles.input} />
 
-        <Text className="text-gray-700 font-medium mb-2">Job Type</Text>
-        <View className="flex-row flex-wrap gap-2 mb-4">
+        <Text style={modalStyles.label}>Job Type</Text>
+        <View style={modalStyles.typeRow}>
           {(['full_time', 'part_time', 'contract', 'gig'] as const).map((type) => (
-            <Pressable
-              key={type}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setJobType(type);
-              }}
-              className={`px-4 py-2 rounded-full ${jobType === type ? 'bg-emerald-800' : 'bg-white'}`}
-            >
-              <Text className={`font-medium capitalize ${jobType === type ? 'text-white' : 'text-gray-700'}`}>
-                {type.replace('_', '-')}
-              </Text>
+            <Pressable key={type} onPress={() => setJobType(type)} style={[modalStyles.typePill, jobType === type && modalStyles.typePillActive]}>
+              <Text style={[modalStyles.typeText, jobType === type && modalStyles.typeTextActive]}>{type.replace('_', '-')}</Text>
             </Pressable>
           ))}
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 function JobDetailModal({ job, onClose }: { job: JobPosting; onClose: () => void }) {
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#FAF7F2' }}>
-      <View className="flex-row items-center justify-between p-4 border-b border-gray-200 bg-white">
-        <Pressable onPress={onClose}>
-          <X size={24} color="#6B7280" />
-        </Pressable>
-        <Text className="text-lg font-bold text-gray-900">Job Details</Text>
+    <View style={modalStyles.container}>
+      <View style={modalStyles.header}>
+        <Pressable onPress={onClose}><X size={24} color="#6B7280" /></Pressable>
+        <Text style={modalStyles.headerTitle}>Job Details</Text>
         <View style={{ width: 24 }} />
       </View>
 
-      <ScrollView className="flex-1 p-4">
-        <View className="bg-white rounded-2xl p-4 mb-4">
-          <View className="flex-row items-start">
-            <Image source={{ uri: job.posterAvatar }} className="w-16 h-16 rounded-xl" />
-            <View className="flex-1 ml-4">
-              <Text className="text-gray-900 font-bold text-xl">{job.title}</Text>
-              <Text className="text-emerald-700 font-medium">{job.businessName ?? job.posterName}</Text>
-              <View className="flex-row items-center mt-1">
+      <ScrollView style={modalStyles.content}>
+        <View style={modalStyles.card}>
+          <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+            <Image source={{ uri: job.posterAvatar }} style={{ width: 64, height: 64, borderRadius: 12 }} />
+            <View style={{ flex: 1, marginLeft: 16 }}>
+              <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#111827' }}>{job.title}</Text>
+              <Text style={{ color: '#047857', fontWeight: '500' }}>{job.businessName ?? job.posterName}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
                 <MapPin size={14} color="#6B7280" />
-                <Text className="text-gray-500 ml-1">{job.location}</Text>
+                <Text style={{ color: '#6B7280', marginLeft: 4 }}>{job.location}</Text>
               </View>
-            </View>
-          </View>
-
-          <View className="flex-row flex-wrap gap-2 mt-4">
-            <View className="bg-emerald-50 px-3 py-1.5 rounded-full">
-              <Text className="text-emerald-700 font-medium">{getSalaryDisplay(job.salary)}</Text>
-            </View>
-            <View className="bg-amber-50 px-3 py-1.5 rounded-full">
-              <Text className="text-amber-700 font-medium">{getJobTypeLabel(job.type)}</Text>
-            </View>
-            <View className={`px-3 py-1.5 rounded-full ${job.isRemote ? 'bg-blue-50' : 'bg-gray-100'}`}>
-              <Text className={job.isRemote ? 'text-blue-700 font-medium' : 'text-gray-600 font-medium'}>
-                {job.isRemote ? 'Remote' : 'On-site'}
-              </Text>
             </View>
           </View>
         </View>
 
-        <View className="bg-white rounded-2xl p-4 mb-4">
-          <Text className="text-gray-900 font-bold text-lg mb-3">Description</Text>
-          <Text className="text-gray-600 leading-6">{job.description}</Text>
-        </View>
-
-        {job.requirements && job.requirements.length > 0 && (
-          <View className="bg-white rounded-2xl p-4 mb-4">
-            <Text className="text-gray-900 font-bold text-lg mb-3">Requirements</Text>
-            {job.requirements.map((req, index) => (
-              <View key={index} className="flex-row items-start mb-2">
-                <CheckCircle size={16} color="#059669" style={{ marginTop: 2 }} />
-                <Text className="text-gray-600 ml-2 flex-1">{req}</Text>
-              </View>
-            ))}
-          </View>
-        )}
-
-        {job.benefits && job.benefits.length > 0 && (
-          <View className="bg-white rounded-2xl p-4 mb-4">
-            <Text className="text-gray-900 font-bold text-lg mb-3">Benefits</Text>
-            {job.benefits.map((benefit, index) => (
-              <View key={index} className="flex-row items-start mb-2">
-                <Star size={16} color="#F59E0B" style={{ marginTop: 2 }} />
-                <Text className="text-gray-600 ml-2 flex-1">{benefit}</Text>
-              </View>
-            ))}
-          </View>
-        )}
-
-        <View className="bg-white rounded-2xl p-4 mb-4">
-          <View className="flex-row items-center justify-between">
-            <View className="flex-row items-center">
-              <Users size={18} color="#6B7280" />
-              <Text className="text-gray-500 ml-2">{job.applicationsCount} applicants</Text>
-            </View>
-            <Text className="text-gray-400 text-sm">
-              Posted {new Date(job.createdAt).toLocaleDateString()}
-            </Text>
-          </View>
+        <View style={modalStyles.card}>
+          <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#111827', marginBottom: 12 }}>Description</Text>
+          <Text style={{ color: '#4B5563', lineHeight: 24 }}>{job.description}</Text>
         </View>
 
         <Pressable
@@ -598,71 +473,42 @@ function JobDetailModal({ job, onClose }: { job: JobPosting; onClose: () => void
             Alert.alert('Application Sent', 'Your application has been submitted successfully!');
             onClose();
           }}
-          className="bg-emerald-800 py-4 rounded-xl items-center mb-8"
+          style={modalStyles.applyButton}
         >
-          <Text className="text-white font-bold text-lg">Apply Now</Text>
+          <Text style={modalStyles.applyButtonText}>Apply Now</Text>
         </Pressable>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 function SkillDetailModal({ skill, onClose }: { skill: SkillListing; onClose: () => void }) {
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#FAF7F2' }}>
-      <View className="flex-row items-center justify-between p-4 border-b border-gray-200 bg-white">
-        <Pressable onPress={onClose}>
-          <X size={24} color="#6B7280" />
-        </Pressable>
-        <Text className="text-lg font-bold text-gray-900">Skill Provider</Text>
+    <View style={modalStyles.container}>
+      <View style={modalStyles.header}>
+        <Pressable onPress={onClose}><X size={24} color="#6B7280" /></Pressable>
+        <Text style={modalStyles.headerTitle}>Skill Provider</Text>
         <View style={{ width: 24 }} />
       </View>
 
-      <ScrollView className="flex-1 p-4">
-        <View className="bg-white rounded-2xl p-4 mb-4 items-center">
-          <Image source={{ uri: skill.userAvatar }} className="w-24 h-24 rounded-full" />
-          <View className="flex-row items-center mt-3">
-            <Text className="text-gray-900 font-bold text-xl">{skill.userName}</Text>
-            {skill.isVerified && (
-              <CheckCircle size={18} color="#059669" style={{ marginLeft: 6 }} />
-            )}
+      <ScrollView style={modalStyles.content}>
+        <View style={[modalStyles.card, { alignItems: 'center' }]}>
+          <Image source={{ uri: skill.userAvatar }} style={{ width: 96, height: 96, borderRadius: 48 }} />
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 12 }}>
+            <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#111827' }}>{skill.userName}</Text>
+            {skill.isVerified && <CheckCircle size={18} color="#059669" style={{ marginLeft: 6 }} />}
           </View>
-          <Text className="text-emerald-700 font-medium text-lg mt-1">{skill.title}</Text>
-
-          <View className="flex-row items-center mt-2">
+          <Text style={{ color: '#047857', fontWeight: '500', fontSize: 18, marginTop: 4 }}>{skill.title}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
             <Star size={18} color="#F59E0B" fill="#F59E0B" />
-            <Text className="text-gray-700 font-bold ml-1">{skill.rating}</Text>
-            <Text className="text-gray-400 ml-1">({skill.completedJobs} jobs completed)</Text>
+            <Text style={{ fontWeight: 'bold', color: '#374151', marginLeft: 4 }}>{skill.rating}</Text>
+            <Text style={{ color: '#9CA3AF', marginLeft: 4 }}>({skill.completedJobs} jobs)</Text>
           </View>
         </View>
 
-        <View className="bg-white rounded-2xl p-4 mb-4">
-          <Text className="text-gray-900 font-bold text-lg mb-3">About</Text>
-          <Text className="text-gray-600 leading-6">{skill.description}</Text>
-        </View>
-
-        <View className="bg-white rounded-2xl p-4 mb-4">
-          <Text className="text-gray-900 font-bold text-lg mb-3">Skills</Text>
-          <View className="flex-row flex-wrap gap-2">
-            {skill.skills.map((s, index) => (
-              <View key={index} className="bg-emerald-50 px-3 py-1.5 rounded-full">
-                <Text className="text-emerald-700 font-medium">{s}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
-
-        <View className="bg-white rounded-2xl p-4 mb-4">
-          <View className="flex-row items-center justify-between">
-            <Text className="text-gray-500">Hourly Rate</Text>
-            <Text className="text-emerald-700 font-bold text-xl">
-              ${skill.hourlyRate ?? 0}/hr
-            </Text>
-          </View>
-          <View className="flex-row items-center justify-between mt-2">
-            <Text className="text-gray-500">Availability</Text>
-            <Text className="text-gray-700 font-medium capitalize">{skill.availability}</Text>
-          </View>
+        <View style={modalStyles.card}>
+          <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#111827', marginBottom: 12 }}>About</Text>
+          <Text style={{ color: '#4B5563', lineHeight: 24 }}>{skill.description}</Text>
         </View>
 
         <Pressable
@@ -671,11 +517,98 @@ function SkillDetailModal({ skill, onClose }: { skill: SkillListing; onClose: ()
             Alert.alert('Message Sent', `Your message has been sent to ${skill.userName}!`);
             onClose();
           }}
-          className="bg-emerald-800 py-4 rounded-xl items-center mb-8"
+          style={modalStyles.applyButton}
         >
-          <Text className="text-white font-bold text-lg">Contact {skill.userName.split(' ')[0]}</Text>
+          <Text style={modalStyles.applyButtonText}>Contact {skill.userName.split(' ')[0]}</Text>
         </Pressable>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#FAF7F2' },
+  headerButton: { backgroundColor: '#FEF3C7', padding: 8, borderRadius: 20 },
+  tabContainer: { flexDirection: 'row', marginHorizontal: 16, marginTop: 8, backgroundColor: '#F3F4F6', borderRadius: 12, padding: 4 },
+  tab: { flex: 1, paddingVertical: 10, borderRadius: 8 },
+  tabActive: { backgroundColor: 'white', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2 },
+  tabText: { textAlign: 'center', fontWeight: '600', color: '#6B7280' },
+  tabTextActive: { color: '#111827' },
+  searchContainer: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginTop: 16, backgroundColor: 'white', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12 },
+  searchInput: { flex: 1, marginLeft: 12, color: '#111827' },
+  categoriesScroll: { marginTop: 12, flexGrow: 0 },
+  categoryPill: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, marginRight: 8, backgroundColor: 'white' },
+  categoryPillActive: { backgroundColor: '#065F46' },
+  categoryText: { fontWeight: '500', color: '#374151' },
+  categoryTextActive: { color: 'white' },
+  scrollView: { flex: 1, marginTop: 16 },
+  content: { paddingHorizontal: 16 },
+  card: { backgroundColor: 'white', borderRadius: 16, padding: 16, marginBottom: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2 },
+  cardHeader: { flexDirection: 'row', alignItems: 'flex-start' },
+  avatar: { width: 48, height: 48, borderRadius: 12 },
+  avatarRound: { width: 56, height: 56, borderRadius: 28 },
+  cardHeaderText: { flex: 1, marginLeft: 12 },
+  cardTitle: { fontSize: 18, fontWeight: 'bold', color: '#111827' },
+  cardSubtitle: { color: '#4B5563', fontSize: 14 },
+  badge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 20 },
+  badgeBlue: { backgroundColor: '#DBEAFE' },
+  badgeGray: { backgroundColor: '#F3F4F6' },
+  badgeText: { fontSize: 12, fontWeight: '500' },
+  badgeTextBlue: { color: '#1D4ED8' },
+  badgeTextGray: { color: '#4B5563' },
+  cardDescription: { color: '#4B5563', fontSize: 14, marginTop: 12 },
+  tagsRow: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 12, gap: 8 },
+  tagGreen: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#D1FAE5', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 20 },
+  tagGreenText: { color: '#047857', fontSize: 12, marginLeft: 4 },
+  tagAmber: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FEF3C7', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 20 },
+  tagAmberText: { color: '#B45309', fontSize: 12, marginLeft: 4 },
+  tagGray: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F3F4F6', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 20 },
+  tagGrayText: { color: '#4B5563', fontSize: 12, marginLeft: 4 },
+  cardFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 16, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F3F4F6' },
+  footerLeft: { flexDirection: 'row', alignItems: 'center' },
+  footerText: { color: '#6B7280', fontSize: 14, marginLeft: 4 },
+  footerRight: { flexDirection: 'row', alignItems: 'center' },
+  applyText: { color: '#047857', fontWeight: '500' },
+  nameRow: { flexDirection: 'row', alignItems: 'center' },
+  skillTitle: { color: '#047857', fontWeight: '500' },
+  ratingRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
+  ratingText: { color: '#374151', fontSize: 14, marginLeft: 4 },
+  ratingJobs: { color: '#9CA3AF', fontSize: 14, marginLeft: 4 },
+  skillTags: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 12, gap: 8 },
+  skillTag: { backgroundColor: '#F3F4F6', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20 },
+  skillTagText: { color: '#374151', fontSize: 12 },
+  rateText: { color: '#047857', fontWeight: 'bold', fontSize: 18 },
+  availabilityBadge: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20 },
+  availableGreen: { backgroundColor: '#D1FAE5' },
+  availableGray: { backgroundColor: '#F3F4F6' },
+  availabilityText: { fontSize: 14, fontWeight: '500', textTransform: 'capitalize' },
+  availableTextGreen: { color: '#047857' },
+  availableTextGray: { color: '#4B5563' },
+});
+
+const modalStyles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#FAF7F2' },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderBottomWidth: 1, borderBottomColor: '#E5E7EB', backgroundColor: 'white' },
+  headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#111827' },
+  content: { flex: 1, padding: 16 },
+  card: { backgroundColor: 'white', borderRadius: 16, padding: 16, marginBottom: 16 },
+  label: { color: '#374151', fontWeight: '500', marginBottom: 8 },
+  input: { backgroundColor: 'white', padding: 16, borderRadius: 12, color: '#111827', marginBottom: 16 },
+  checkboxRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
+  checkbox: { width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: '#D1D5DB', marginRight: 12, alignItems: 'center', justifyContent: 'center' },
+  checkboxActive: { backgroundColor: '#065F46', borderColor: '#065F46' },
+  checkboxLabel: { color: '#374151' },
+  typeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
+  typePill: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: 'white' },
+  typePillActive: { backgroundColor: '#065F46' },
+  typeText: { fontWeight: '500', color: '#374151', textTransform: 'capitalize' },
+  typeTextActive: { color: 'white' },
+  submitButton: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 },
+  submitActive: { backgroundColor: '#065F46' },
+  submitDisabled: { backgroundColor: '#E5E7EB' },
+  submitText: { fontWeight: '600' },
+  submitTextActive: { color: 'white' },
+  submitTextDisabled: { color: '#9CA3AF' },
+  applyButton: { backgroundColor: '#065F46', paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginBottom: 32 },
+  applyButtonText: { color: 'white', fontWeight: 'bold', fontSize: 18 },
+});
