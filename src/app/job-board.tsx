@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { View, Text, ScrollView, Pressable, Image, TextInput, Modal, Alert } from 'react-native';
-import { Stack } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Briefcase, MapPin, Clock, DollarSign, Search, Filter, Plus, X, ChevronRight, Users, Star, CheckCircle } from 'lucide-react-native';
+import { Briefcase, MapPin, Clock, DollarSign, Search, Filter, Plus, X, ChevronRight, Users, Star, CheckCircle, ArrowLeft } from 'lucide-react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useStore } from '@/lib/store';
 import { useAdvancedFeatures, type JobPosting, type SkillListing } from '@/lib/advancedFeatures';
@@ -122,6 +122,7 @@ const MOCK_SKILLS: SkillListing[] = [
 ];
 
 export default function JobBoardScreen() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<'jobs' | 'skills'>('jobs');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
@@ -162,22 +163,22 @@ export default function JobBoardScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#FAF7F2' }} edges={['top']}>
-      <Stack.Screen
-        options={{
-          headerShown: true,
-          title: 'Jobs & Skills',
-          headerStyle: { backgroundColor: '#FAF7F2' },
-          headerTintColor: '#1B4D3E',
-          headerRight: () => (
-            <Pressable
-              onPress={() => setShowPostJob(true)}
-              className="mr-2 bg-amber-100 p-2 rounded-full"
-            >
-              <Plus size={20} color="#D4673A" />
-            </Pressable>
-          ),
-        }}
-      />
+      {/* Custom Header */}
+      <View className="flex-row items-center justify-between px-4 py-3 bg-white border-b border-gray-100">
+        <Pressable
+          onPress={() => router.back()}
+          className="p-2 -ml-2"
+        >
+          <ArrowLeft size={24} color="#1B4D3E" />
+        </Pressable>
+        <Text className="text-lg font-bold text-gray-900">Jobs & Skills</Text>
+        <Pressable
+          onPress={() => setShowPostJob(true)}
+          className="bg-amber-100 p-2 rounded-full"
+        >
+          <Plus size={20} color="#D4673A" />
+        </Pressable>
+      </View>
 
       {/* Tabs */}
       <View className="flex-row mx-4 mt-2 bg-gray-100 rounded-xl p-1">
