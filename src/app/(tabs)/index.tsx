@@ -24,6 +24,9 @@ import {
   HeartHandshake,
   Trophy,
   Calendar,
+  DollarSign,
+  FileText,
+  Utensils,
 } from 'lucide-react-native';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -740,6 +743,42 @@ export default function HomeScreen() {
                   <Calendar size={24} color="white" />
                   <Text className="text-white font-bold mt-2">Events+</Text>
                   <Text className="text-white/80 text-xs">Tickets & virtual</Text>
+                </LinearGradient>
+              </Pressable>
+
+              {/* Send Money - Remittance */}
+              <Pressable onPress={() => navigateTo('/remittance')}>
+                <LinearGradient
+                  colors={['#059669', '#047857']}
+                  style={{ borderRadius: 16, padding: 16, width: 140 }}
+                >
+                  <DollarSign size={24} color="white" />
+                  <Text className="text-white font-bold mt-2">Send Money</Text>
+                  <Text className="text-white/80 text-xs">Compare rates</Text>
+                </LinearGradient>
+              </Pressable>
+
+              {/* Immigration Help */}
+              <Pressable onPress={() => navigateTo('/immigration-help')}>
+                <LinearGradient
+                  colors={['#0284C7', '#0369A1']}
+                  style={{ borderRadius: 16, padding: 16, width: 140 }}
+                >
+                  <FileText size={24} color="white" />
+                  <Text className="text-white font-bold mt-2">Visa Help</Text>
+                  <Text className="text-white/80 text-xs">Immigration guide</Text>
+                </LinearGradient>
+              </Pressable>
+
+              {/* African Food Network */}
+              <Pressable onPress={() => navigateTo('/african-food')}>
+                <LinearGradient
+                  colors={['#DC2626', '#B91C1C']}
+                  style={{ borderRadius: 16, padding: 16, width: 140 }}
+                >
+                  <Utensils size={24} color="white" />
+                  <Text className="text-white font-bold mt-2">Food Network</Text>
+                  <Text className="text-white/80 text-xs">Home-cooked meals</Text>
                 </LinearGradient>
               </Pressable>
             </ScrollView>

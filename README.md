@@ -441,4 +441,61 @@ These 10 major features make AfroConnect superior to Facebook, Nextdoor, and any
 - Attendee counts and capacity limits
 - Featured events carousel
 
+## Game-Changing Features (NEW!)
+
+Three powerful features designed to make AfroConnect the go-to app for Africans worldwide:
+
+### 11. Remittance Comparison Tool (`/remittance`)
+- **Compare money transfer rates** to find the best deal when sending money to Africa
+- **12 African countries supported**: Nigeria, Ghana, Kenya, Ethiopia, South Africa, Uganda, Tanzania, Senegal, Cameroon, Egypt, Morocco, Zimbabwe
+- **5 major providers compared**: Wise, Remitly, WorldRemit, Sendwave, Western Union
+- Features:
+  - Enter send amount and select destination country
+  - See real-time exchange rates and fees from each provider
+  - Best deal automatically highlighted with savings amount
+  - Provider ratings and delivery speed info
+  - Quick preset amounts ($100, $250, $500, $1000)
+  - Money-saving tips section
+  - Direct links to provider apps
+
+### 12. Immigration Help Center (`/immigration-help`)
+- **Comprehensive immigration resource hub** for the African diaspora
+- **3-Tab Interface**:
+  1. **Q&A Forum**: Community questions and answers about immigration
+     - Browse questions by visa category
+     - Upvote helpful questions
+     - See answer counts and view counts
+     - Ask your own questions
+  2. **Lawyers Directory**: Find verified immigration attorneys
+     - Attorney profiles with specializations
+     - Success rates, reviews, and years of experience
+     - Consultation fees and booking options
+     - Filter by visa type expertise
+  3. **Documents Checklist**: Complete document requirements
+     - Organized by visa category
+     - Checkbox tracking for your application
+     - Categories: Work Visa, Student Visa, Family Visa, Green Card, Asylum, Visitor Visa
+- **6 Visa Categories**: Work (H-1B, L-1), Student (F-1, J-1), Family-Based, Green Card, Asylum, Visitor
+- Community-powered knowledge base
+
+### 13. African Food Network (`/african-food`)
+- **Order authentic African food from home cooks** in your community
+- **Featured Home Cooks**: Verified cooks with ratings, reviews, and specialties
+- **8 Cuisines**: Nigerian, Ethiopian, Ghanaian, Kenyan, Senegalese, Moroccan, South African, and more
+- Features:
+  - Browse dishes with photos, descriptions, and pricing
+  - Filter by cuisine type (flags for each country)
+  - Search dishes, cooks, or cuisines
+  - Spicy and vegetarian labels
+  - Prep time and serving size info
+  - Star ratings for each dish
+  - Save favorite dishes
+- **Shopping Cart**:
+  - Add/remove items with quantity controls
+  - Floating cart button with item count
+  - Subtotal, delivery fee, and total calculation
+  - Place order with estimated delivery time
+- **Dish Details Modal**: Full dish info with add to cart
+- Support local home cooks and taste authentic African cuisine!
+
 
