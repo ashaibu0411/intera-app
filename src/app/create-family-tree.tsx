@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { View, Text, ScrollView, Pressable, TextInput, Modal } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   TreePine,
   ChevronLeft,
@@ -310,7 +309,7 @@ export default function CreateFamilyTreeScreen() {
   );
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#FAF7F2' }} edges={['top']}>
+    <View style={{ flex: 1, backgroundColor: '#FAF7F2' }}>
       <Stack.Screen
         options={{
           headerShown: true,
@@ -496,6 +495,6 @@ export default function CreateFamilyTreeScreen() {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }

@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { View, Text, ScrollView, Pressable, TextInput, Switch } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Globe, Clock, Users, Video, MapPin, ChevronRight } from 'lucide-react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -45,7 +44,7 @@ export default function CreateLanguagePodScreen() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#FAF7F2' }} edges={['top']}>
+    <View style={{ flex: 1, backgroundColor: '#FAF7F2' }}>
       <Stack.Screen
         options={{
           headerShown: true,
@@ -284,6 +283,6 @@ export default function CreateLanguagePodScreen() {
           </Pressable>
         </View>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }

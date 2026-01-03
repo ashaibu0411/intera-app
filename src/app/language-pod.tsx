@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { View, Text, ScrollView, Pressable, Image, TextInput, Modal } from 'react-native';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Globe,
   Users,
@@ -210,19 +210,19 @@ export default function LanguagePodScreen() {
 
   if (!pod) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: '#FAF7F2' }} edges={['top']}>
+      <View style={{ flex: 1, backgroundColor: '#FAF7F2' }}>
         <Stack.Screen options={{ headerShown: true, title: 'Language Pod', headerStyle: { backgroundColor: '#FAF7F2' }, headerTintColor: '#1B4D3E' }} />
         <View className="flex-1 items-center justify-center">
           <Text className="text-gray-500">Loading...</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   const phrases = LANGUAGE_PHRASES[pod.language] || [];
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#FAF7F2' }} edges={['top']}>
+    <View style={{ flex: 1, backgroundColor: '#FAF7F2' }}>
       <Stack.Screen
         options={{
           headerShown: true,
@@ -479,6 +479,6 @@ export default function LanguagePodScreen() {
 
         <View className="h-8" />
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }

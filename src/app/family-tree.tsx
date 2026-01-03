@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { View, Text, ScrollView, Pressable, Image } from 'react-native';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   TreePine,
   Users,
@@ -131,12 +130,12 @@ export default function FamilyTreeScreen() {
 
   if (!tree) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: '#FAF7F2' }} edges={['top']}>
+      <View style={{ flex: 1, backgroundColor: '#FAF7F2' }}>
         <Stack.Screen options={{ headerShown: true, title: 'Family Tree', headerStyle: { backgroundColor: '#FAF7F2' }, headerTintColor: '#1B4D3E' }} />
         <View className="flex-1 items-center justify-center">
           <Text className="text-gray-500">Loading...</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -149,7 +148,7 @@ export default function FamilyTreeScreen() {
   ].filter(gen => gen.length > 0);
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#FAF7F2' }} edges={['top']}>
+    <View style={{ flex: 1, backgroundColor: '#FAF7F2' }}>
       <Stack.Screen
         options={{
           headerShown: true,
@@ -333,6 +332,6 @@ export default function FamilyTreeScreen() {
           </Pressable>
         </Pressable>
       )}
-    </SafeAreaView>
+    </View>
   );
 }
