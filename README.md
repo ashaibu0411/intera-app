@@ -298,6 +298,16 @@ These 10 major features make AfroConnect superior to Facebook, Nextdoor, and any
 ### 3. Susu Savings Circles (`/susu-circles`)
 - **Traditional African rotating savings system** (Susu/Esusu/Stokvel)
 - Create or join savings circles with trusted community members
+- **Privacy Settings**:
+  - Public circles: Anyone can find and request to join
+  - Private circles: Only invited members can see and join
+  - Set maximum number of members (slots)
+- **Invite Members**:
+  - Share unique invite code with trusted contacts
+  - Share invite link via WhatsApp, SMS, or any app
+  - Send direct invitations by name, phone, or email
+  - Track pending invitations
+  - Member slots progress bar showing available spots
 - **Payment Tracking System**:
   - Multiple payment methods: Card, Bank Transfer, Mobile Money (M-Pesa, Venmo), Cash
   - Real-time contribution progress bar showing who has paid
@@ -308,15 +318,17 @@ These 10 major features make AfroConnect superior to Facebook, Nextdoor, and any
   - Confirm cash/manual payments with one tap
   - Track confirmed vs pending vs late payments
   - See payment method used by each member
+  - Invite tab for managing new member invitations
 - **Member Accountability**:
   - Trust scores displayed for transparency
   - Contribution history for each member
   - Missed payment tracking
   - Total contributed amount
-- **4 Tab Interface**:
+- **5 Tab Interface**:
   - Overview: Pool size, round info, next payout recipient
   - Payments: Current round contribution status for all members
   - Members: Trust scores, contribution stats, payout status
+  - Invite (Organizers only): Share invite code/link, send direct invitations
   - History: Complete payment history grouped by round
 - Support for different contribution amounts and frequencies (weekly/biweekly/monthly)
 - View circle rules and upcoming payouts

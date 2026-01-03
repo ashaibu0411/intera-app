@@ -1,12 +1,13 @@
 import { useState, useMemo } from 'react';
-import { View, Text, ScrollView, Pressable, Image, TextInput, Modal, Alert } from 'react-native';
+import { View, Text, ScrollView, Pressable, Image, TextInput, Modal, Alert, Share } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   PiggyBank, Users, Calendar, TrendingUp, CheckCircle, Clock, Plus, X,
   ChevronRight, AlertCircle, Award, CreditCard, Banknote, Building2,
   Smartphone, Eye, EyeOff, History, Shield, AlertTriangle, Check,
-  DollarSign, UserCheck, FileText, Send, CircleDollarSign
+  DollarSign, UserCheck, FileText, Send, CircleDollarSign, UserPlus,
+  Link, Copy, Lock, Globe, Mail, Phone
 } from 'lucide-react-native';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { useStore } from '@/lib/store';
@@ -15,9 +16,11 @@ import {
   type SusuCircle,
   type SusuMember,
   type SusuContribution,
-  type SusuPayout
+  type SusuPayout,
+  type SusuInvite
 } from '@/lib/advancedFeatures';
 import * as Haptics from 'expo-haptics';
+import * as Clipboard from 'expo-clipboard';
 import { v4 as uuidv4 } from 'uuid';
 
 // Mock data with contributions
@@ -47,6 +50,10 @@ const MOCK_CIRCLES: SusuCircle[] = [
     rules: 'Contributions due by the 1st of each month. Late fees apply after 3 days.',
     contributions: [],
     createdAt: '2024-06-01',
+    isPrivate: false,
+    pendingInvites: [],
+    maxMembers: 12,
+    inviteCode: 'WEC2024',
   },
 ];
 
@@ -277,7 +284,7 @@ export default function SusuCirclesScreen() {
   );
 }
 
-type TabType = 'overview' | 'contributions' | 'members' | 'history';
+type TabType = 'overview' | 'contributions' | 'members' | 'history' | 'invite';
 
 function CircleDetailModal({ circle, contributions, onClose }: {
   circle: SusuCircle;
@@ -296,13 +303,17 @@ function CircleDetailModal({ circle, contributions, onClose }: {
   const paidCount = currentRoundContributions.filter(c => c.status === 'paid' || c.status === 'confirmed').length;
   const pendingCount = currentRoundContributions.filter(c => c.status === 'pending').length;
   const lateCount = currentRoundContributions.filter(c => c.status === 'late').length;
+  const canInvite = circle.members.length < circle.maxMembers;
 
-  const tabs: { id: TabType; label: string }[] = [
-    { id: 'overview', label: 'Overview' },
-    { id: 'contributions', label: 'Payments' },
-    { id: 'members', label: 'Members' },
-    { id: 'history', label: 'History' },
+  const tabs: { id: TabType; label: string; showAlways?: boolean }[] = [
+    { id: 'overview', label: 'Overview', showAlways: true },
+    { id: 'contributions', label: 'Payments', showAlways: true },
+    { id: 'members', label: 'Members', showAlways: true },
+    { id: 'invite', label: 'Invite', showAlways: false },
+    { id: 'history', label: 'History', showAlways: true },
   ];
+
+  const visibleTabs = tabs.filter(t => t.showAlways || isOrganizer);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#FAF7F2' }}>
@@ -310,7 +321,17 @@ function CircleDetailModal({ circle, contributions, onClose }: {
         <Pressable onPress={onClose}>
           <X size={24} color="#6B7280" />
         </Pressable>
-        <Text className="text-lg font-bold text-gray-900 flex-1 text-center" numberOfLines={1}>{circle.name}</Text>
+        <View className="flex-1 items-center">
+          <Text className="text-lg font-bold text-gray-900" numberOfLines={1}>{circle.name}</Text>
+          <View className="flex-row items-center mt-0.5">
+            {circle.isPrivate ? (
+              <Lock size={12} color="#6B7280" />
+            ) : (
+              <Globe size={12} color="#6B7280" />
+            )}
+            <Text className="text-gray-500 text-xs ml-1">{circle.isPrivate ? 'Private' : 'Public'}</Text>
+          </View>
+        </View>
         {isOrganizer && (
           <View className="bg-amber-100 px-2 py-1 rounded-full">
             <Text className="text-amber-700 text-xs font-medium">Organizer</Text>
@@ -320,22 +341,24 @@ function CircleDetailModal({ circle, contributions, onClose }: {
       </View>
 
       {/* Tabs */}
-      <View className="flex-row bg-white border-b border-gray-100">
-        {tabs.map((tab) => (
-          <Pressable
-            key={tab.id}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              setActiveTab(tab.id);
-            }}
-            className={`flex-1 py-3 ${activeTab === tab.id ? 'border-b-2 border-emerald-700' : ''}`}
-          >
-            <Text className={`text-center text-sm font-medium ${activeTab === tab.id ? 'text-emerald-700' : 'text-gray-500'}`}>
-              {tab.label}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} className="bg-white border-b border-gray-100" style={{ flexGrow: 0 }}>
+        <View className="flex-row">
+          {visibleTabs.map((tab) => (
+            <Pressable
+              key={tab.id}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setActiveTab(tab.id);
+              }}
+              className={`px-5 py-3 ${activeTab === tab.id ? 'border-b-2 border-emerald-700' : ''}`}
+            >
+              <Text className={`text-sm font-medium ${activeTab === tab.id ? 'text-emerald-700' : 'text-gray-500'}`}>
+                {tab.label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      </ScrollView>
 
       <ScrollView className="flex-1">
         {activeTab === 'overview' && (
@@ -351,6 +374,9 @@ function CircleDetailModal({ circle, contributions, onClose }: {
         )}
         {activeTab === 'members' && (
           <MembersTab circle={circle} contributions={contributions} />
+        )}
+        {activeTab === 'invite' && (
+          <InviteTab circle={circle} canInvite={canInvite} />
         )}
         {activeTab === 'history' && (
           <HistoryTab circle={circle} contributions={contributions} />
@@ -758,6 +784,228 @@ function HistoryTab({ circle, contributions }: {
   );
 }
 
+function InviteTab({ circle, canInvite }: { circle: SusuCircle; canInvite: boolean }) {
+  const currentUser = useStore((s) => s.currentUser);
+  const [inviteMethod, setInviteMethod] = useState<'link' | 'contact'>('link');
+  const [contactName, setContactName] = useState('');
+  const [contactPhone, setContactPhone] = useState('');
+  const [contactEmail, setContactEmail] = useState('');
+  const [copied, setCopied] = useState(false);
+
+  const inviteLink = `afroconnect://susu/join/${circle.id}?code=${circle.inviteCode}`;
+
+  const handleCopyLink = async () => {
+    await Clipboard.setStringAsync(inviteLink);
+    setCopied(true);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleShareLink = async () => {
+    try {
+      await Share.share({
+        message: `Join my Susu savings circle "${circle.name}" on AfroConnect!\n\nContribution: $${circle.contributionAmount} ${circle.frequency}\nMembers: ${circle.members.length}/${circle.maxMembers}\n\nUse invite code: ${circle.inviteCode}\n\nOr tap this link: ${inviteLink}`,
+        title: `Join ${circle.name} Susu Circle`,
+      });
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    } catch (error) {
+      console.log('Share error:', error);
+    }
+  };
+
+  const handleSendInvite = () => {
+    if (!contactName.trim()) return;
+
+    // In a real app, this would send an SMS/email invitation
+    Alert.alert(
+      'Invitation Sent',
+      `An invitation has been sent to ${contactName}${contactPhone ? ` at ${contactPhone}` : ''}${contactEmail ? ` (${contactEmail})` : ''}.`,
+      [{ text: 'OK' }]
+    );
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setContactName('');
+    setContactPhone('');
+    setContactEmail('');
+  };
+
+  return (
+    <View className="p-4">
+      {/* Invite Status */}
+      <View className="bg-white rounded-2xl p-4 mb-4">
+        <View className="flex-row items-center justify-between mb-3">
+          <Text className="text-gray-900 font-bold text-lg">Member Slots</Text>
+          <View className={`px-3 py-1 rounded-full ${canInvite ? 'bg-green-100' : 'bg-red-100'}`}>
+            <Text className={`text-sm font-medium ${canInvite ? 'text-green-700' : 'text-red-700'}`}>
+              {circle.members.length}/{circle.maxMembers}
+            </Text>
+          </View>
+        </View>
+        <View className="h-2 bg-gray-200 rounded-full overflow-hidden">
+          <View
+            className="h-full bg-emerald-500 rounded-full"
+            style={{ width: `${(circle.members.length / circle.maxMembers) * 100}%` }}
+          />
+        </View>
+        {!canInvite && (
+          <Text className="text-red-600 text-sm mt-2">Circle is full. No more members can join.</Text>
+        )}
+      </View>
+
+      {canInvite && (
+        <>
+          {/* Invite Code */}
+          <View className="bg-emerald-800 rounded-2xl p-4 mb-4">
+            <Text className="text-white/70 text-sm mb-1">Invite Code</Text>
+            <View className="flex-row items-center justify-between">
+              <Text className="text-white font-bold text-3xl tracking-widest">{circle.inviteCode}</Text>
+              <Pressable
+                onPress={handleCopyLink}
+                className="bg-white/20 px-4 py-2 rounded-full flex-row items-center"
+              >
+                {copied ? (
+                  <>
+                    <Check size={16} color="white" />
+                    <Text className="text-white font-medium ml-2">Copied!</Text>
+                  </>
+                ) : (
+                  <>
+                    <Copy size={16} color="white" />
+                    <Text className="text-white font-medium ml-2">Copy Link</Text>
+                  </>
+                )}
+              </Pressable>
+            </View>
+          </View>
+
+          {/* Share Button */}
+          <Pressable
+            onPress={handleShareLink}
+            className="bg-white rounded-xl p-4 mb-4 flex-row items-center"
+          >
+            <View className="w-12 h-12 rounded-full bg-blue-100 items-center justify-center">
+              <Send size={24} color="#3B82F6" />
+            </View>
+            <View className="ml-4 flex-1">
+              <Text className="text-gray-900 font-semibold">Share Invite Link</Text>
+              <Text className="text-gray-500 text-sm">Send via WhatsApp, SMS, or any app</Text>
+            </View>
+            <ChevronRight size={20} color="#9CA3AF" />
+          </Pressable>
+
+          {/* Invite Method Tabs */}
+          <View className="flex-row mb-4">
+            <Pressable
+              onPress={() => setInviteMethod('link')}
+              className={`flex-1 py-3 rounded-l-xl ${inviteMethod === 'link' ? 'bg-emerald-800' : 'bg-white'}`}
+            >
+              <Text className={`text-center font-medium ${inviteMethod === 'link' ? 'text-white' : 'text-gray-700'}`}>
+                Share Link
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setInviteMethod('contact')}
+              className={`flex-1 py-3 rounded-r-xl ${inviteMethod === 'contact' ? 'bg-emerald-800' : 'bg-white'}`}
+            >
+              <Text className={`text-center font-medium ${inviteMethod === 'contact' ? 'text-white' : 'text-gray-700'}`}>
+                Invite by Contact
+              </Text>
+            </Pressable>
+          </View>
+
+          {inviteMethod === 'contact' && (
+            <View className="bg-white rounded-2xl p-4">
+              <Text className="text-gray-900 font-semibold mb-4">Send Direct Invitation</Text>
+
+              <Text className="text-gray-700 font-medium mb-2">Name *</Text>
+              <TextInput
+                value={contactName}
+                onChangeText={setContactName}
+                placeholder="Enter their name"
+                className="bg-gray-50 p-4 rounded-xl text-gray-900 mb-4"
+              />
+
+              <Text className="text-gray-700 font-medium mb-2">Phone Number</Text>
+              <View className="flex-row items-center bg-gray-50 rounded-xl mb-4">
+                <View className="p-4">
+                  <Phone size={20} color="#6B7280" />
+                </View>
+                <TextInput
+                  value={contactPhone}
+                  onChangeText={setContactPhone}
+                  placeholder="Enter phone number"
+                  keyboardType="phone-pad"
+                  className="flex-1 p-4 text-gray-900"
+                />
+              </View>
+
+              <Text className="text-gray-700 font-medium mb-2">Email</Text>
+              <View className="flex-row items-center bg-gray-50 rounded-xl mb-4">
+                <View className="p-4">
+                  <Mail size={20} color="#6B7280" />
+                </View>
+                <TextInput
+                  value={contactEmail}
+                  onChangeText={setContactEmail}
+                  placeholder="Enter email address"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  className="flex-1 p-4 text-gray-900"
+                />
+              </View>
+
+              <Pressable
+                onPress={handleSendInvite}
+                disabled={!contactName.trim()}
+                className={`py-4 rounded-xl flex-row items-center justify-center ${contactName.trim() ? 'bg-emerald-800' : 'bg-gray-200'}`}
+              >
+                <UserPlus size={20} color={contactName.trim() ? 'white' : '#9CA3AF'} />
+                <Text className={`font-bold ml-2 ${contactName.trim() ? 'text-white' : 'text-gray-400'}`}>
+                  Send Invitation
+                </Text>
+              </Pressable>
+            </View>
+          )}
+
+          {inviteMethod === 'link' && (
+            <View className="bg-amber-50 rounded-xl p-4">
+              <View className="flex-row items-center mb-2">
+                <AlertCircle size={18} color="#D4673A" />
+                <Text className="text-amber-800 font-medium ml-2">How it works</Text>
+              </View>
+              <Text className="text-amber-700 text-sm">
+                Share the invite link or code with people you trust. They can join the circle using the AfroConnect app. Once they join, they'll appear in the Members tab and be assigned a payout position.
+              </Text>
+            </View>
+          )}
+        </>
+      )}
+
+      {/* Pending Invites */}
+      {circle.pendingInvites.length > 0 && (
+        <View className="mt-4">
+          <Text className="text-gray-900 font-bold mb-3">Pending Invitations ({circle.pendingInvites.length})</Text>
+          {circle.pendingInvites.map((invite) => (
+            <View key={invite.id} className="bg-white rounded-xl p-4 mb-2 flex-row items-center">
+              <View className="w-10 h-10 rounded-full bg-gray-100 items-center justify-center">
+                <UserPlus size={20} color="#6B7280" />
+              </View>
+              <View className="ml-3 flex-1">
+                <Text className="text-gray-900 font-medium">{invite.invitedUserName || 'Pending'}</Text>
+                <Text className="text-gray-500 text-xs">
+                  Invited {new Date(invite.createdAt).toLocaleDateString()}
+                </Text>
+              </View>
+              <View className="bg-amber-100 px-2 py-1 rounded-full">
+                <Text className="text-amber-700 text-xs font-medium">Pending</Text>
+              </View>
+            </View>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
+
 function PaymentModal({ circle, onClose, onSubmit }: {
   circle: SusuCircle;
   onClose: () => void;
@@ -864,6 +1112,12 @@ function CreateSusuModal({ onClose, onSubmit }: { onClose: () => void; onSubmit:
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [frequency, setFrequency] = useState<'weekly' | 'biweekly' | 'monthly'>('monthly');
+  const [isPrivate, setIsPrivate] = useState(false);
+  const [maxMembers, setMaxMembers] = useState('12');
+
+  const generateInviteCode = () => {
+    return Math.random().toString(36).substring(2, 8).toUpperCase();
+  };
 
   const handleSubmit = () => {
     if (!name.trim() || !amount) return;
@@ -890,7 +1144,7 @@ function CreateSusuModal({ onClose, onSubmit }: { onClose: () => void; onSubmit:
       frequency,
       startDate: new Date().toISOString(),
       currentRound: 1,
-      totalRounds: 12,
+      totalRounds: parseInt(maxMembers) || 12,
       payoutOrder: [currentUser?.id ?? 'guest'],
       nextPayoutDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
       nextPayoutRecipientId: currentUser?.id ?? 'guest',
@@ -898,6 +1152,10 @@ function CreateSusuModal({ onClose, onSubmit }: { onClose: () => void; onSubmit:
       rules: 'Contributions due by the scheduled date. Late fees may apply.',
       contributions: [],
       createdAt: new Date().toISOString(),
+      isPrivate,
+      inviteCode: generateInviteCode(),
+      pendingInvites: [],
+      maxMembers: parseInt(maxMembers) || 12,
     };
 
     onSubmit(circle);
@@ -967,6 +1225,43 @@ function CreateSusuModal({ onClose, onSubmit }: { onClose: () => void; onSubmit:
               </Text>
             </Pressable>
           ))}
+        </View>
+
+        <Text className="text-gray-700 font-medium mb-2">Maximum Members</Text>
+        <TextInput
+          value={maxMembers}
+          onChangeText={setMaxMembers}
+          placeholder="12"
+          keyboardType="numeric"
+          className="bg-white p-4 rounded-xl text-gray-900 mb-4"
+        />
+
+        {/* Privacy Toggle */}
+        <View className="bg-white rounded-xl p-4 mb-4">
+          <View className="flex-row items-center justify-between">
+            <View className="flex-row items-center flex-1">
+              <View className="w-10 h-10 rounded-full bg-emerald-100 items-center justify-center">
+                {isPrivate ? <EyeOff size={20} color="#1B4D3E" /> : <Eye size={20} color="#1B4D3E" />}
+              </View>
+              <View className="ml-3 flex-1">
+                <Text className="text-gray-900 font-semibold">Private Circle</Text>
+                <Text className="text-gray-500 text-sm">
+                  {isPrivate ? 'Only invited members can see and join' : 'Anyone can find and request to join'}
+                </Text>
+              </View>
+            </View>
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setIsPrivate(!isPrivate);
+              }}
+              className={`w-12 h-7 rounded-full p-0.5 ${isPrivate ? 'bg-emerald-600' : 'bg-gray-300'}`}
+            >
+              <Animated.View
+                className={`w-6 h-6 rounded-full bg-white shadow-sm ${isPrivate ? 'self-end' : 'self-start'}`}
+              />
+            </Pressable>
+          </View>
         </View>
 
         <View className="bg-amber-50 rounded-xl p-4 mt-4">

@@ -246,6 +246,25 @@ export interface SusuCircle {
   rules: string;
   contributions: SusuContribution[];
   createdAt: string;
+  // Privacy & Invitation settings
+  isPrivate: boolean;
+  inviteCode?: string;
+  pendingInvites: SusuInvite[];
+  maxMembers: number;
+}
+
+export interface SusuInvite {
+  id: string;
+  circleId: string;
+  invitedUserId?: string;
+  invitedUserName?: string;
+  invitedUserPhone?: string;
+  invitedUserEmail?: string;
+  invitedBy: string;
+  invitedByName: string;
+  status: 'pending' | 'accepted' | 'declined' | 'expired';
+  createdAt: string;
+  expiresAt: string;
 }
 
 export interface SusuMember {
