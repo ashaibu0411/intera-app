@@ -303,7 +303,7 @@ function CircleDetailModal({ circle, contributions, onClose }: {
   const paidCount = currentRoundContributions.filter(c => c.status === 'paid' || c.status === 'confirmed').length;
   const pendingCount = currentRoundContributions.filter(c => c.status === 'pending').length;
   const lateCount = currentRoundContributions.filter(c => c.status === 'late').length;
-  const canInvite = circle.members.length < circle.maxMembers;
+  const canInvite = circle.members.length < (circle.maxMembers ?? 12);
 
   const tabs: { id: TabType; label: string; showAlways?: boolean }[] = [
     { id: 'overview', label: 'Overview', showAlways: true },
@@ -792,7 +792,9 @@ function InviteTab({ circle, canInvite }: { circle: SusuCircle; canInvite: boole
   const [contactEmail, setContactEmail] = useState('');
   const [copied, setCopied] = useState(false);
 
-  const inviteLink = `afroconnect://susu/join/${circle.id}?code=${circle.inviteCode}`;
+  const inviteCode = circle.inviteCode ?? 'INVITE';
+  const maxMembers = circle.maxMembers ?? 12;
+  const inviteLink = `afroconnect://susu/join/${circle.id}?code=${inviteCode}`;
 
   const handleCopyLink = async () => {
     await Clipboard.setStringAsync(inviteLink);
@@ -804,7 +806,7 @@ function InviteTab({ circle, canInvite }: { circle: SusuCircle; canInvite: boole
   const handleShareLink = async () => {
     try {
       await Share.share({
-        message: `Join my Susu savings circle "${circle.name}" on AfroConnect!\n\nContribution: $${circle.contributionAmount} ${circle.frequency}\nMembers: ${circle.members.length}/${circle.maxMembers}\n\nUse invite code: ${circle.inviteCode}\n\nOr tap this link: ${inviteLink}`,
+        message: `Join my Susu savings circle "${circle.name}" on AfroConnect!\n\nContribution: $${circle.contributionAmount} ${circle.frequency}\nMembers: ${circle.members.length}/${maxMembers}\n\nUse invite code: ${inviteCode}\n\nOr tap this link: ${inviteLink}`,
         title: `Join ${circle.name} Susu Circle`,
       });
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -836,14 +838,14 @@ function InviteTab({ circle, canInvite }: { circle: SusuCircle; canInvite: boole
           <Text className="text-gray-900 font-bold text-lg">Member Slots</Text>
           <View className={`px-3 py-1 rounded-full ${canInvite ? 'bg-green-100' : 'bg-red-100'}`}>
             <Text className={`text-sm font-medium ${canInvite ? 'text-green-700' : 'text-red-700'}`}>
-              {circle.members.length}/{circle.maxMembers}
+              {circle.members.length}/{maxMembers}
             </Text>
           </View>
         </View>
         <View className="h-2 bg-gray-200 rounded-full overflow-hidden">
           <View
             className="h-full bg-emerald-500 rounded-full"
-            style={{ width: `${(circle.members.length / circle.maxMembers) * 100}%` }}
+            style={{ width: `${(circle.members.length / maxMembers) * 100}%` }}
           />
         </View>
         {!canInvite && (
@@ -857,7 +859,7 @@ function InviteTab({ circle, canInvite }: { circle: SusuCircle; canInvite: boole
           <View className="bg-emerald-800 rounded-2xl p-4 mb-4">
             <Text className="text-white/70 text-sm mb-1">Invite Code</Text>
             <View className="flex-row items-center justify-between">
-              <Text className="text-white font-bold text-3xl tracking-widest">{circle.inviteCode}</Text>
+              <Text className="text-white font-bold text-3xl tracking-widest">{inviteCode}</Text>
               <Pressable
                 onPress={handleCopyLink}
                 className="bg-white/20 px-4 py-2 rounded-full flex-row items-center"
@@ -981,10 +983,10 @@ function InviteTab({ circle, canInvite }: { circle: SusuCircle; canInvite: boole
       )}
 
       {/* Pending Invites */}
-      {circle.pendingInvites.length > 0 && (
+      {(circle.pendingInvites?.length ?? 0) > 0 && (
         <View className="mt-4">
-          <Text className="text-gray-900 font-bold mb-3">Pending Invitations ({circle.pendingInvites.length})</Text>
-          {circle.pendingInvites.map((invite) => (
+          <Text className="text-gray-900 font-bold mb-3">Pending Invitations ({circle.pendingInvites?.length ?? 0})</Text>
+          {circle.pendingInvites?.map((invite) => (
             <View key={invite.id} className="bg-white rounded-xl p-4 mb-2 flex-row items-center">
               <View className="w-10 h-10 rounded-full bg-gray-100 items-center justify-center">
                 <UserPlus size={20} color="#6B7280" />
