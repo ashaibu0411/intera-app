@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { View, Text, ScrollView, Pressable, Image, Modal } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BookOpen, Users, Globe, ChefHat, Heart, X, ChevronRight, Star, Clock, TreePine, Languages } from 'lucide-react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -158,7 +158,6 @@ const MOCK_TREES: FamilyTree[] = [
 ];
 
 export default function HeritageHubScreen() {
-  const router = useRouter();
   const [activeTab, setActiveTab] = useState('Recipes');
   const [selectedRecipe, setSelectedRecipe] = useState<TraditionalRecipe | null>(null);
 
