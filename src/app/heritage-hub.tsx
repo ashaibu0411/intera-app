@@ -466,8 +466,8 @@ export default function HeritageHubScreen() {
 
 function RecipeDetailModal({ recipe, onClose }: { recipe: TraditionalRecipe; onClose: () => void }) {
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#FAF7F2' }}>
-      <View className="flex-row items-center justify-between p-4 bg-white border-b border-gray-100">
+    <View style={{ flex: 1, backgroundColor: '#FAF7F2' }}>
+      <View className="flex-row items-center justify-between p-4 bg-white border-b border-gray-100 pt-12">
         <Pressable onPress={onClose}>
           <X size={24} color="#6B7280" />
         </Pressable>
@@ -565,6 +565,6 @@ function RecipeDetailModal({ recipe, onClose }: { recipe: TraditionalRecipe; onC
           )}
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
