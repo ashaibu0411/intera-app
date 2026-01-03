@@ -45,6 +45,62 @@ const REACTIONS = [
   { emoji: '😂', label: 'Haha', color: '#F59E0B' },
 ];
 
+// Country flag mapping
+const COUNTRY_FLAGS: Record<string, string> = {
+  'United States': '🇺🇸',
+  'USA': '🇺🇸',
+  'Nigeria': '🇳🇬',
+  'Ghana': '🇬🇭',
+  'Kenya': '🇰🇪',
+  'South Africa': '🇿🇦',
+  'Ethiopia': '🇪🇹',
+  'Tanzania': '🇹🇿',
+  'Uganda': '🇺🇬',
+  'Cameroon': '🇨🇲',
+  'Senegal': '🇸🇳',
+  'Ivory Coast': '🇨🇮',
+  'Zimbabwe': '🇿🇼',
+  'Rwanda': '🇷🇼',
+  'Zambia': '🇿🇲',
+  'Botswana': '🇧🇼',
+  'Namibia': '🇳🇦',
+  'Mozambique': '🇲🇿',
+  'Angola': '🇦🇴',
+  'DR Congo': '🇨🇩',
+  'Egypt': '🇪🇬',
+  'Morocco': '🇲🇦',
+  'Algeria': '🇩🇿',
+  'Tunisia': '🇹🇳',
+  'Sudan': '🇸🇩',
+  'United Kingdom': '🇬🇧',
+  'UK': '🇬🇧',
+  'Canada': '🇨🇦',
+  'France': '🇫🇷',
+  'Germany': '🇩🇪',
+  'Netherlands': '🇳🇱',
+  'Belgium': '🇧🇪',
+  'Italy': '🇮🇹',
+  'Spain': '🇪🇸',
+  'Portugal': '🇵🇹',
+  'Brazil': '🇧🇷',
+  'Jamaica': '🇯🇲',
+  'Trinidad': '🇹🇹',
+  'Haiti': '🇭🇹',
+  'Barbados': '🇧🇧',
+  'Australia': '🇦🇺',
+  'New Zealand': '🇳🇿',
+};
+
+// Get flag from location string
+const getCountryFlag = (location: string): string => {
+  for (const [country, flag] of Object.entries(COUNTRY_FLAGS)) {
+    if (location.toLowerCase().includes(country.toLowerCase())) {
+      return flag;
+    }
+  }
+  return '🌍'; // Default globe for unknown locations
+};
+
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 // Burst emoji particle for double-tap effect
@@ -328,6 +384,9 @@ export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
   const displayEmoji = currentReaction || '❤️';
   const reactionColor = REACTIONS.find(r => r.emoji === currentReaction)?.color || '#D4673A';
 
+  // Get country flag from location
+  const countryFlag = getCountryFlag(post.location);
+
   return (
     <AnimatedPressable
       style={cardAnimatedStyle}
@@ -362,7 +421,10 @@ export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
           contentFit="cover"
         />
         <View className="flex-1 ml-3">
-          <Text className="text-warmBrown font-semibold text-base">{post.author.name}</Text>
+          <View className="flex-row items-center">
+            <Text className="text-warmBrown font-semibold text-base">{post.author.name}</Text>
+            <Text className="ml-1.5" style={{ fontSize: 14 }}>{countryFlag}</Text>
+          </View>
           <View className="flex-row items-center mt-0.5">
             <MapPin size={12} color="#8B7355" />
             <Text className="text-sm text-gray-500 ml-1">{post.location}</Text>
@@ -562,6 +624,13 @@ export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
             <Share2 size={20} color="#8B7355" />
             <Text className="ml-1.5 text-sm text-gray-500">Share</Text>
           </Pressable>
+        </View>
+
+        {/* Community Guidelines Reminder */}
+        <View className="mt-2 pt-2 border-t border-gray-50">
+          <Text className="text-[10px] text-gray-400 text-center">
+            Be respectful. No vulgar language, hate speech, or inappropriate content.
+          </Text>
         </View>
       </View>
 

@@ -17,6 +17,8 @@ A community-driven social platform connecting Africans and the African diaspora 
 - Location-based posts from your community
 - Local/Global toggle to filter content
 - Pull-to-refresh for latest updates
+- **Country Flags**: Each post shows the poster's country flag next to their name (40+ countries supported)
+- **Community Guidelines Reminder**: Subtle reminder on every post to keep conversations respectful
 - **Emoji Reactions**: Express yourself with 6 Afrocentric reactions
   - Quick tap for heart reaction
   - Long-press to open reaction picker: Love, Fire, Clap, Real, Bless, Haha
