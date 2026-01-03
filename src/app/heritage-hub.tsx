@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { View, Text, ScrollView, Pressable, Image, Modal } from 'react-native';
-import { Stack, router } from 'expo-router';
+import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { BookOpen, Users, Globe, ChefHat, Heart, X, ChevronRight, Star, Clock, TreePine, Languages } from 'lucide-react-native';
+import { BookOpen, Users, Globe, ChefHat, Heart, X, ChevronRight, Star, Clock, TreePine, Languages, ChevronLeft } from 'lucide-react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useAdvancedFeatures, type TraditionalRecipe, type LanguagePod, type FamilyTree } from '@/lib/advancedFeatures';
 import * as Haptics from 'expo-haptics';
@@ -182,14 +182,14 @@ export default function HeritageHubScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#FAF7F2' }} edges={['top']}>
-      <Stack.Screen
-        options={{
-          headerShown: true,
-          title: 'Heritage Hub',
-          headerStyle: { backgroundColor: '#FAF7F2' },
-          headerTintColor: '#1B4D3E',
-        }}
-      />
+      {/* Custom Header */}
+      <View className="flex-row items-center justify-between px-4 py-3 bg-white border-b border-gray-100">
+        <Pressable onPress={() => router.back()} className="p-2 -ml-2">
+          <ChevronLeft size={24} color="#1B4D3E" />
+        </Pressable>
+        <Text className="text-lg font-bold text-gray-900">Heritage Hub</Text>
+        <View style={{ width: 40 }} />
+      </View>
 
       {/* Hero Banner */}
       <Animated.View entering={FadeInDown.delay(100)} className="mx-4 mt-2 bg-emerald-800 rounded-2xl p-4">
