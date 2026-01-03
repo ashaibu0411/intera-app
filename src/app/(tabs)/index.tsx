@@ -15,6 +15,15 @@ import {
   MessageCircle,
   Briefcase,
   Newspaper,
+  Shield,
+  Vote,
+  PiggyBank,
+  Mic,
+  BookOpen,
+  AlertTriangle,
+  HeartHandshake,
+  Trophy,
+  Calendar,
 } from 'lucide-react-native';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -602,6 +611,144 @@ export default function HomeScreen() {
                 <Text className="text-gray-500 text-xs mt-0.5">Services & Events</Text>
               </View>
             </Pressable>
+          </Animated.View>
+
+          {/* Advanced Features Section */}
+          <Animated.View
+            entering={FadeInUp.duration(500).delay(300)}
+            className="mx-4 mb-4"
+          >
+            <View className="flex-row items-center justify-between mb-3">
+              <Text className="text-warmBrown font-bold text-lg">Community Features</Text>
+              <Text className="text-gray-400 text-xs">NEW</Text>
+            </View>
+
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={{ marginHorizontal: -16, flexGrow: 0 }}
+              contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
+            >
+              {/* Trust Score */}
+              <Pressable onPress={() => navigateTo('/trust-score')}>
+                <LinearGradient
+                  colors={['#10B981', '#059669']}
+                  style={{ borderRadius: 16, padding: 16, width: 140 }}
+                >
+                  <Shield size={24} color="white" />
+                  <Text className="text-white font-bold mt-2">Trust Score</Text>
+                  <Text className="text-white/80 text-xs">Build reputation</Text>
+                </LinearGradient>
+              </Pressable>
+
+              {/* Village Council */}
+              <Pressable onPress={() => navigateTo('/village-council')}>
+                <LinearGradient
+                  colors={['#8B5CF6', '#7C3AED']}
+                  style={{ borderRadius: 16, padding: 16, width: 140 }}
+                >
+                  <Vote size={24} color="white" />
+                  <Text className="text-white font-bold mt-2">Village Council</Text>
+                  <Text className="text-white/80 text-xs">Polls & votes</Text>
+                </LinearGradient>
+              </Pressable>
+
+              {/* Susu Circles */}
+              <Pressable onPress={() => navigateTo('/susu-circles')}>
+                <LinearGradient
+                  colors={['#F59E0B', '#D97706']}
+                  style={{ borderRadius: 16, padding: 16, width: 140 }}
+                >
+                  <PiggyBank size={24} color="white" />
+                  <Text className="text-white font-bold mt-2">Susu Circles</Text>
+                  <Text className="text-white/80 text-xs">Group savings</Text>
+                </LinearGradient>
+              </Pressable>
+
+              {/* Job Board */}
+              <Pressable onPress={() => navigateTo('/job-board')}>
+                <LinearGradient
+                  colors={['#3B82F6', '#2563EB']}
+                  style={{ borderRadius: 16, padding: 16, width: 140 }}
+                >
+                  <Briefcase size={24} color="white" />
+                  <Text className="text-white font-bold mt-2">Job Board</Text>
+                  <Text className="text-white/80 text-xs">Find work</Text>
+                </LinearGradient>
+              </Pressable>
+
+              {/* Voice Rooms */}
+              <Pressable onPress={() => navigateTo('/voice-rooms')}>
+                <LinearGradient
+                  colors={['#EC4899', '#DB2777']}
+                  style={{ borderRadius: 16, padding: 16, width: 140 }}
+                >
+                  <Mic size={24} color="white" />
+                  <Text className="text-white font-bold mt-2">Voice Rooms</Text>
+                  <Text className="text-white/80 text-xs">Live discussions</Text>
+                </LinearGradient>
+              </Pressable>
+
+              {/* Heritage Hub */}
+              <Pressable onPress={() => navigateTo('/heritage-hub')}>
+                <LinearGradient
+                  colors={['#D4673A', '#B85430']}
+                  style={{ borderRadius: 16, padding: 16, width: 140 }}
+                >
+                  <BookOpen size={24} color="white" />
+                  <Text className="text-white font-bold mt-2">Heritage Hub</Text>
+                  <Text className="text-white/80 text-xs">Culture & recipes</Text>
+                </LinearGradient>
+              </Pressable>
+
+              {/* Safety Network */}
+              <Pressable onPress={() => navigateTo('/safety-network')}>
+                <LinearGradient
+                  colors={['#EF4444', '#DC2626']}
+                  style={{ borderRadius: 16, padding: 16, width: 140 }}
+                >
+                  <AlertTriangle size={24} color="white" />
+                  <Text className="text-white font-bold mt-2">Safety Net</Text>
+                  <Text className="text-white/80 text-xs">Emergency help</Text>
+                </LinearGradient>
+              </Pressable>
+
+              {/* Support Circles */}
+              <Pressable onPress={() => navigateTo('/support-circles')}>
+                <LinearGradient
+                  colors={['#14B8A6', '#0D9488']}
+                  style={{ borderRadius: 16, padding: 16, width: 140 }}
+                >
+                  <HeartHandshake size={24} color="white" />
+                  <Text className="text-white font-bold mt-2">Support</Text>
+                  <Text className="text-white/80 text-xs">Community help</Text>
+                </LinearGradient>
+              </Pressable>
+
+              {/* Gamification */}
+              <Pressable onPress={() => navigateTo('/gamification')}>
+                <LinearGradient
+                  colors={['#F97316', '#EA580C']}
+                  style={{ borderRadius: 16, padding: 16, width: 140 }}
+                >
+                  <Trophy size={24} color="white" />
+                  <Text className="text-white font-bold mt-2">Achievements</Text>
+                  <Text className="text-white/80 text-xs">Earn rewards</Text>
+                </LinearGradient>
+              </Pressable>
+
+              {/* Advanced Events */}
+              <Pressable onPress={() => navigateTo('/advanced-events')}>
+                <LinearGradient
+                  colors={['#6366F1', '#4F46E5']}
+                  style={{ borderRadius: 16, padding: 16, width: 140 }}
+                >
+                  <Calendar size={24} color="white" />
+                  <Text className="text-white font-bold mt-2">Events+</Text>
+                  <Text className="text-white/80 text-xs">Tickets & virtual</Text>
+                </LinearGradient>
+              </Pressable>
+            </ScrollView>
           </Animated.View>
 
           {/* Local News Section - Only show in local feed */}

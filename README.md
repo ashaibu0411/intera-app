@@ -272,4 +272,91 @@ The app is fully connected to Supabase for data persistence and syncing across u
   - Configure advance booking days (how far ahead customers can book)
   - Set buffer time between appointments
 
+## Advanced Community Features (NEW!)
+
+These 10 major features make AfroConnect superior to Facebook, Nextdoor, and any other social networking app by leveraging African cultural concepts and community-first design:
+
+### 1. Ubuntu Trust Score (`/trust-score`)
+- **Community reputation system** based on the African philosophy of Ubuntu
+- Verification levels: Newcomer → Verified → Trusted → Elder
+- Trust score (0-100) based on activity, badges, and community vouches
+- Earn badges for contributions: Community Helper, Mentor, Event Host, etc.
+- Community members can vouch for each other to increase trust
+- Profile verification through ID, phone, email, and social connections
+
+### 2. Village Council (`/village-council`)
+- **Democratic community governance** inspired by traditional African councils
+- **Polls & Voting**: Create and vote on community decisions and initiatives
+- **Community Projects**: Crowdfund local projects (playgrounds, events, improvements)
+- **Emergency Broadcasts**: Important community alerts (severe weather, safety, closures)
+- **Ask the Neighborhood**: Post questions and get answers from neighbors
+- Anonymous voting option for sensitive topics
+
+### 3. Susu Savings Circles (`/susu-circles`)
+- **Traditional African rotating savings system** (Susu/Esusu/Stokvel)
+- Create or join savings circles with trusted community members
+- Track contribution schedules and payout order
+- Member trust scores displayed for transparency
+- Support for different contribution amounts and frequencies
+- View circle history and upcoming payouts
+
+### 4. Job Board & Skills Marketplace (`/job-board`)
+- **Community-powered employment** connecting diaspora job seekers and employers
+- Browse job listings from African and diaspora businesses
+- Filter by job type: Full-time, Part-time, Contract, Remote
+- **Skills Marketplace**: Hire community members for services (tutoring, cleaning, repairs, etc.)
+- Post job openings for your business
+- Rate and review service providers
+
+### 5. Voice Rooms (`/voice-rooms`)
+- **Live audio discussions** like Clubhouse, but for the African diaspora
+- Join or host voice rooms on topics: Culture, Business, Wellness, Faith, Politics
+- Raise hand to speak, moderated by room hosts
+- Schedule rooms in advance with topics and descriptions
+- See who's speaking and who's listening
+- Categories: Culture Chat, Business Talk, Wellness, Faith, Community, Politics
+
+### 6. Heritage Hub (`/heritage-hub`)
+- **Cultural preservation and learning center**
+- **Traditional Recipes**: Share and discover authentic African recipes with stories
+- **Language Learning Pods**: Join groups learning Swahili, Yoruba, Twi, Amharic, etc.
+- **Family Trees**: Document your lineage and connect with relatives (coming soon)
+- Recipe categories: Main Dishes, Soups & Stews, Sides, Desserts, Drinks, Snacks
+- Language levels: Beginner, Intermediate, Advanced
+
+### 7. Safety Network (`/safety-network`)
+- **Community emergency response system**
+- **SOS Button**: Hold for 3 seconds to alert trusted contacts with your location
+- **Trusted Contacts**: Add neighbors and family as emergency contacts
+- **Walk With Me**: Share your journey in real-time while walking/traveling
+- **I'm Safe Check-in**: Quick safety confirmations during emergencies
+- Automatic location sharing during emergencies
+
+### 8. Support Circles (`/support-circles`)
+- **Community support groups** for life challenges
+- Categories: Grief & Loss, Immigration Support, Career Transition, New Parents, etc.
+- Join circles based on your needs or offer support to others
+- Private and anonymous participation options
+- Facilitated meetings with scheduled times
+- Connect with others facing similar challenges
+
+### 9. Gamification System (`/gamification`)
+- **Community engagement rewards** to encourage participation
+- **Challenges**: Daily, weekly, and monthly challenges to earn XP
+- **Leaderboards**: Compete with community members for top spots
+- **Badges**: Earn badges for achievements (Social Butterfly, Event Organizer, Heritage Guardian)
+- **Levels**: Progress through levels as you contribute more
+- **Streak System**: Maintain daily engagement streaks for bonus rewards
+- Badge rarities: Common, Rare, Epic, Legendary
+
+### 10. Advanced Events (`/advanced-events`)
+- **Enhanced event system** beyond basic RSVPs
+- **Ticketed Events**: Sell tickets directly through the app
+- **Virtual Events**: Host online-only events with video links
+- **Hybrid Events**: Combined in-person and virtual attendance
+- **Watch Parties**: Synchronized viewing with community chat
+- Event categories: Cultural, Music, Food, Education, Art, Sports, Networking
+- Attendee counts and capacity limits
+- Featured events carousel
+
 

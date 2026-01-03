@@ -66,6 +66,17 @@ function RootLayoutNav() {
         <Stack.Screen name="my-businesses" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="paywall" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+        {/* Advanced Features */}
+        <Stack.Screen name="trust-score" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="village-council" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="susu-circles" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="job-board" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="voice-rooms" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="heritage-hub" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="safety-network" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="support-circles" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="gamification" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="advanced-events" options={{ animation: 'slide_from_right' }} />
       </Stack>
     </ThemeProvider>
   );
