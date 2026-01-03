@@ -32,7 +32,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { PostCard } from '@/components/PostCard';
 import { NewsCard } from '@/components/NewsCard';
 import { LocationChangeModal } from '@/components/LocationChangeModal';
-import { useStore, MOCK_POSTS, MOCK_COMMUNITIES, type Post, type NewsArticle } from '@/lib/store';
+import { useStore, MOCK_POSTS, MOCK_COMMUNITIES, type Post, type NewsArticle, getCommunityMemberCount } from '@/lib/store';
 import { getCommunityByLocation, subscribeToCommunityUpdates, getOrCreateCommunity, joinCommunity } from '@/lib/communities';
 import { DbCommunity } from '@/lib/supabase';
 import { getPosts } from '@/lib/posts';
@@ -125,8 +125,10 @@ export default function HomeScreen() {
   const setCurrentCommunity = useStore((s) => s.setCurrentCommunity);
   const setLocationDetectionDismissed = useStore((s) => s.setLocationDetectionDismissed);
   const setLastDetectedCity = useStore((s) => s.setLastDetectedCity);
+  const joinCommunityStore = useStore((s) => s.joinCommunity);
 
   const displayCommunity = currentCommunity ?? MOCK_COMMUNITIES[0];
+  const communityMemberCount = getCommunityMemberCount(displayCommunity.city);
 
   // Fetch posts from database
   const fetchDbPosts = async () => {
@@ -182,6 +184,14 @@ export default function HomeScreen() {
   useEffect(() => {
     fetchNews();
   }, [selectedLocation, displayCommunity.city]);
+
+  // Join community when user switches cities (increment member count)
+  useEffect(() => {
+    const city = selectedLocation?.city || displayCommunity.city;
+    if (city) {
+      joinCommunityStore(city);
+    }
+  }, [selectedLocation?.city, displayCommunity.city]);
 
   // Refresh posts when screen comes into focus (e.g., after creating a post)
   useFocusEffect(
@@ -427,10 +437,13 @@ export default function HomeScreen() {
                 </Pressable>
                 <Pressable
                   onPress={() => navigateTo('/location-select')}
-                  className="flex-row items-center bg-white rounded-full px-4 py-2 shadow-sm"
+                  className="flex-row items-center bg-white rounded-full px-3 py-2 shadow-sm"
                 >
                   <MapPin size={16} color="#D4673A" />
-                  <Text className="text-warmBrown font-medium ml-2">{displayCommunity.city}</Text>
+                  <View className="ml-2">
+                    <Text className="text-warmBrown font-medium text-sm">{displayCommunity.city}</Text>
+                    <Text className="text-gray-400 text-[10px]">{communityMemberCount.toLocaleString()} members</Text>
+                  </View>
                   <ChevronDown size={16} color="#8B7355" className="ml-1" />
                 </Pressable>
               </View>

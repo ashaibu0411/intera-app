@@ -376,6 +376,7 @@ interface AppState {
   // Community state
   currentCommunity: Community | null;
   feedFilter: 'local' | 'global';
+  communityMemberCounts: Record<string, number>; // city -> member count
 
   // Posts state
   userPosts: Post[];
@@ -432,6 +433,7 @@ interface AppState {
   setSelectedLocation: (location: LocationData | null) => void;
   setCurrentCommunity: (community: Community | null) => void;
   setFeedFilter: (filter: 'local' | 'global') => void;
+  joinCommunity: (city: string) => void;
   addPost: (post: Post) => void;
   deletePost: (postId: string) => void;
   toggleSavePost: (postId: string) => void;
@@ -488,6 +490,7 @@ export const useStore = create<AppState>()(
       lastDetectedCity: null,
       currentCommunity: null,
       feedFilter: 'local',
+      communityMemberCounts: {},
       userPosts: [],
       savedPostIds: [],
       likedPostIds: [],
@@ -517,6 +520,35 @@ export const useStore = create<AppState>()(
       setSelectedLocation: (location) => set({ selectedLocation: location }),
       setCurrentCommunity: (community) => set({ currentCommunity: community }),
       setFeedFilter: (filter) => set({ feedFilter: filter }),
+      joinCommunity: (city) => set((state) => {
+        const currentCount = state.communityMemberCounts[city] || 0;
+        // Base counts for popular cities (simulated existing members)
+        const baseCounts: Record<string, number> = {
+          'Atlanta': 1247,
+          'Houston': 982,
+          'New York': 2341,
+          'Los Angeles': 1563,
+          'Chicago': 876,
+          'Dallas': 654,
+          'Denver': 432,
+          'Aurora': 287,
+          'Miami': 765,
+          'Washington': 543,
+          'London': 1123,
+          'Toronto': 654,
+          'Lagos': 3421,
+          'Accra': 1876,
+          'Nairobi': 1234,
+          'Johannesburg': 987,
+        };
+        const baseCount = baseCounts[city] || Math.floor(Math.random() * 200) + 50;
+        return {
+          communityMemberCounts: {
+            ...state.communityMemberCounts,
+            [city]: currentCount > 0 ? currentCount + 1 : baseCount + 1,
+          },
+        };
+      }),
       addPost: (post) => set((state) => ({ userPosts: [post, ...state.userPosts] })),
       deletePost: (postId) => set((state) => ({
         userPosts: state.userPosts.filter((p) => p.id !== postId),
@@ -721,10 +753,39 @@ export const useStore = create<AppState>()(
         userAppointments: state.userAppointments,
         businessAppointments: state.businessAppointments,
         businessBookingSettings: state.businessBookingSettings,
+        communityMemberCounts: state.communityMemberCounts,
       }),
     }
   )
 );
+
+// Helper function to get community member count
+export const getCommunityMemberCount = (city: string): number => {
+  const state = useStore.getState();
+  const count = state.communityMemberCounts[city];
+  if (count) return count;
+
+  // Base counts for popular cities (simulated existing members)
+  const baseCounts: Record<string, number> = {
+    'Atlanta': 1247,
+    'Houston': 982,
+    'New York': 2341,
+    'Los Angeles': 1563,
+    'Chicago': 876,
+    'Dallas': 654,
+    'Denver': 432,
+    'Aurora': 287,
+    'Miami': 765,
+    'Washington': 543,
+    'London': 1123,
+    'Toronto': 654,
+    'Lagos': 3421,
+    'Accra': 1876,
+    'Nairobi': 1234,
+    'Johannesburg': 987,
+  };
+  return baseCounts[city] || Math.floor(Math.random() * 200) + 50;
+};
 
 // Countries with states/regions
 export const COUNTRIES = [

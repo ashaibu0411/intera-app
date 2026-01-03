@@ -173,6 +173,7 @@ The app is fully connected to Supabase for data persistence and syncing across u
 
 ### Working Features
 - **Location Button**: Tap the location button in the header to change your city/community
+- **Community Member Count**: See how many people are in your community - count increases when you join
 - **Quick City Switch**: When changing location, you now see a fast search interface to instantly jump to any city without going through country → state → city flow. Just search and tap to switch!
 - **Automatic City Detection**: The app automatically detects your current city using device location and prompts you to switch communities if you've moved to a new city
 - **Location Change Modal**: When a new city is detected, you can choose to switch to the new city's community, stay in your current community, or dismiss future location prompts
