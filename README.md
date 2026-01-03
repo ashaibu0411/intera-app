@@ -17,6 +17,11 @@ A community-driven social platform connecting Africans and the African diaspora 
 - Location-based posts from your community
 - Local/Global toggle to filter content
 - Pull-to-refresh for latest updates
+- **Emoji Reactions**: Express yourself with 6 Afrocentric reactions
+  - Quick tap for heart reaction
+  - Long-press to open reaction picker: Love, Fire, Clap, Real, Bless, Haha
+  - Animated floating emojis when reacting
+  - Color-coded reaction counts
 - Like, comment, and share interactions
 - Guest users can browse but need account to interact
 

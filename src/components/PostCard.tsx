@@ -1,11 +1,21 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { View, Text, Pressable, Share, Alert } from 'react-native';
+import { View, Text, Pressable, Share, Alert, Modal } from 'react-native';
 import { Image } from 'expo-image';
 import { Video, ResizeMode } from 'expo-av';
-import { Heart, MessageCircle, Share2, MoreHorizontal, MapPin, Play, Volume2, VolumeX } from 'lucide-react-native';
+import { MessageCircle, Share2, MoreHorizontal, MapPin, Play, Volume2, VolumeX } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import * as Clipboard from 'expo-clipboard';
-import Animated, { useSharedValue, useAnimatedStyle, withSpring, withSequence, withTiming } from 'react-native-reanimated';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withSequence,
+  withTiming,
+  FadeIn,
+  FadeOut,
+  ZoomIn,
+  SlideInDown,
+} from 'react-native-reanimated';
 import { formatDistanceToNow } from 'date-fns';
 import { router } from 'expo-router';
 import * as DropdownMenu from 'zeego/dropdown-menu';
@@ -19,6 +29,16 @@ interface PostCardProps {
   onShare?: (postId: string) => void;
 }
 
+// Afrocentric emoji reactions
+const REACTIONS = [
+  { emoji: '❤️', label: 'Love', color: '#E53E3E' },
+  { emoji: '🔥', label: 'Fire', color: '#F6AD55' },
+  { emoji: '👏🏿', label: 'Clap', color: '#C9A227' },
+  { emoji: '💯', label: 'Real', color: '#1B4D3E' },
+  { emoji: '🙏🏿', label: 'Bless', color: '#8B5CF6' },
+  { emoji: '😂', label: 'Haha', color: '#F59E0B' },
+];
+
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
@@ -29,11 +49,16 @@ export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
   const currentUser = useStore((s) => s.currentUser);
   const deletePost = useStore((s) => s.deletePost);
   const userComments = useStore((s) => s.userComments);
+  const postReactions = useStore((s) => s.postReactions);
+  const setPostReaction = useStore((s) => s.setPostReaction);
   const [dbCommentCount, setDbCommentCount] = useState<number>(0);
+  const [showReactionPicker, setShowReactionPicker] = useState(false);
+  const [floatingEmojis, setFloatingEmojis] = useState<Array<{ id: number; emoji: string }>>([]);
 
   const isLiked = likedPostIds.includes(post.id);
   const isSaved = savedPostIds.includes(post.id);
   const isOwnPost = currentUser?.id === post.author.id;
+  const currentReaction = postReactions[post.id];
   const baseLikes = post.likes;
   // If the post was originally liked but we unliked it, subtract 1. If it wasn't liked but we liked it, add 1.
   const likeCount = post.isLiked
@@ -64,7 +89,7 @@ export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
   const videoRef = useRef<Video>(null);
   const likeScale = useSharedValue(1);
 
-  const handleLike = () => {
+  const handleQuickLike = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     likeScale.value = withSequence(
       withSpring(1.3, { damping: 2, stiffness: 200 }),
@@ -72,7 +97,51 @@ export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
     );
 
     toggleLikePost(post.id);
+
+    // If we just liked, set default reaction to heart
+    if (!isLiked) {
+      setPostReaction(post.id, '❤️');
+      // Add floating emoji
+      addFloatingEmoji('❤️');
+    } else {
+      setPostReaction(post.id, null);
+    }
+
     onLike?.(post.id);
+  };
+
+  const handleLongPress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    setShowReactionPicker(true);
+  };
+
+  const handleSelectReaction = (emoji: string) => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setShowReactionPicker(false);
+
+    // If same reaction, remove it
+    if (currentReaction === emoji) {
+      setPostReaction(post.id, null);
+      if (isLiked) toggleLikePost(post.id);
+    } else {
+      setPostReaction(post.id, emoji);
+      if (!isLiked) toggleLikePost(post.id);
+      // Add floating emoji animation
+      addFloatingEmoji(emoji);
+    }
+
+    likeScale.value = withSequence(
+      withSpring(1.4, { damping: 2, stiffness: 200 }),
+      withSpring(1, { damping: 6, stiffness: 200 })
+    );
+  };
+
+  const addFloatingEmoji = (emoji: string) => {
+    const id = Date.now();
+    setFloatingEmojis(prev => [...prev, { id, emoji }]);
+    setTimeout(() => {
+      setFloatingEmojis(prev => prev.filter(e => e.id !== id));
+    }, 1000);
   };
 
   const likeAnimatedStyle = useAnimatedStyle(() => ({
@@ -193,6 +262,10 @@ export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
 
   const timeAgo = formatDistanceToNow(new Date(post.createdAt), { addSuffix: true });
 
+  // Get display emoji for reaction button
+  const displayEmoji = currentReaction || '❤️';
+  const reactionColor = REACTIONS.find(r => r.emoji === currentReaction)?.color || '#D4673A';
+
   return (
     <AnimatedPressable
       style={cardAnimatedStyle}
@@ -201,6 +274,24 @@ export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
       onPress={handleOpenPost}
       className="bg-white rounded-2xl mx-4 mb-4 shadow-sm overflow-hidden"
     >
+      {/* Floating Emojis Animation */}
+      {floatingEmojis.map((item) => (
+        <Animated.View
+          key={item.id}
+          entering={ZoomIn.duration(200)}
+          exiting={FadeOut.duration(300)}
+          className="absolute z-50 left-1/2 top-1/2"
+          style={{ marginLeft: -20, marginTop: -20 }}
+        >
+          <Animated.Text
+            style={{ fontSize: 48 }}
+            entering={SlideInDown.duration(500)}
+          >
+            {item.emoji}
+          </Animated.Text>
+        </Animated.View>
+      ))}
+
       {/* Header */}
       <View className="flex-row items-center p-4 pb-3">
         <Image
@@ -312,15 +403,22 @@ export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
 
       {/* Actions */}
       <View className="flex-row items-center px-4 py-3 border-t border-gray-100">
-        <Pressable onPress={handleLike} className="flex-row items-center mr-6">
+        {/* Reaction Button - tap for quick like, long press for picker */}
+        <Pressable
+          onPress={handleQuickLike}
+          onLongPress={handleLongPress}
+          delayLongPress={300}
+          className="flex-row items-center mr-6"
+        >
           <Animated.View style={likeAnimatedStyle}>
-            <Heart
-              size={22}
-              color={isLiked ? '#D4673A' : '#8B7355'}
-              fill={isLiked ? '#D4673A' : 'transparent'}
-            />
+            <Text style={{ fontSize: 22 }}>
+              {isLiked ? displayEmoji : '🤍'}
+            </Text>
           </Animated.View>
-          <Text className={`ml-2 text-sm ${isLiked ? 'text-terracotta-500' : 'text-gray-500'}`}>
+          <Text
+            className="ml-2 text-sm font-medium"
+            style={{ color: isLiked ? reactionColor : '#6B7280' }}
+          >
             {likeCount}
           </Text>
         </Pressable>
@@ -337,6 +435,51 @@ export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
           <Share2 size={20} color="#8B7355" />
         </Pressable>
       </View>
+
+      {/* Reaction Picker Modal */}
+      <Modal
+        visible={showReactionPicker}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowReactionPicker(false)}
+      >
+        <Pressable
+          className="flex-1 bg-black/30 justify-center items-center"
+          onPress={() => setShowReactionPicker(false)}
+        >
+          <Animated.View
+            entering={ZoomIn.duration(200)}
+            className="bg-white rounded-3xl px-4 py-3 flex-row shadow-xl"
+          >
+            {REACTIONS.map((reaction, index) => (
+              <Pressable
+                key={reaction.emoji}
+                onPress={() => handleSelectReaction(reaction.emoji)}
+                className="mx-2 items-center"
+              >
+                <Animated.View
+                  entering={ZoomIn.delay(index * 50).duration(200)}
+                >
+                  <Text
+                    style={{
+                      fontSize: currentReaction === reaction.emoji ? 40 : 32,
+                      opacity: currentReaction === reaction.emoji ? 1 : 0.8,
+                    }}
+                  >
+                    {reaction.emoji}
+                  </Text>
+                  <Text
+                    className="text-xs text-center mt-1"
+                    style={{ color: reaction.color }}
+                  >
+                    {reaction.label}
+                  </Text>
+                </Animated.View>
+              </Pressable>
+            ))}
+          </Animated.View>
+        </Pressable>
+      </Modal>
     </AnimatedPressable>
   );
 }

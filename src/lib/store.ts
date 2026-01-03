@@ -382,6 +382,7 @@ interface AppState {
   savedPostIds: string[];
   likedPostIds: string[];
   userComments: Comment[];
+  postReactions: Record<string, string>; // postId -> emoji reaction
 
   // Connections state
   connections: User[];
@@ -435,6 +436,7 @@ interface AppState {
   deletePost: (postId: string) => void;
   toggleSavePost: (postId: string) => void;
   toggleLikePost: (postId: string) => void;
+  setPostReaction: (postId: string, emoji: string | null) => void;
   addComment: (comment: Comment) => void;
   addConnection: (user: User) => void;
   removeConnection: (userId: string) => void;
@@ -506,6 +508,7 @@ export const useStore = create<AppState>()(
       notificationsEnabled: true,
       userTalentProfile: null,
       savedTalentIds: [],
+      postReactions: {},
 
       setCurrentUser: (user) => set({ currentUser: user }),
       setIsOnboarded: (value) => set({ isOnboarded: value }),
@@ -528,6 +531,15 @@ export const useStore = create<AppState>()(
           ? state.likedPostIds.filter((id) => id !== postId)
           : [...state.likedPostIds, postId],
       })),
+      setPostReaction: (postId, emoji) => set((state) => {
+        const newReactions = { ...state.postReactions };
+        if (emoji === null) {
+          delete newReactions[postId];
+        } else {
+          newReactions[postId] = emoji;
+        }
+        return { postReactions: newReactions };
+      }),
       addComment: (comment) => set((state) => ({ userComments: [...state.userComments, comment] })),
       addConnection: (user) => set((state) => ({
         connections: state.connections.some((c) => c.id === user.id)
