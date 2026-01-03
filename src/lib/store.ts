@@ -230,6 +230,18 @@ export interface EventRsvp {
   status: 'interested' | 'going';
 }
 
+export interface BlockedTimeSlot {
+  id: string;
+  // For specific date blocking
+  date?: string;
+  time?: string;
+  // For recurring time blocking (like lunch breaks)
+  day?: 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday' | 'everyday';
+  startTime?: string;
+  endTime?: string;
+  reason?: string;
+}
+
 export interface BusinessBookingSettings {
   businessId: string;
   isBookingEnabled: boolean;
@@ -237,7 +249,7 @@ export interface BusinessBookingSettings {
   businessProExpiresAt?: string;
   bookingHours: BusinessHours[];
   blockedDates: string[]; // Dates when business is closed
-  blockedTimeSlots: { date: string; time: string }[]; // Specific blocked slots
+  blockedTimeSlots: BlockedTimeSlot[]; // Specific blocked slots or recurring blocks
   appointmentBuffer: number; // Minutes between appointments
   advanceBookingDays: number; // How many days in advance can customers book
   services: BusinessService[];
@@ -569,7 +581,7 @@ export const useStore = create<AppState>()(
       addBlockedTimeSlot: (businessId, date, time) => set((state) => ({
         businessBookingSettings: state.businessBookingSettings.map((s) =>
           s.businessId === businessId
-            ? { ...s, blockedTimeSlots: [...s.blockedTimeSlots, { date, time }] }
+            ? { ...s, blockedTimeSlots: [...s.blockedTimeSlots, { id: Date.now().toString(), date, time }] }
             : s
         ),
       })),

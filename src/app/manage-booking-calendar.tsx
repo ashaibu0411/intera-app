@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { View, Text, ScrollView, Pressable, Switch, TextInput } from 'react-native';
+import { View, Text, ScrollView, Pressable, Switch, TextInput, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
@@ -13,6 +13,9 @@ import {
   Crown,
   Sparkles,
   DollarSign,
+  Ban,
+  Coffee,
+  Trash2,
 } from 'lucide-react-native';
 import Animated, { FadeIn, FadeInUp, FadeInDown } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -76,11 +79,18 @@ export default function ManageBookingCalendarScreen() {
   );
 
   const [showAddService, setShowAddService] = useState(false);
+  const [showBlockTimeModal, setShowBlockTimeModal] = useState(false);
   const [newService, setNewService] = useState({
     name: '',
     description: '',
     duration: '30',
     price: '',
+  });
+  const [newBlockedTime, setNewBlockedTime] = useState({
+    day: 'everyday' as 'everyday' | BusinessHours['day'],
+    startTime: '12:00',
+    endTime: '13:00',
+    reason: 'Lunch Break',
   });
 
   const remainingFreeBookings = Math.max(0, FREE_BOOKING_LIMIT - settings.totalBookingsReceived);
@@ -145,6 +155,38 @@ export default function ManageBookingCalendarScreen() {
     setSettings((prev) => ({
       ...prev,
       services: prev.services.filter((s) => s.id !== serviceId),
+    }));
+  };
+
+  const addBlockedTime = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const blockedSlot = {
+      id: Date.now().toString(),
+      day: newBlockedTime.day,
+      startTime: newBlockedTime.startTime,
+      endTime: newBlockedTime.endTime,
+      reason: newBlockedTime.reason,
+    };
+
+    setSettings((prev) => ({
+      ...prev,
+      blockedTimeSlots: [...(prev.blockedTimeSlots || []), blockedSlot],
+    }));
+
+    setNewBlockedTime({
+      day: 'everyday',
+      startTime: '12:00',
+      endTime: '13:00',
+      reason: 'Lunch Break',
+    });
+    setShowBlockTimeModal(false);
+  };
+
+  const removeBlockedTime = (slotId: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setSettings((prev) => ({
+      ...prev,
+      blockedTimeSlots: (prev.blockedTimeSlots || []).filter((s) => s.id !== slotId),
     }));
   };
 
@@ -441,7 +483,7 @@ export default function ManageBookingCalendarScreen() {
           </Animated.View>
 
           {/* Booking Settings */}
-          <Animated.View entering={FadeInUp.duration(400).delay(300)} className="px-5 mt-6 mb-8">
+          <Animated.View entering={FadeInUp.duration(400).delay(300)} className="px-5 mt-6">
             <Text className="text-lg font-semibold text-warmBrown mb-3">Booking Settings</Text>
             <View className="bg-white rounded-2xl p-4 shadow-sm">
               <View className="flex-row items-center justify-between mb-4">
@@ -464,6 +506,70 @@ export default function ManageBookingCalendarScreen() {
                 </View>
               </View>
             </View>
+          </Animated.View>
+
+          {/* Blocked Time Slots */}
+          <Animated.View entering={FadeInUp.duration(400).delay(350)} className="px-5 mt-6 mb-8">
+            <View className="flex-row items-center justify-between mb-3">
+              <View>
+                <Text className="text-lg font-semibold text-warmBrown">Blocked Times</Text>
+                <Text className="text-gray-500 text-sm">Block lunch breaks, meetings, etc.</Text>
+              </View>
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setShowBlockTimeModal(true);
+                }}
+                className="bg-red-500 rounded-full p-2"
+              >
+                <Ban size={18} color="#FFFFFF" />
+              </Pressable>
+            </View>
+
+            {(settings.blockedTimeSlots || []).length === 0 ? (
+              <View className="bg-white rounded-2xl p-6 items-center shadow-sm">
+                <View className="bg-gray-100 rounded-full p-4 mb-3">
+                  <Coffee size={32} color="#9CA3AF" />
+                </View>
+                <Text className="text-warmBrown font-semibold text-center">No blocked times</Text>
+                <Text className="text-gray-500 text-sm text-center mt-1">
+                  Block times for lunch, meetings, or personal breaks
+                </Text>
+              </View>
+            ) : (
+              <View className="bg-white rounded-2xl shadow-sm overflow-hidden">
+                {(settings.blockedTimeSlots || []).map((slot, index) => (
+                  <View
+                    key={slot.id}
+                    className={`p-4 flex-row items-center ${
+                      index < (settings.blockedTimeSlots || []).length - 1 ? 'border-b border-gray-100' : ''
+                    }`}
+                  >
+                    <View className="bg-red-100 rounded-full p-2">
+                      <Ban size={18} color="#DC2626" />
+                    </View>
+                    <View className="flex-1 ml-3">
+                      <Text className="text-warmBrown font-semibold">{slot.reason || 'Blocked'}</Text>
+                      <View className="flex-row items-center mt-1">
+                        <Text className="text-gray-500 text-sm capitalize">
+                          {slot.day === 'everyday' ? 'Every day' : slot.day}
+                        </Text>
+                        <Text className="text-gray-400 mx-1">•</Text>
+                        <Text className="text-gray-500 text-sm">
+                          {slot.startTime} - {slot.endTime}
+                        </Text>
+                      </View>
+                    </View>
+                    <Pressable
+                      onPress={() => removeBlockedTime(slot.id)}
+                      className="bg-gray-100 rounded-full p-2"
+                    >
+                      <Trash2 size={16} color="#6B7280" />
+                    </Pressable>
+                  </View>
+                ))}
+              </View>
+            )}
           </Animated.View>
 
           {/* Upgrade CTA */}
@@ -494,6 +600,174 @@ export default function ManageBookingCalendarScreen() {
           )}
         </ScrollView>
       </SafeAreaView>
+
+      {/* Block Time Modal */}
+      <Modal
+        visible={showBlockTimeModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowBlockTimeModal(false)}
+      >
+        <SafeAreaView className="flex-1 bg-cream">
+          <View className="px-5 py-4 border-b border-gray-200 flex-row items-center justify-between">
+            <Pressable onPress={() => setShowBlockTimeModal(false)}>
+              <Text className="text-gray-500 text-base">Cancel</Text>
+            </Pressable>
+            <Text className="text-warmBrown font-bold text-lg">Block Time</Text>
+            <Pressable onPress={addBlockedTime}>
+              <Text className="text-forest-600 font-semibold text-base">Add</Text>
+            </Pressable>
+          </View>
+
+          <ScrollView className="flex-1 px-5 pt-6">
+            {/* Reason */}
+            <View className="mb-6">
+              <Text className="text-warmBrown font-semibold mb-2">Reason</Text>
+              <View className="flex-row flex-wrap gap-2">
+                {['Lunch Break', 'Meeting', 'Personal Time', 'Prayer Time', 'Other'].map((reason) => (
+                  <Pressable
+                    key={reason}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setNewBlockedTime((prev) => ({ ...prev, reason }));
+                    }}
+                    className={`px-4 py-2 rounded-full ${
+                      newBlockedTime.reason === reason ? 'bg-forest-600' : 'bg-white'
+                    }`}
+                  >
+                    <Text
+                      className={`font-medium ${
+                        newBlockedTime.reason === reason ? 'text-white' : 'text-gray-600'
+                      }`}
+                    >
+                      {reason}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+
+            {/* Day Selection */}
+            <View className="mb-6">
+              <Text className="text-warmBrown font-semibold mb-2">When</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }}>
+                <View className="flex-row gap-2">
+                  <Pressable
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setNewBlockedTime((prev) => ({ ...prev, day: 'everyday' }));
+                    }}
+                    className={`px-4 py-2 rounded-full ${
+                      newBlockedTime.day === 'everyday' ? 'bg-forest-600' : 'bg-white'
+                    }`}
+                  >
+                    <Text
+                      className={`font-medium ${
+                        newBlockedTime.day === 'everyday' ? 'text-white' : 'text-gray-600'
+                      }`}
+                    >
+                      Every Day
+                    </Text>
+                  </Pressable>
+                  {DAYS_OF_WEEK.map((day) => (
+                    <Pressable
+                      key={day}
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        setNewBlockedTime((prev) => ({ ...prev, day }));
+                      }}
+                      className={`px-4 py-2 rounded-full ${
+                        newBlockedTime.day === day ? 'bg-forest-600' : 'bg-white'
+                      }`}
+                    >
+                      <Text
+                        className={`font-medium capitalize ${
+                          newBlockedTime.day === day ? 'text-white' : 'text-gray-600'
+                        }`}
+                      >
+                        {DAY_LABELS[day]}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </ScrollView>
+            </View>
+
+            {/* Time Selection */}
+            <View className="mb-6">
+              <Text className="text-warmBrown font-semibold mb-2">Time Range</Text>
+              <View className="flex-row items-center">
+                <View className="flex-1 bg-white rounded-xl p-4">
+                  <Text className="text-gray-500 text-xs mb-1">Start Time</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }}>
+                    <View className="flex-row gap-2">
+                      {TIME_OPTIONS.map((time) => (
+                        <Pressable
+                          key={`start-${time}`}
+                          onPress={() => setNewBlockedTime((prev) => ({ ...prev, startTime: time }))}
+                          className={`px-3 py-2 rounded-lg ${
+                            newBlockedTime.startTime === time ? 'bg-forest-600' : 'bg-gray-100'
+                          }`}
+                        >
+                          <Text
+                            className={`text-sm ${
+                              newBlockedTime.startTime === time ? 'text-white font-semibold' : 'text-gray-600'
+                            }`}
+                          >
+                            {time}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </ScrollView>
+                </View>
+              </View>
+
+              <View className="flex-row items-center mt-3">
+                <View className="flex-1 bg-white rounded-xl p-4">
+                  <Text className="text-gray-500 text-xs mb-1">End Time</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }}>
+                    <View className="flex-row gap-2">
+                      {TIME_OPTIONS.map((time) => (
+                        <Pressable
+                          key={`end-${time}`}
+                          onPress={() => setNewBlockedTime((prev) => ({ ...prev, endTime: time }))}
+                          className={`px-3 py-2 rounded-lg ${
+                            newBlockedTime.endTime === time ? 'bg-forest-600' : 'bg-gray-100'
+                          }`}
+                        >
+                          <Text
+                            className={`text-sm ${
+                              newBlockedTime.endTime === time ? 'text-white font-semibold' : 'text-gray-600'
+                            }`}
+                          >
+                            {time}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </ScrollView>
+                </View>
+              </View>
+            </View>
+
+            {/* Preview */}
+            <View className="bg-red-50 rounded-2xl p-4 border border-red-200">
+              <View className="flex-row items-center">
+                <View className="bg-red-100 rounded-full p-2">
+                  <Ban size={20} color="#DC2626" />
+                </View>
+                <View className="ml-3">
+                  <Text className="text-red-800 font-semibold">{newBlockedTime.reason}</Text>
+                  <Text className="text-red-600 text-sm">
+                    {newBlockedTime.day === 'everyday' ? 'Every day' : newBlockedTime.day} • {newBlockedTime.startTime} - {newBlockedTime.endTime}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
     </View>
   );
 }

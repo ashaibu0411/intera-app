@@ -271,6 +271,9 @@ The app is fully connected to Supabase for data persistence and syncing across u
   - Add services with name, description, duration, and price
   - Configure advance booking days (how far ahead customers can book)
   - Set buffer time between appointments
+  - **Block Time Slots**: Block recurring times for lunch breaks, meetings, prayer time, or personal time
+  - Block specific days or every day with custom time ranges
+  - Customers cannot book during blocked time periods
 
 ## Advanced Community Features (NEW!)
 
