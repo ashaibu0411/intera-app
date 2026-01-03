@@ -1,8 +1,7 @@
 import { useState } from 'react';
-import { View, Text, ScrollView, Pressable, Image, Modal } from 'react-native';
-import { router } from 'expo-router';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { BookOpen, Users, Globe, ChefHat, Heart, X, ChevronRight, Star, Clock, TreePine, Languages, ChevronLeft } from 'lucide-react-native';
+import { View, Text, ScrollView, Pressable, Image } from 'react-native';
+import { Stack, router } from 'expo-router';
+import { BookOpen, Users, Globe, ChefHat, Heart, ChevronRight, Star, Clock, TreePine, Languages, ChevronLeft } from 'lucide-react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useAdvancedFeatures, type TraditionalRecipe, type LanguagePod, type FamilyTree } from '@/lib/advancedFeatures';
 import * as Haptics from 'expo-haptics';
@@ -159,8 +158,6 @@ const MOCK_TREES: FamilyTree[] = [
 
 export default function HeritageHubScreen() {
   const [activeTab, setActiveTab] = useState('Recipes');
-  const [selectedRecipe, setSelectedRecipe] = useState<TraditionalRecipe | null>(null);
-  const insets = useSafeAreaInsets();
 
   const { recipes, languagePods, familyTrees } = useAdvancedFeatures();
   const allRecipes = [...recipes, ...MOCK_RECIPES];
@@ -182,15 +179,15 @@ export default function HeritageHubScreen() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#FAF7F2', paddingTop: insets.top }}>
-      {/* Custom Header */}
-      <View className="flex-row items-center justify-between px-4 py-3 bg-white border-b border-gray-100">
-        <Pressable onPress={() => router.back()} className="p-2 -ml-2">
-          <ChevronLeft size={24} color="#1B4D3E" />
-        </Pressable>
-        <Text className="text-lg font-bold text-gray-900">Heritage Hub</Text>
-        <View style={{ width: 40 }} />
-      </View>
+    <View style={{ flex: 1, backgroundColor: '#FAF7F2' }}>
+      <Stack.Screen
+        options={{
+          headerShown: true,
+          title: 'Heritage Hub',
+          headerStyle: { backgroundColor: '#FAF7F2' },
+          headerTintColor: '#1B4D3E',
+        }}
+      />
 
       {/* Hero Banner */}
       <Animated.View entering={FadeInDown.delay(100)} style={{ marginHorizontal: 16, marginTop: 8, backgroundColor: '#065f46', borderRadius: 16, padding: 16 }}>
@@ -210,7 +207,7 @@ export default function HeritageHubScreen() {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
             router.push('/translator');
           }}
-          className="bg-gradient-to-r from-amber-500 to-orange-500 bg-amber-500 rounded-xl p-4 flex-row items-center"
+          className="bg-amber-500 rounded-xl p-4 flex-row items-center"
         >
           <View className="bg-white/20 p-2 rounded-full">
             <Languages size={24} color="white" />
@@ -265,7 +262,7 @@ export default function HeritageHubScreen() {
                   <Pressable
                     onPress={() => {
                       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      setSelectedRecipe(recipe);
+                      router.push(`/recipe-detail?id=${recipe.id}`);
                     }}
                     className="bg-white rounded-2xl overflow-hidden mb-4 shadow-sm"
                   >
@@ -452,120 +449,6 @@ export default function HeritageHubScreen() {
         )}
 
         <View className="h-8" />
-      </ScrollView>
-
-      {/* Recipe Detail Modal */}
-      {selectedRecipe && (
-        <Modal visible={true} animationType="slide" presentationStyle="pageSheet">
-          <RecipeDetailModal recipe={selectedRecipe} onClose={() => setSelectedRecipe(null)} />
-        </Modal>
-      )}
-    </View>
-  );
-}
-
-function RecipeDetailModal({ recipe, onClose }: { recipe: TraditionalRecipe; onClose: () => void }) {
-  return (
-    <View style={{ flex: 1, backgroundColor: '#FAF7F2' }}>
-      <SafeAreaView style={{ backgroundColor: '#FFFFFF' }} edges={['top']}>
-        <View className="flex-row items-center justify-between p-4 bg-white border-b border-gray-100">
-          <Pressable onPress={onClose}>
-            <X size={24} color="#6B7280" />
-          </Pressable>
-          <Text className="text-lg font-bold text-gray-900">Recipe</Text>
-          <Pressable className="bg-red-100 p-2 rounded-full">
-            <Heart size={20} color="#EF4444" />
-          </Pressable>
-        </View>
-      </SafeAreaView>
-
-      <ScrollView className="flex-1">
-        {recipe.images[0] && (
-          <Image source={{ uri: recipe.images[0] }} className="w-full h-64" />
-        )}
-
-        <View className="p-4">
-          <View className="flex-row items-center mb-2">
-            <Globe size={14} color="#6B7280" />
-            <Text className="text-gray-500 text-sm ml-1">{recipe.origin} • {recipe.region}</Text>
-          </View>
-
-          <Text className="text-gray-900 font-bold text-2xl">{recipe.title}</Text>
-          <Text className="text-gray-600 mt-2">{recipe.description}</Text>
-
-          {/* Author */}
-          <View className="flex-row items-center mt-4 bg-gray-50 rounded-xl p-3">
-            <Image source={{ uri: recipe.authorAvatar }} className="w-10 h-10 rounded-full" />
-            <View className="ml-3">
-              <Text className="text-gray-900 font-semibold">{recipe.authorName}</Text>
-              <Text className="text-gray-500 text-sm">Recipe Keeper</Text>
-            </View>
-          </View>
-
-          {/* Story */}
-          {recipe.story && (
-            <View className="mt-4 bg-amber-50 rounded-xl p-4">
-              <Text className="text-amber-800 font-semibold mb-2">The Story</Text>
-              <Text className="text-amber-700 italic">"{recipe.story}"</Text>
-            </View>
-          )}
-
-          {/* Time & Servings */}
-          <View className="flex-row mt-4 bg-white rounded-xl p-4">
-            <View className="flex-1 items-center">
-              <Text className="text-gray-500 text-sm">Prep</Text>
-              <Text className="text-gray-900 font-bold">{recipe.prepTime} min</Text>
-            </View>
-            <View className="w-px bg-gray-200" />
-            <View className="flex-1 items-center">
-              <Text className="text-gray-500 text-sm">Cook</Text>
-              <Text className="text-gray-900 font-bold">{recipe.cookTime} min</Text>
-            </View>
-            <View className="w-px bg-gray-200" />
-            <View className="flex-1 items-center">
-              <Text className="text-gray-500 text-sm">Serves</Text>
-              <Text className="text-gray-900 font-bold">{recipe.servings}</Text>
-            </View>
-          </View>
-
-          {/* Ingredients */}
-          <View className="mt-6">
-            <Text className="text-gray-900 font-bold text-lg mb-3">Ingredients</Text>
-            {recipe.ingredients.map((ing, index) => (
-              <View key={index} className="flex-row items-center py-2 border-b border-gray-100">
-                <View className="w-2 h-2 rounded-full bg-emerald-500 mr-3" />
-                <Text className="flex-1 text-gray-700">{ing.item}</Text>
-                <Text className="text-gray-500">{ing.amount}</Text>
-              </View>
-            ))}
-          </View>
-
-          {/* Instructions */}
-          <View className="mt-6">
-            <Text className="text-gray-900 font-bold text-lg mb-3">Instructions</Text>
-            {recipe.instructions.map((step) => (
-              <View key={step.step} className="flex-row mb-4">
-                <View className="w-8 h-8 rounded-full bg-emerald-800 items-center justify-center">
-                  <Text className="text-white font-bold">{step.step}</Text>
-                </View>
-                <Text className="flex-1 text-gray-700 ml-3">{step.text}</Text>
-              </View>
-            ))}
-          </View>
-
-          {/* Tips */}
-          {recipe.tips.length > 0 && (
-            <View className="mt-6 bg-emerald-50 rounded-xl p-4">
-              <Text className="text-emerald-800 font-bold mb-2">Pro Tips</Text>
-              {recipe.tips.map((tip, index) => (
-                <View key={index} className="flex-row items-start mt-2">
-                  <Star size={14} color="#C9A227" fill="#C9A227" style={{ marginTop: 2 }} />
-                  <Text className="text-emerald-700 ml-2 flex-1">{tip}</Text>
-                </View>
-              ))}
-            </View>
-          )}
-        </View>
       </ScrollView>
     </View>
   );
