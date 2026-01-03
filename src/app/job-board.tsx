@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { View, Text, ScrollView, Pressable, Image, TextInput, Modal, Alert, BackHandler } from 'react-native';
+import { View, Text, ScrollView, Pressable, Image, TextInput, Modal, Alert } from 'react-native';
+import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Briefcase, MapPin, Clock, DollarSign, Search, Filter, Plus, X, ChevronRight, Users, Star, CheckCircle, ArrowLeft } from 'lucide-react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -7,7 +8,6 @@ import { useStore } from '@/lib/store';
 import { useAdvancedFeatures, type JobPosting, type SkillListing } from '@/lib/advancedFeatures';
 import * as Haptics from 'expo-haptics';
 import { v4 as uuidv4 } from 'uuid';
-import { useNavigation } from '@react-navigation/native';
 
 const JOB_CATEGORIES = ['All', 'Technology', 'Healthcare', 'Education', 'Food & Hospitality', 'Retail', 'Construction', 'Transportation', 'Creative', 'Other'];
 
@@ -122,7 +122,6 @@ const MOCK_SKILLS: SkillListing[] = [
 ];
 
 export default function JobBoardScreen() {
-  const navigation = useNavigation();
   const [activeTab, setActiveTab] = useState<'jobs' | 'skills'>('jobs');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
@@ -166,7 +165,7 @@ export default function JobBoardScreen() {
       {/* Custom Header */}
       <View className="flex-row items-center justify-between px-4 py-3 bg-white border-b border-gray-100">
         <Pressable
-          onPress={() => navigation.goBack()}
+          onPress={() => router.back()}
           className="p-2 -ml-2"
         >
           <ArrowLeft size={24} color="#1B4D3E" />
