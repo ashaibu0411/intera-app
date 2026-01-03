@@ -1,5 +1,5 @@
-import React, { useRef, useState, useEffect } from 'react';
-import { View, Text, Pressable, Share, Alert, Modal } from 'react-native';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
+import { View, Text, Pressable, Share, Alert, Modal, Dimensions } from 'react-native';
 import { Image } from 'expo-image';
 import { Video, ResizeMode } from 'expo-av';
 import { MessageCircle, Share2, MoreHorizontal, MapPin, Play, Volume2, VolumeX } from 'lucide-react-native';
@@ -11,16 +11,22 @@ import Animated, {
   withSpring,
   withSequence,
   withTiming,
+  withDelay,
+  runOnJS,
   FadeIn,
   FadeOut,
   ZoomIn,
   SlideInDown,
+  SlideInUp,
+  FadeInUp,
 } from 'react-native-reanimated';
 import { formatDistanceToNow } from 'date-fns';
 import { router } from 'expo-router';
 import * as DropdownMenu from 'zeego/dropdown-menu';
 import { useStore, MOCK_COMMENTS, type Post } from '@/lib/store';
 import { getCommentsCount } from '@/lib/posts';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 interface PostCardProps {
   post: Post;
@@ -41,6 +47,16 @@ const REACTIONS = [
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
+// Burst emoji particle for double-tap effect
+interface BurstEmoji {
+  id: number;
+  emoji: string;
+  x: number;
+  y: number;
+  rotation: number;
+  scale: number;
+}
+
 export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
   const likedPostIds = useStore((s) => s.likedPostIds);
   const toggleLikePost = useStore((s) => s.toggleLikePost);
@@ -54,6 +70,9 @@ export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
   const [dbCommentCount, setDbCommentCount] = useState<number>(0);
   const [showReactionPicker, setShowReactionPicker] = useState(false);
   const [floatingEmojis, setFloatingEmojis] = useState<Array<{ id: number; emoji: string }>>([]);
+  const [burstEmojis, setBurstEmojis] = useState<BurstEmoji[]>([]);
+  const [showBigHeart, setShowBigHeart] = useState(false);
+  const lastTapRef = useRef<number>(0);
 
   const isLiked = likedPostIds.includes(post.id);
   const isSaved = savedPostIds.includes(post.id);
@@ -143,6 +162,49 @@ export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
       setFloatingEmojis(prev => prev.filter(e => e.id !== id));
     }, 1000);
   };
+
+  // Double-tap handler for images - Instagram style
+  const handleImageDoubleTap = useCallback(() => {
+    const now = Date.now();
+    const DOUBLE_TAP_DELAY = 300;
+
+    if (now - lastTapRef.current < DOUBLE_TAP_DELAY) {
+      // Double tap detected!
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+      // Show big heart animation
+      setShowBigHeart(true);
+      setTimeout(() => setShowBigHeart(false), 800);
+
+      // Create burst of emojis
+      const emojis = ['❤️', '🔥', '✨', '💫', '💖'];
+      const newBurst: BurstEmoji[] = [];
+      for (let i = 0; i < 6; i++) {
+        newBurst.push({
+          id: Date.now() + i,
+          emoji: emojis[Math.floor(Math.random() * emojis.length)],
+          x: Math.random() * 120 - 60,
+          y: Math.random() * -80 - 20,
+          rotation: Math.random() * 60 - 30,
+          scale: 0.6 + Math.random() * 0.6,
+        });
+      }
+      setBurstEmojis(newBurst);
+      setTimeout(() => setBurstEmojis([]), 1000);
+
+      // Like the post if not already liked
+      if (!isLiked) {
+        toggleLikePost(post.id);
+        setPostReaction(post.id, '❤️');
+
+        likeScale.value = withSequence(
+          withSpring(1.4, { damping: 2, stiffness: 200 }),
+          withSpring(1, { damping: 6, stiffness: 200 })
+        );
+      }
+    }
+    lastTapRef.current = now;
+  }, [isLiked, post.id, toggleLikePost, setPostReaction, likeScale]);
 
   const likeAnimatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: likeScale.value }],
@@ -347,15 +409,48 @@ export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
         <Text className="text-warmBrown text-base leading-6">{post.content}</Text>
       </View>
 
-      {/* Image */}
+      {/* Image with double-tap to like */}
       {post.images.length > 0 && (
-        <View className="px-4 pb-3">
+        <Pressable onPress={handleImageDoubleTap} className="px-4 pb-3 relative">
           <Image
             source={{ uri: post.images[0] }}
             style={{ width: '100%', height: 200, borderRadius: 12 }}
             contentFit="cover"
           />
-        </View>
+
+          {/* Big heart animation on double-tap */}
+          {showBigHeart && (
+            <Animated.View
+              entering={ZoomIn.duration(200)}
+              exiting={FadeOut.duration(400)}
+              className="absolute inset-0 items-center justify-center"
+            >
+              <Text style={{ fontSize: 80 }}>❤️</Text>
+            </Animated.View>
+          )}
+
+          {/* Burst emojis */}
+          {burstEmojis.map((burst) => (
+            <Animated.View
+              key={burst.id}
+              entering={FadeInUp.duration(600)}
+              exiting={FadeOut.duration(300)}
+              className="absolute"
+              style={{
+                left: '50%',
+                top: '50%',
+                transform: [
+                  { translateX: burst.x },
+                  { translateY: burst.y },
+                  { rotate: `${burst.rotation}deg` },
+                  { scale: burst.scale },
+                ],
+              }}
+            >
+              <Text style={{ fontSize: 28 }}>{burst.emoji}</Text>
+            </Animated.View>
+          ))}
+        </Pressable>
       )}
 
       {/* Video */}
@@ -402,38 +497,72 @@ export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
       )}
 
       {/* Actions */}
-      <View className="flex-row items-center px-4 py-3 border-t border-gray-100">
-        {/* Reaction Button - tap for quick like, long press for picker */}
-        <Pressable
-          onPress={handleQuickLike}
-          onLongPress={handleLongPress}
-          delayLongPress={300}
-          className="flex-row items-center mr-6"
-        >
-          <Animated.View style={likeAnimatedStyle}>
-            <Text style={{ fontSize: 22 }}>
-              {isLiked ? displayEmoji : '🤍'}
-            </Text>
-          </Animated.View>
-          <Text
-            className="ml-2 text-sm font-medium"
-            style={{ color: isLiked ? reactionColor : '#6B7280' }}
+      <View className="px-4 py-3 border-t border-gray-100">
+        {/* Reaction Summary Bar - shows which emojis were used */}
+        {likeCount > 0 && (
+          <Pressable onPress={handleQuickLike} className="flex-row items-center mb-2">
+            <View className="flex-row items-center">
+              {/* Show mix of reaction emojis */}
+              <View className="flex-row -space-x-1">
+                {[currentReaction || '❤️', '🔥', '👏🏿'].slice(0, Math.min(3, likeCount)).map((emoji, i) => (
+                  <View
+                    key={i}
+                    className="bg-white rounded-full"
+                    style={{
+                      marginLeft: i > 0 ? -4 : 0,
+                      zIndex: 3 - i,
+                    }}
+                  >
+                    <Text style={{ fontSize: 14 }}>{emoji}</Text>
+                  </View>
+                ))}
+              </View>
+              <Text className="text-xs text-gray-500 ml-2">
+                {likeCount === 1
+                  ? 'You and no others'
+                  : likeCount < 5
+                    ? `Liked by ${likeCount} people`
+                    : `Liked by ${likeCount} people`}
+              </Text>
+            </View>
+          </Pressable>
+        )}
+
+        {/* Action Buttons */}
+        <View className="flex-row items-center">
+          {/* Reaction Button - tap for quick like, long press for picker */}
+          <Pressable
+            onPress={handleQuickLike}
+            onLongPress={handleLongPress}
+            delayLongPress={300}
+            className="flex-row items-center mr-6"
           >
-            {likeCount}
-          </Text>
-        </Pressable>
+            <Animated.View style={likeAnimatedStyle}>
+              <Text style={{ fontSize: 22 }}>
+                {isLiked ? displayEmoji : '🤍'}
+              </Text>
+            </Animated.View>
+            <Text
+              className="ml-2 text-sm font-medium"
+              style={{ color: isLiked ? reactionColor : '#6B7280' }}
+            >
+              {likeCount}
+            </Text>
+          </Pressable>
 
-        <Pressable
-          onPress={handleComment}
-          className="flex-row items-center mr-6"
-        >
-          <MessageCircle size={22} color="#8B7355" />
-          <Text className="ml-2 text-sm text-gray-500">{commentCount}</Text>
-        </Pressable>
+          <Pressable
+            onPress={handleComment}
+            className="flex-row items-center mr-6"
+          >
+            <MessageCircle size={22} color="#8B7355" />
+            <Text className="ml-2 text-sm text-gray-500">{commentCount}</Text>
+          </Pressable>
 
-        <Pressable onPress={handleShare} className="flex-row items-center">
-          <Share2 size={20} color="#8B7355" />
-        </Pressable>
+          <Pressable onPress={handleShare} className="flex-row items-center ml-auto">
+            <Share2 size={20} color="#8B7355" />
+            <Text className="ml-1.5 text-sm text-gray-500">Share</Text>
+          </Pressable>
+        </View>
       </View>
 
       {/* Reaction Picker Modal */}

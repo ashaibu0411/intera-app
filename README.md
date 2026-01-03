@@ -22,6 +22,13 @@ A community-driven social platform connecting Africans and the African diaspora 
   - Long-press to open reaction picker: Love, Fire, Clap, Real, Bless, Haha
   - Animated floating emojis when reacting
   - Color-coded reaction counts
+- **Double-Tap to Like**: Instagram-style double-tap on images
+  - Big heart animation on double-tap
+  - Burst of colorful emojis (hearts, fire, sparkles) exploding from the image
+  - Haptic feedback for satisfying interaction
+- **Reaction Summary Bar**: See which emojis people used on each post
+  - Shows stacked emoji icons
+  - "Liked by X people" text
 - Like, comment, and share interactions
 - Guest users can browse but need account to interact
 
