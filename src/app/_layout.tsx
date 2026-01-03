@@ -82,6 +82,7 @@ function RootLayoutNav() {
         <Stack.Screen name="create-language-pod" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="family-tree" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="create-family-tree" options={{ animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="recipe-detail" options={{ animation: 'slide_from_right' }} />
         {/* Business Appointment Screens */}
         <Stack.Screen name="book-appointment" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="my-appointments" options={{ animation: 'slide_from_right' }} />
