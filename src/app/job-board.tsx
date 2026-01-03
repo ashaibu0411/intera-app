@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { View, Text, ScrollView, Pressable, Image, TextInput, Modal } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
+import { View, Text, ScrollView, Pressable, Image, TextInput, Modal, Alert } from 'react-native';
+import { Stack } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Briefcase, MapPin, Clock, DollarSign, Search, Filter, Plus, X, ChevronRight, Users, Star, CheckCircle } from 'lucide-react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -122,19 +122,20 @@ const MOCK_SKILLS: SkillListing[] = [
 ];
 
 export default function JobBoardScreen() {
-  const router = useRouter();
   const [activeTab, setActiveTab] = useState<'jobs' | 'skills'>('jobs');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [showPostJob, setShowPostJob] = useState(false);
+  const [selectedJob, setSelectedJob] = useState<JobPosting | null>(null);
+  const [selectedSkill, setSelectedSkill] = useState<SkillListing | null>(null);
 
-  const { jobPostings, skillListings, addJobPosting } = useAdvancedFeatures();
+  const { jobPostings = [], skillListings = [], addJobPosting } = useAdvancedFeatures();
   const allJobs = [...jobPostings, ...MOCK_JOBS];
   const allSkills = [...skillListings, ...MOCK_SKILLS];
 
   const filteredJobs = allJobs.filter((job) => {
-    const matchesSearch = job.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      job.description.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = (job.title ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (job.description ?? '').toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = selectedCategory === 'All' || job.category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
@@ -222,6 +223,7 @@ export default function JobBoardScreen() {
           horizontal
           showsHorizontalScrollIndicator={false}
           className="mt-3 px-4"
+          style={{ flexGrow: 0 }}
           contentContainerStyle={{ paddingRight: 16 }}
         >
           {JOB_CATEGORIES.map((cat) => (
@@ -249,7 +251,7 @@ export default function JobBoardScreen() {
                 <Pressable
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    router.push(`/job-detail?id=${job.id}`);
+                    setSelectedJob(job);
                   }}
                   className="bg-white rounded-2xl p-4 mb-3 shadow-sm"
                 >
@@ -304,7 +306,7 @@ export default function JobBoardScreen() {
                 <Pressable
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    router.push(`/skill-detail?id=${skill.id}`);
+                    setSelectedSkill(skill);
                   }}
                   className="bg-white rounded-2xl p-4 mb-3 shadow-sm"
                 >
@@ -358,6 +360,20 @@ export default function JobBoardScreen() {
       {/* Post Job Modal */}
       <Modal visible={showPostJob} animationType="slide" presentationStyle="pageSheet">
         <PostJobModal onClose={() => setShowPostJob(false)} onSubmit={addJobPosting} />
+      </Modal>
+
+      {/* Job Detail Modal */}
+      <Modal visible={!!selectedJob} animationType="slide" presentationStyle="pageSheet">
+        {selectedJob && (
+          <JobDetailModal job={selectedJob} onClose={() => setSelectedJob(null)} />
+        )}
+      </Modal>
+
+      {/* Skill Detail Modal */}
+      <Modal visible={!!selectedSkill} animationType="slide" presentationStyle="pageSheet">
+        {selectedSkill && (
+          <SkillDetailModal skill={selectedSkill} onClose={() => setSelectedSkill(null)} />
+        )}
       </Modal>
     </SafeAreaView>
   );
@@ -488,6 +504,195 @@ function PostJobModal({ onClose, onSubmit }: { onClose: () => void; onSubmit: (j
             </Pressable>
           ))}
         </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+function JobDetailModal({ job, onClose }: { job: JobPosting; onClose: () => void }) {
+  const getJobTypeLabel = (type: string) => {
+    const labels: { [key: string]: string } = {
+      full_time: 'Full-time',
+      part_time: 'Part-time',
+      contract: 'Contract',
+      gig: 'Gig',
+      internship: 'Internship',
+      volunteer: 'Volunteer',
+    };
+    return labels[type] ?? type;
+  };
+
+  const getSalaryDisplay = (salary?: JobPosting['salary']) => {
+    if (!salary) return 'Salary not specified';
+    const { min, max, period } = salary;
+    if (period === 'hourly') return `$${min}-$${max}/hr`;
+    if (period === 'yearly') return `$${(min / 1000).toFixed(0)}k-$${(max / 1000).toFixed(0)}k/yr`;
+    return `$${min}-$${max}/${period}`;
+  };
+
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#FAF7F2' }}>
+      <View className="flex-row items-center justify-between p-4 border-b border-gray-200 bg-white">
+        <Pressable onPress={onClose}>
+          <X size={24} color="#6B7280" />
+        </Pressable>
+        <Text className="text-lg font-bold text-gray-900">Job Details</Text>
+        <View style={{ width: 24 }} />
+      </View>
+
+      <ScrollView className="flex-1 p-4">
+        <View className="bg-white rounded-2xl p-4 mb-4">
+          <View className="flex-row items-start">
+            <Image source={{ uri: job.posterAvatar }} className="w-16 h-16 rounded-xl" />
+            <View className="flex-1 ml-4">
+              <Text className="text-gray-900 font-bold text-xl">{job.title}</Text>
+              <Text className="text-emerald-700 font-medium">{job.businessName ?? job.posterName}</Text>
+              <View className="flex-row items-center mt-1">
+                <MapPin size={14} color="#6B7280" />
+                <Text className="text-gray-500 ml-1">{job.location}</Text>
+              </View>
+            </View>
+          </View>
+
+          <View className="flex-row flex-wrap gap-2 mt-4">
+            <View className="bg-emerald-50 px-3 py-1.5 rounded-full">
+              <Text className="text-emerald-700 font-medium">{getSalaryDisplay(job.salary)}</Text>
+            </View>
+            <View className="bg-amber-50 px-3 py-1.5 rounded-full">
+              <Text className="text-amber-700 font-medium">{getJobTypeLabel(job.type)}</Text>
+            </View>
+            <View className={`px-3 py-1.5 rounded-full ${job.isRemote ? 'bg-blue-50' : 'bg-gray-100'}`}>
+              <Text className={job.isRemote ? 'text-blue-700 font-medium' : 'text-gray-600 font-medium'}>
+                {job.isRemote ? 'Remote' : 'On-site'}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        <View className="bg-white rounded-2xl p-4 mb-4">
+          <Text className="text-gray-900 font-bold text-lg mb-3">Description</Text>
+          <Text className="text-gray-600 leading-6">{job.description}</Text>
+        </View>
+
+        {job.requirements && job.requirements.length > 0 && (
+          <View className="bg-white rounded-2xl p-4 mb-4">
+            <Text className="text-gray-900 font-bold text-lg mb-3">Requirements</Text>
+            {job.requirements.map((req, index) => (
+              <View key={index} className="flex-row items-start mb-2">
+                <CheckCircle size={16} color="#059669" style={{ marginTop: 2 }} />
+                <Text className="text-gray-600 ml-2 flex-1">{req}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {job.benefits && job.benefits.length > 0 && (
+          <View className="bg-white rounded-2xl p-4 mb-4">
+            <Text className="text-gray-900 font-bold text-lg mb-3">Benefits</Text>
+            {job.benefits.map((benefit, index) => (
+              <View key={index} className="flex-row items-start mb-2">
+                <Star size={16} color="#F59E0B" style={{ marginTop: 2 }} />
+                <Text className="text-gray-600 ml-2 flex-1">{benefit}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        <View className="bg-white rounded-2xl p-4 mb-4">
+          <View className="flex-row items-center justify-between">
+            <View className="flex-row items-center">
+              <Users size={18} color="#6B7280" />
+              <Text className="text-gray-500 ml-2">{job.applicationsCount} applicants</Text>
+            </View>
+            <Text className="text-gray-400 text-sm">
+              Posted {new Date(job.createdAt).toLocaleDateString()}
+            </Text>
+          </View>
+        </View>
+
+        <Pressable
+          onPress={() => {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            Alert.alert('Application Sent', 'Your application has been submitted successfully!');
+            onClose();
+          }}
+          className="bg-emerald-800 py-4 rounded-xl items-center mb-8"
+        >
+          <Text className="text-white font-bold text-lg">Apply Now</Text>
+        </Pressable>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+function SkillDetailModal({ skill, onClose }: { skill: SkillListing; onClose: () => void }) {
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#FAF7F2' }}>
+      <View className="flex-row items-center justify-between p-4 border-b border-gray-200 bg-white">
+        <Pressable onPress={onClose}>
+          <X size={24} color="#6B7280" />
+        </Pressable>
+        <Text className="text-lg font-bold text-gray-900">Skill Provider</Text>
+        <View style={{ width: 24 }} />
+      </View>
+
+      <ScrollView className="flex-1 p-4">
+        <View className="bg-white rounded-2xl p-4 mb-4 items-center">
+          <Image source={{ uri: skill.userAvatar }} className="w-24 h-24 rounded-full" />
+          <View className="flex-row items-center mt-3">
+            <Text className="text-gray-900 font-bold text-xl">{skill.userName}</Text>
+            {skill.isVerified && (
+              <CheckCircle size={18} color="#059669" style={{ marginLeft: 6 }} />
+            )}
+          </View>
+          <Text className="text-emerald-700 font-medium text-lg mt-1">{skill.title}</Text>
+
+          <View className="flex-row items-center mt-2">
+            <Star size={18} color="#F59E0B" fill="#F59E0B" />
+            <Text className="text-gray-700 font-bold ml-1">{skill.rating}</Text>
+            <Text className="text-gray-400 ml-1">({skill.completedJobs} jobs completed)</Text>
+          </View>
+        </View>
+
+        <View className="bg-white rounded-2xl p-4 mb-4">
+          <Text className="text-gray-900 font-bold text-lg mb-3">About</Text>
+          <Text className="text-gray-600 leading-6">{skill.description}</Text>
+        </View>
+
+        <View className="bg-white rounded-2xl p-4 mb-4">
+          <Text className="text-gray-900 font-bold text-lg mb-3">Skills</Text>
+          <View className="flex-row flex-wrap gap-2">
+            {skill.skills.map((s, index) => (
+              <View key={index} className="bg-emerald-50 px-3 py-1.5 rounded-full">
+                <Text className="text-emerald-700 font-medium">{s}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        <View className="bg-white rounded-2xl p-4 mb-4">
+          <View className="flex-row items-center justify-between">
+            <Text className="text-gray-500">Hourly Rate</Text>
+            <Text className="text-emerald-700 font-bold text-xl">
+              ${skill.hourlyRate ?? 0}/hr
+            </Text>
+          </View>
+          <View className="flex-row items-center justify-between mt-2">
+            <Text className="text-gray-500">Availability</Text>
+            <Text className="text-gray-700 font-medium capitalize">{skill.availability}</Text>
+          </View>
+        </View>
+
+        <Pressable
+          onPress={() => {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            Alert.alert('Message Sent', `Your message has been sent to ${skill.userName}!`);
+            onClose();
+          }}
+          className="bg-emerald-800 py-4 rounded-xl items-center mb-8"
+        >
+          <Text className="text-white font-bold text-lg">Contact {skill.userName.split(' ')[0]}</Text>
+        </Pressable>
       </ScrollView>
     </SafeAreaView>
   );
