@@ -118,7 +118,8 @@ const MOCK_TREES: Record<string, FamilyTree> = {
 
 export default function FamilyTreeScreen() {
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const params = useLocalSearchParams<{ id: string }>();
+  const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const [tree, setTree] = useState<FamilyTree | null>(null);
   const [selectedMember, setSelectedMember] = useState<FamilyMember | null>(null);
 

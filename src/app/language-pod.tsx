@@ -124,7 +124,8 @@ const LANGUAGE_PHRASES: Record<string, { phrase: string; translation: string; pr
 
 export default function LanguagePodScreen() {
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const params = useLocalSearchParams<{ id: string }>();
+  const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const [pod, setPod] = useState<LanguagePod | null>(null);
   const [activeTab, setActiveTab] = useState<'about' | 'phrases' | 'translate'>('about');
   const [isJoined, setIsJoined] = useState(false);
