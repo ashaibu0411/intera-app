@@ -1,11 +1,13 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { View, Text, ScrollView, Pressable, Alert } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Gem, Sparkles, Crown, Star, Zap, Gift, ChevronRight, History } from 'lucide-react-native';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useStore, type GiftTransaction } from '@/lib/store';
+import { useStore } from '@/lib/store';
+import { getWalletStats, addGems as addGemsToSupabase, getTransactionHistory } from '@/lib/giftService';
+import { DbGiftTransaction } from '@/lib/supabase';
 import * as Haptics from 'expo-haptics';
 
 interface GemPackage {
@@ -28,31 +30,82 @@ const GEM_PACKAGES: GemPackage[] = [
 
 export default function GemStoreScreen() {
   const currentUser = useStore((s) => s.currentUser);
-  const gemBalance = useStore((s) => s.currentUser?.gemBalance ?? 500);
-  const addGems = useStore((s) => s.addGems);
-  const giftTransactions = useStore((s) => s.giftTransactions);
+  const [gemBalance, setGemBalance] = useState(500);
+  const [totalSent, setTotalSent] = useState(0);
+  const [totalEarned, setTotalEarned] = useState(0);
+  const [transactions, setTransactions] = useState<DbGiftTransaction[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [purchasing, setPurchasing] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Load wallet data from Supabase
+  useEffect(() => {
+    if (currentUser?.id) {
+      loadWalletData();
+    }
+  }, [currentUser?.id]);
+
+  const loadWalletData = async () => {
+    if (!currentUser?.id) return;
+
+    setIsLoading(true);
+
+    const [stats, history] = await Promise.all([
+      getWalletStats(currentUser.id),
+      getTransactionHistory(currentUser.id),
+    ]);
+
+    if (stats) {
+      setGemBalance(stats.balance);
+      setTotalSent(stats.totalSent);
+      setTotalEarned(stats.totalEarned);
+    }
+
+    setTransactions(history);
+    setIsLoading(false);
+  };
 
   const handlePurchase = async (pkg: GemPackage) => {
+    if (!currentUser?.id) return;
+
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setPurchasing(pkg.id);
 
-    // Simulate purchase delay - in production this would go through RevenueCat
-    setTimeout(() => {
-      const totalGems = pkg.gems + (pkg.bonus ?? 0);
-      addGems(totalGems);
-      setPurchasing(null);
+    const totalGems = pkg.gems + (pkg.bonus ?? 0);
+
+    // Add gems via Supabase - in production this would go through RevenueCat first
+    const result = await addGemsToSupabase(currentUser.id, totalGems);
+
+    setPurchasing(null);
+
+    if (result.success) {
+      if (result.newBalance !== undefined) {
+        setGemBalance(result.newBalance);
+      }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert(
-        '🎉 Purchase Complete!',
+        'Purchase Complete!',
         `You received ${totalGems.toLocaleString()} gems!`,
         [{ text: 'Awesome!' }]
       );
-    }, 1500);
+    } else {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('Error', result.error ?? 'Failed to add gems');
+    }
   };
 
-  const recentTransactions = giftTransactions.slice(0, 10);
+  const formatTransaction = (tx: DbGiftTransaction) => {
+    const isSent = tx.sender_id === currentUser?.id;
+    return {
+      id: tx.id,
+      type: isSent ? 'sent' : 'received',
+      giftName: tx.gift_name,
+      giftValue: tx.gift_value,
+      otherParty: isSent ? tx.recipient_name : tx.sender_name,
+      roomTitle: tx.room_title,
+      timestamp: tx.created_at,
+    };
+  };
 
   return (
     <SafeAreaView className="flex-1 bg-[#0A0A0F]" edges={['top']}>
@@ -90,7 +143,7 @@ export default function GemStoreScreen() {
                   <View className="flex-row items-center mt-1">
                     <Gem size={28} color="#A855F7" />
                     <Text className="text-white text-4xl font-bold ml-2">
-                      {gemBalance.toLocaleString()}
+                      {isLoading ? '...' : gemBalance.toLocaleString()}
                     </Text>
                   </View>
                 </View>
@@ -103,13 +156,13 @@ export default function GemStoreScreen() {
                 <View className="flex-1">
                   <Text className="text-gray-500 text-xs">Total Sent</Text>
                   <Text className="text-white font-bold">
-                    {(currentUser?.totalGemsSent ?? 0).toLocaleString()}
+                    {isLoading ? '...' : totalSent.toLocaleString()}
                   </Text>
                 </View>
                 <View className="flex-1">
                   <Text className="text-gray-500 text-xs">Total Earned</Text>
                   <Text className="text-green-400 font-bold">
-                    {(currentUser?.totalGemsEarned ?? 0).toLocaleString()}
+                    {isLoading ? '...' : totalEarned.toLocaleString()}
                   </Text>
                 </View>
               </View>
@@ -121,7 +174,7 @@ export default function GemStoreScreen() {
           /* Transaction History */
           <View className="px-4 mt-6">
             <Text className="text-white font-bold text-xl mb-4">Transaction History</Text>
-            {recentTransactions.length === 0 ? (
+            {transactions.length === 0 ? (
               <View className="bg-white/5 rounded-2xl p-8 items-center">
                 <Gift size={40} color="#6B7280" />
                 <Text className="text-gray-400 mt-3 text-center">
@@ -129,38 +182,37 @@ export default function GemStoreScreen() {
                 </Text>
               </View>
             ) : (
-              recentTransactions.map((tx, index) => (
-                <Animated.View
-                  key={tx.id}
-                  entering={FadeInDown.delay(index * 50)}
-                  className="bg-white/5 rounded-xl p-4 mb-2 flex-row items-center"
-                >
-                  <View className={`w-10 h-10 rounded-full items-center justify-center ${
-                    tx.type === 'sent' ? 'bg-red-500/20' : tx.type === 'received' ? 'bg-green-500/20' : 'bg-purple-500/20'
-                  }`}>
-                    {tx.type === 'sent' ? (
-                      <Gift size={20} color="#EF4444" />
-                    ) : tx.type === 'received' ? (
-                      <Gift size={20} color="#22C55E" />
-                    ) : (
-                      <Gem size={20} color="#A855F7" />
-                    )}
-                  </View>
-                  <View className="flex-1 ml-3">
-                    <Text className="text-white font-medium">
-                      {tx.type === 'sent' ? `Sent ${tx.giftName} to ${tx.recipientName}` :
-                       tx.type === 'received' ? `Received ${tx.giftName} from ${tx.senderName}` :
-                       `Purchased ${tx.giftValue} gems`}
+              transactions.slice(0, 20).map((tx, index) => {
+                const formatted = formatTransaction(tx);
+                return (
+                  <Animated.View
+                    key={tx.id}
+                    entering={FadeInDown.delay(index * 50)}
+                    className="bg-white/5 rounded-xl p-4 mb-2 flex-row items-center"
+                  >
+                    <View className={`w-10 h-10 rounded-full items-center justify-center ${
+                      formatted.type === 'sent' ? 'bg-red-500/20' : 'bg-green-500/20'
+                    }`}>
+                      <Gift size={20} color={formatted.type === 'sent' ? '#EF4444' : '#22C55E'} />
+                    </View>
+                    <View className="flex-1 ml-3">
+                      <Text className="text-white font-medium">
+                        {formatted.type === 'sent'
+                          ? `Sent ${formatted.giftName} to ${formatted.otherParty}`
+                          : `Received ${formatted.giftName} from ${formatted.otherParty}`}
+                      </Text>
+                      <Text className="text-gray-500 text-xs">
+                        {formatted.roomTitle
+                          ? `In: ${formatted.roomTitle}`
+                          : new Date(formatted.timestamp).toLocaleDateString()}
+                      </Text>
+                    </View>
+                    <Text className={`font-bold ${formatted.type === 'sent' ? 'text-red-400' : 'text-green-400'}`}>
+                      {formatted.type === 'sent' ? '-' : '+'}{formatted.giftValue}
                     </Text>
-                    <Text className="text-gray-500 text-xs">
-                      {tx.roomTitle ? `In: ${tx.roomTitle}` : new Date(tx.timestamp).toLocaleDateString()}
-                    </Text>
-                  </View>
-                  <Text className={`font-bold ${tx.type === 'sent' ? 'text-red-400' : 'text-green-400'}`}>
-                    {tx.type === 'sent' ? '-' : '+'}{tx.giftValue}
-                  </Text>
-                </Animated.View>
-              ))
+                  </Animated.View>
+                );
+              })
             )}
           </View>
         ) : (
@@ -218,7 +270,7 @@ export default function GemStoreScreen() {
                           <Text className={`text-xs font-medium mt-0.5 ${
                             pkg.bestValue ? 'text-amber-400' : 'text-purple-400'
                           }`}>
-                            {pkg.bestValue ? '🔥 Best Value' : '⭐ Most Popular'}
+                            {pkg.bestValue ? 'Best Value' : 'Most Popular'}
                           </Text>
                         )}
                       </View>

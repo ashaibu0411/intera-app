@@ -9,6 +9,7 @@ import { useStore } from '@/lib/store';
 import { useAdvancedFeatures, type VoiceRoom, type VoiceRoomParticipant } from '@/lib/advancedFeatures';
 import * as Haptics from 'expo-haptics';
 import { v4 as uuidv4 } from 'uuid';
+import { sendGift as sendGiftToSupabase, getGemBalance } from '@/lib/giftService';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -434,42 +435,57 @@ export default function VoiceRoomsScreen() {
 
 function VoiceRoomModal({ room, onClose, isHost }: { room: VoiceRoom; onClose: () => void; isHost: boolean }) {
   const currentUser = useStore((s) => s.currentUser);
-  const gemBalance = useStore((s) => s.currentUser?.gemBalance ?? 500);
-  const sendGiftToStore = useStore((s) => s.sendGift);
+  const [gemBalance, setGemBalance] = useState(500);
   const [isMuted, setIsMuted] = useState(true);
   const [hasRaisedHand, setHasRaisedHand] = useState(false);
   const [showGiftPanel, setShowGiftPanel] = useState(false);
   const [selectedSpeaker, setSelectedSpeaker] = useState<VoiceRoomParticipant | null>(null);
   const [gifts, setGifts] = useState<RoomGift[]>([]);
-  const [hostGiftCount, setHostGiftCount] = useState(127); // Mock initial count
+  const [hostGiftCount, setHostGiftCount] = useState(127);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [showInsufficientBalance, setShowInsufficientBalance] = useState(false);
+  const [isSendingGift, setIsSendingGift] = useState(false);
+
+  // Load gem balance from Supabase
+  useEffect(() => {
+    if (currentUser?.id) {
+      getGemBalance(currentUser.id).then(setGemBalance);
+    }
+  }, [currentUser?.id]);
 
   // Floating gift animation
   const [floatingGifts, setFloatingGifts] = useState<{ id: string; giftId: string; x: number }[]>([]);
 
-  const sendGift = (giftId: string, recipient: VoiceRoomParticipant) => {
+  const sendGift = async (giftId: string, recipient: VoiceRoomParticipant) => {
     const gift = GIFTS.find(g => g.id === giftId);
-    if (!gift) return;
+    if (!gift || !currentUser?.id || isSendingGift) return;
 
-    // Try to send gift through store (deducts balance)
-    const success = sendGiftToStore({
-      type: 'sent',
+    setIsSendingGift(true);
+
+    // Send gift through Supabase
+    const result = await sendGiftToSupabase({
+      senderId: currentUser.id,
+      senderName: currentUser.name ?? 'Guest',
+      recipientId: recipient.userId,
+      recipientName: recipient.userName,
       giftId: gift.id,
       giftName: gift.name,
       giftValue: gift.value,
-      senderId: currentUser?.id,
-      senderName: currentUser?.name,
-      recipientId: recipient.userId,
-      recipientName: recipient.userName,
       roomId: room.id,
       roomTitle: room.title,
     });
 
-    if (!success) {
+    setIsSendingGift(false);
+
+    if (!result.success) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setShowInsufficientBalance(true);
       return;
+    }
+
+    // Update local balance
+    if (result.newBalance !== undefined) {
+      setGemBalance(result.newBalance);
     }
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -478,8 +494,8 @@ function VoiceRoomModal({ room, onClose, isHost }: { room: VoiceRoom; onClose: (
     const newGift: RoomGift = {
       id: uuidv4(),
       giftId,
-      senderId: currentUser?.id ?? 'guest',
-      senderName: currentUser?.name ?? 'Guest',
+      senderId: currentUser.id,
+      senderName: currentUser.name ?? 'Guest',
       recipientId: recipient.userId,
       recipientName: recipient.userName,
       timestamp: new Date().toISOString(),

@@ -136,3 +136,27 @@ export interface DbFaithEvent {
   attendees_count: number;
   created_at: string;
 }
+
+export interface DbUserWallet {
+  id: string;
+  user_id: string;
+  gem_balance: number;
+  total_earned: number;
+  total_sent: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DbGiftTransaction {
+  id: string;
+  sender_id: string;
+  sender_name: string | null;
+  recipient_id: string;
+  recipient_name: string | null;
+  gift_id: string;
+  gift_name: string;
+  gift_value: number;
+  room_id: string | null;
+  room_title: string | null;
+  created_at: string;
+}
