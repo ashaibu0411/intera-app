@@ -20,7 +20,7 @@ import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ServiceCard } from '@/components/ServiceCard';
 import { useStore, type BusinessService, type Appointment, MOCK_USERS } from '@/lib/store';
-import { purchaseBusinessService, priceToGems, gemsToPrice } from '@/lib/marketplacePayments';
+import { purchaseBusinessService, priceToGems, gemsToPrice, calculateFeeBreakdown } from '@/lib/marketplacePayments';
 import { getGemBalance } from '@/lib/giftService';
 
 // Mock business with services for demo
@@ -126,6 +126,7 @@ export default function BookAppointmentScreen() {
   const [gemBalance, setGemBalance] = useState(0);
   const [showGemPaymentModal, setShowGemPaymentModal] = useState(false);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [buyerPaysFee, setBuyerPaysFee] = useState(false);
 
   const currentUser = useStore((s) => s.currentUser);
   const addAppointment = useStore((s) => s.addAppointment);
@@ -216,13 +217,14 @@ export default function BookAppointmentScreen() {
     // Handle gem payment
     if (paymentMethod === 'gems') {
       const gemPrice = priceToGems(selectedService.price);
+      const feeBreakdown = calculateFeeBreakdown(gemPrice, buyerPaysFee);
 
-      // Check balance
-      if (gemBalance < gemPrice) {
+      // Check balance (including fee if buyer pays it)
+      if (gemBalance < feeBreakdown.totalBuyerPays) {
         setIsBooking(false);
         Alert.alert(
           'Insufficient Gems',
-          'You need more gems to book this service.',
+          `You need ${(feeBreakdown.totalBuyerPays - gemBalance).toLocaleString()} more gems to book this service.`,
           [
             { text: 'Cancel', style: 'cancel' },
             { text: 'Get Gems', onPress: () => router.push('/gem-store') }
@@ -231,7 +233,7 @@ export default function BookAppointmentScreen() {
         return;
       }
 
-      // Process gem payment
+      // Process gem payment with buyerPaysFee flag
       const result = await purchaseBusinessService(
         currentUser.id,
         currentUser.name ?? 'User',
@@ -239,7 +241,8 @@ export default function BookAppointmentScreen() {
         MOCK_BARBERSHOP.name,
         selectedService.id,
         selectedService.name,
-        gemPrice
+        gemPrice,
+        buyerPaysFee
       );
 
       if (!result.success) {
@@ -250,7 +253,7 @@ export default function BookAppointmentScreen() {
       }
 
       // Update local balance
-      setGemBalance(result.newBuyerBalance ?? gemBalance - gemPrice);
+      setGemBalance(result.newBuyerBalance ?? gemBalance - feeBreakdown.totalBuyerPays);
     }
 
     // Create appointment
@@ -298,9 +301,11 @@ export default function BookAppointmentScreen() {
       case 2:
         return selectedTime !== null;
       case 3:
-        // If gems selected, ensure enough balance
+        // If gems selected, ensure enough balance (including fee if buyer pays it)
         if (paymentMethod === 'gems' && selectedService) {
-          return gemBalance >= priceToGems(selectedService.price);
+          const gemPrice = priceToGems(selectedService.price);
+          const feeBreakdown = calculateFeeBreakdown(gemPrice, buyerPaysFee);
+          return gemBalance >= feeBreakdown.totalBuyerPays;
         }
         return true;
       default:
@@ -536,9 +541,13 @@ export default function BookAppointmentScreen() {
                 </View>
                 <View className="flex-1 ml-3">
                   <Text className="text-warmBrown font-semibold">Pay with Gems</Text>
-                  <View className="flex-row items-center">
+                  <View className="flex-row items-center flex-wrap">
                     <Text className="text-gray-500 text-sm">
-                      {selectedService ? `${priceToGems(selectedService.price).toLocaleString()} gems` : 'Use your gem balance'}
+                      {selectedService ? (() => {
+                        const gemPrice = priceToGems(selectedService.price);
+                        const total = calculateFeeBreakdown(gemPrice, buyerPaysFee).totalBuyerPays;
+                        return `${total.toLocaleString()} gems${buyerPaysFee ? ' (incl. fee)' : ''}`;
+                      })() : 'Use your gem balance'}
                     </Text>
                     <Text className="text-purple-500 text-sm ml-2">
                       (Balance: {gemBalance.toLocaleString()})
@@ -551,6 +560,33 @@ export default function BookAppointmentScreen() {
                   </View>
                 )}
               </Pressable>
+
+              {/* Support Business Toggle - only shown when gems selected */}
+              {paymentMethod === 'gems' && selectedService && (
+                <Pressable
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setBuyerPaysFee(!buyerPaysFee);
+                  }}
+                  className={`rounded-xl p-3 mb-3 flex-row items-center justify-between ${
+                    buyerPaysFee ? 'bg-green-50 border border-green-200' : 'bg-white border border-gray-200'
+                  }`}
+                >
+                  <View className="flex-1 mr-3">
+                    <Text className={`font-semibold ${buyerPaysFee ? 'text-green-700' : 'text-warmBrown'}`}>
+                      Support the business
+                    </Text>
+                    <Text className="text-xs text-gray-500 mt-0.5">
+                      {buyerPaysFee
+                        ? 'You pay the 5% fee - business keeps 100%!'
+                        : 'Tap to cover the 5% fee for the business'}
+                    </Text>
+                  </View>
+                  <View className={`w-12 h-7 rounded-full ${buyerPaysFee ? 'bg-green-500' : 'bg-gray-300'} justify-center`}>
+                    <View className={`w-5 h-5 rounded-full bg-white shadow ${buyerPaysFee ? 'self-end mr-1' : 'self-start ml-1'}`} />
+                  </View>
+                </Pressable>
+              )}
 
               <Text className="text-warmBrown font-bold text-lg mt-4 mb-3">
                 Additional Notes (Optional)
@@ -618,7 +654,9 @@ export default function BookAppointmentScreen() {
                     {paymentMethod === 'gems' ? (
                       <>
                         <Gem size={16} color="#8B5CF6" />
-                        <Text className="text-purple-600 font-medium ml-2">Pay with Gems</Text>
+                        <Text className="text-purple-600 font-medium ml-2">
+                          Pay with Gems{buyerPaysFee ? ' (Supporting business)' : ''}
+                        </Text>
                       </>
                     ) : (
                       <Text className="text-warmBrown font-medium">
@@ -626,6 +664,11 @@ export default function BookAppointmentScreen() {
                       </Text>
                     )}
                   </View>
+                  {paymentMethod === 'gems' && buyerPaysFee && (
+                    <Text className="text-green-600 text-xs mt-1">
+                      Business receives 100% - you're covering the 5% fee!
+                    </Text>
+                  )}
                 </View>
 
                 {notes && (
@@ -641,7 +684,7 @@ export default function BookAppointmentScreen() {
                     <View className="flex-row items-center">
                       <Gem size={20} color="#8B5CF6" />
                       <Text className="text-purple-600 font-bold text-xl ml-2">
-                        {priceToGems(selectedService.price).toLocaleString()}
+                        {calculateFeeBreakdown(priceToGems(selectedService.price), buyerPaysFee).totalBuyerPays.toLocaleString()}
                       </Text>
                     </View>
                   ) : (
@@ -651,20 +694,37 @@ export default function BookAppointmentScreen() {
                   )}
                 </View>
 
-                {/* Gem balance warning */}
-                {paymentMethod === 'gems' && gemBalance < priceToGems(selectedService.price) && (
-                  <View className="mt-3 bg-red-50 rounded-xl p-3">
-                    <Text className="text-red-500 text-sm text-center">
-                      Insufficient gems. You need {(priceToGems(selectedService.price) - gemBalance).toLocaleString()} more gems.
-                    </Text>
-                    <Pressable
-                      onPress={() => router.push('/gem-store')}
-                      className="mt-2 bg-purple-500 rounded-lg py-2"
-                    >
-                      <Text className="text-white font-medium text-center">Get More Gems</Text>
-                    </Pressable>
+                {/* Fee breakdown when buyer pays fee */}
+                {paymentMethod === 'gems' && buyerPaysFee && (
+                  <View className="mt-2">
+                    <View className="flex-row justify-between">
+                      <Text className="text-gray-400 text-xs">Service price</Text>
+                      <Text className="text-gray-400 text-xs">{priceToGems(selectedService.price).toLocaleString()} gems</Text>
+                    </View>
+                    <View className="flex-row justify-between">
+                      <Text className="text-gray-400 text-xs">Platform fee (5%)</Text>
+                      <Text className="text-gray-400 text-xs">+{calculateFeeBreakdown(priceToGems(selectedService.price), buyerPaysFee).platformFee.toLocaleString()} gems</Text>
+                    </View>
                   </View>
                 )}
+
+                {/* Gem balance warning */}
+                {paymentMethod === 'gems' && (() => {
+                  const feeBreakdown = calculateFeeBreakdown(priceToGems(selectedService.price), buyerPaysFee);
+                  return gemBalance < feeBreakdown.totalBuyerPays ? (
+                    <View className="mt-3 bg-red-50 rounded-xl p-3">
+                      <Text className="text-red-500 text-sm text-center">
+                        Insufficient gems. You need {(feeBreakdown.totalBuyerPays - gemBalance).toLocaleString()} more gems.
+                      </Text>
+                      <Pressable
+                        onPress={() => router.push('/gem-store')}
+                        className="mt-2 bg-purple-500 rounded-lg py-2"
+                      >
+                        <Text className="text-white font-medium text-center">Get More Gems</Text>
+                      </Pressable>
+                    </View>
+                  ) : null;
+                })()}
               </View>
             </Animated.View>
           )}

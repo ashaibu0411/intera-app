@@ -391,8 +391,13 @@ These 10 major features make AfroConnect superior to Facebook, Nextdoor, and any
 ### Gem-Based Payment System (NEW!)
 - **Virtual Currency Economy**: Gems are the in-app currency (100 gems = $1 USD)
 - **Ultra-Low 5% Platform Fee** - Way better than TikTok's 50%!
-  - Sellers/businesses keep 95% of every transaction
+  - Sellers/businesses keep 95% of every transaction (or 100% if buyer covers fee)
   - Compare: TikTok 50%, Fiverr 20%, Uber Eats 15-30%
+- **Buyer-Pays-Fee Option**:
+  - Buyers can choose to cover the 5% platform fee to support sellers/businesses
+  - Toggle "Support the seller/business" during checkout
+  - When enabled: seller/business receives 100% of the item price
+  - When disabled (default): seller/business receives 95%, platform takes 5%
 - **Purchase Gems** (`/gem-store`):
   - 6 packages: $0.99 (100), $4.99 (550), $9.99 (1,400), $19.99 (3,000), $49.99 (8,000), $99.99 (20,000)
   - RevenueCat integration for App Store and Play Store
@@ -401,22 +406,25 @@ These 10 major features make AfroConnect superior to Facebook, Nextdoor, and any
   - Buy items directly with gems from the marketplace
   - See gem price equivalent on all listings
   - Purchase confirmation modal with balance check
-  - Sellers receive 95% of gems (only 5% platform fee!)
+  - "Support the seller" toggle - buyer can cover the 5% fee
+  - Dynamic price breakdown showing fee when buyer pays it
+  - Sellers receive 95% or 100% of gems (depending on buyer choice)
   - Insufficient balance redirects to gem store
 - **Business Service Payments**:
   - Pay for appointments with gems
   - "Pay with Gems" option alongside cash and card
+  - "Support the business" toggle - buyer can cover the 5% fee
   - Real-time balance display during booking
-  - Gem price shown for all services
-  - Business owners receive 95% of payment
+  - Gem price shown for all services (including fee if applicable)
+  - Business owners receive 95% or 100% of payment
 - **Supabase Integration**:
   - `user_wallets` table: gem balances, total earned, total sent
   - `gift_transactions` table: all gift/transfer history
-  - `marketplace_purchases` table: marketplace transactions
+  - `marketplace_purchases` table: marketplace transactions (tracks who paid fee)
   - `gem_purchases` table: RevenueCat purchase records
 - **Seller Earnings**:
   - Sellers earn gems from marketplace sales
-  - 95% payout (only 5% platform fee!)
+  - 95% payout (or 100% when buyer pays fee!)
   - Gems can be used in-app or cashed out (future feature)
 
 ### 6. Heritage Hub (`/heritage-hub`)

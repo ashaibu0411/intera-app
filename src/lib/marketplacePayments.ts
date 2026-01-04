@@ -156,7 +156,36 @@ export function gemsToPrice(gems: number): string {
 }
 
 /**
+ * Calculate fee breakdown for display
+ */
+export function calculateFeeBreakdown(gemPrice: number, buyerPaysFee: boolean): {
+  itemPrice: number;
+  platformFee: number;
+  totalBuyerPays: number;
+  sellerReceives: number;
+} {
+  const platformFee = Math.floor(gemPrice * PLATFORM_FEE_PERCENTAGE);
+
+  if (buyerPaysFee) {
+    return {
+      itemPrice: gemPrice,
+      platformFee,
+      totalBuyerPays: gemPrice + platformFee,
+      sellerReceives: gemPrice, // Seller gets 100%
+    };
+  } else {
+    return {
+      itemPrice: gemPrice,
+      platformFee,
+      totalBuyerPays: gemPrice,
+      sellerReceives: gemPrice - platformFee, // Seller gets 95%
+    };
+  }
+}
+
+/**
  * Purchase a marketplace listing with gems
+ * @param buyerPaysFee - If true, buyer pays the 5% fee on top. If false, seller absorbs the fee.
  */
 export async function purchaseMarketplaceListing(
   buyerId: string,
@@ -165,7 +194,8 @@ export async function purchaseMarketplaceListing(
   sellerName: string,
   listingId: string,
   itemName: string,
-  gemPrice: number
+  gemPrice: number,
+  buyerPaysFee: boolean = false
 ): Promise<PurchaseResult> {
   try {
     // Get buyer's wallet
@@ -174,14 +204,27 @@ export async function purchaseMarketplaceListing(
       return { success: false, error: 'Could not access wallet' };
     }
 
-    // Check if buyer has enough gems
-    if (buyerWallet.gem_balance < gemPrice) {
-      return { success: false, error: 'Insufficient gems' };
+    // Calculate fees based on who pays
+    let totalBuyerPays: number;
+    let platformFee: number;
+    let sellerReceives: number;
+
+    if (buyerPaysFee) {
+      // Buyer covers the fee - seller gets full amount
+      platformFee = Math.floor(gemPrice * PLATFORM_FEE_PERCENTAGE);
+      totalBuyerPays = gemPrice + platformFee;
+      sellerReceives = gemPrice; // Seller gets 100%
+    } else {
+      // Seller absorbs the fee (default)
+      totalBuyerPays = gemPrice;
+      platformFee = Math.floor(gemPrice * PLATFORM_FEE_PERCENTAGE);
+      sellerReceives = gemPrice - platformFee; // Seller gets 95%
     }
 
-    // Calculate fees (5% platform fee - very competitive!)
-    const platformFee = Math.floor(gemPrice * PLATFORM_FEE_PERCENTAGE);
-    const sellerReceives = gemPrice - platformFee;
+    // Check if buyer has enough gems
+    if (buyerWallet.gem_balance < totalBuyerPays) {
+      return { success: false, error: 'Insufficient gems' };
+    }
 
     // Get seller's wallet
     const sellerWallet = await getOrCreateWallet(sellerId);
@@ -189,12 +232,12 @@ export async function purchaseMarketplaceListing(
       return { success: false, error: 'Seller wallet not found' };
     }
 
-    // Deduct from buyer
+    // Deduct from buyer (totalBuyerPays includes fee if buyer is covering it)
     const { error: buyerError } = await supabase
       .from('user_wallets')
       .update({
-        gem_balance: buyerWallet.gem_balance - gemPrice,
-        total_sent: buyerWallet.total_sent + gemPrice,
+        gem_balance: buyerWallet.gem_balance - totalBuyerPays,
+        total_sent: buyerWallet.total_sent + totalBuyerPays,
         updated_at: new Date().toISOString(),
       })
       .eq('user_id', buyerId);
@@ -203,7 +246,7 @@ export async function purchaseMarketplaceListing(
       return { success: false, error: 'Failed to process payment' };
     }
 
-    // Credit seller (minus platform fee)
+    // Credit seller
     const { error: sellerError } = await supabase
       .from('user_wallets')
       .update({
@@ -233,9 +276,10 @@ export async function purchaseMarketplaceListing(
         seller_id: sellerId,
         listing_id: listingId,
         item_name: itemName,
-        gem_amount: gemPrice,
+        gem_amount: totalBuyerPays,
         platform_fee: platformFee,
         seller_receives: sellerReceives,
+        buyer_paid_fee: buyerPaysFee,
         status: 'completed',
       })
       .select()
@@ -248,7 +292,7 @@ export async function purchaseMarketplaceListing(
     return {
       success: true,
       purchase: purchase as MarketplacePurchase,
-      newBuyerBalance: buyerWallet.gem_balance - gemPrice,
+      newBuyerBalance: buyerWallet.gem_balance - totalBuyerPays,
     };
   } catch (error) {
     console.error('Error in purchaseMarketplaceListing:', error);
@@ -258,6 +302,7 @@ export async function purchaseMarketplaceListing(
 
 /**
  * Purchase a business service with gems
+ * @param buyerPaysFee - If true, buyer pays the 5% fee on top. If false, business absorbs the fee.
  */
 export async function purchaseBusinessService(
   buyerId: string,
@@ -266,7 +311,8 @@ export async function purchaseBusinessService(
   sellerName: string,
   serviceId: string,
   serviceName: string,
-  gemPrice: number
+  gemPrice: number,
+  buyerPaysFee: boolean = false
 ): Promise<PurchaseResult> {
   try {
     // Get buyer's wallet
@@ -275,14 +321,27 @@ export async function purchaseBusinessService(
       return { success: false, error: 'Could not access wallet' };
     }
 
-    // Check if buyer has enough gems
-    if (buyerWallet.gem_balance < gemPrice) {
-      return { success: false, error: 'Insufficient gems' };
+    // Calculate fees based on who pays
+    let totalBuyerPays: number;
+    let platformFee: number;
+    let sellerReceives: number;
+
+    if (buyerPaysFee) {
+      // Buyer covers the fee - business gets full amount
+      platformFee = Math.floor(gemPrice * PLATFORM_FEE_PERCENTAGE);
+      totalBuyerPays = gemPrice + platformFee;
+      sellerReceives = gemPrice; // Business gets 100%
+    } else {
+      // Business absorbs the fee (default)
+      totalBuyerPays = gemPrice;
+      platformFee = Math.floor(gemPrice * PLATFORM_FEE_PERCENTAGE);
+      sellerReceives = gemPrice - platformFee; // Business gets 95%
     }
 
-    // Calculate fees (5% platform fee - very competitive!)
-    const platformFee = Math.floor(gemPrice * PLATFORM_FEE_PERCENTAGE);
-    const sellerReceives = gemPrice - platformFee;
+    // Check if buyer has enough gems
+    if (buyerWallet.gem_balance < totalBuyerPays) {
+      return { success: false, error: 'Insufficient gems' };
+    }
 
     // Get seller's wallet
     const sellerWallet = await getOrCreateWallet(sellerId);
@@ -290,12 +349,12 @@ export async function purchaseBusinessService(
       return { success: false, error: 'Seller wallet not found' };
     }
 
-    // Deduct from buyer
+    // Deduct from buyer (totalBuyerPays includes fee if buyer is covering it)
     const { error: buyerError } = await supabase
       .from('user_wallets')
       .update({
-        gem_balance: buyerWallet.gem_balance - gemPrice,
-        total_sent: buyerWallet.total_sent + gemPrice,
+        gem_balance: buyerWallet.gem_balance - totalBuyerPays,
+        total_sent: buyerWallet.total_sent + totalBuyerPays,
         updated_at: new Date().toISOString(),
       })
       .eq('user_id', buyerId);
@@ -304,7 +363,7 @@ export async function purchaseBusinessService(
       return { success: false, error: 'Failed to process payment' };
     }
 
-    // Credit seller (minus platform fee)
+    // Credit seller
     const { error: sellerError } = await supabase
       .from('user_wallets')
       .update({
@@ -334,9 +393,10 @@ export async function purchaseBusinessService(
         seller_id: sellerId,
         service_id: serviceId,
         item_name: serviceName,
-        gem_amount: gemPrice,
+        gem_amount: totalBuyerPays,
         platform_fee: platformFee,
         seller_receives: sellerReceives,
+        buyer_paid_fee: buyerPaysFee,
         status: 'completed',
       })
       .select()
@@ -349,7 +409,7 @@ export async function purchaseBusinessService(
     return {
       success: true,
       purchase: purchase as MarketplacePurchase,
-      newBuyerBalance: buyerWallet.gem_balance - gemPrice,
+      newBuyerBalance: buyerWallet.gem_balance - totalBuyerPays,
     };
   } catch (error) {
     console.error('Error in purchaseBusinessService:', error);

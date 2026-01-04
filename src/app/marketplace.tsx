@@ -33,7 +33,7 @@ import {
   type MarketplaceListing,
 } from '@/lib/store';
 import { getMarketplaceListings } from '@/lib/marketplace-api';
-import { purchaseMarketplaceListing, priceToGems, gemsToPrice, GEMS_PER_DOLLAR } from '@/lib/marketplacePayments';
+import { purchaseMarketplaceListing, priceToGems, gemsToPrice, GEMS_PER_DOLLAR, calculateFeeBreakdown, PLATFORM_FEE_PERCENTAGE } from '@/lib/marketplacePayments';
 import { getGemBalance } from '@/lib/giftService';
 
 interface DbListing {
@@ -73,6 +73,7 @@ export default function MarketplaceScreen() {
   const [isPurchasing, setIsPurchasing] = useState(false);
   const [gemBalance, setGemBalance] = useState(0);
   const [purchaseSuccess, setPurchaseSuccess] = useState(false);
+  const [buyerPaysFee, setBuyerPaysFee] = useState(false);
 
   const isGuest = useStore((s) => s.isGuest);
   const currentUser = useStore((s) => s.currentUser);
@@ -213,6 +214,7 @@ export default function MarketplaceScreen() {
     const balance = await getGemBalance(currentUser.id);
     setGemBalance(balance);
     setPurchaseSuccess(false);
+    setBuyerPaysFee(false); // Reset fee option
     setShowPurchaseModal(true);
   };
 
@@ -221,8 +223,9 @@ export default function MarketplaceScreen() {
     if (!selectedListing || !currentUser) return;
 
     const gemPrice = priceToGems(parseFloat(selectedListing.price));
+    const feeBreakdown = calculateFeeBreakdown(gemPrice, buyerPaysFee);
 
-    if (gemBalance < gemPrice) {
+    if (gemBalance < feeBreakdown.totalBuyerPays) {
       Alert.alert(
         'Insufficient Gems',
         'You need more gems to purchase this item.',
@@ -248,7 +251,8 @@ export default function MarketplaceScreen() {
       selectedListing.seller.name,
       selectedListing.id,
       selectedListing.title,
-      gemPrice
+      gemPrice,
+      buyerPaysFee
     );
 
     setIsPurchasing(false);
@@ -256,7 +260,7 @@ export default function MarketplaceScreen() {
     if (result.success) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setPurchaseSuccess(true);
-      setGemBalance(result.newBuyerBalance ?? gemBalance - gemPrice);
+      setGemBalance(result.newBuyerBalance ?? gemBalance - feeBreakdown.totalBuyerPays);
     } else {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert('Purchase Failed', result.error ?? 'Something went wrong. Please try again.');
@@ -870,97 +874,158 @@ export default function MarketplaceScreen() {
                     </Text>
                   </View>
 
-                  {/* Price Breakdown */}
-                  <View className="border-t border-gray-100 pt-4 mb-4">
-                    <View className="flex-row justify-between mb-2">
-                      <Text className="text-gray-500">Item Price</Text>
-                      <View className="flex-row items-center">
-                        <Gem size={14} color="#8B5CF6" />
-                        <Text className="text-warmBrown font-semibold ml-1">
-                          {priceToGems(parseFloat(selectedListing.price)).toLocaleString()}
-                        </Text>
-                      </View>
+                  {/* Support Seller Toggle */}
+                  <Pressable
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setBuyerPaysFee(!buyerPaysFee);
+                    }}
+                    className={`rounded-xl p-3 mb-4 flex-row items-center justify-between ${
+                      buyerPaysFee ? 'bg-green-50 border border-green-200' : 'bg-gray-50 border border-gray-200'
+                    }`}
+                  >
+                    <View className="flex-1 mr-3">
+                      <Text className={`font-semibold ${buyerPaysFee ? 'text-green-700' : 'text-warmBrown'}`}>
+                        Support the seller
+                      </Text>
+                      <Text className="text-xs text-gray-500 mt-0.5">
+                        {buyerPaysFee
+                          ? 'You pay the 5% fee - seller keeps 100%!'
+                          : 'Tap to cover the 5% fee for the seller'}
+                      </Text>
                     </View>
-                    <View className="flex-row justify-between mb-2">
-                      <Text className="text-gray-500">Your Balance</Text>
-                      <View className="flex-row items-center">
-                        <Gem size={14} color="#8B5CF6" />
-                        <Text className={`font-semibold ml-1 ${
-                          gemBalance >= priceToGems(parseFloat(selectedListing.price))
-                            ? 'text-green-600'
-                            : 'text-red-500'
-                        }`}>
-                          {gemBalance.toLocaleString()}
-                        </Text>
-                      </View>
+                    <View className={`w-12 h-7 rounded-full ${buyerPaysFee ? 'bg-green-500' : 'bg-gray-300'} justify-center`}>
+                      <View className={`w-5 h-5 rounded-full bg-white shadow ${buyerPaysFee ? 'self-end mr-1' : 'self-start ml-1'}`} />
                     </View>
-                    <View className="h-px bg-gray-200 my-2" />
-                    <View className="flex-row justify-between">
-                      <Text className="text-warmBrown font-semibold">After Purchase</Text>
-                      <View className="flex-row items-center">
-                        <Gem size={14} color="#8B5CF6" />
-                        <Text className="text-warmBrown font-bold ml-1">
-                          {Math.max(0, gemBalance - priceToGems(parseFloat(selectedListing.price))).toLocaleString()}
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
+                  </Pressable>
 
-                  {/* Info Note */}
-                  <View className="bg-blue-50 rounded-xl p-3 mb-4">
-                    <Text className="text-blue-600 text-sm text-center">
-                      The seller keeps 95% of the gems (only 5% fee!). Contact them to arrange delivery.
+                  {/* Price Breakdown */}
+                  {(() => {
+                    const gemPrice = priceToGems(parseFloat(selectedListing.price));
+                    const feeBreakdown = calculateFeeBreakdown(gemPrice, buyerPaysFee);
+                    return (
+                      <View className="border-t border-gray-100 pt-4 mb-4">
+                        <View className="flex-row justify-between mb-2">
+                          <Text className="text-gray-500">Item Price</Text>
+                          <View className="flex-row items-center">
+                            <Gem size={14} color="#8B5CF6" />
+                            <Text className="text-warmBrown font-semibold ml-1">
+                              {feeBreakdown.itemPrice.toLocaleString()}
+                            </Text>
+                          </View>
+                        </View>
+                        {buyerPaysFee && (
+                          <View className="flex-row justify-between mb-2">
+                            <Text className="text-gray-500">Platform Fee (5%)</Text>
+                            <View className="flex-row items-center">
+                              <Gem size={14} color="#8B5CF6" />
+                              <Text className="text-warmBrown font-semibold ml-1">
+                                +{feeBreakdown.platformFee.toLocaleString()}
+                              </Text>
+                            </View>
+                          </View>
+                        )}
+                        <View className="flex-row justify-between mb-2">
+                          <Text className="text-gray-500 font-medium">You Pay</Text>
+                          <View className="flex-row items-center">
+                            <Gem size={14} color="#8B5CF6" />
+                            <Text className="text-purple-600 font-bold ml-1">
+                              {feeBreakdown.totalBuyerPays.toLocaleString()}
+                            </Text>
+                          </View>
+                        </View>
+                        <View className="h-px bg-gray-200 my-2" />
+                        <View className="flex-row justify-between mb-2">
+                          <Text className="text-gray-500">Your Balance</Text>
+                          <View className="flex-row items-center">
+                            <Gem size={14} color="#8B5CF6" />
+                            <Text className={`font-semibold ml-1 ${
+                              gemBalance >= feeBreakdown.totalBuyerPays
+                                ? 'text-green-600'
+                                : 'text-red-500'
+                            }`}>
+                              {gemBalance.toLocaleString()}
+                            </Text>
+                          </View>
+                        </View>
+                        <View className="flex-row justify-between">
+                          <Text className="text-warmBrown font-semibold">After Purchase</Text>
+                          <View className="flex-row items-center">
+                            <Gem size={14} color="#8B5CF6" />
+                            <Text className="text-warmBrown font-bold ml-1">
+                              {Math.max(0, gemBalance - feeBreakdown.totalBuyerPays).toLocaleString()}
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+                    );
+                  })()}
+
+                  {/* Seller Earnings Info */}
+                  <View className={`rounded-xl p-3 mb-4 ${buyerPaysFee ? 'bg-green-50' : 'bg-blue-50'}`}>
+                    <Text className={`text-sm text-center ${buyerPaysFee ? 'text-green-600' : 'text-blue-600'}`}>
+                      {buyerPaysFee
+                        ? '💚 The seller receives 100% of the item price!'
+                        : 'The seller keeps 95% of the gems (only 5% fee!). Contact them to arrange delivery.'}
                     </Text>
                   </View>
 
-                  {gemBalance < priceToGems(parseFloat(selectedListing.price)) ? (
-                    // Not enough gems
-                    <View>
-                      <View className="bg-red-50 rounded-xl p-3 mb-4">
-                        <Text className="text-red-500 text-sm text-center font-medium">
-                          You need {(priceToGems(parseFloat(selectedListing.price)) - gemBalance).toLocaleString()} more gems
-                        </Text>
+                  {(() => {
+                    const gemPrice = priceToGems(parseFloat(selectedListing.price));
+                    const totalNeeded = calculateFeeBreakdown(gemPrice, buyerPaysFee).totalBuyerPays;
+                    const hasEnough = gemBalance >= totalNeeded;
+
+                    if (!hasEnough) {
+                      return (
+                        <View>
+                          <View className="bg-red-50 rounded-xl p-3 mb-4">
+                            <Text className="text-red-500 text-sm text-center font-medium">
+                              You need {(totalNeeded - gemBalance).toLocaleString()} more gems
+                            </Text>
+                          </View>
+                          <Pressable
+                            onPress={() => {
+                              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                              setShowPurchaseModal(false);
+                              setSelectedListing(null);
+                              router.push('/gem-store');
+                            }}
+                            className="w-full py-4 rounded-xl bg-purple-500 active:opacity-70"
+                          >
+                            <Text className="text-white font-semibold text-center text-lg">
+                              Get More Gems
+                            </Text>
+                          </Pressable>
+                        </View>
+                      );
+                    }
+                    return (
+                      // Purchase buttons
+                      <View className="flex-row">
+                        <Pressable
+                          onPress={() => {
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            setShowPurchaseModal(false);
+                          }}
+                          disabled={isPurchasing}
+                          className="flex-1 py-4 rounded-xl bg-gray-100 mr-2 active:opacity-70"
+                        >
+                          <Text className="text-warmBrown font-semibold text-center">Cancel</Text>
+                        </Pressable>
+                        <Pressable
+                          onPress={handleConfirmPurchase}
+                          disabled={isPurchasing}
+                          className="flex-1 py-4 rounded-xl bg-purple-500 ml-2 active:opacity-70"
+                        >
+                          {isPurchasing ? (
+                            <ActivityIndicator color="white" size="small" />
+                          ) : (
+                            <Text className="text-white font-semibold text-center">Confirm</Text>
+                          )}
+                        </Pressable>
                       </View>
-                      <Pressable
-                        onPress={() => {
-                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                          setShowPurchaseModal(false);
-                          setSelectedListing(null);
-                          router.push('/gem-store');
-                        }}
-                        className="w-full py-4 rounded-xl bg-purple-500 active:opacity-70"
-                      >
-                        <Text className="text-white font-semibold text-center text-lg">
-                          Get More Gems
-                        </Text>
-                      </Pressable>
-                    </View>
-                  ) : (
-                    // Purchase buttons
-                    <View className="flex-row">
-                      <Pressable
-                        onPress={() => {
-                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                          setShowPurchaseModal(false);
-                        }}
-                        disabled={isPurchasing}
-                        className="flex-1 py-4 rounded-xl bg-gray-100 mr-2 active:opacity-70"
-                      >
-                        <Text className="text-warmBrown font-semibold text-center">Cancel</Text>
-                      </Pressable>
-                      <Pressable
-                        onPress={handleConfirmPurchase}
-                        disabled={isPurchasing}
-                        className="flex-1 py-4 rounded-xl bg-purple-500 ml-2 active:opacity-70"
-                      >
-                        {isPurchasing ? (
-                          <ActivityIndicator color="white" size="small" />
-                        ) : (
-                          <Text className="text-white font-semibold text-center">Confirm</Text>
-                        )}
-                      </Pressable>
-                    </View>
-                  )}
+                    );
+                  })()}
                 </View>
               ) : null}
             </Pressable>
