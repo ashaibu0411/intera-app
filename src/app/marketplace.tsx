@@ -32,7 +32,7 @@ import {
   MARKETPLACE_CATEGORIES,
   type MarketplaceListing,
 } from '@/lib/store';
-import { getMarketplaceListings } from '@/lib/marketplace-api';
+import { getMarketplaceListings, deleteMarketplaceListing as deleteMarketplaceListingApi } from '@/lib/marketplace-api';
 import { purchaseMarketplaceListing, priceToGems, gemsToPrice, GEMS_PER_DOLLAR, calculateFeeBreakdown, PLATFORM_FEE_PERCENTAGE } from '@/lib/marketplacePayments';
 import { getGemBalance } from '@/lib/giftService';
 
@@ -83,6 +83,7 @@ export default function MarketplaceScreen() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showSoldModal, setShowSoldModal] = useState(false);
   const [listingToModify, setListingToModify] = useState<MarketplaceListing | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Handle opening delete modal
   const handleOpenDeleteModal = () => {
@@ -105,12 +106,35 @@ export default function MarketplaceScreen() {
   };
 
   // Handle delete confirmation
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = async () => {
     if (!listingToModify) return;
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    deleteMarketplaceListing(listingToModify.id);
-    setShowDeleteModal(false);
-    setListingToModify(null);
+
+    setIsDeleting(true);
+
+    try {
+      // Check if this is a database listing (UUID format) vs local listing
+      const isDbListing = listingToModify.id.includes('-') && listingToModify.id.length > 20;
+
+      if (isDbListing) {
+        // Delete from Supabase database
+        await deleteMarketplaceListingApi(listingToModify.id);
+        // Remove from local dbListings state
+        setDbListings(prev => prev.filter(l => l.id !== listingToModify.id));
+      }
+
+      // Also delete from local userListings (in case it was created locally)
+      deleteMarketplaceListing(listingToModify.id);
+
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setShowDeleteModal(false);
+      setListingToModify(null);
+    } catch (error) {
+      console.error('Error deleting listing:', error);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('Error', 'Failed to delete listing. Please try again.');
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   // Handle mark as sold confirmation
@@ -741,19 +765,26 @@ export default function MarketplaceScreen() {
               <View className="flex-row mt-4">
                 <Pressable
                   onPress={() => {
+                    if (isDeleting) return;
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                     setShowDeleteModal(false);
                     setListingToModify(null);
                   }}
-                  className="flex-1 py-4 rounded-xl bg-gray-100 mr-2 active:opacity-70"
+                  disabled={isDeleting}
+                  className={`flex-1 py-4 rounded-xl bg-gray-100 mr-2 ${isDeleting ? 'opacity-50' : 'active:opacity-70'}`}
                 >
                   <Text className="text-warmBrown font-semibold text-center">Cancel</Text>
                 </Pressable>
                 <Pressable
                   onPress={handleConfirmDelete}
-                  className="flex-1 py-4 rounded-xl bg-red-500 ml-2 active:opacity-70"
+                  disabled={isDeleting}
+                  className={`flex-1 py-4 rounded-xl bg-red-500 ml-2 ${isDeleting ? 'opacity-70' : 'active:opacity-70'}`}
                 >
-                  <Text className="text-white font-semibold text-center">Delete</Text>
+                  {isDeleting ? (
+                    <ActivityIndicator color="white" size="small" />
+                  ) : (
+                    <Text className="text-white font-semibold text-center">Delete</Text>
+                  )}
                 </Pressable>
               </View>
             </Pressable>
