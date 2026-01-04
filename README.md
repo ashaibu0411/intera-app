@@ -375,6 +375,17 @@ These 10 major features make AfroConnect superior to Facebook, Nextdoor, and any
 - Schedule rooms in advance with topics and descriptions
 - See who's speaking and who's listening
 - Categories: Culture Chat, Business Talk, Wellness, Faith, Community, Politics
+- **Gift System**: Send virtual gifts to hosts and speakers to show support
+  - 6 gift types: Heart (1 gem), Star (5), Fire (10), Diamond (50), Crown (100), Sparkle (500)
+  - Floating gift animations in the room
+  - Gifts deduct from sender's gem balance
+  - Hosts earn gems from received gifts
+  - Recent gifts displayed in room
+- **Gem Store** (`/gem-store`): Purchase gems to send gifts
+  - Multiple gem packages from 100 to 15,000 gems
+  - Bonus gems on larger purchases
+  - Transaction history to track sent/received gifts
+  - Balance displayed in live rooms
 
 ### 6. Heritage Hub (`/heritage-hub`)
 - **Cultural preservation and learning center**

@@ -13,6 +13,24 @@ export interface User {
   joinedDate: string;
   phone?: string;
   email?: string;
+  gemBalance?: number;
+  totalGemsEarned?: number;
+  totalGemsSent?: number;
+}
+
+export interface GiftTransaction {
+  id: string;
+  type: 'sent' | 'received' | 'purchased';
+  giftId: string;
+  giftName: string;
+  giftValue: number;
+  senderId?: string;
+  senderName?: string;
+  recipientId?: string;
+  recipientName?: string;
+  roomId?: string;
+  roomTitle?: string;
+  timestamp: string;
 }
 
 export interface Post {
@@ -425,6 +443,9 @@ interface AppState {
   userTalentProfile: ServeTalent | null;
   savedTalentIds: string[];
 
+  // Gift/Wallet state
+  giftTransactions: GiftTransaction[];
+
   // Actions
   setCurrentUser: (user: User | null) => void;
   setIsOnboarded: (value: boolean) => void;
@@ -475,6 +496,12 @@ interface AppState {
   setUserTalentProfile: (profile: ServeTalent | null) => void;
   updateUserTalentProfile: (updates: Partial<ServeTalent>) => void;
   toggleSaveTalent: (talentId: string) => void;
+  // Gift/Wallet actions
+  addGems: (amount: number) => void;
+  deductGems: (amount: number) => boolean;
+  sendGift: (transaction: Omit<GiftTransaction, 'id' | 'timestamp'>) => boolean;
+  receiveGift: (giftValue: number, senderName: string, giftName: string) => void;
+  addGiftTransaction: (transaction: GiftTransaction) => void;
   logout: () => void;
 }
 
@@ -512,6 +539,7 @@ export const useStore = create<AppState>()(
       userTalentProfile: null,
       savedTalentIds: [],
       postReactions: {},
+      giftTransactions: [],
 
       setCurrentUser: (user) => set({ currentUser: user }),
       setIsOnboarded: (value) => set({ isOnboarded: value }),
@@ -722,6 +750,86 @@ export const useStore = create<AppState>()(
           ? state.savedTalentIds.filter((id) => id !== talentId)
           : [...state.savedTalentIds, talentId],
       })),
+      addGems: (amount) => set((state) => {
+        if (!state.currentUser) return state;
+        return {
+          currentUser: {
+            ...state.currentUser,
+            gemBalance: (state.currentUser.gemBalance ?? 500) + amount,
+          },
+        };
+      }),
+      deductGems: (amount) => {
+        let success = false;
+        set((state) => {
+          if (!state.currentUser) return state;
+          const currentBalance = state.currentUser.gemBalance ?? 500;
+          if (currentBalance < amount) {
+            success = false;
+            return state;
+          }
+          success = true;
+          return {
+            currentUser: {
+              ...state.currentUser,
+              gemBalance: currentBalance - amount,
+              totalGemsSent: (state.currentUser.totalGemsSent ?? 0) + amount,
+            },
+          };
+        });
+        return success;
+      },
+      sendGift: (transaction) => {
+        let success = false;
+        set((state) => {
+          if (!state.currentUser) return state;
+          const currentBalance = state.currentUser.gemBalance ?? 500;
+          if (currentBalance < transaction.giftValue) {
+            success = false;
+            return state;
+          }
+          success = true;
+          const newTransaction: GiftTransaction = {
+            ...transaction,
+            id: `gift_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            timestamp: new Date().toISOString(),
+          };
+          return {
+            currentUser: {
+              ...state.currentUser,
+              gemBalance: currentBalance - transaction.giftValue,
+              totalGemsSent: (state.currentUser.totalGemsSent ?? 0) + transaction.giftValue,
+            },
+            giftTransactions: [newTransaction, ...state.giftTransactions],
+          };
+        });
+        return success;
+      },
+      receiveGift: (giftValue, senderName, giftName) => set((state) => {
+        if (!state.currentUser) return state;
+        const newTransaction: GiftTransaction = {
+          id: `gift_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          type: 'received',
+          giftId: giftName.toLowerCase(),
+          giftName,
+          giftValue,
+          senderName,
+          recipientId: state.currentUser.id,
+          recipientName: state.currentUser.name,
+          timestamp: new Date().toISOString(),
+        };
+        return {
+          currentUser: {
+            ...state.currentUser,
+            gemBalance: (state.currentUser.gemBalance ?? 500) + giftValue,
+            totalGemsEarned: (state.currentUser.totalGemsEarned ?? 0) + giftValue,
+          },
+          giftTransactions: [newTransaction, ...state.giftTransactions],
+        };
+      }),
+      addGiftTransaction: (transaction) => set((state) => ({
+        giftTransactions: [transaction, ...state.giftTransactions],
+      })),
       logout: () => set({ currentUser: null, isOnboarded: false, isGuest: false }),
     }),
     {
@@ -754,6 +862,7 @@ export const useStore = create<AppState>()(
         businessAppointments: state.businessAppointments,
         businessBookingSettings: state.businessBookingSettings,
         communityMemberCounts: state.communityMemberCounts,
+        giftTransactions: state.giftTransactions,
       }),
     }
   )

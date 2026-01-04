@@ -434,6 +434,8 @@ export default function VoiceRoomsScreen() {
 
 function VoiceRoomModal({ room, onClose, isHost }: { room: VoiceRoom; onClose: () => void; isHost: boolean }) {
   const currentUser = useStore((s) => s.currentUser);
+  const gemBalance = useStore((s) => s.currentUser?.gemBalance ?? 500);
+  const sendGiftToStore = useStore((s) => s.sendGift);
   const [isMuted, setIsMuted] = useState(true);
   const [hasRaisedHand, setHasRaisedHand] = useState(false);
   const [showGiftPanel, setShowGiftPanel] = useState(false);
@@ -441,17 +443,38 @@ function VoiceRoomModal({ room, onClose, isHost }: { room: VoiceRoom; onClose: (
   const [gifts, setGifts] = useState<RoomGift[]>([]);
   const [hostGiftCount, setHostGiftCount] = useState(127); // Mock initial count
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+  const [showInsufficientBalance, setShowInsufficientBalance] = useState(false);
 
   // Floating gift animation
   const [floatingGifts, setFloatingGifts] = useState<{ id: string; giftId: string; x: number }[]>([]);
 
   const sendGift = (giftId: string, recipient: VoiceRoomParticipant) => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-
     const gift = GIFTS.find(g => g.id === giftId);
     if (!gift) return;
 
-    // Add to gifts list
+    // Try to send gift through store (deducts balance)
+    const success = sendGiftToStore({
+      type: 'sent',
+      giftId: gift.id,
+      giftName: gift.name,
+      giftValue: gift.value,
+      senderId: currentUser?.id,
+      senderName: currentUser?.name,
+      recipientId: recipient.userId,
+      recipientName: recipient.userName,
+      roomId: room.id,
+      roomTitle: room.title,
+    });
+
+    if (!success) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      setShowInsufficientBalance(true);
+      return;
+    }
+
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    // Add to local gifts list for display
     const newGift: RoomGift = {
       id: uuidv4(),
       giftId,
@@ -792,9 +815,54 @@ function VoiceRoomModal({ room, onClose, isHost }: { room: VoiceRoom; onClose: (
 
             <View className="flex-row items-center justify-center mt-4 bg-white/5 rounded-xl p-3">
               <Gem size={16} color="#A855F7" />
-              <Text className="text-white font-medium ml-2">Your Balance: 500</Text>
-              <Pressable className="ml-auto bg-purple-500 px-4 py-2 rounded-full">
+              <Text className="text-white font-medium ml-2">Your Balance: {gemBalance.toLocaleString()}</Text>
+              <Pressable
+                onPress={() => router.push('/gem-store')}
+                className="ml-auto bg-purple-500 px-4 py-2 rounded-full"
+              >
                 <Text className="text-white font-bold text-sm">Get More</Text>
+              </Pressable>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Insufficient Balance Modal */}
+        <Modal visible={showInsufficientBalance} transparent animationType="fade">
+          <View className="flex-1 bg-black/80 items-center justify-center px-6">
+            <View className="bg-[#12121A] rounded-3xl p-6 w-full">
+              <View className="w-16 h-16 rounded-full bg-red-500/20 items-center justify-center self-center mb-4">
+                <Gem size={32} color="#EF4444" />
+              </View>
+              <Text className="text-white font-bold text-xl text-center">Not Enough Gems</Text>
+              <Text className="text-gray-400 text-center mt-2">
+                You don't have enough gems to send this gift. Get more gems to continue supporting creators!
+              </Text>
+              <Text className="text-purple-400 text-center mt-2 font-medium">
+                Current Balance: {gemBalance.toLocaleString()} gems
+              </Text>
+
+              <Pressable
+                onPress={() => {
+                  setShowInsufficientBalance(false);
+                  router.push('/gem-store');
+                }}
+                className="mt-6"
+              >
+                <LinearGradient
+                  colors={['#8B5CF6', '#EC4899']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={{ paddingVertical: 16, borderRadius: 12, alignItems: 'center' }}
+                >
+                  <Text className="text-white font-bold">Get More Gems</Text>
+                </LinearGradient>
+              </Pressable>
+
+              <Pressable
+                onPress={() => setShowInsufficientBalance(false)}
+                className="py-4 mt-2"
+              >
+                <Text className="text-gray-400 font-medium text-center">Cancel</Text>
               </Pressable>
             </View>
           </View>
