@@ -38,7 +38,7 @@ const MOCK_NEIGHBORS: Array<{
       joinedDate: '2024-06-15',
     },
     lookingFor: 'friends',
-    aboutMe: 'New to Denver! Looking to meet fellow Africans who love outdoor adventures and good conversations over jollof rice 🍚',
+    aboutMe: 'New to Denver! Looking to meet fellow expats who love outdoor adventures and good conversations over great food!',
     lastActive: '2024-12-30T14:00:00Z',
   },
   {

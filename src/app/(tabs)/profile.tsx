@@ -510,7 +510,7 @@ export default function ProfileScreen() {
                     <View className="flex-1 ml-4">
                       <Text className="text-white font-bold">Add Your Business</Text>
                       <Text className="text-white/70 text-sm mt-1">
-                        List your African-owned business in our directory
+                        List your business in our directory
                       </Text>
                     </View>
                     <ChevronRight size={20} color="#FFFFFF" />

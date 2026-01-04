@@ -96,7 +96,7 @@ export default function OnboardingScreen() {
                 Welcome to{'\n'}AfroConnect
               </Text>
               <Text className="text-terracotta-500 text-center mt-3 text-base font-medium italic">
-                Connecting Africans Globally, Building Communities
+                Connecting Foreigners Globally, Building Communities
               </Text>
               <Text className="text-gray-500 text-center mt-4 text-lg leading-7">
                 Find your people, locally and globally.

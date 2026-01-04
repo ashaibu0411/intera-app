@@ -1443,7 +1443,7 @@ export const MOCK_POSTS: Post[] = [
 export const MOCK_COMMUNITIES: Community[] = [
   {
     id: '1',
-    name: 'Denver Africans',
+    name: 'Denver Expats',
     city: 'Denver',
     state: 'Colorado',
     country: 'USA',
@@ -1452,7 +1452,7 @@ export const MOCK_COMMUNITIES: Community[] = [
   },
   {
     id: '2',
-    name: 'Atlanta Africans',
+    name: 'Atlanta Expats',
     city: 'Atlanta',
     state: 'Georgia',
     country: 'USA',
@@ -1461,7 +1461,7 @@ export const MOCK_COMMUNITIES: Community[] = [
   },
   {
     id: '3',
-    name: 'London Africans',
+    name: 'London Expats',
     city: 'London',
     state: 'England',
     country: 'UK',
@@ -1501,7 +1501,7 @@ export const MOCK_NOTIFICATIONS: Notification[] = [
     id: '4',
     type: 'alert',
     title: 'Community alert',
-    message: 'Welcome to Denver Africans community!',
+    message: 'Welcome to Denver Expats community!',
     timestamp: '2024-12-28T12:00:00Z',
     read: true,
   },

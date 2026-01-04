@@ -196,7 +196,7 @@ export default function LocationSelectScreen() {
       } else {
         setCurrentCommunity({
           id: 'custom',
-          name: `${cityOption.city} Africans`,
+          name: `${cityOption.city} Expats`,
           city: cityOption.city,
           state: cityOption.state ?? undefined,
           country: cityOption.country,
@@ -273,7 +273,7 @@ export default function LocationSelectScreen() {
       } else {
         setCurrentCommunity({
           id: 'custom',
-          name: `${selectedCity} Africans`,
+          name: `${selectedCity} Expats`,
           city: selectedCity || '',
           state: selectedState ?? undefined,
           country: countryName,

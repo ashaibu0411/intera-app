@@ -94,7 +94,7 @@ export default function MyBusinessesScreen() {
                 <View className="flex-1 ml-4">
                   <Text className="text-white text-lg font-bold">Your Business Hub</Text>
                   <Text className="text-white/80 mt-1">
-                    Manage your African-owned businesses and reach your community
+                    Manage your businesses and reach your community
                   </Text>
                 </View>
               </View>
@@ -127,7 +127,7 @@ export default function MyBusinessesScreen() {
               </View>
               <Text className="text-warmBrown font-semibold text-lg text-center">No businesses yet</Text>
               <Text className="text-gray-500 text-center mt-2 px-8">
-                List your African-owned business to reach your local community
+                List your business to reach your local community
               </Text>
               <Pressable onPress={handleAddBusiness} className="mt-6">
                 <LinearGradient

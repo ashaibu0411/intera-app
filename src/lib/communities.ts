@@ -27,7 +27,7 @@ export async function getOrCreateCommunity(city: string, state: string | null, c
   }
 
   // Create new community if it doesn't exist
-  const communityName = state ? `${city} Africans` : `${city} Africans`;
+  const communityName = state ? `${city} Expats` : `${city} Expats`;
 
   const { data: newCommunity, error: createError } = await supabase
     .from('communities')

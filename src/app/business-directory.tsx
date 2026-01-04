@@ -635,7 +635,7 @@ export default function BusinessDirectoryScreen() {
                   <View className="flex-1 ml-4">
                     <Text className="text-white font-bold text-lg">Own a Business?</Text>
                     <Text className="text-white/80 text-sm mt-0.5">
-                      List your business for free and reach the African community
+                      List your business for free and reach your community
                     </Text>
                   </View>
                   <ChevronRight size={24} color="#FFFFFF" />

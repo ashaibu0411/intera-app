@@ -1,8 +1,8 @@
 # AfroConnect
 
-A community-driven social platform connecting Africans and the African diaspora globally through local neighborhoods, shared culture, business, and opportunities.
+A community-driven social platform connecting foreigners, expats, and global citizens worldwide through local neighborhoods, shared culture, business, and opportunities.
 
-**Slogan:** *Connecting Africans Globally, Building Communities*
+**Slogan:** *Connecting Foreigners Globally, Building Communities*
 
 ## Features
 
@@ -11,15 +11,15 @@ A community-driven social platform connecting Africans and the African diaspora 
 - Location selection (Country > State/Region > City)
 - Guest browsing mode - explore before signing up
 - Sign up with Google, Email, or Phone number
-- Global support for users worldwide
+- Global support for users from all continents and countries
 
 ### Community Feed
 - Location-based posts from your community
 - Local/Global toggle to filter content
 - Pull-to-refresh for latest updates
-- **Country Flags**: Each post shows the poster's country flag next to their name (40+ countries supported)
+- **Country Flags**: Each post shows the poster's country flag next to their name (190+ countries supported)
 - **Community Guidelines Reminder**: Subtle reminder on every post to keep conversations respectful
-- **Emoji Reactions**: Express yourself with 6 Afrocentric reactions
+- **Emoji Reactions**: Express yourself with 6 reactions
   - Quick tap for heart reaction
   - Long-press to open reaction picker: Love, Fire, Clap, Real, Bless, Haha
   - Animated floating emojis when reacting
@@ -40,7 +40,7 @@ A community-driven social platform connecting Africans and the African diaspora 
 - Suggested communities and popular users
 
 ### Marketplace
-- Buy and sell African products, crafts, and services
+- Buy and sell products, crafts, and services
 - Home-based and store-based sellers
 - Product categories: Fashion, Food, Art, Beauty, Electronics, etc.
 - Direct messaging to contact sellers
@@ -49,17 +49,17 @@ A community-driven social platform connecting Africans and the African diaspora 
 - **Create Listing** (`/create-listing`): Users can list items for sale with photos, pricing, category, condition, and description
 
 ### Business Directory
-- Browse African-owned businesses by category
+- Browse local businesses by category
 - Categories: Food, Beauty, Retail, Services, Health, Education, Auto, Real Estate
 - Featured businesses with ratings and reviews
 - Quick actions: Call, Message, Directions
 - **Register Business** (`/register-business`): 3-step form to register your business with logo, cover photo, contact info, and description
-- **African Market Mode**: Special feature for grocery stores to manage real-time inventory
+- **Cultural Market Mode**: Special feature for grocery stores to manage real-time inventory
 - **Direct Messaging**: Contact businesses directly through the app
 
 ### Faith & Community
 - Post religious services and faith events
-- Support for multiple faith types (Christian, Islamic, Traditional African, etc.)
+- Support for multiple faith types (Christian, Islamic, Buddhist, Hindu, etc.)
 - Recurring service schedules
 - Event RSVP functionality
 - Contact information (phone/email) for organizations
@@ -78,7 +78,7 @@ A community-driven social platform connecting Africans and the African diaspora 
 ### Student Hub
 - Scholarships discovery with deadlines and amounts
 - Study groups with member counts and meeting times
-- Internship listings from African companies
+- Internship listings from local and international companies
 - Mentorship connections with industry professionals
 - Campus events with RSVP functionality
 - Search across all student resources
@@ -135,7 +135,7 @@ The app is fully connected to Supabase for data persistence and syncing across u
 - **messages**: Individual messages
 - **marketplace_listings**: Items for sale in the marketplace
 - **businesses**: Registered businesses in the directory
-- **business_inventory**: Real-time inventory for African markets
+- **business_inventory**: Real-time inventory for cultural markets
 - **faith_events**: Faith community events and services
 - **faith_event_rsvps**: Event RSVPs
 
@@ -157,7 +157,7 @@ The app is fully connected to Supabase for data persistence and syncing across u
 
 ### Marketplace, Business & Faith User-Generated Content
 - **Create Listing** (`/create-listing`): List items for sale with up to 5 photos, price, category, condition (new/used/refurbished), and seller type (individual/business)
-- **Register Business** (`/register-business`): 3-step registration for businesses with cover photo, logo, contact info, business hours, and African Market toggle for inventory management
+- **Register Business** (`/register-business`): 3-step registration for businesses with cover photo, logo, contact info, business hours, and Cultural Market toggle for inventory management
 - **Create Faith Event** (`/create-faith-event`): Post services and events with organization info, date/time, recurring schedules, and contact information
 - **Direct Messaging to Businesses**: Message businesses directly from the Business Directory
 
@@ -304,10 +304,10 @@ The app is fully connected to Supabase for data persistence and syncing across u
 
 ## Advanced Community Features (NEW!)
 
-These 10 major features make AfroConnect superior to Facebook, Nextdoor, and any other social networking app by leveraging African cultural concepts and community-first design:
+These 10 major features make AfroConnect superior to Facebook, Nextdoor, and any other social networking app by leveraging cultural concepts from around the world and community-first design:
 
 ### 1. Ubuntu Trust Score (`/trust-score`)
-- **Community reputation system** based on the African philosophy of Ubuntu
+- **Community reputation system** based on the Ubuntu philosophy ("I am because we are")
 - Verification levels: Newcomer → Verified → Trusted → Elder
 - Trust score (0-100) based on activity, badges, and community vouches
 - Earn badges for contributions: Community Helper, Mentor, Event Host, etc.
@@ -315,7 +315,7 @@ These 10 major features make AfroConnect superior to Facebook, Nextdoor, and any
 - Profile verification through ID, phone, email, and social connections
 
 ### 2. Village Council (`/village-council`)
-- **Democratic community governance** inspired by traditional African councils
+- **Democratic community governance** inspired by traditional council systems
 - **Polls & Voting**: Create and vote on community decisions and initiatives
 - **Community Projects**: Crowdfund local projects (playgrounds, events, improvements)
 - **Emergency Broadcasts**: Important community alerts (severe weather, safety, closures)
@@ -323,7 +323,7 @@ These 10 major features make AfroConnect superior to Facebook, Nextdoor, and any
 - Anonymous voting option for sensitive topics
 
 ### 3. Susu Savings Circles (`/susu-circles`)
-- **Traditional African rotating savings system** (Susu/Esusu/Stokvel)
+- **Traditional rotating savings system** (Susu/Tanda/ROSCAs)
 - Create or join savings circles with trusted community members
 - **Privacy Settings**:
   - Public circles: Anyone can find and request to join
@@ -361,15 +361,15 @@ These 10 major features make AfroConnect superior to Facebook, Nextdoor, and any
 - View circle rules and upcoming payouts
 
 ### 4. Job Board & Skills Marketplace (`/job-board`)
-- **Community-powered employment** connecting diaspora job seekers and employers
-- Browse job listings from African and diaspora businesses
+- **Community-powered employment** connecting expat job seekers and employers
+- Browse job listings from local and diaspora businesses
 - Filter by job type: Full-time, Part-time, Contract, Remote
 - **Skills Marketplace**: Hire community members for services (tutoring, cleaning, repairs, etc.)
 - Post job openings for your business
 - Rate and review service providers
 
 ### 5. Voice Rooms (`/voice-rooms`)
-- **Live audio discussions** like Clubhouse, but for the African diaspora
+- **Live audio discussions** like Clubhouse, but for the expat community
 - Join or host voice rooms on topics: Culture, Business, Wellness, Faith, Politics
 - Raise hand to speak, moderated by room hosts
 - Schedule rooms in advance with topics and descriptions
@@ -380,14 +380,14 @@ These 10 major features make AfroConnect superior to Facebook, Nextdoor, and any
 - **Cultural preservation and learning center**
 - **Global Translator** (`/translator`): Translate anywhere in the world
   - **Type or Speak**: Voice input with microphone button or type your text
-  - **15+ Languages**: English, Swahili, Yoruba, Igbo, Hausa, Amharic, Wolof, Zulu, Xhosa, Twi, French, Portuguese, Arabic, Somali, Kinyarwanda
+  - **50+ Languages**: English, Spanish, French, Portuguese, Arabic, Chinese, Hindi, Swahili, Yoruba, Tagalog, and more
   - **Swap languages** instantly with one tap
   - **Quick Phrases**: Common phrases for fast translation
   - **Listen to Translation**: Hear how to pronounce the translation
   - **Copy to Clipboard**: Share translations easily
   - **Recent Translations**: Access your translation history
-- **Traditional Recipes**: Share and discover authentic African recipes with stories
-- **Language Learning Pods** (`/language-pod`): Join groups learning Swahili, Yoruba, Twi, Amharic, Igbo, Wolof, etc.
+- **Traditional Recipes**: Share and discover authentic recipes from around the world
+- **Language Learning Pods** (`/language-pod`): Join groups learning any language
   - Pod details with host info, schedule, and member count
   - **Phrases Tab**: Common phrases with pronunciation guides
   - **Translation Tab**: Basic translation feature to help communicate in the language you're learning
@@ -443,11 +443,11 @@ These 10 major features make AfroConnect superior to Facebook, Nextdoor, and any
 
 ## Game-Changing Features (NEW!)
 
-Three powerful features designed to make AfroConnect the go-to app for Africans worldwide:
+Three powerful features designed to make AfroConnect the go-to app for foreigners and expats worldwide:
 
 ### 11. Remittance Comparison Tool (`/remittance`)
-- **Compare money transfer rates** to find the best deal when sending money to Africa
-- **12 African countries supported**: Nigeria, Ghana, Kenya, Ethiopia, South Africa, Uganda, Tanzania, Senegal, Cameroon, Egypt, Morocco, Zimbabwe
+- **Compare money transfer rates** to find the best deal when sending money abroad
+- **100+ countries supported**: Send money anywhere in the world
 - **5 major providers compared**: Wise, Remitly, WorldRemit, Sendwave, Western Union
 - Features:
   - Enter send amount and select destination country
@@ -459,7 +459,7 @@ Three powerful features designed to make AfroConnect the go-to app for Africans 
   - Direct links to provider apps
 
 ### 12. Immigration Help Center (`/immigration-help`)
-- **Comprehensive immigration resource hub** for the African diaspora
+- **Comprehensive immigration resource hub** for expats and foreigners
 - **3-Tab Interface**:
   1. **Q&A Forum**: Community questions and answers about immigration
      - Browse questions by visa category
@@ -478,10 +478,10 @@ Three powerful features designed to make AfroConnect the go-to app for Africans 
 - **6 Visa Categories**: Work (H-1B, L-1), Student (F-1, J-1), Family-Based, Green Card, Asylum, Visitor
 - Community-powered knowledge base
 
-### 13. African Food Network (`/african-food`)
-- **Order authentic African food from home cooks** in your community
+### 13. Global Food Network (`/african-food`)
+- **Order authentic home-cooked food from cooks** in your community
 - **Featured Home Cooks**: Verified cooks with ratings, reviews, and specialties
-- **8 Cuisines**: Nigerian, Ethiopian, Ghanaian, Kenyan, Senegalese, Moroccan, South African, and more
+- **Cuisines from around the world**: Ethiopian, Mexican, Indian, Vietnamese, Caribbean, Middle Eastern, and more
 - Features:
   - Browse dishes with photos, descriptions, and pricing
   - Filter by cuisine type (flags for each country)
@@ -496,6 +496,6 @@ Three powerful features designed to make AfroConnect the go-to app for Africans 
   - Subtotal, delivery fee, and total calculation
   - Place order with estimated delivery time
 - **Dish Details Modal**: Full dish info with add to cart
-- Support local home cooks and taste authentic African cuisine!
+- Support local home cooks and taste authentic global cuisine!
 
 

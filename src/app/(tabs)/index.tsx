@@ -294,7 +294,7 @@ export default function HomeScreen() {
       // Fallback to custom community
       setCurrentCommunity({
         id: 'custom',
-        name: `${detectedLocation.city} Africans`,
+        name: `${detectedLocation.city} Expats`,
         city: detectedLocation.city,
         state: detectedLocation.state,
         country: detectedLocation.country,
@@ -429,7 +429,7 @@ export default function HomeScreen() {
                 <Text className="text-3xl font-bold text-terracotta-500">Afro</Text>
                 <Text className="text-3xl font-bold text-forest-700 -mt-2">Connect</Text>
                 <Text className="text-xs text-gray-500 mt-1 italic">
-                  Connecting Africans Globally, Building Communities
+                  Connecting Foreigners Globally, Building Communities
                 </Text>
               </View>
 
@@ -598,7 +598,7 @@ export default function HomeScreen() {
                 >
                   <Briefcase size={24} color="white" />
                   <Text className="text-white font-bold mt-2">Businesses</Text>
-                  <Text className="text-white/80 text-xs">African-owned</Text>
+                  <Text className="text-white/80 text-xs">Local listings</Text>
                 </LinearGradient>
               </Pressable>
 

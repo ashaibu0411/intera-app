@@ -22,31 +22,31 @@ import { useStore } from '@/lib/store';
 
 const { width } = Dimensions.get('window');
 
-// African culture images that will rotate
+// Global culture images that will rotate
 const CULTURE_IMAGES = [
   {
+    uri: 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=800&h=500&fit=crop',
+    caption: 'Global Community',
+  },
+  {
     uri: 'https://images.unsplash.com/photo-1523805009345-7448845a9e53?w=800&h=500&fit=crop',
-    caption: 'Traditional African Art',
+    caption: 'Cultural Heritage',
   },
   {
-    uri: 'https://images.unsplash.com/photo-1516026672322-bc52d61a55d5?w=800&h=500&fit=crop',
-    caption: 'African Dance & Culture',
+    uri: 'https://images.unsplash.com/photo-1517457373958-b7bdd4587205?w=800&h=500&fit=crop',
+    caption: 'International Connections',
   },
   {
-    uri: 'https://images.unsplash.com/photo-1489749798305-4fea3ae63d43?w=800&h=500&fit=crop',
-    caption: 'African Fashion',
+    uri: 'https://images.unsplash.com/photo-1511632765486-a01980e01a18?w=800&h=500&fit=crop',
+    caption: 'Family & Friends Abroad',
   },
   {
-    uri: 'https://images.unsplash.com/photo-1547471080-7cc2caa01a7e?w=800&h=500&fit=crop',
-    caption: 'African Wildlife & Nature',
+    uri: 'https://images.unsplash.com/photo-1559027615-cd4628902d4a?w=800&h=500&fit=crop',
+    caption: 'Expat Life',
   },
   {
-    uri: 'https://images.unsplash.com/photo-1504197832061-98356e3dcdcf?w=800&h=500&fit=crop',
-    caption: 'African Markets',
-  },
-  {
-    uri: 'https://images.unsplash.com/photo-1590845947698-8924d7409b56?w=800&h=500&fit=crop',
-    caption: 'African Community',
+    uri: 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=800&h=500&fit=crop',
+    caption: 'Building New Connections',
   },
 ];
 
@@ -60,7 +60,7 @@ const FEATURES = [
   {
     icon: Briefcase,
     title: 'Businesses',
-    description: 'Discover and support African-owned businesses near you',
+    description: 'Discover and support local businesses in your community',
     color: '#B85430',
   },
   {
@@ -84,16 +84,16 @@ const FEATURES = [
   {
     icon: Users,
     title: 'Community Feed',
-    description: 'Stay updated with local African communities worldwide',
+    description: 'Stay updated with local expat and foreigner communities worldwide',
     color: '#6B7280',
   },
 ];
 
 const HIGHLIGHTS = [
   'Location-based communities worldwide',
-  'Support African entrepreneurs',
+  'Support local entrepreneurs',
   'Find cultural events and gatherings',
-  'Connect with your diaspora',
+  'Connect with fellow expats & foreigners',
   'Free to browse as a guest',
 ];
 
@@ -157,7 +157,7 @@ export default function WelcomeScreen() {
                   AfroConnect
                 </Text>
                 <Text className="text-white/90 text-center mt-2 text-base italic">
-                  Connecting Africans Globally, Building Communities
+                  Connecting Foreigners Globally, Building Communities
                 </Text>
               </View>
 
@@ -212,9 +212,9 @@ export default function WelcomeScreen() {
                 className="mt-6"
               >
                 <Text className="text-white text-center text-lg leading-7">
-                  The first social platform designed specifically for{' '}
-                  <Text className="font-bold">Africans and the African diaspora</Text> to connect,
-                  support, and grow together.
+                  The first social platform designed for{' '}
+                  <Text className="font-bold">foreigners, expats, and global citizens</Text> to connect,
+                  support, and grow together wherever they are.
                 </Text>
               </Animated.View>
             </Animated.View>
@@ -228,7 +228,7 @@ export default function WelcomeScreen() {
               What is AfroConnect?
             </Text>
             <Text className="text-gray-600 text-base leading-7">
-              AfroConnect is a community-driven platform that helps you find your people wherever you are in the world. Whether you're looking for local African communities, businesses, events, or just want to connect with others who share your culture and values - AfroConnect makes it easy.
+              AfroConnect is a community-driven platform that helps foreigners and expats find their people wherever they are in the world. Whether you're looking for local communities, businesses, events, or just want to connect with others who share your background and values - AfroConnect makes it easy.
             </Text>
           </Animated.View>
 
