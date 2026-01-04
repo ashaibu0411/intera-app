@@ -909,7 +909,7 @@ export default function MarketplaceScreen() {
                   {/* Info Note */}
                   <View className="bg-blue-50 rounded-xl p-3 mb-4">
                     <Text className="text-blue-600 text-sm text-center">
-                      The seller keeps 90% of the gems. You can contact them to arrange delivery.
+                      The seller keeps 95% of the gems (only 5% fee!). Contact them to arrange delivery.
                     </Text>
                   </View>
 

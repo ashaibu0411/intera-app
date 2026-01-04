@@ -390,6 +390,9 @@ These 10 major features make AfroConnect superior to Facebook, Nextdoor, and any
 
 ### Gem-Based Payment System (NEW!)
 - **Virtual Currency Economy**: Gems are the in-app currency (100 gems = $1 USD)
+- **Ultra-Low 5% Platform Fee** - Way better than TikTok's 50%!
+  - Sellers/businesses keep 95% of every transaction
+  - Compare: TikTok 50%, Fiverr 20%, Uber Eats 15-30%
 - **Purchase Gems** (`/gem-store`):
   - 6 packages: $0.99 (100), $4.99 (550), $9.99 (1,400), $19.99 (3,000), $49.99 (8,000), $99.99 (20,000)
   - RevenueCat integration for App Store and Play Store
@@ -398,14 +401,14 @@ These 10 major features make AfroConnect superior to Facebook, Nextdoor, and any
   - Buy items directly with gems from the marketplace
   - See gem price equivalent on all listings
   - Purchase confirmation modal with balance check
-  - Sellers receive 90% of gems (10% platform fee)
+  - Sellers receive 95% of gems (only 5% platform fee!)
   - Insufficient balance redirects to gem store
 - **Business Service Payments**:
   - Pay for appointments with gems
   - "Pay with Gems" option alongside cash and card
   - Real-time balance display during booking
   - Gem price shown for all services
-  - Business owners receive 90% of payment
+  - Business owners receive 95% of payment
 - **Supabase Integration**:
   - `user_wallets` table: gem balances, total earned, total sent
   - `gift_transactions` table: all gift/transfer history
@@ -413,7 +416,7 @@ These 10 major features make AfroConnect superior to Facebook, Nextdoor, and any
   - `gem_purchases` table: RevenueCat purchase records
 - **Seller Earnings**:
   - Sellers earn gems from marketplace sales
-  - 90% payout (10% platform fee)
+  - 95% payout (only 5% platform fee!)
   - Gems can be used in-app or cashed out (future feature)
 
 ### 6. Heritage Hub (`/heritage-hub`)

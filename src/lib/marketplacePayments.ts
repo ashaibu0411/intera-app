@@ -4,12 +4,28 @@
  * Handles gem-based payments for marketplace items and business services.
  * Users buy gems with real money (via RevenueCat), then spend gems to purchase items.
  * Sellers receive gems which they can cash out or use in the app.
+ *
+ * FEE STRUCTURE (Very Competitive - Better than TikTok's 50%!):
+ * - Marketplace Sales: 5% platform fee (seller keeps 95%)
+ * - Business Bookings: 5% platform fee (business keeps 95%)
+ * - Live Room Gifts: 5% platform fee (creator keeps 95%)
  */
 
 import { getOfferings, purchasePackage, isRevenueCatEnabled } from './revenuecatClient';
 import { addGems as addGemsToWallet, getWalletStats, getOrCreateWallet } from './giftService';
 import { supabase } from './supabase';
 import type { PurchasesPackage } from 'react-native-purchases';
+
+// Platform fee configuration - VERY COMPETITIVE!
+export const PLATFORM_FEE_PERCENTAGE = 0.05; // 5% fee - sellers keep 95%!
+export const SELLER_PERCENTAGE = 1 - PLATFORM_FEE_PERCENTAGE; // 95% to sellers
+
+// Fee comparison for transparency:
+// - AfroConnect: 5% (sellers keep 95%)
+// - TikTok: 50% (creators keep 50%)
+// - Stripe: 2.9% + $0.30
+// - Fiverr: 20% (sellers keep 80%)
+// - Uber Eats: 15-30%
 
 // Gem package definitions (must match RevenueCat setup)
 export interface GemPackage {
@@ -42,8 +58,8 @@ export interface MarketplacePurchase {
   service_id?: string;
   item_name: string;
   gem_amount: number;
-  platform_fee: number; // 10% platform fee
-  seller_receives: number;
+  platform_fee: number; // 5% platform fee
+  seller_receives: number; // 95% to seller
   status: 'pending' | 'completed' | 'cancelled' | 'refunded';
   created_at: string;
 }
@@ -163,8 +179,8 @@ export async function purchaseMarketplaceListing(
       return { success: false, error: 'Insufficient gems' };
     }
 
-    // Calculate fees (10% platform fee)
-    const platformFee = Math.floor(gemPrice * 0.10);
+    // Calculate fees (5% platform fee - very competitive!)
+    const platformFee = Math.floor(gemPrice * PLATFORM_FEE_PERCENTAGE);
     const sellerReceives = gemPrice - platformFee;
 
     // Get seller's wallet
@@ -264,8 +280,8 @@ export async function purchaseBusinessService(
       return { success: false, error: 'Insufficient gems' };
     }
 
-    // Calculate fees (10% platform fee)
-    const platformFee = Math.floor(gemPrice * 0.10);
+    // Calculate fees (5% platform fee - very competitive!)
+    const platformFee = Math.floor(gemPrice * PLATFORM_FEE_PERCENTAGE);
     const sellerReceives = gemPrice - platformFee;
 
     // Get seller's wallet
