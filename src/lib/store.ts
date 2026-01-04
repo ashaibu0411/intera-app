@@ -225,7 +225,7 @@ export interface Appointment {
   time: string; // "10:00 AM"
   status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
   isPaid: boolean;
-  paymentMethod?: 'in_app' | 'cash' | 'card_on_site';
+  paymentMethod?: 'in_app' | 'cash' | 'card_on_site' | 'gems';
   notes?: string;
   createdAt: string;
 }

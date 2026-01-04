@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, Pressable, TextInput, Modal, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, ScrollView, Pressable, TextInput, Modal, ActivityIndicator, RefreshControl, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -19,6 +19,8 @@ import {
   Heart,
   Trash2,
   CheckCircle,
+  Gem,
+  CreditCard,
 } from 'lucide-react-native';
 import Animated, { FadeIn, FadeInUp, FadeInRight } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -31,6 +33,8 @@ import {
   type MarketplaceListing,
 } from '@/lib/store';
 import { getMarketplaceListings } from '@/lib/marketplace-api';
+import { purchaseMarketplaceListing, priceToGems, gemsToPrice, GEMS_PER_DOLLAR } from '@/lib/marketplacePayments';
+import { getGemBalance } from '@/lib/giftService';
 
 interface DbListing {
   id: string;
@@ -63,6 +67,12 @@ export default function MarketplaceScreen() {
   const [dbListings, setDbListings] = useState<DbListing[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Purchase flow state
+  const [showPurchaseModal, setShowPurchaseModal] = useState(false);
+  const [isPurchasing, setIsPurchasing] = useState(false);
+  const [gemBalance, setGemBalance] = useState(0);
+  const [purchaseSuccess, setPurchaseSuccess] = useState(false);
 
   const isGuest = useStore((s) => s.isGuest);
   const currentUser = useStore((s) => s.currentUser);
@@ -186,6 +196,70 @@ export default function MarketplaceScreen() {
     } else {
       // In a real app, this would open messaging
       setSelectedListing(null);
+    }
+  };
+
+  // Handle opening purchase modal
+  const handleBuyNow = async () => {
+    if (!selectedListing) return;
+    if (isGuest || !currentUser) {
+      router.push('/signup');
+      return;
+    }
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    // Load current gem balance
+    const balance = await getGemBalance(currentUser.id);
+    setGemBalance(balance);
+    setPurchaseSuccess(false);
+    setShowPurchaseModal(true);
+  };
+
+  // Handle the actual purchase
+  const handleConfirmPurchase = async () => {
+    if (!selectedListing || !currentUser) return;
+
+    const gemPrice = priceToGems(parseFloat(selectedListing.price));
+
+    if (gemBalance < gemPrice) {
+      Alert.alert(
+        'Insufficient Gems',
+        'You need more gems to purchase this item.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Get Gems', onPress: () => {
+            setShowPurchaseModal(false);
+            setSelectedListing(null);
+            router.push('/gem-store');
+          }}
+        ]
+      );
+      return;
+    }
+
+    setIsPurchasing(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    const result = await purchaseMarketplaceListing(
+      currentUser.id,
+      currentUser.name ?? 'User',
+      selectedListing.seller.id,
+      selectedListing.seller.name,
+      selectedListing.id,
+      selectedListing.title,
+      gemPrice
+    );
+
+    setIsPurchasing(false);
+
+    if (result.success) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setPurchaseSuccess(true);
+      setGemBalance(result.newBuyerBalance ?? gemBalance - gemPrice);
+    } else {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('Purchase Failed', result.error ?? 'Something went wrong. Please try again.');
     }
   };
 
@@ -577,26 +651,57 @@ export default function MarketplaceScreen() {
                         </Pressable>
                       </View>
                     </View>
+                  ) : selectedListing.isSold ? (
+                    <View className="flex-row items-center justify-center py-4 bg-gray-100 rounded-2xl">
+                      <CheckCircle size={20} color="#16a34a" />
+                      <Text className="text-green-600 font-bold text-lg ml-2">Item Sold</Text>
+                    </View>
                   ) : (
-                    <Pressable onPress={handleContactSeller}>
-                      <LinearGradient
-                        colors={['#D4673A', '#B85430']}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={{
-                          borderRadius: 16,
-                          paddingVertical: 16,
-                          flexDirection: 'row',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        }}
-                      >
-                        <MessageCircle size={20} color="#FFFFFF" />
-                        <Text className="text-white font-bold text-lg ml-2">
-                          Contact Seller
+                    <View>
+                      {/* Gem price display */}
+                      <View className="flex-row items-center justify-center mb-3 bg-purple-50 rounded-xl py-2">
+                        <Gem size={18} color="#8B5CF6" />
+                        <Text className="text-purple-600 font-bold ml-2">
+                          {priceToGems(parseFloat(selectedListing.price)).toLocaleString()} Gems
                         </Text>
-                      </LinearGradient>
-                    </Pressable>
+                        <Text className="text-purple-400 text-sm ml-2">
+                          (${selectedListing.price})
+                        </Text>
+                      </View>
+
+                      <View className="flex-row">
+                        {/* Buy Now Button */}
+                        <Pressable onPress={handleBuyNow} className="flex-1 mr-2">
+                          <LinearGradient
+                            colors={['#8B5CF6', '#A855F7']}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                            style={{
+                              borderRadius: 16,
+                              paddingVertical: 16,
+                              flexDirection: 'row',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}
+                          >
+                            <Gem size={20} color="#FFFFFF" />
+                            <Text className="text-white font-bold text-base ml-2">
+                              Buy Now
+                            </Text>
+                          </LinearGradient>
+                        </Pressable>
+
+                        {/* Contact Seller Button */}
+                        <Pressable onPress={handleContactSeller} className="flex-1 ml-2">
+                          <View className="bg-terracotta-100 rounded-2xl py-4 flex-row items-center justify-center">
+                            <MessageCircle size={20} color="#D4673A" />
+                            <Text className="text-terracotta-500 font-bold text-base ml-2">
+                              Message
+                            </Text>
+                          </View>
+                        </Pressable>
+                      </View>
+                    </View>
                   )}
                 </View>
               </SafeAreaView>
@@ -694,6 +799,170 @@ export default function MarketplaceScreen() {
                   <Text className="text-white font-semibold text-center">Mark Sold</Text>
                 </Pressable>
               </View>
+            </Pressable>
+          </Pressable>
+        </Modal>
+
+        {/* Purchase Confirmation Modal */}
+        <Modal visible={showPurchaseModal} animationType="fade" transparent onRequestClose={() => setShowPurchaseModal(false)}>
+          <Pressable
+            className="flex-1 bg-black/50 justify-center items-center px-6"
+            onPress={() => {
+              if (!isPurchasing) {
+                setShowPurchaseModal(false);
+              }
+            }}
+          >
+            <Pressable
+              className="bg-white rounded-3xl w-full max-w-sm p-6"
+              onPress={(e) => e.stopPropagation()}
+            >
+              {purchaseSuccess ? (
+                // Success State
+                <View className="items-center">
+                  <View className="bg-green-100 rounded-full p-4 mb-4">
+                    <CheckCircle size={40} color="#16a34a" />
+                  </View>
+                  <Text className="text-2xl font-bold text-warmBrown text-center">
+                    Purchase Complete!
+                  </Text>
+                  <Text className="text-gray-500 text-center mt-2">
+                    You've successfully purchased this item. The seller has been notified.
+                  </Text>
+                  <View className="bg-purple-50 rounded-xl py-3 px-4 mt-4 w-full">
+                    <View className="flex-row items-center justify-center">
+                      <Gem size={18} color="#8B5CF6" />
+                      <Text className="text-purple-600 font-bold ml-2">
+                        New Balance: {gemBalance.toLocaleString()} gems
+                      </Text>
+                    </View>
+                  </View>
+                  <Pressable
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setShowPurchaseModal(false);
+                      setSelectedListing(null);
+                    }}
+                    className="w-full mt-6 py-4 rounded-xl bg-forest-600 active:opacity-70"
+                  >
+                    <Text className="text-white font-semibold text-center text-lg">Done</Text>
+                  </Pressable>
+                </View>
+              ) : selectedListing ? (
+                // Confirmation State
+                <View>
+                  <View className="items-center mb-4">
+                    <View className="bg-purple-100 rounded-full p-4 mb-4">
+                      <Gem size={32} color="#8B5CF6" />
+                    </View>
+                    <Text className="text-xl font-bold text-warmBrown text-center">
+                      Confirm Purchase
+                    </Text>
+                  </View>
+
+                  {/* Item Summary */}
+                  <View className="bg-gray-50 rounded-xl p-4 mb-4">
+                    <Text className="text-warmBrown font-semibold" numberOfLines={2}>
+                      {selectedListing.title}
+                    </Text>
+                    <Text className="text-gray-500 text-sm mt-1">
+                      Sold by {selectedListing.seller.name}
+                    </Text>
+                  </View>
+
+                  {/* Price Breakdown */}
+                  <View className="border-t border-gray-100 pt-4 mb-4">
+                    <View className="flex-row justify-between mb-2">
+                      <Text className="text-gray-500">Item Price</Text>
+                      <View className="flex-row items-center">
+                        <Gem size={14} color="#8B5CF6" />
+                        <Text className="text-warmBrown font-semibold ml-1">
+                          {priceToGems(parseFloat(selectedListing.price)).toLocaleString()}
+                        </Text>
+                      </View>
+                    </View>
+                    <View className="flex-row justify-between mb-2">
+                      <Text className="text-gray-500">Your Balance</Text>
+                      <View className="flex-row items-center">
+                        <Gem size={14} color="#8B5CF6" />
+                        <Text className={`font-semibold ml-1 ${
+                          gemBalance >= priceToGems(parseFloat(selectedListing.price))
+                            ? 'text-green-600'
+                            : 'text-red-500'
+                        }`}>
+                          {gemBalance.toLocaleString()}
+                        </Text>
+                      </View>
+                    </View>
+                    <View className="h-px bg-gray-200 my-2" />
+                    <View className="flex-row justify-between">
+                      <Text className="text-warmBrown font-semibold">After Purchase</Text>
+                      <View className="flex-row items-center">
+                        <Gem size={14} color="#8B5CF6" />
+                        <Text className="text-warmBrown font-bold ml-1">
+                          {Math.max(0, gemBalance - priceToGems(parseFloat(selectedListing.price))).toLocaleString()}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  {/* Info Note */}
+                  <View className="bg-blue-50 rounded-xl p-3 mb-4">
+                    <Text className="text-blue-600 text-sm text-center">
+                      The seller keeps 90% of the gems. You can contact them to arrange delivery.
+                    </Text>
+                  </View>
+
+                  {gemBalance < priceToGems(parseFloat(selectedListing.price)) ? (
+                    // Not enough gems
+                    <View>
+                      <View className="bg-red-50 rounded-xl p-3 mb-4">
+                        <Text className="text-red-500 text-sm text-center font-medium">
+                          You need {(priceToGems(parseFloat(selectedListing.price)) - gemBalance).toLocaleString()} more gems
+                        </Text>
+                      </View>
+                      <Pressable
+                        onPress={() => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                          setShowPurchaseModal(false);
+                          setSelectedListing(null);
+                          router.push('/gem-store');
+                        }}
+                        className="w-full py-4 rounded-xl bg-purple-500 active:opacity-70"
+                      >
+                        <Text className="text-white font-semibold text-center text-lg">
+                          Get More Gems
+                        </Text>
+                      </Pressable>
+                    </View>
+                  ) : (
+                    // Purchase buttons
+                    <View className="flex-row">
+                      <Pressable
+                        onPress={() => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          setShowPurchaseModal(false);
+                        }}
+                        disabled={isPurchasing}
+                        className="flex-1 py-4 rounded-xl bg-gray-100 mr-2 active:opacity-70"
+                      >
+                        <Text className="text-warmBrown font-semibold text-center">Cancel</Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={handleConfirmPurchase}
+                        disabled={isPurchasing}
+                        className="flex-1 py-4 rounded-xl bg-purple-500 ml-2 active:opacity-70"
+                      >
+                        {isPurchasing ? (
+                          <ActivityIndicator color="white" size="small" />
+                        ) : (
+                          <Text className="text-white font-semibold text-center">Confirm</Text>
+                        )}
+                      </Pressable>
+                    </View>
+                  )}
+                </View>
+              ) : null}
             </Pressable>
           </Pressable>
         </Modal>

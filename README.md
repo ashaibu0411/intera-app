@@ -382,10 +382,39 @@ These 10 major features make AfroConnect superior to Facebook, Nextdoor, and any
   - Hosts earn gems from received gifts
   - Recent gifts displayed in room
 - **Gem Store** (`/gem-store`): Purchase gems to send gifts
-  - Multiple gem packages from 100 to 15,000 gems
-  - Bonus gems on larger purchases
+  - Multiple gem packages from 100 to 20,000 gems
+  - Bonus gems on larger purchases (up to 5,000 bonus!)
+  - RevenueCat integration for secure purchases
   - Transaction history to track sent/received gifts
-  - Balance displayed in live rooms
+  - Balance displayed with USD equivalent
+
+### Gem-Based Payment System (NEW!)
+- **Virtual Currency Economy**: Gems are the in-app currency (100 gems = $1 USD)
+- **Purchase Gems** (`/gem-store`):
+  - 6 packages: $0.99 (100), $4.99 (550), $9.99 (1,400), $19.99 (3,000), $49.99 (8,000), $99.99 (20,000)
+  - RevenueCat integration for App Store and Play Store
+  - Test store for development/sandbox testing
+- **Marketplace Buy Now**:
+  - Buy items directly with gems from the marketplace
+  - See gem price equivalent on all listings
+  - Purchase confirmation modal with balance check
+  - Sellers receive 90% of gems (10% platform fee)
+  - Insufficient balance redirects to gem store
+- **Business Service Payments**:
+  - Pay for appointments with gems
+  - "Pay with Gems" option alongside cash and card
+  - Real-time balance display during booking
+  - Gem price shown for all services
+  - Business owners receive 90% of payment
+- **Supabase Integration**:
+  - `user_wallets` table: gem balances, total earned, total sent
+  - `gift_transactions` table: all gift/transfer history
+  - `marketplace_purchases` table: marketplace transactions
+  - `gem_purchases` table: RevenueCat purchase records
+- **Seller Earnings**:
+  - Sellers earn gems from marketplace sales
+  - 90% payout (10% platform fee)
+  - Gems can be used in-app or cashed out (future feature)
 
 ### 6. Heritage Hub (`/heritage-hub`)
 - **Cultural preservation and learning center**

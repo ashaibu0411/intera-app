@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { View, Text, ScrollView, Pressable, Alert, TextInput } from 'react-native';
+import React, { useState, useMemo, useEffect } from 'react';
+import { View, Text, ScrollView, Pressable, Alert, TextInput, Modal, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -13,12 +13,15 @@ import {
   CheckCircle,
   ChevronLeft,
   ChevronRight,
+  Gem,
 } from 'lucide-react-native';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ServiceCard } from '@/components/ServiceCard';
 import { useStore, type BusinessService, type Appointment, MOCK_USERS } from '@/lib/store';
+import { purchaseBusinessService, priceToGems, gemsToPrice } from '@/lib/marketplacePayments';
+import { getGemBalance } from '@/lib/giftService';
 
 // Mock business with services for demo
 const MOCK_BARBERSHOP = {
@@ -107,7 +110,7 @@ const TIME_SLOTS = [
   '3:00 PM', '3:30 PM', '4:00 PM', '4:30 PM', '5:00 PM', '5:30 PM',
 ];
 
-type PaymentMethod = 'in_app' | 'cash' | 'card_on_site';
+type PaymentMethod = 'in_app' | 'cash' | 'card_on_site' | 'gems';
 
 export default function BookAppointmentScreen() {
   const params = useLocalSearchParams<{ businessId?: string }>();
@@ -119,8 +122,20 @@ export default function BookAppointmentScreen() {
   const [notes, setNotes] = useState('');
   const [isBooking, setIsBooking] = useState(false);
 
+  // Gem payment state
+  const [gemBalance, setGemBalance] = useState(0);
+  const [showGemPaymentModal, setShowGemPaymentModal] = useState(false);
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+
   const currentUser = useStore((s) => s.currentUser);
   const addAppointment = useStore((s) => s.addAppointment);
+
+  // Load gem balance
+  useEffect(() => {
+    if (currentUser?.id) {
+      getGemBalance(currentUser.id).then(setGemBalance);
+    }
+  }, [currentUser?.id]);
 
   // Generate dates for the next 14 days
   const availableDates = useMemo(() => {
@@ -198,9 +213,47 @@ export default function BookAppointmentScreen() {
     setIsBooking(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    // Handle gem payment
+    if (paymentMethod === 'gems') {
+      const gemPrice = priceToGems(selectedService.price);
 
+      // Check balance
+      if (gemBalance < gemPrice) {
+        setIsBooking(false);
+        Alert.alert(
+          'Insufficient Gems',
+          'You need more gems to book this service.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Get Gems', onPress: () => router.push('/gem-store') }
+          ]
+        );
+        return;
+      }
+
+      // Process gem payment
+      const result = await purchaseBusinessService(
+        currentUser.id,
+        currentUser.name ?? 'User',
+        MOCK_BARBERSHOP.id, // In real app, this would be the actual business owner ID
+        MOCK_BARBERSHOP.name,
+        selectedService.id,
+        selectedService.name,
+        gemPrice
+      );
+
+      if (!result.success) {
+        setIsBooking(false);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        Alert.alert('Payment Failed', result.error ?? 'Could not process payment. Please try again.');
+        return;
+      }
+
+      // Update local balance
+      setGemBalance(result.newBuyerBalance ?? gemBalance - gemPrice);
+    }
+
+    // Create appointment
     const appointment: Appointment = {
       id: `apt_${Date.now()}`,
       businessId: MOCK_BARBERSHOP.id,
@@ -214,7 +267,7 @@ export default function BookAppointmentScreen() {
       date: selectedDate.toISOString().split('T')[0],
       time: selectedTime,
       status: 'confirmed',
-      isPaid: paymentMethod === 'in_app',
+      isPaid: paymentMethod === 'in_app' || paymentMethod === 'gems',
       paymentMethod,
       notes: notes || undefined,
       createdAt: new Date().toISOString(),
@@ -225,9 +278,15 @@ export default function BookAppointmentScreen() {
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
+    const paymentMessage = paymentMethod === 'gems'
+      ? ' Payment has been processed.'
+      : paymentMethod === 'cash'
+      ? ' Remember to pay at the location.'
+      : '';
+
     Alert.alert(
       'Appointment Booked!',
-      `Your appointment for ${selectedService.name} on ${formatDate(selectedDate)} at ${selectedTime} has been confirmed.`,
+      `Your appointment for ${selectedService.name} on ${formatDate(selectedDate)} at ${selectedTime} has been confirmed.${paymentMessage}`,
       [{ text: 'View My Appointments', onPress: () => router.replace('/my-appointments' as any) }]
     );
   };
@@ -239,6 +298,10 @@ export default function BookAppointmentScreen() {
       case 2:
         return selectedTime !== null;
       case 3:
+        // If gems selected, ensure enough balance
+        if (paymentMethod === 'gems' && selectedService) {
+          return gemBalance >= priceToGems(selectedService.price);
+        }
         return true;
       default:
         return true;
@@ -461,6 +524,34 @@ export default function BookAppointmentScreen() {
                 )}
               </Pressable>
 
+              {/* Pay with Gems option */}
+              <Pressable
+                onPress={() => setPaymentMethod('gems')}
+                className={`bg-white rounded-xl p-4 mb-3 flex-row items-center border-2 ${
+                  paymentMethod === 'gems' ? 'border-purple-500' : 'border-transparent'
+                }`}
+              >
+                <View className="bg-purple-100 rounded-full p-3">
+                  <Gem size={24} color="#8B5CF6" />
+                </View>
+                <View className="flex-1 ml-3">
+                  <Text className="text-warmBrown font-semibold">Pay with Gems</Text>
+                  <View className="flex-row items-center">
+                    <Text className="text-gray-500 text-sm">
+                      {selectedService ? `${priceToGems(selectedService.price).toLocaleString()} gems` : 'Use your gem balance'}
+                    </Text>
+                    <Text className="text-purple-500 text-sm ml-2">
+                      (Balance: {gemBalance.toLocaleString()})
+                    </Text>
+                  </View>
+                </View>
+                {paymentMethod === 'gems' && (
+                  <View className="bg-purple-500 rounded-full p-1">
+                    <CheckCircle size={18} color="#FFFFFF" />
+                  </View>
+                )}
+              </Pressable>
+
               <Text className="text-warmBrown font-bold text-lg mt-4 mb-3">
                 Additional Notes (Optional)
               </Text>
@@ -523,9 +614,18 @@ export default function BookAppointmentScreen() {
 
                 <View className="py-4">
                   <Text className="text-gray-500 text-sm">Payment</Text>
-                  <Text className="text-warmBrown font-medium mt-1">
-                    {paymentMethod === 'cash' ? 'Pay at Location' : 'Pay Now'}
-                  </Text>
+                  <View className="flex-row items-center mt-1">
+                    {paymentMethod === 'gems' ? (
+                      <>
+                        <Gem size={16} color="#8B5CF6" />
+                        <Text className="text-purple-600 font-medium ml-2">Pay with Gems</Text>
+                      </>
+                    ) : (
+                      <Text className="text-warmBrown font-medium">
+                        {paymentMethod === 'cash' ? 'Pay at Location' : 'Pay Now'}
+                      </Text>
+                    )}
+                  </View>
                 </View>
 
                 {notes && (
@@ -535,12 +635,36 @@ export default function BookAppointmentScreen() {
                   </View>
                 )}
 
-                <View className="mt-4 pt-4 border-t border-gray-100 flex-row justify-between">
+                <View className="mt-4 pt-4 border-t border-gray-100 flex-row justify-between items-center">
                   <Text className="text-warmBrown font-bold text-lg">Total</Text>
-                  <Text className="text-terracotta-500 font-bold text-xl">
-                    ${selectedService.price}
-                  </Text>
+                  {paymentMethod === 'gems' ? (
+                    <View className="flex-row items-center">
+                      <Gem size={20} color="#8B5CF6" />
+                      <Text className="text-purple-600 font-bold text-xl ml-2">
+                        {priceToGems(selectedService.price).toLocaleString()}
+                      </Text>
+                    </View>
+                  ) : (
+                    <Text className="text-terracotta-500 font-bold text-xl">
+                      ${selectedService.price}
+                    </Text>
+                  )}
                 </View>
+
+                {/* Gem balance warning */}
+                {paymentMethod === 'gems' && gemBalance < priceToGems(selectedService.price) && (
+                  <View className="mt-3 bg-red-50 rounded-xl p-3">
+                    <Text className="text-red-500 text-sm text-center">
+                      Insufficient gems. You need {(priceToGems(selectedService.price) - gemBalance).toLocaleString()} more gems.
+                    </Text>
+                    <Pressable
+                      onPress={() => router.push('/gem-store')}
+                      className="mt-2 bg-purple-500 rounded-lg py-2"
+                    >
+                      <Text className="text-white font-medium text-center">Get More Gems</Text>
+                    </Pressable>
+                  </View>
+                )}
               </View>
             </Animated.View>
           )}
