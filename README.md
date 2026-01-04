@@ -447,14 +447,20 @@ Three powerful features designed to make AfroConnect the go-to app for foreigner
 
 ### 11. Remittance Comparison Tool (`/remittance`)
 - **Compare money transfer rates** to find the best deal when sending money abroad
-- **100+ countries supported**: Send money anywhere in the world
-- **5 major providers compared**: Wise, Remitly, WorldRemit, Sendwave, Western Union
+- **35+ countries supported** across 5 regions:
+  - **Africa**: Nigeria, Ghana, Kenya, South Africa, Ethiopia, Tanzania, Uganda, Cameroon, Senegal, Rwanda, Zambia, Zimbabwe
+  - **Caribbean**: Jamaica, Trinidad & Tobago, Barbados, Haiti, Dominican Republic, Guyana
+  - **Europe**: UK, Germany, France, Poland, Ukraine, Romania
+  - **Asia**: India, Pakistan, Bangladesh, Philippines, Vietnam, Nepal
+  - **Latin America**: Mexico, Colombia, Brazil, Peru
+- **12 money transfer providers compared**:
+  - Wise, Taptap Send, Flutterwave, LemFi, Remitly, Chipper Cash, WorldRemit, Sendwave, Paysend, Western Union, MoneyGram, Xoom (PayPal)
 - Features:
   - Enter send amount and select destination country
+  - Countries organized by region for easy browsing
   - See real-time exchange rates and fees from each provider
   - Best deal automatically highlighted with savings amount
-  - Provider ratings and delivery speed info
-  - Quick preset amounts ($100, $250, $500, $1000)
+  - Provider ratings, reviews, and delivery speed info
   - Money-saving tips section
   - Direct links to provider apps
 

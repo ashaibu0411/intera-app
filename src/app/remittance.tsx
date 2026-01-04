@@ -21,18 +21,45 @@ import { router } from 'expo-router';
 
 // Supported countries for receiving money
 const RECEIVING_COUNTRIES = [
-  { code: 'NG', name: 'Nigeria', currency: 'NGN', flag: '🇳🇬' },
-  { code: 'GH', name: 'Ghana', currency: 'GHS', flag: '🇬🇭' },
-  { code: 'KE', name: 'Kenya', currency: 'KES', flag: '🇰🇪' },
-  { code: 'ZA', name: 'South Africa', currency: 'ZAR', flag: '🇿🇦' },
-  { code: 'ET', name: 'Ethiopia', currency: 'ETB', flag: '🇪🇹' },
-  { code: 'TZ', name: 'Tanzania', currency: 'TZS', flag: '🇹🇿' },
-  { code: 'UG', name: 'Uganda', currency: 'UGX', flag: '🇺🇬' },
-  { code: 'CM', name: 'Cameroon', currency: 'XAF', flag: '🇨🇲' },
-  { code: 'SN', name: 'Senegal', currency: 'XOF', flag: '🇸🇳' },
-  { code: 'RW', name: 'Rwanda', currency: 'RWF', flag: '🇷🇼' },
-  { code: 'ZM', name: 'Zambia', currency: 'ZMW', flag: '🇿🇲' },
-  { code: 'ZW', name: 'Zimbabwe', currency: 'ZWL', flag: '🇿🇼' },
+  // Africa
+  { code: 'NG', name: 'Nigeria', currency: 'NGN', flag: '🇳🇬', region: 'Africa' },
+  { code: 'GH', name: 'Ghana', currency: 'GHS', flag: '🇬🇭', region: 'Africa' },
+  { code: 'KE', name: 'Kenya', currency: 'KES', flag: '🇰🇪', region: 'Africa' },
+  { code: 'ZA', name: 'South Africa', currency: 'ZAR', flag: '🇿🇦', region: 'Africa' },
+  { code: 'ET', name: 'Ethiopia', currency: 'ETB', flag: '🇪🇹', region: 'Africa' },
+  { code: 'TZ', name: 'Tanzania', currency: 'TZS', flag: '🇹🇿', region: 'Africa' },
+  { code: 'UG', name: 'Uganda', currency: 'UGX', flag: '🇺🇬', region: 'Africa' },
+  { code: 'CM', name: 'Cameroon', currency: 'XAF', flag: '🇨🇲', region: 'Africa' },
+  { code: 'SN', name: 'Senegal', currency: 'XOF', flag: '🇸🇳', region: 'Africa' },
+  { code: 'RW', name: 'Rwanda', currency: 'RWF', flag: '🇷🇼', region: 'Africa' },
+  { code: 'ZM', name: 'Zambia', currency: 'ZMW', flag: '🇿🇲', region: 'Africa' },
+  { code: 'ZW', name: 'Zimbabwe', currency: 'ZWL', flag: '🇿🇼', region: 'Africa' },
+  // Caribbean
+  { code: 'JM', name: 'Jamaica', currency: 'JMD', flag: '🇯🇲', region: 'Caribbean' },
+  { code: 'TT', name: 'Trinidad & Tobago', currency: 'TTD', flag: '🇹🇹', region: 'Caribbean' },
+  { code: 'BB', name: 'Barbados', currency: 'BBD', flag: '🇧🇧', region: 'Caribbean' },
+  { code: 'HT', name: 'Haiti', currency: 'HTG', flag: '🇭🇹', region: 'Caribbean' },
+  { code: 'DO', name: 'Dominican Republic', currency: 'DOP', flag: '🇩🇴', region: 'Caribbean' },
+  { code: 'GY', name: 'Guyana', currency: 'GYD', flag: '🇬🇾', region: 'Caribbean' },
+  // Europe
+  { code: 'GB', name: 'United Kingdom', currency: 'GBP', flag: '🇬🇧', region: 'Europe' },
+  { code: 'DE', name: 'Germany', currency: 'EUR', flag: '🇩🇪', region: 'Europe' },
+  { code: 'FR', name: 'France', currency: 'EUR', flag: '🇫🇷', region: 'Europe' },
+  { code: 'PL', name: 'Poland', currency: 'PLN', flag: '🇵🇱', region: 'Europe' },
+  { code: 'UA', name: 'Ukraine', currency: 'UAH', flag: '🇺🇦', region: 'Europe' },
+  { code: 'RO', name: 'Romania', currency: 'RON', flag: '🇷🇴', region: 'Europe' },
+  // Asia
+  { code: 'IN', name: 'India', currency: 'INR', flag: '🇮🇳', region: 'Asia' },
+  { code: 'PK', name: 'Pakistan', currency: 'PKR', flag: '🇵🇰', region: 'Asia' },
+  { code: 'BD', name: 'Bangladesh', currency: 'BDT', flag: '🇧🇩', region: 'Asia' },
+  { code: 'PH', name: 'Philippines', currency: 'PHP', flag: '🇵🇭', region: 'Asia' },
+  { code: 'VN', name: 'Vietnam', currency: 'VND', flag: '🇻🇳', region: 'Asia' },
+  { code: 'NP', name: 'Nepal', currency: 'NPR', flag: '🇳🇵', region: 'Asia' },
+  // Latin America
+  { code: 'MX', name: 'Mexico', currency: 'MXN', flag: '🇲🇽', region: 'Latin America' },
+  { code: 'CO', name: 'Colombia', currency: 'COP', flag: '🇨🇴', region: 'Latin America' },
+  { code: 'BR', name: 'Brazil', currency: 'BRL', flag: '🇧🇷', region: 'Latin America' },
+  { code: 'PE', name: 'Peru', currency: 'PEN', flag: '🇵🇪', region: 'Latin America' },
 ];
 
 // Money transfer providers with simulated rates
@@ -48,6 +75,36 @@ const PROVIDERS = [
     speedRank: 1,
   },
   {
+    id: 'taptap',
+    name: 'Taptap Send',
+    logo: 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=100&h=100&fit=crop',
+    color: '#FF6B35',
+    rating: 4.7,
+    reviews: '52K',
+    speed: 'Instant',
+    speedRank: 0,
+  },
+  {
+    id: 'flutterwave',
+    name: 'Flutterwave',
+    logo: 'https://images.unsplash.com/photo-1559526324-593bc073d938?w=100&h=100&fit=crop',
+    color: '#F5A623',
+    rating: 4.6,
+    reviews: '78K',
+    speed: '1-2 hours',
+    speedRank: 1,
+  },
+  {
+    id: 'lemfi',
+    name: 'LemFi',
+    logo: 'https://images.unsplash.com/photo-1565373679580-fc0cb538f49a?w=100&h=100&fit=crop',
+    color: '#0066FF',
+    rating: 4.8,
+    reviews: '35K',
+    speed: 'Instant',
+    speedRank: 0,
+  },
+  {
     id: 'remitly',
     name: 'Remitly',
     logo: 'https://images.unsplash.com/photo-1563986768609-322da13575f3?w=100&h=100&fit=crop',
@@ -56,6 +113,16 @@ const PROVIDERS = [
     reviews: '98K',
     speed: '1-3 hours',
     speedRank: 2,
+  },
+  {
+    id: 'chipper',
+    name: 'Chipper Cash',
+    logo: 'https://images.unsplash.com/photo-1551836022-d5d88e9218df?w=100&h=100&fit=crop',
+    color: '#6C5CE7',
+    rating: 4.5,
+    reviews: '42K',
+    speed: 'Instant',
+    speedRank: 0,
   },
   {
     id: 'worldremit',
@@ -78,6 +145,16 @@ const PROVIDERS = [
     speedRank: 0,
   },
   {
+    id: 'paysend',
+    name: 'Paysend',
+    logo: 'https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=100&h=100&fit=crop',
+    color: '#00D4AA',
+    rating: 4.4,
+    reviews: '89K',
+    speed: '1-2 hours',
+    speedRank: 1,
+  },
+  {
     id: 'westernunion',
     name: 'Western Union',
     logo: 'https://images.unsplash.com/photo-1621761191319-c6fb62004040?w=100&h=100&fit=crop',
@@ -87,12 +164,33 @@ const PROVIDERS = [
     speed: 'Same day',
     speedRank: 4,
   },
+  {
+    id: 'moneygram',
+    name: 'MoneyGram',
+    logo: 'https://images.unsplash.com/photo-1580048915913-4f8f5cb481c4?w=100&h=100&fit=crop',
+    color: '#E31837',
+    rating: 4.3,
+    reviews: '150K',
+    speed: 'Same day',
+    speedRank: 4,
+  },
+  {
+    id: 'xoom',
+    name: 'Xoom (PayPal)',
+    logo: 'https://images.unsplash.com/photo-1556742502-ec7c0e9f34b1?w=100&h=100&fit=crop',
+    color: '#003087',
+    rating: 4.4,
+    reviews: '95K',
+    speed: '1-3 hours',
+    speedRank: 2,
+  },
 ];
 
 // Simulated exchange rates (in production, fetch from API)
 const getExchangeRates = (country: string, amount: number) => {
-  // Base rates (approximate real rates)
+  // Base rates (approximate real rates per USD)
   const baseRates: Record<string, number> = {
+    // Africa
     'NG': 1550, // NGN per USD
     'GH': 12.5, // GHS per USD
     'KE': 153, // KES per USD
@@ -105,6 +203,32 @@ const getExchangeRates = (country: string, amount: number) => {
     'RW': 1250, // RWF per USD
     'ZM': 25, // ZMW per USD
     'ZW': 5000, // ZWL per USD
+    // Caribbean
+    'JM': 155, // JMD per USD
+    'TT': 6.8, // TTD per USD
+    'BB': 2, // BBD per USD
+    'HT': 132, // HTG per USD
+    'DO': 58, // DOP per USD
+    'GY': 209, // GYD per USD
+    // Europe
+    'GB': 0.79, // GBP per USD
+    'DE': 0.92, // EUR per USD
+    'FR': 0.92, // EUR per USD
+    'PL': 4.0, // PLN per USD
+    'UA': 41, // UAH per USD
+    'RO': 4.6, // RON per USD
+    // Asia
+    'IN': 83, // INR per USD
+    'PK': 278, // PKR per USD
+    'BD': 110, // BDT per USD
+    'PH': 56, // PHP per USD
+    'VN': 24500, // VND per USD
+    'NP': 133, // NPR per USD
+    // Latin America
+    'MX': 17, // MXN per USD
+    'CO': 4000, // COP per USD
+    'BR': 5, // BRL per USD
+    'PE': 3.7, // PEN per USD
   };
 
   const baseRate = baseRates[country] || 1;
@@ -118,10 +242,17 @@ const getExchangeRates = (country: string, amount: number) => {
     // Simulate fees based on provider
     const feePercentage = {
       'wise': 0.005,
+      'taptap': 0.003,
+      'flutterwave': 0.012,
+      'lemfi': 0.004,
       'remitly': 0.01,
+      'chipper': 0.006,
       'worldremit': 0.015,
       'sendwave': 0.008,
+      'paysend': 0.009,
       'westernunion': 0.02,
+      'moneygram': 0.018,
+      'xoom': 0.011,
     }[provider.id] || 0.01;
 
     const fee = Math.max(amount * feePercentage, 0.99);
@@ -237,25 +368,32 @@ export default function RemittanceScreen() {
       {showCountryPicker && (
         <Animated.View
           entering={FadeInDown.duration(200)}
-          className="bg-white mx-4 -mt-2 rounded-2xl shadow-lg overflow-hidden max-h-64"
+          className="bg-white mx-4 -mt-2 rounded-2xl shadow-lg overflow-hidden max-h-96"
         >
           <ScrollView showsVerticalScrollIndicator={false}>
-            {RECEIVING_COUNTRIES.map((country) => (
-              <Pressable
-                key={country.code}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  setSelectedCountry(country);
-                  setShowCountryPicker(false);
-                }}
-                className={`flex-row items-center p-4 border-b border-gray-100 ${
-                  selectedCountry.code === country.code ? 'bg-forest-50' : ''
-                }`}
-              >
-                <Text className="text-2xl mr-3">{country.flag}</Text>
-                <Text className="text-warmBrown font-medium flex-1">{country.name}</Text>
-                <Text className="text-gray-500">{country.currency}</Text>
-              </Pressable>
+            {['Africa', 'Caribbean', 'Europe', 'Asia', 'Latin America'].map((region) => (
+              <View key={region}>
+                <View className="bg-gray-50 px-4 py-2">
+                  <Text className="text-gray-500 font-semibold text-xs uppercase">{region}</Text>
+                </View>
+                {RECEIVING_COUNTRIES.filter((c) => c.region === region).map((country) => (
+                  <Pressable
+                    key={country.code}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setSelectedCountry(country);
+                      setShowCountryPicker(false);
+                    }}
+                    className={`flex-row items-center p-4 border-b border-gray-100 ${
+                      selectedCountry.code === country.code ? 'bg-forest-50' : ''
+                    }`}
+                  >
+                    <Text className="text-2xl mr-3">{country.flag}</Text>
+                    <Text className="text-warmBrown font-medium flex-1">{country.name}</Text>
+                    <Text className="text-gray-500">{country.currency}</Text>
+                  </Pressable>
+                ))}
+              </View>
             ))}
           </ScrollView>
         </Animated.View>
