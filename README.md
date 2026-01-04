@@ -445,24 +445,34 @@ These 10 major features make AfroConnect superior to Facebook, Nextdoor, and any
 
 Three powerful features designed to make AfroConnect the go-to app for foreigners and expats worldwide:
 
-### 11. Remittance Comparison Tool (`/remittance`)
-- **Compare money transfer rates** to find the best deal when sending money abroad
+### 11. Remittance & Money Transfer (`/remittance`)
+- **Compare rates AND send money** through official provider apps
 - **35+ countries supported** across 5 regions:
   - **Africa**: Nigeria, Ghana, Kenya, South Africa, Ethiopia, Tanzania, Uganda, Cameroon, Senegal, Rwanda, Zambia, Zimbabwe
   - **Caribbean**: Jamaica, Trinidad & Tobago, Barbados, Haiti, Dominican Republic, Guyana
   - **Europe**: UK, Germany, France, Poland, Ukraine, Romania
   - **Asia**: India, Pakistan, Bangladesh, Philippines, Vietnam, Nepal
   - **Latin America**: Mexico, Colombia, Brazil, Peru
-- **12 money transfer providers compared**:
+- **12 money transfer providers integrated**:
   - Wise, Taptap Send, Flutterwave, LemFi, Remitly, Chipper Cash, WorldRemit, Sendwave, Paysend, Western Union, MoneyGram, Xoom (PayPal)
+- **NEW: Deep Linking to Provider Apps**:
+  - Select a provider and enter recipient details
+  - App opens the provider's app or website with pre-filled information
+  - Complete the transfer securely in the provider's app
+  - If the app isn't installed, opens the App Store or Play Store
+- **NEW: Affiliate/Referral Tracking**:
+  - Providers with referral programs are marked with a "Bonus" badge
+  - Users may be eligible for sign-up bonuses through affiliate links
+  - Tracks affiliate clicks for analytics
 - Features:
   - Enter send amount and select destination country
-  - Countries organized by region for easy browsing
+  - Only shows providers that support the selected country
   - See real-time exchange rates and fees from each provider
-  - Best deal automatically highlighted with savings amount
+  - Best deal automatically highlighted
+  - "Fastest" badge for instant transfer providers
   - Provider ratings, reviews, and delivery speed info
-  - Money-saving tips section
-  - Direct links to provider apps
+  - Recipient details form (name, phone, email)
+  - "How It Works" guide explaining the 3-step process
 
 ### 12. Immigration Help Center (`/immigration-help`)
 - **Comprehensive immigration resource hub** for expats and foreigners

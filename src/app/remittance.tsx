@@ -1,11 +1,9 @@
-import React, { useState, useMemo } from 'react';
-import { View, Text, ScrollView, Pressable, TextInput, Linking } from 'react-native';
+import React, { useState, useMemo, useCallback } from 'react';
+import { View, Text, ScrollView, Pressable, TextInput, Modal, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Image } from 'expo-image';
 import {
   ArrowLeft,
-  ArrowRight,
   DollarSign,
   Clock,
   Star,
@@ -14,10 +12,31 @@ import {
   TrendingUp,
   Shield,
   Zap,
+  User,
+  Phone,
+  Mail,
+  X,
+  CheckCircle,
+  Smartphone,
+  Globe,
+  Gift,
+  ChevronRight,
 } from 'lucide-react-native';
-import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
+import Animated, { FadeInDown, FadeInUp, FadeIn } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
+import {
+  TRANSFER_PROVIDERS,
+  getProvidersForCountry,
+  calculateQuote,
+  TransferProvider,
+} from '@/lib/transferProviders';
+import {
+  openProviderForTransfer,
+  RecipientInfo,
+  TransferIntent,
+  getAffiliateUrl,
+} from '@/lib/transferService';
 
 // Supported countries for receiving money
 const RECEIVING_COUNTRIES = [
@@ -62,237 +81,102 @@ const RECEIVING_COUNTRIES = [
   { code: 'PE', name: 'Peru', currency: 'PEN', flag: '🇵🇪', region: 'Latin America' },
 ];
 
-// Money transfer providers with simulated rates
-const PROVIDERS = [
-  {
-    id: 'wise',
-    name: 'Wise',
-    logo: 'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=100&h=100&fit=crop',
-    color: '#00B9A8',
-    rating: 4.8,
-    reviews: '125K',
-    speed: '1-2 hours',
-    speedRank: 1,
-  },
-  {
-    id: 'taptap',
-    name: 'Taptap Send',
-    logo: 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=100&h=100&fit=crop',
-    color: '#FF6B35',
-    rating: 4.7,
-    reviews: '52K',
-    speed: 'Instant',
-    speedRank: 0,
-  },
-  {
-    id: 'flutterwave',
-    name: 'Flutterwave',
-    logo: 'https://images.unsplash.com/photo-1559526324-593bc073d938?w=100&h=100&fit=crop',
-    color: '#F5A623',
-    rating: 4.6,
-    reviews: '78K',
-    speed: '1-2 hours',
-    speedRank: 1,
-  },
-  {
-    id: 'lemfi',
-    name: 'LemFi',
-    logo: 'https://images.unsplash.com/photo-1565373679580-fc0cb538f49a?w=100&h=100&fit=crop',
-    color: '#0066FF',
-    rating: 4.8,
-    reviews: '35K',
-    speed: 'Instant',
-    speedRank: 0,
-  },
-  {
-    id: 'remitly',
-    name: 'Remitly',
-    logo: 'https://images.unsplash.com/photo-1563986768609-322da13575f3?w=100&h=100&fit=crop',
-    color: '#1D3557',
-    rating: 4.7,
-    reviews: '98K',
-    speed: '1-3 hours',
-    speedRank: 2,
-  },
-  {
-    id: 'chipper',
-    name: 'Chipper Cash',
-    logo: 'https://images.unsplash.com/photo-1551836022-d5d88e9218df?w=100&h=100&fit=crop',
-    color: '#6C5CE7',
-    rating: 4.5,
-    reviews: '42K',
-    speed: 'Instant',
-    speedRank: 0,
-  },
-  {
-    id: 'worldremit',
-    name: 'WorldRemit',
-    logo: 'https://images.unsplash.com/photo-1579621970563-ebec7560ff3e?w=100&h=100&fit=crop',
-    color: '#6B46C1',
-    rating: 4.5,
-    reviews: '67K',
-    speed: '1-4 hours',
-    speedRank: 3,
-  },
-  {
-    id: 'sendwave',
-    name: 'Sendwave',
-    logo: 'https://images.unsplash.com/photo-1604594849809-dfedbc827105?w=100&h=100&fit=crop',
-    color: '#2563EB',
-    rating: 4.6,
-    reviews: '45K',
-    speed: 'Instant',
-    speedRank: 0,
-  },
-  {
-    id: 'paysend',
-    name: 'Paysend',
-    logo: 'https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=100&h=100&fit=crop',
-    color: '#00D4AA',
-    rating: 4.4,
-    reviews: '89K',
-    speed: '1-2 hours',
-    speedRank: 1,
-  },
-  {
-    id: 'westernunion',
-    name: 'Western Union',
-    logo: 'https://images.unsplash.com/photo-1621761191319-c6fb62004040?w=100&h=100&fit=crop',
-    color: '#FFD700',
-    rating: 4.2,
-    reviews: '200K',
-    speed: 'Same day',
-    speedRank: 4,
-  },
-  {
-    id: 'moneygram',
-    name: 'MoneyGram',
-    logo: 'https://images.unsplash.com/photo-1580048915913-4f8f5cb481c4?w=100&h=100&fit=crop',
-    color: '#E31837',
-    rating: 4.3,
-    reviews: '150K',
-    speed: 'Same day',
-    speedRank: 4,
-  },
-  {
-    id: 'xoom',
-    name: 'Xoom (PayPal)',
-    logo: 'https://images.unsplash.com/photo-1556742502-ec7c0e9f34b1?w=100&h=100&fit=crop',
-    color: '#003087',
-    rating: 4.4,
-    reviews: '95K',
-    speed: '1-3 hours',
-    speedRank: 2,
-  },
-];
-
-// Simulated exchange rates (in production, fetch from API)
-const getExchangeRates = (country: string, amount: number) => {
-  // Base rates (approximate real rates per USD)
-  const baseRates: Record<string, number> = {
-    // Africa
-    'NG': 1550, // NGN per USD
-    'GH': 12.5, // GHS per USD
-    'KE': 153, // KES per USD
-    'ZA': 18.5, // ZAR per USD
-    'ET': 56, // ETB per USD
-    'TZ': 2500, // TZS per USD
-    'UG': 3750, // UGX per USD
-    'CM': 605, // XAF per USD
-    'SN': 605, // XOF per USD
-    'RW': 1250, // RWF per USD
-    'ZM': 25, // ZMW per USD
-    'ZW': 5000, // ZWL per USD
-    // Caribbean
-    'JM': 155, // JMD per USD
-    'TT': 6.8, // TTD per USD
-    'BB': 2, // BBD per USD
-    'HT': 132, // HTG per USD
-    'DO': 58, // DOP per USD
-    'GY': 209, // GYD per USD
-    // Europe
-    'GB': 0.79, // GBP per USD
-    'DE': 0.92, // EUR per USD
-    'FR': 0.92, // EUR per USD
-    'PL': 4.0, // PLN per USD
-    'UA': 41, // UAH per USD
-    'RO': 4.6, // RON per USD
-    // Asia
-    'IN': 83, // INR per USD
-    'PK': 278, // PKR per USD
-    'BD': 110, // BDT per USD
-    'PH': 56, // PHP per USD
-    'VN': 24500, // VND per USD
-    'NP': 133, // NPR per USD
-    // Latin America
-    'MX': 17, // MXN per USD
-    'CO': 4000, // COP per USD
-    'BR': 5, // BRL per USD
-    'PE': 3.7, // PEN per USD
-  };
-
-  const baseRate = baseRates[country] || 1;
-
-  // Each provider has slightly different rates and fees
-  return PROVIDERS.map((provider) => {
-    // Simulate different rates (±2%)
-    const rateVariation = 1 + (Math.random() * 0.04 - 0.02);
-    const rate = baseRate * rateVariation;
-
-    // Simulate fees based on provider
-    const feePercentage = {
-      'wise': 0.005,
-      'taptap': 0.003,
-      'flutterwave': 0.012,
-      'lemfi': 0.004,
-      'remitly': 0.01,
-      'chipper': 0.006,
-      'worldremit': 0.015,
-      'sendwave': 0.008,
-      'paysend': 0.009,
-      'westernunion': 0.02,
-      'moneygram': 0.018,
-      'xoom': 0.011,
-    }[provider.id] || 0.01;
-
-    const fee = Math.max(amount * feePercentage, 0.99);
-    const amountAfterFee = amount - fee;
-    const receivedAmount = amountAfterFee * rate;
-
-    return {
-      ...provider,
-      rate: rate.toFixed(2),
-      fee: fee.toFixed(2),
-      receivedAmount: receivedAmount.toFixed(2),
-      totalCost: fee,
-    };
-  }).sort((a, b) => parseFloat(b.receivedAmount) - parseFloat(a.receivedAmount));
+// Exchange rates (in production, fetch from API)
+const BASE_RATES: Record<string, number> = {
+  'NG': 1550, 'GH': 12.5, 'KE': 153, 'ZA': 18.5, 'ET': 56, 'TZ': 2500,
+  'UG': 3750, 'CM': 605, 'SN': 605, 'RW': 1250, 'ZM': 25, 'ZW': 5000,
+  'JM': 155, 'TT': 6.8, 'BB': 2, 'HT': 132, 'DO': 58, 'GY': 209,
+  'GB': 0.79, 'DE': 0.92, 'FR': 0.92, 'PL': 4.0, 'UA': 41, 'RO': 4.6,
+  'IN': 83, 'PK': 278, 'BD': 110, 'PH': 56, 'VN': 24500, 'NP': 133,
+  'MX': 17, 'CO': 4000, 'BR': 5, 'PE': 3.7,
 };
 
 export default function RemittanceScreen() {
   const [amount, setAmount] = useState('100');
   const [selectedCountry, setSelectedCountry] = useState(RECEIVING_COUNTRIES[0]);
   const [showCountryPicker, setShowCountryPicker] = useState(false);
+  const [showRecipientModal, setShowRecipientModal] = useState(false);
+  const [selectedProvider, setSelectedProvider] = useState<TransferProvider | null>(null);
+  const [recipientName, setRecipientName] = useState('');
+  const [recipientPhone, setRecipientPhone] = useState('');
+  const [recipientEmail, setRecipientEmail] = useState('');
+  const [isTransferring, setIsTransferring] = useState(false);
 
+  // Get providers and quotes for selected country
   const quotes = useMemo(() => {
     const numAmount = parseFloat(amount) || 0;
     if (numAmount < 1) return [];
-    return getExchangeRates(selectedCountry.code, numAmount);
+
+    const baseRate = BASE_RATES[selectedCountry.code] || 1;
+    const availableProviders = getProvidersForCountry(selectedCountry.code);
+
+    return availableProviders.map((provider) => {
+      // Add slight variation to rates per provider
+      const rateVariation = 1 + ((provider.id.charCodeAt(0) % 10) - 5) * 0.002;
+      const rate = baseRate * rateVariation;
+      const quote = calculateQuote(provider, numAmount, rate);
+
+      return {
+        ...provider,
+        ...quote,
+        rateDisplay: rate.toFixed(2),
+      };
+    }).sort((a, b) => b.receiveAmount - a.receiveAmount);
   }, [amount, selectedCountry]);
 
   const bestDeal = quotes[0];
   const fastestProvider = [...quotes].sort((a, b) => a.speedRank - b.speedRank)[0];
 
-  const handleProviderPress = (provider: any) => {
+  const handleProviderSelect = (provider: typeof quotes[0]) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    // In production, this would deep link to the provider's app or website
-    Linking.openURL(`https://www.google.com/search?q=${provider.name}+money+transfer`);
+    setSelectedProvider(provider);
+    setShowRecipientModal(true);
   };
 
-  const formatCurrency = (value: string, currency: string) => {
-    const num = parseFloat(value);
-    if (isNaN(num)) return '0';
-    return num.toLocaleString('en-US', { maximumFractionDigits: 0 });
+  const handleTransfer = useCallback(async () => {
+    if (!selectedProvider || !recipientName.trim()) {
+      Alert.alert('Missing Information', 'Please enter the recipient name.');
+      return;
+    }
+
+    setIsTransferring(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+
+    const recipient: RecipientInfo = {
+      name: recipientName.trim(),
+      phone: recipientPhone.trim() || undefined,
+      email: recipientEmail.trim() || undefined,
+      country: selectedCountry.code,
+      currency: selectedCountry.currency,
+    };
+
+    const intent: TransferIntent = {
+      amount: parseFloat(amount),
+      currency: 'USD',
+      recipient,
+      provider: selectedProvider,
+    };
+
+    try {
+      const result = await openProviderForTransfer(selectedProvider, intent, true);
+
+      if (result.opened) {
+        // Close modal after successful redirect
+        setShowRecipientModal(false);
+        setRecipientName('');
+        setRecipientPhone('');
+        setRecipientEmail('');
+      }
+    } catch (error) {
+      console.error('Transfer error:', error);
+      Alert.alert('Error', 'Unable to open the transfer app. Please try again.');
+    } finally {
+      setIsTransferring(false);
+    }
+  }, [selectedProvider, recipientName, recipientPhone, recipientEmail, amount, selectedCountry]);
+
+  const formatCurrency = (value: number) => {
+    return value.toLocaleString('en-US', { maximumFractionDigits: 0 });
   };
 
   return (
@@ -315,7 +199,7 @@ export default function RemittanceScreen() {
             </Pressable>
             <View className="flex-1">
               <Text className="text-white text-xl font-bold">Send Money Home</Text>
-              <Text className="text-white/70 text-sm">Compare rates & find the best deal</Text>
+              <Text className="text-white/70 text-sm">Compare rates & send instantly</Text>
             </View>
           </View>
 
@@ -403,48 +287,65 @@ export default function RemittanceScreen() {
         {/* Best Deal Badge */}
         {bestDeal && parseFloat(amount) > 0 && (
           <Animated.View entering={FadeInUp.duration(400).delay(200)} className="mx-4 mt-4">
-            <View className="bg-gradient-to-r from-gold-400 to-terracotta-500 rounded-2xl p-4 flex-row items-center">
-              <LinearGradient
-                colors={['#C9A227', '#D4673A']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={{ borderRadius: 16, padding: 16, flexDirection: 'row', alignItems: 'center', flex: 1 }}
-              >
-                <TrendingUp size={24} color="#FFFFFF" />
-                <View className="ml-3 flex-1">
-                  <Text className="text-white font-bold">Best Deal: {bestDeal.name}</Text>
-                  <Text className="text-white/80 text-sm">
-                    Receive {formatCurrency(bestDeal.receivedAmount, selectedCountry.currency)} {selectedCountry.currency}
-                  </Text>
-                </View>
-                <Zap size={20} color="#FFFFFF" />
-              </LinearGradient>
-            </View>
+            <LinearGradient
+              colors={['#C9A227', '#D4673A']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={{ borderRadius: 16, padding: 16, flexDirection: 'row', alignItems: 'center' }}
+            >
+              <TrendingUp size={24} color="#FFFFFF" />
+              <View className="ml-3 flex-1">
+                <Text className="text-white font-bold">Best Deal: {bestDeal.name}</Text>
+                <Text className="text-white/80 text-sm">
+                  Receive {formatCurrency(bestDeal.receiveAmount)} {selectedCountry.currency}
+                </Text>
+              </View>
+              <Zap size={20} color="#FFFFFF" />
+            </LinearGradient>
           </Animated.View>
         )}
 
         {/* Provider Cards */}
         <View className="px-4 mt-4 pb-8">
-          <Text className="text-warmBrown font-bold text-lg mb-3">Compare Providers</Text>
+          <View className="flex-row items-center justify-between mb-3">
+            <Text className="text-warmBrown font-bold text-lg">Available Providers</Text>
+            <Text className="text-gray-500 text-sm">{quotes.length} options</Text>
+          </View>
+
+          {quotes.length === 0 && parseFloat(amount) > 0 && (
+            <View className="bg-gray-100 rounded-2xl p-6 items-center">
+              <Text className="text-gray-500 text-center">
+                No providers available for {selectedCountry.name} yet.
+              </Text>
+            </View>
+          )}
 
           {quotes.map((provider, index) => (
             <Animated.View
               key={provider.id}
-              entering={FadeInUp.duration(400).delay(300 + index * 100)}
+              entering={FadeInUp.duration(400).delay(300 + index * 80)}
             >
               <Pressable
-                onPress={() => handleProviderPress(provider)}
-                className="bg-white rounded-2xl p-4 mb-3 shadow-sm"
+                onPress={() => handleProviderSelect(provider)}
+                className="bg-white rounded-2xl p-4 mb-3 shadow-sm active:scale-[0.98]"
               >
-                {/* Best Deal / Fastest Badge */}
+                {/* Badges */}
                 {index === 0 && (
-                  <View className="absolute -top-2 -right-2 bg-terracotta-500 rounded-full px-3 py-1">
-                    <Text className="text-white text-xs font-bold">Best Rate</Text>
+                  <View className="absolute -top-2 -right-2 bg-terracotta-500 rounded-full px-3 py-1 flex-row items-center">
+                    <Star size={10} color="#FFFFFF" fill="#FFFFFF" />
+                    <Text className="text-white text-xs font-bold ml-1">Best Rate</Text>
                   </View>
                 )}
                 {provider.id === fastestProvider?.id && provider.id !== bestDeal?.id && (
-                  <View className="absolute -top-2 -right-2 bg-forest-600 rounded-full px-3 py-1">
-                    <Text className="text-white text-xs font-bold">Fastest</Text>
+                  <View className="absolute -top-2 -right-2 bg-forest-600 rounded-full px-3 py-1 flex-row items-center">
+                    <Zap size={10} color="#FFFFFF" />
+                    <Text className="text-white text-xs font-bold ml-1">Fastest</Text>
+                  </View>
+                )}
+                {provider.hasAffiliate && (
+                  <View className="absolute -top-2 left-4 bg-gold-500 rounded-full px-2 py-0.5 flex-row items-center">
+                    <Gift size={8} color="#FFFFFF" />
+                    <Text className="text-white text-[10px] font-bold ml-1">Bonus</Text>
                   </View>
                 )}
 
@@ -465,7 +366,7 @@ export default function RemittanceScreen() {
                     <View className="flex-row items-center mt-1">
                       <Star size={12} color="#C9A227" fill="#C9A227" />
                       <Text className="text-gray-600 text-xs ml-1">
-                        {provider.rating} ({provider.reviews} reviews)
+                        {provider.rating} ({provider.reviews})
                       </Text>
                     </View>
                   </View>
@@ -473,7 +374,7 @@ export default function RemittanceScreen() {
                   {/* Amount Received */}
                   <View className="items-end">
                     <Text className="text-forest-700 font-bold text-lg">
-                      {formatCurrency(provider.receivedAmount, selectedCountry.currency)}
+                      {formatCurrency(provider.receiveAmount)}
                     </Text>
                     <Text className="text-gray-500 text-xs">{selectedCountry.currency}</Text>
                   </View>
@@ -483,11 +384,15 @@ export default function RemittanceScreen() {
                 <View className="flex-row items-center mt-3 pt-3 border-t border-gray-100">
                   <View className="flex-row items-center flex-1">
                     <DollarSign size={14} color="#8B7355" />
-                    <Text className="text-gray-600 text-sm ml-1">Fee: ${provider.fee}</Text>
+                    <Text className="text-gray-600 text-sm ml-1">
+                      Fee: ${provider.fee.toFixed(2)}
+                    </Text>
                   </View>
                   <View className="flex-row items-center flex-1">
                     <TrendingUp size={14} color="#8B7355" />
-                    <Text className="text-gray-600 text-sm ml-1">Rate: {provider.rate}</Text>
+                    <Text className="text-gray-600 text-sm ml-1">
+                      Rate: {provider.rateDisplay}
+                    </Text>
                   </View>
                   <View className="flex-row items-center">
                     <Clock size={14} color="#8B7355" />
@@ -496,16 +401,49 @@ export default function RemittanceScreen() {
                 </View>
 
                 {/* Send Button */}
-                <Pressable
-                  onPress={() => handleProviderPress(provider)}
-                  className="mt-3 bg-forest-600 rounded-xl py-3 flex-row items-center justify-center"
-                >
-                  <Text className="text-white font-semibold mr-2">Send with {provider.name}</Text>
-                  <ExternalLink size={16} color="#FFFFFF" />
-                </Pressable>
+                <View className="mt-3 bg-forest-600 rounded-xl py-3 flex-row items-center justify-center">
+                  <Text className="text-white font-semibold mr-2">
+                    Send with {provider.name}
+                  </Text>
+                  <ChevronRight size={16} color="#FFFFFF" />
+                </View>
               </Pressable>
             </Animated.View>
           ))}
+
+          {/* How It Works */}
+          <Animated.View entering={FadeInUp.duration(400).delay(700)} className="mt-4">
+            <Text className="text-warmBrown font-bold text-lg mb-3">How It Works</Text>
+            <View className="bg-white rounded-2xl p-4">
+              <View className="flex-row items-center mb-4">
+                <View className="w-8 h-8 bg-forest-100 rounded-full items-center justify-center mr-3">
+                  <Text className="text-forest-700 font-bold">1</Text>
+                </View>
+                <View className="flex-1">
+                  <Text className="text-warmBrown font-semibold">Choose a provider</Text>
+                  <Text className="text-gray-500 text-sm">Compare rates and pick the best deal</Text>
+                </View>
+              </View>
+              <View className="flex-row items-center mb-4">
+                <View className="w-8 h-8 bg-forest-100 rounded-full items-center justify-center mr-3">
+                  <Text className="text-forest-700 font-bold">2</Text>
+                </View>
+                <View className="flex-1">
+                  <Text className="text-warmBrown font-semibold">Enter recipient details</Text>
+                  <Text className="text-gray-500 text-sm">We'll pre-fill the provider's app</Text>
+                </View>
+              </View>
+              <View className="flex-row items-center">
+                <View className="w-8 h-8 bg-forest-100 rounded-full items-center justify-center mr-3">
+                  <Text className="text-forest-700 font-bold">3</Text>
+                </View>
+                <View className="flex-1">
+                  <Text className="text-warmBrown font-semibold">Complete in provider app</Text>
+                  <Text className="text-gray-500 text-sm">Securely finish your transfer</Text>
+                </View>
+              </View>
+            </View>
+          </Animated.View>
 
           {/* Trust & Security */}
           <Animated.View entering={FadeInUp.duration(400).delay(800)} className="mt-4">
@@ -514,38 +452,178 @@ export default function RemittanceScreen() {
               <View className="ml-3 flex-1">
                 <Text className="text-forest-700 font-semibold">Secure & Regulated</Text>
                 <Text className="text-forest-600 text-sm">
-                  All providers are licensed and regulated for your protection
-                </Text>
-              </View>
-            </View>
-          </Animated.View>
-
-          {/* Tips Section */}
-          <Animated.View entering={FadeInUp.duration(400).delay(900)} className="mt-4">
-            <Text className="text-warmBrown font-bold text-lg mb-3">💡 Money-Saving Tips</Text>
-            <View className="bg-white rounded-2xl p-4">
-              <View className="flex-row items-start mb-3">
-                <Text className="text-lg mr-2">📊</Text>
-                <Text className="text-gray-600 flex-1">
-                  Send larger amounts less frequently to save on fees
-                </Text>
-              </View>
-              <View className="flex-row items-start mb-3">
-                <Text className="text-lg mr-2">⏰</Text>
-                <Text className="text-gray-600 flex-1">
-                  Rates change daily - check back for better deals
-                </Text>
-              </View>
-              <View className="flex-row items-start">
-                <Text className="text-lg mr-2">💳</Text>
-                <Text className="text-gray-600 flex-1">
-                  Debit cards usually have lower fees than credit cards
+                  All providers are licensed money transmitters
                 </Text>
               </View>
             </View>
           </Animated.View>
         </View>
       </ScrollView>
+
+      {/* Recipient Details Modal */}
+      <Modal
+        visible={showRecipientModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowRecipientModal(false)}
+      >
+        <SafeAreaView className="flex-1 bg-cream-50">
+          <View className="flex-1">
+            {/* Modal Header */}
+            <View className="flex-row items-center justify-between px-4 py-4 border-b border-gray-200">
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setShowRecipientModal(false);
+                }}
+                className="w-10 h-10 items-center justify-center"
+              >
+                <X size={24} color="#8B7355" />
+              </Pressable>
+              <Text className="text-warmBrown font-bold text-lg">Recipient Details</Text>
+              <View className="w-10" />
+            </View>
+
+            <ScrollView className="flex-1 px-4 pt-4">
+              {/* Selected Provider Summary */}
+              {selectedProvider && (
+                <Animated.View entering={FadeIn.duration(300)} className="mb-6">
+                  <View className="bg-white rounded-2xl p-4 flex-row items-center">
+                    <View
+                      className="w-12 h-12 rounded-xl items-center justify-center mr-3"
+                      style={{ backgroundColor: selectedProvider.color + '20' }}
+                    >
+                      <Text className="text-xl font-bold" style={{ color: selectedProvider.color }}>
+                        {selectedProvider.name.charAt(0)}
+                      </Text>
+                    </View>
+                    <View className="flex-1">
+                      <Text className="text-warmBrown font-bold">{selectedProvider.name}</Text>
+                      <Text className="text-gray-500 text-sm">
+                        Sending ${amount} to {selectedCountry.name}
+                      </Text>
+                    </View>
+                    <View className="items-end">
+                      <Text className="text-forest-700 font-bold">
+                        {formatCurrency((selectedProvider as any).receiveAmount || 0)}
+                      </Text>
+                      <Text className="text-gray-500 text-xs">{selectedCountry.currency}</Text>
+                    </View>
+                  </View>
+                </Animated.View>
+              )}
+
+              {/* Recipient Form */}
+              <Animated.View entering={FadeInUp.duration(400).delay(100)}>
+                <Text className="text-warmBrown font-semibold mb-2">Recipient Name *</Text>
+                <View className="bg-white rounded-xl px-4 py-3 flex-row items-center mb-4">
+                  <User size={20} color="#8B7355" />
+                  <TextInput
+                    value={recipientName}
+                    onChangeText={setRecipientName}
+                    placeholder="Full name as on ID"
+                    placeholderTextColor="#9CA3AF"
+                    className="flex-1 ml-3 text-warmBrown text-base"
+                  />
+                </View>
+              </Animated.View>
+
+              <Animated.View entering={FadeInUp.duration(400).delay(200)}>
+                <Text className="text-warmBrown font-semibold mb-2">Phone Number (Optional)</Text>
+                <View className="bg-white rounded-xl px-4 py-3 flex-row items-center mb-4">
+                  <Phone size={20} color="#8B7355" />
+                  <TextInput
+                    value={recipientPhone}
+                    onChangeText={setRecipientPhone}
+                    placeholder="Mobile money or contact number"
+                    placeholderTextColor="#9CA3AF"
+                    keyboardType="phone-pad"
+                    className="flex-1 ml-3 text-warmBrown text-base"
+                  />
+                </View>
+              </Animated.View>
+
+              <Animated.View entering={FadeInUp.duration(400).delay(300)}>
+                <Text className="text-warmBrown font-semibold mb-2">Email (Optional)</Text>
+                <View className="bg-white rounded-xl px-4 py-3 flex-row items-center mb-4">
+                  <Mail size={20} color="#8B7355" />
+                  <TextInput
+                    value={recipientEmail}
+                    onChangeText={setRecipientEmail}
+                    placeholder="recipient@email.com"
+                    placeholderTextColor="#9CA3AF"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    className="flex-1 ml-3 text-warmBrown text-base"
+                  />
+                </View>
+              </Animated.View>
+
+              {/* What happens next */}
+              <Animated.View entering={FadeInUp.duration(400).delay(400)} className="mt-4">
+                <View className="bg-forest-50 rounded-2xl p-4">
+                  <Text className="text-forest-700 font-semibold mb-2">What happens next?</Text>
+                  <View className="flex-row items-start mb-2">
+                    <Smartphone size={16} color="#1B4D3E" />
+                    <Text className="text-forest-600 text-sm ml-2 flex-1">
+                      We'll open {selectedProvider?.name}'s app or website
+                    </Text>
+                  </View>
+                  <View className="flex-row items-start mb-2">
+                    <CheckCircle size={16} color="#1B4D3E" />
+                    <Text className="text-forest-600 text-sm ml-2 flex-1">
+                      Your transfer details will be pre-filled
+                    </Text>
+                  </View>
+                  <View className="flex-row items-start">
+                    <Shield size={16} color="#1B4D3E" />
+                    <Text className="text-forest-600 text-sm ml-2 flex-1">
+                      Complete payment securely with {selectedProvider?.name}
+                    </Text>
+                  </View>
+                </View>
+              </Animated.View>
+
+              {/* Affiliate bonus note */}
+              {selectedProvider?.hasAffiliate && (
+                <Animated.View entering={FadeInUp.duration(400).delay(500)} className="mt-4">
+                  <View className="bg-gold-50 border border-gold-200 rounded-2xl p-4 flex-row items-center">
+                    <Gift size={20} color="#C9A227" />
+                    <Text className="text-gold-700 text-sm ml-3 flex-1">
+                      New to {selectedProvider.name}? You may be eligible for a sign-up bonus!
+                    </Text>
+                  </View>
+                </Animated.View>
+              )}
+            </ScrollView>
+
+            {/* Send Button */}
+            <View className="px-4 pb-8 pt-4">
+              <Pressable
+                onPress={handleTransfer}
+                disabled={isTransferring || !recipientName.trim()}
+                className={`rounded-2xl py-4 flex-row items-center justify-center ${
+                  recipientName.trim() ? 'bg-forest-600' : 'bg-gray-300'
+                }`}
+              >
+                {isTransferring ? (
+                  <Text className="text-white font-bold text-lg">Opening {selectedProvider?.name}...</Text>
+                ) : (
+                  <>
+                    <ExternalLink size={20} color="#FFFFFF" />
+                    <Text className="text-white font-bold text-lg ml-2">
+                      Continue to {selectedProvider?.name}
+                    </Text>
+                  </>
+                )}
+              </Pressable>
+              <Text className="text-gray-500 text-xs text-center mt-3">
+                You'll complete the transfer securely in {selectedProvider?.name}'s app
+              </Text>
+            </View>
+          </View>
+        </SafeAreaView>
+      </Modal>
     </View>
   );
 }
