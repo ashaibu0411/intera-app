@@ -445,8 +445,37 @@ export default function RemittanceScreen() {
             </View>
           </Animated.View>
 
-          {/* Trust & Security */}
+          {/* Refer & Earn Banner */}
           <Animated.View entering={FadeInUp.duration(400).delay(800)} className="mt-4">
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                router.push('/referrals');
+              }}
+              className="overflow-hidden rounded-2xl"
+            >
+              <LinearGradient
+                colors={['#C9A227', '#D4673A']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={{ padding: 16, flexDirection: 'row', alignItems: 'center' }}
+              >
+                <View className="w-12 h-12 bg-white/20 rounded-full items-center justify-center mr-3">
+                  <Gift size={24} color="#FFFFFF" />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-white font-bold text-base">Refer Friends & Earn Cash</Text>
+                  <Text className="text-white/80 text-sm">
+                    Get $6+ for each friend who joins
+                  </Text>
+                </View>
+                <ChevronRight size={20} color="#FFFFFF" />
+              </LinearGradient>
+            </Pressable>
+          </Animated.View>
+
+          {/* Trust & Security */}
+          <Animated.View entering={FadeInUp.duration(400).delay(900)} className="mt-4">
             <View className="bg-forest-50 rounded-2xl p-4 flex-row items-center">
               <Shield size={24} color="#1B4D3E" />
               <View className="ml-3 flex-1">

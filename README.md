@@ -474,6 +474,28 @@ Three powerful features designed to make AfroConnect the go-to app for foreigner
   - Recipient details form (name, phone, email)
   - "How It Works" guide explaining the 3-step process
 
+### Refer & Earn Program (`/referrals`)
+- **Two-tier referral system** where users AND AfroConnect both earn
+- **User Referral Rewards**:
+  - **$1.00** when a friend signs up using your code
+  - **$5.00** when they make their first money transfer
+  - **10% commission** on every transfer they make (forever!)
+- **New User Bonuses**:
+  - **$2.00** welcome bonus for signing up with a referral code
+  - **$3.00** bonus on their first transfer
+- **Features**:
+  - Unique referral code (format: AFRO-NAME-XXXX)
+  - One-tap copy code to clipboard
+  - Share via WhatsApp, SMS, or any app
+  - Real-time stats: total referrals, pending rewards, earned rewards
+  - Reward history with status tracking (pending, confirmed, paid)
+  - Three tabs: Overview, History, How It Works
+  - FAQ section explaining payout process
+- **AfroConnect Revenue**:
+  - Earns affiliate commissions from transfer providers
+  - Shares portion with referring users (10%)
+  - Sustainable revenue model benefiting everyone
+
 ### 12. Immigration Help Center (`/immigration-help`)
 - **Comprehensive immigration resource hub** for expats and foreigners
 - **3-Tab Interface**:
