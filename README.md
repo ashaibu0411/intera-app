@@ -630,4 +630,122 @@ Three powerful features designed to make AfroConnect the go-to app for foreigner
 - **Dish Details Modal**: Full dish info with add to cart
 - Support local home cooks and taste authentic global cuisine!
 
+### 14. Stories (`/stories`)
+- **24-hour disappearing stories** for sharing moments
+- **Story Ring**: Profile photos with gradient ring for unseen stories
+- **Story Viewer**: Full-screen immersive viewing experience
+  - Auto-progress timer bar for each story
+  - Tap left/right to navigate between stories
+  - Swipe to skip to next user's stories
+- **Story Types**:
+  - Photo stories with full-screen images
+  - Text stories with colorful gradient backgrounds
+- **Create Story**:
+  - Choose between photo or text story
+  - 7 beautiful gradient background options for text
+  - Content moderation - inappropriate content blocked
+  - Guidelines acceptance before posting
+- **Engagement**:
+  - Reply to stories directly
+  - View count tracking
+  - Story reactions
+
+### 15. Clips & Highlights (`/clips`)
+- **Short-form video clips** and stream highlights
+- **Category Filters**: Trending, Music, Dance, Comedy, Gaming, Cooking, Fashion
+- **Clip Features**:
+  - Video thumbnails with duration badges
+  - Creator info with avatars
+  - View counts and engagement stats
+  - Like, comment, save, and share actions
+- **Search**: Find clips by creator name or content
+- **Report System**: Flag inappropriate content with detailed report form
+- **Content Moderation**: Built-in guidelines enforcement
+
+### 16. Creator Battles (`/creator-battles`)
+- **1v1 split-screen competitions** where creators battle for gifts
+- **Real-time Scoring**: Live gift totals displayed during battles
+- **Battle Features**:
+  - Split-screen view with both creators
+  - Progress bars showing who's winning
+  - Countdown timer (2-5 minute battles)
+  - Live viewer count
+- **Categories**: Entertainment, Music, Comedy, Dance, Talent, Chat
+- **Gift System**: Viewers send gifts to support their favorite creator
+- **Battle Invites**: Challenge other creators to battle
+
+### 17. Polls & Q&A for Streams (`/stream-polls`)
+- **Interactive engagement tools** for live streams
+- **Live Polls**:
+  - Create polls with 2-6 options
+  - Real-time vote tracking with percentages
+  - Animated progress bars
+  - Duration settings (1min, 2min, 5min, 10min)
+  - Poll results and winner display
+- **Q&A Mode**:
+  - Viewers submit questions during streams
+  - Upvote system - popular questions rise to top
+  - Host can pin important questions
+  - Mark questions as answered
+- **Host Controls**: Start/end polls, pin questions, moderate content
+- **Content Moderation**: All questions and poll options screened
+
+### 18. Duets / Split Screen (`/duets`)
+- **Create side-by-side videos** with other creators
+- **Duet With**: Browse videos that have duets enabled
+  - See duet count for each original video
+  - Filter by category (Music, Dance, Comedy, Reaction)
+- **Create Duet**:
+  - Choose layout: Side-by-side or Top & Bottom
+  - Record your video alongside the original
+  - Add title and description
+  - Content moderation enforcement
+- **Duet Feed**: Browse trending duets
+  - Split-screen preview showing both creators
+  - Category badges
+  - Like, comment, and share
+
+### Content Moderation System
+- **Zero tolerance** for sexual and violent content
+- **Multi-layer Protection**:
+  - Automated text filtering for inappropriate terms
+  - Category-based content blocking
+  - User reporting system with detailed forms
+  - Community guidelines enforcement
+- **Report Types**: Sexual content, Violence, Hate speech, Harassment, Scam, Spam, Drugs, Other
+- **Consequences**:
+  - 1st offense: Warning
+  - 2nd offense: 24hr restriction
+  - 3rd offense: 7-day suspension
+  - Severe violations: Permanent ban
+- **Pre-Upload Warnings**: Guidelines modal before creating content
+
+### Push Notifications
+- **Comprehensive notification system** for all app events
+- **Notification Types**:
+  - Stream going live
+  - New followers
+  - Gifts received
+  - Battle invites
+  - Story replies
+  - Poll results
+  - Daily reward reminders
+- **Preferences**: Granular control over which notifications to receive
+- **Notification History**: View and manage past notifications
+- **Badge Count**: Unread notification count on app icon
+
+### Daily Rewards System
+- **7-day reward streak** with increasing gem rewards
+- **Reward Schedule**:
+  - Day 1: 10 gems
+  - Day 2: 15 gems
+  - Day 3: 20 gems
+  - Day 4: 25 gems
+  - Day 5: 30 gems
+  - Day 6: 40 gems
+  - Day 7: 100 gems (Jackpot!)
+- **Streak Tracking**: Maintain your streak for bigger rewards
+- **Visual Calendar**: See which days you've claimed
+- **Home Screen Banner**: Quick access to claim rewards
+
 

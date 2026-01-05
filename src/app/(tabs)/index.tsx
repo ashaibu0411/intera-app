@@ -27,6 +27,9 @@ import {
   DollarSign,
   FileText,
   Utensils,
+  Film,
+  Clapperboard,
+  SplitSquareVertical,
 } from 'lucide-react-native';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -701,6 +704,42 @@ export default function HomeScreen() {
                   <Trophy size={24} color="white" />
                   <Text className="text-white font-bold mt-2">Battles</Text>
                   <Text className="text-white/80 text-xs">Gift competitions</Text>
+                </LinearGradient>
+              </Pressable>
+
+              {/* Stories */}
+              <Pressable onPress={() => navigateTo('/stories')}>
+                <LinearGradient
+                  colors={['#EC4899', '#F97316']}
+                  style={{ borderRadius: 16, padding: 16, width: 140 }}
+                >
+                  <Film size={24} color="white" />
+                  <Text className="text-white font-bold mt-2">Stories</Text>
+                  <Text className="text-white/80 text-xs">24hr moments</Text>
+                </LinearGradient>
+              </Pressable>
+
+              {/* Clips */}
+              <Pressable onPress={() => navigateTo('/clips')}>
+                <LinearGradient
+                  colors={['#3B82F6', '#8B5CF6']}
+                  style={{ borderRadius: 16, padding: 16, width: 140 }}
+                >
+                  <Clapperboard size={24} color="white" />
+                  <Text className="text-white font-bold mt-2">Clips</Text>
+                  <Text className="text-white/80 text-xs">Best highlights</Text>
+                </LinearGradient>
+              </Pressable>
+
+              {/* Duets */}
+              <Pressable onPress={() => navigateTo('/duets')}>
+                <LinearGradient
+                  colors={['#10B981', '#3B82F6']}
+                  style={{ borderRadius: 16, padding: 16, width: 140 }}
+                >
+                  <SplitSquareVertical size={24} color="white" />
+                  <Text className="text-white font-bold mt-2">Duets</Text>
+                  <Text className="text-white/80 text-xs">Split screen</Text>
                 </LinearGradient>
               </Pressable>
 
