@@ -142,6 +142,7 @@ export default function GemStoreScreen() {
           headerStyle: { backgroundColor: '#0A0A0F' },
           headerTintColor: '#FFFFFF',
           headerTitleStyle: { fontWeight: 'bold' },
+          headerBackVisible: true,
           headerRight: () => (
             <Pressable
               onPress={() => setShowHistory(!showHistory)}

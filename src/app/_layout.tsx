@@ -101,6 +101,15 @@ function RootLayoutNav() {
         {/* Stories & Clips */}
         <Stack.Screen name="stories" options={{ headerShown: true, animation: 'slide_from_right' }} />
         <Stack.Screen name="clips" options={{ headerShown: true, animation: 'slide_from_right' }} />
+        {/* Additional Features */}
+        <Stack.Screen name="african-food" options={{ headerShown: true, animation: 'slide_from_right' }} />
+        <Stack.Screen name="creator-battles" options={{ headerShown: true, animation: 'slide_from_right' }} />
+        <Stack.Screen name="duets" options={{ headerShown: true, animation: 'slide_from_right' }} />
+        <Stack.Screen name="gem-store" options={{ headerShown: true, animation: 'slide_from_right' }} />
+        <Stack.Screen name="immigration-help" options={{ headerShown: true, animation: 'slide_from_right' }} />
+        <Stack.Screen name="referrals" options={{ headerShown: true, animation: 'slide_from_right' }} />
+        <Stack.Screen name="remittance" options={{ headerShown: true, animation: 'slide_from_right' }} />
+        <Stack.Screen name="stream-polls" options={{ headerShown: true, animation: 'slide_from_right' }} />
       </Stack>
     </ThemeProvider>
   );

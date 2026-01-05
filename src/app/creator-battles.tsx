@@ -482,6 +482,7 @@ export default function CreatorBattlesScreen() {
           title: 'Creator Battles',
           headerStyle: { backgroundColor: '#030712' },
           headerTintColor: '#fff',
+          headerBackVisible: true,
         }}
       />
 

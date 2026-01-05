@@ -198,6 +198,7 @@ export default function StreamPollsScreen() {
           title: 'Polls & Q&A',
           headerStyle: { backgroundColor: '#000' },
           headerTintColor: '#fff',
+          headerBackVisible: true,
         }}
       />
 

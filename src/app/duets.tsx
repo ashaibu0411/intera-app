@@ -288,6 +288,7 @@ export default function DuetsScreen() {
           title: 'Duets',
           headerStyle: { backgroundColor: '#000' },
           headerTintColor: '#fff',
+          headerBackVisible: true,
         }}
       />
 
