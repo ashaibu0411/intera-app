@@ -343,6 +343,7 @@ export default function StoriesScreen() {
           title: 'Stories',
           headerStyle: { backgroundColor: '#000' },
           headerTintColor: '#fff',
+          headerBackVisible: true,
         }}
       />
 

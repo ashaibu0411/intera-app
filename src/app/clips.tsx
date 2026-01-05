@@ -285,6 +285,7 @@ export default function ClipsScreen() {
           title: 'Clips',
           headerStyle: { backgroundColor: '#000' },
           headerTintColor: '#fff',
+          headerBackVisible: true,
         }}
       />
 

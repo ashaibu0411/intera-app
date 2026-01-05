@@ -98,6 +98,9 @@ function RootLayoutNav() {
         {/* Sports Betting & Live Radio */}
         <Stack.Screen name="sports-betting" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="live-radio" options={{ animation: 'slide_from_right' }} />
+        {/* Stories & Clips */}
+        <Stack.Screen name="stories" options={{ headerShown: true, animation: 'slide_from_right' }} />
+        <Stack.Screen name="clips" options={{ headerShown: true, animation: 'slide_from_right' }} />
       </Stack>
     </ThemeProvider>
   );
