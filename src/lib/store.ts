@@ -33,6 +33,15 @@ export interface GiftTransaction {
   timestamp: string;
 }
 
+export interface DailyRewardsState {
+  currentStreak: number;
+  longestStreak: number;
+  lastClaimDate: string | null;
+  totalDaysClaimed: number;
+  claimedDays: number[]; // Days 1-7 that have been claimed in current week
+  weekStartDate: string | null;
+}
+
 export interface Post {
   id: string;
   author: User;
@@ -446,6 +455,9 @@ interface AppState {
   // Gift/Wallet state
   giftTransactions: GiftTransaction[];
 
+  // Daily Rewards state
+  dailyRewards: DailyRewardsState;
+
   // Actions
   setCurrentUser: (user: User | null) => void;
   setIsOnboarded: (value: boolean) => void;
@@ -502,6 +514,9 @@ interface AppState {
   sendGift: (transaction: Omit<GiftTransaction, 'id' | 'timestamp'>) => boolean;
   receiveGift: (giftValue: number, senderName: string, giftName: string) => void;
   addGiftTransaction: (transaction: GiftTransaction) => void;
+  // Daily Rewards actions
+  claimDailyReward: (dayNumber: number, gemAmount: number) => void;
+  resetWeeklyRewards: () => void;
   logout: () => void;
 }
 
@@ -540,6 +555,14 @@ export const useStore = create<AppState>()(
       savedTalentIds: [],
       postReactions: {},
       giftTransactions: [],
+      dailyRewards: {
+        currentStreak: 0,
+        longestStreak: 0,
+        lastClaimDate: null,
+        totalDaysClaimed: 0,
+        claimedDays: [],
+        weekStartDate: null,
+      },
 
       setCurrentUser: (user) => set({ currentUser: user }),
       setIsOnboarded: (value) => set({ isOnboarded: value }),
@@ -830,6 +853,39 @@ export const useStore = create<AppState>()(
       addGiftTransaction: (transaction) => set((state) => ({
         giftTransactions: [transaction, ...state.giftTransactions],
       })),
+      // Daily Rewards actions
+      claimDailyReward: (dayNumber, gemAmount) => set((state) => {
+        const today = new Date().toISOString().split('T')[0];
+        const newClaimedDays = [...state.dailyRewards.claimedDays, dayNumber];
+        const newStreak = state.dailyRewards.currentStreak + 1;
+        const newLongestStreak = Math.max(newStreak, state.dailyRewards.longestStreak);
+
+        // Add gems to user balance
+        const currentBalance = state.currentUser?.gemBalance ?? 500;
+
+        return {
+          dailyRewards: {
+            ...state.dailyRewards,
+            currentStreak: newStreak,
+            longestStreak: newLongestStreak,
+            lastClaimDate: today,
+            totalDaysClaimed: state.dailyRewards.totalDaysClaimed + 1,
+            claimedDays: newClaimedDays,
+            weekStartDate: state.dailyRewards.weekStartDate || today,
+          },
+          currentUser: state.currentUser ? {
+            ...state.currentUser,
+            gemBalance: currentBalance + gemAmount,
+          } : null,
+        };
+      }),
+      resetWeeklyRewards: () => set((state) => ({
+        dailyRewards: {
+          ...state.dailyRewards,
+          claimedDays: [],
+          weekStartDate: new Date().toISOString().split('T')[0],
+        },
+      })),
       logout: () => set({ currentUser: null, isOnboarded: false, isGuest: false }),
     }),
     {
@@ -863,6 +919,7 @@ export const useStore = create<AppState>()(
         businessBookingSettings: state.businessBookingSettings,
         communityMemberCounts: state.communityMemberCounts,
         giftTransactions: state.giftTransactions,
+        dailyRewards: state.dailyRewards,
       }),
     }
   )

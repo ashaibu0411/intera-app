@@ -388,6 +388,31 @@ These 10 major features make AfroConnect superior to Facebook, Nextdoor, and any
   - Transaction history to track sent/received gifts
   - Balance displayed with USD equivalent
 
+### Daily Rewards System (NEW!)
+- **Daily Login Rewards**: Earn free gems every day just by opening the app
+- **7-Day Reward Cycle**: Increasing rewards each consecutive day:
+  - Day 1: 10 gems
+  - Day 2: 15 gems
+  - Day 3: 20 gems
+  - Day 4: 25 gems
+  - Day 5: 30 gems
+  - Day 6: 40 gems
+  - Day 7 Bonus: 100 gems (big reward!)
+- **Streak Tracking**: Keep your streak alive by claiming daily
+  - Miss a day and your streak resets
+  - Track your current streak and longest streak
+  - Total days claimed counter
+- **Beautiful Animated Modal**:
+  - Pulsing "claim" animation for available rewards
+  - Satisfying claim animations with haptic feedback
+  - Visual progress through the week
+  - See locked, claimed, and available days
+- **Home Screen Banner**:
+  - Glowing banner when reward is ready
+  - Shows current streak status
+  - One-tap to open rewards modal
+- **Persistence**: Your streak and progress saved across app restarts
+
 ### Gem-Based Payment System (NEW!)
 - **Virtual Currency Economy**: Gems are the in-app currency (100 gems = $1 USD)
 - **Ultra-Low 5% Platform Fee** - Way better than TikTok's 50%!

@@ -35,6 +35,8 @@ import { useFocusEffect } from '@react-navigation/native';
 import { PostCard } from '@/components/PostCard';
 import { NewsCard } from '@/components/NewsCard';
 import { LocationChangeModal } from '@/components/LocationChangeModal';
+import { DailyRewardsBanner } from '@/components/DailyRewardsBanner';
+import { DailyRewardsModal } from '@/components/DailyRewardsModal';
 import { useStore, MOCK_POSTS, MOCK_COMMUNITIES, type Post, type NewsArticle, getCommunityMemberCount } from '@/lib/store';
 import { getCommunityByLocation, subscribeToCommunityUpdates, getOrCreateCommunity, joinCommunity } from '@/lib/communities';
 import { DbCommunity } from '@/lib/supabase';
@@ -114,6 +116,7 @@ export default function HomeScreen() {
   const [localNews, setLocalNews] = useState<NewsArticle[]>([]);
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [detectedLocation, setDetectedLocation] = useState<DetectedLocation | null>(null);
+  const [showDailyRewards, setShowDailyRewards] = useState(false);
 
   const feedFilter = useStore((s) => s.feedFilter);
   const setFeedFilter = useStore((s) => s.setFeedFilter);
@@ -563,6 +566,9 @@ export default function HomeScreen() {
             </LinearGradient>
           </Animated.View>
 
+          {/* Daily Rewards Banner */}
+          <DailyRewardsBanner onPress={() => setShowDailyRewards(true)} />
+
           {/* Community Features Section */}
           <Animated.View
             entering={FadeInUp.duration(500).delay(250)}
@@ -849,6 +855,12 @@ export default function HomeScreen() {
         onConfirm={handleConfirmLocationSwitch}
         onKeepCurrent={handleKeepCurrentLocation}
         onDismiss={handleDismissLocationDetection}
+      />
+
+      {/* Daily Rewards Modal */}
+      <DailyRewardsModal
+        visible={showDailyRewards}
+        onClose={() => setShowDailyRewards(false)}
       />
     </View>
   );
