@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { View, Text, ScrollView, Pressable, RefreshControl } from 'react-native';
+import { View, Text, ScrollView, Pressable, RefreshControl, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 import {
   MapPin,
   ChevronDown,
@@ -32,8 +33,11 @@ import {
   SplitSquareVertical,
   Radio,
   Gem,
+  Sparkles,
+  Bell,
+  Search,
 } from 'lucide-react-native';
-import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
+import Animated, { FadeInDown, FadeInUp, FadeIn, useSharedValue, useAnimatedStyle, withSpring, interpolate, Extrapolation } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
@@ -419,85 +423,125 @@ export default function HomeScreen() {
     router.push(route as any);
   };
 
-  return (
-    <View className="flex-1 bg-cream">
-      <SafeAreaView edges={['top']} className="flex-1">
-        {/* Header */}
-        <LinearGradient
-          colors={['#FAF7F2', '#FAF7F2']}
-          style={{ paddingBottom: 12 }}
-        >
-          <Animated.View
-            entering={FadeInDown.duration(400).delay(100)}
-            className="px-5 pt-2"
-          >
-            {/* Logo and Community */}
-            <View className="flex-row items-center justify-between">
-              <View>
-                <Text className="text-3xl font-bold text-terracotta-500">Afro</Text>
-                <Text className="text-3xl font-bold text-forest-700 -mt-2">Connect</Text>
-                <Text className="text-xs text-gray-500 mt-1 italic">
-                  Connecting Foreigners Globally, Building Communities
-                </Text>
-              </View>
+  // Quick access features - top 6 most important
+  const quickFeatures = [
+    { route: '/marketplace', icon: ShoppingBag, label: 'Market', colors: ['#D4673A', '#C05A2E'] as const },
+    { route: '/job-board', icon: Briefcase, label: 'Jobs', colors: ['#1B4D3E', '#153D31'] as const },
+    { route: '/advanced-events', icon: Calendar, label: 'Events', colors: ['#6366F1', '#4F46E5'] as const },
+    { route: '/voice-rooms', icon: Mic, label: 'Voice', colors: ['#EC4899', '#DB2777'] as const },
+    { route: '/remittance', icon: DollarSign, label: 'Send $', colors: ['#059669', '#047857'] as const },
+    { route: '/african-food', icon: Utensils, label: 'Food', colors: ['#DC2626', '#B91C1C'] as const },
+  ];
 
-              <View className="flex-row items-center">
-                <Pressable
-                  onPress={() => navigateTo('/messages')}
-                  className="bg-white rounded-full p-2.5 shadow-sm mr-2"
-                >
-                  <MessageCircle size={20} color="#1B4D3E" />
-                </Pressable>
+  // All features for the "More" section
+  const allFeatures = [
+    { route: '/business-directory', icon: Briefcase, label: 'Businesses', desc: 'Local listings', colors: ['#1B4D3E', '#0D3329'] as const },
+    { route: '/student-hub', icon: GraduationCap, label: 'Students', desc: 'Groups & Mentors', colors: ['#C9A227', '#A6841F'] as const },
+    { route: '/faith-community', icon: Heart, label: 'Faith', desc: 'Services', colors: ['#7C3AED', '#6D28D9'] as const },
+    { route: '/trust-score', icon: Shield, label: 'Trust', desc: 'Reputation', colors: ['#10B981', '#059669'] as const },
+    { route: '/village-council', icon: Vote, label: 'Council', desc: 'Community', colors: ['#8B5CF6', '#7C3AED'] as const },
+    { route: '/susu-circles', icon: PiggyBank, label: 'Savings', desc: 'Susu circles', colors: ['#F59E0B', '#D97706'] as const },
+    { route: '/creator-battles', icon: Trophy, label: 'Battles', desc: 'Compete', colors: ['#7C3AED', '#DB2777'] as const },
+    { route: '/stories', icon: Film, label: 'Stories', desc: '24hr posts', colors: ['#EC4899', '#F97316'] as const },
+    { route: '/clips', icon: Clapperboard, label: 'Clips', desc: 'Highlights', colors: ['#3B82F6', '#8B5CF6'] as const },
+    { route: '/duets', icon: SplitSquareVertical, label: 'Duets', desc: 'Collabs', colors: ['#10B981', '#3B82F6'] as const },
+    { route: '/heritage-hub', icon: BookOpen, label: 'Heritage', desc: 'Culture', colors: ['#D4673A', '#B85430'] as const },
+    { route: '/safety-network', icon: AlertTriangle, label: 'Safety', desc: 'Emergency', colors: ['#EF4444', '#DC2626'] as const },
+    { route: '/support-circles', icon: HeartHandshake, label: 'Support', desc: 'Help', colors: ['#14B8A6', '#0D9488'] as const },
+    { route: '/gamification', icon: Trophy, label: 'Rewards', desc: 'Earn gems', colors: ['#F97316', '#EA580C'] as const },
+    { route: '/immigration-help', icon: FileText, label: 'Visa', desc: 'Immigration', colors: ['#0284C7', '#0369A1'] as const },
+    { route: '/sports-betting', icon: Gem, label: 'Sports', desc: 'Predictions', colors: ['#F59E0B', '#D97706'] as const },
+    { route: '/live-radio', icon: Radio, label: 'Radio', desc: 'Live audio', colors: ['#7C3AED', '#6D28D9'] as const },
+  ];
+
+  const [showAllFeatures, setShowAllFeatures] = useState(false);
+
+  return (
+    <View className="flex-1 bg-[#F8F5F0]">
+      <SafeAreaView edges={['top']} className="flex-1">
+        {/* Modern Header */}
+        <Animated.View
+          entering={FadeInDown.duration(400)}
+          className="px-5 pt-3 pb-4"
+        >
+          {/* Top Row - Logo and Actions */}
+          <View className="flex-row items-center justify-between mb-4">
+            <View className="flex-row items-center">
+              <View className="w-10 h-10 rounded-xl bg-terracotta-500 items-center justify-center mr-3">
+                <Text className="text-white font-bold text-lg">A</Text>
+              </View>
+              <View>
+                <Text className="text-xl font-bold text-warmBrown">AfroConnect</Text>
                 <Pressable
                   onPress={() => navigateTo('/location-select')}
-                  className="flex-row items-center bg-white rounded-full px-3 py-2 shadow-sm"
+                  className="flex-row items-center"
                 >
-                  <MapPin size={16} color="#D4673A" />
-                  <View className="ml-2">
-                    <Text className="text-warmBrown font-medium text-sm">{displayCommunity.city}</Text>
-                    <Text className="text-gray-400 text-[10px]">{communityMemberCount.toLocaleString()} members</Text>
-                  </View>
-                  <ChevronDown size={16} color="#8B7355" className="ml-1" />
+                  <MapPin size={12} color="#D4673A" />
+                  <Text className="text-terracotta-500 text-xs font-medium ml-1">
+                    {displayCommunity.city}
+                  </Text>
+                  <ChevronDown size={12} color="#D4673A" />
                 </Pressable>
               </View>
             </View>
 
-            {/* Filter Tabs */}
-            <View className="flex-row mt-4 bg-white rounded-full p-1 shadow-sm">
+            <View className="flex-row items-center space-x-2">
               <Pressable
-                onPress={() => toggleFilter('local')}
-                className={`flex-1 flex-row items-center justify-center py-2.5 rounded-full ${
-                  feedFilter === 'local' ? 'bg-terracotta-500' : ''
-                }`}
+                onPress={() => navigateTo('/notifications')}
+                className="w-10 h-10 rounded-full bg-white items-center justify-center shadow-sm"
+              >
+                <Bell size={20} color="#1B4D3E" />
+              </Pressable>
+              <Pressable
+                onPress={() => navigateTo('/messages')}
+                className="w-10 h-10 rounded-full bg-white items-center justify-center shadow-sm ml-2"
+              >
+                <MessageCircle size={20} color="#1B4D3E" />
+              </Pressable>
+            </View>
+          </View>
+
+          {/* Filter Tabs - Pill Style */}
+          <View className="flex-row bg-white/80 rounded-2xl p-1.5 shadow-sm">
+            <Pressable
+              onPress={() => toggleFilter('local')}
+              className="flex-1"
+            >
+              <LinearGradient
+                colors={feedFilter === 'local' ? ['#D4673A', '#C05A2E'] : ['transparent', 'transparent']}
+                style={{ borderRadius: 14, paddingVertical: 10, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' }}
               >
                 <Users size={16} color={feedFilter === 'local' ? '#FFFFFF' : '#8B7355'} />
                 <Text
-                  className={`ml-2 font-medium ${
+                  className={`ml-2 font-semibold text-sm ${
                     feedFilter === 'local' ? 'text-white' : 'text-gray-500'
                   }`}
                 >
-                  Local
+                  My Community
                 </Text>
-              </Pressable>
+              </LinearGradient>
+            </Pressable>
 
-              <Pressable
-                onPress={() => toggleFilter('global')}
-                className={`flex-1 flex-row items-center justify-center py-2.5 rounded-full ${
-                  feedFilter === 'global' ? 'bg-forest-700' : ''
-                }`}
+            <Pressable
+              onPress={() => toggleFilter('global')}
+              className="flex-1"
+            >
+              <LinearGradient
+                colors={feedFilter === 'global' ? ['#1B4D3E', '#153D31'] : ['transparent', 'transparent']}
+                style={{ borderRadius: 14, paddingVertical: 10, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' }}
               >
                 <Globe size={16} color={feedFilter === 'global' ? '#FFFFFF' : '#8B7355'} />
                 <Text
-                  className={`ml-2 font-medium ${
+                  className={`ml-2 font-semibold text-sm ${
                     feedFilter === 'global' ? 'text-white' : 'text-gray-500'
                   }`}
                 >
-                  Global
+                  Worldwide
                 </Text>
-              </Pressable>
-            </View>
-          </Animated.View>
-        </LinearGradient>
+              </LinearGradient>
+            </Pressable>
+          </View>
+        </Animated.View>
 
         {/* Feed */}
         <ScrollView
@@ -510,63 +554,86 @@ export default function HomeScreen() {
               colors={['#D4673A']}
             />
           }
-          contentContainerStyle={{ paddingTop: 16, paddingBottom: 20 }}
+          contentContainerStyle={{ paddingBottom: 20 }}
         >
           {/* Guest Sign Up Banner */}
           {(isGuest || !currentUser) && (
             <Animated.View
-              entering={FadeInUp.duration(500).delay(150)}
+              entering={FadeInUp.duration(500).delay(100)}
               className="mx-4 mb-4"
             >
               <Pressable onPress={() => navigateTo('/signup')}>
                 <LinearGradient
-                  colors={['#C9A227', '#A6841F']}
+                  colors={['#1B4D3E', '#153D31']}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
-                  style={{ borderRadius: 16, padding: 16 }}
+                  style={{ borderRadius: 20, padding: 16, overflow: 'hidden' }}
                 >
+                  <View className="absolute top-0 right-0 w-32 h-32 rounded-full bg-white/5" style={{ transform: [{ translateX: 40 }, { translateY: -40 }] }} />
                   <View className="flex-row items-center">
-                    <View className="bg-white/20 rounded-full p-2.5">
-                      <UserPlus size={22} color="#FFFFFF" />
+                    <View className="bg-white/15 rounded-2xl p-3">
+                      <UserPlus size={24} color="#FFFFFF" />
                     </View>
-                    <View className="flex-1 ml-3">
+                    <View className="flex-1 ml-4">
                       <Text className="text-white font-bold text-base">
-                        Join AfroConnect
+                        Join the Community
                       </Text>
-                      <Text className="text-white/80 text-sm">
-                        Sign up to post, comment, and connect with the community
+                      <Text className="text-white/70 text-sm mt-0.5">
+                        Connect with {communityMemberCount.toLocaleString()}+ members
                       </Text>
                     </View>
-                    <ChevronRight size={20} color="#FFFFFF" />
+                    <View className="bg-white/15 rounded-full p-2">
+                      <ChevronRight size={20} color="#FFFFFF" />
+                    </View>
                   </View>
                 </LinearGradient>
               </Pressable>
             </Animated.View>
           )}
 
-          {/* Welcome Card */}
+          {/* Community Stats Card */}
           <Animated.View
-            entering={FadeInUp.duration(500).delay(200)}
-            className="mx-4 mb-4"
+            entering={FadeInUp.duration(500).delay(150)}
+            className="mx-4 mb-5"
           >
             <LinearGradient
               colors={['#D4673A', '#B85430']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
-              style={{ borderRadius: 16, padding: 20 }}
+              style={{ borderRadius: 24, padding: 20, overflow: 'hidden' }}
             >
-              <View className="flex-row items-center">
+              {/* Decorative circles */}
+              <View className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-white/10" />
+              <View className="absolute -bottom-8 -left-8 w-32 h-32 rounded-full bg-black/10" />
+
+              <View className="flex-row items-center justify-between relative">
                 <View className="flex-1">
-                  <Text className="text-white text-lg font-bold">
-                    Welcome to {displayCommunity.city}
+                  <View className="flex-row items-center mb-1">
+                    <Sparkles size={16} color="#FFD700" />
+                    <Text className="text-white/80 text-xs font-medium ml-1.5 uppercase tracking-wider">
+                      Welcome to
+                    </Text>
+                  </View>
+                  <Text className="text-white text-2xl font-bold">
+                    {displayCommunity.city}
                   </Text>
-                  <Text className="text-white/80 mt-1">
-                    {memberCount.toLocaleString()} community members
-                  </Text>
+                  <View className="flex-row items-center mt-3">
+                    <View className="flex-row items-center bg-white/20 rounded-full px-3 py-1.5">
+                      <Users size={14} color="#FFFFFF" />
+                      <Text className="text-white font-semibold text-sm ml-1.5">
+                        {memberCount.toLocaleString()}
+                      </Text>
+                    </View>
+                    <Text className="text-white/70 text-sm ml-2">members</Text>
+                  </View>
                 </View>
-                <View className="bg-white/20 rounded-full p-3">
-                  <Users size={24} color="#FFFFFF" />
-                </View>
+
+                <Pressable
+                  onPress={() => navigateTo('/location-select')}
+                  className="bg-white/20 rounded-2xl p-4"
+                >
+                  <MapPin size={28} color="#FFFFFF" />
+                </Pressable>
               </View>
             </LinearGradient>
           </Animated.View>
@@ -574,313 +641,96 @@ export default function HomeScreen() {
           {/* Daily Rewards Banner */}
           <DailyRewardsBanner onPress={() => setShowDailyRewards(true)} />
 
-          {/* Community Features Section */}
+          {/* Quick Access Grid */}
           <Animated.View
-            entering={FadeInUp.duration(500).delay(250)}
-            className="mx-4 mb-4"
+            entering={FadeInUp.duration(500).delay(200)}
+            className="mx-4 mb-5"
           >
             <View className="flex-row items-center justify-between mb-3">
-              <Text className="text-warmBrown font-bold text-lg">Explore</Text>
+              <Text className="text-warmBrown font-bold text-lg">Quick Access</Text>
+              <Pressable
+                onPress={() => setShowAllFeatures(!showAllFeatures)}
+                className="flex-row items-center"
+              >
+                <Text className="text-terracotta-500 text-sm font-medium">
+                  {showAllFeatures ? 'Show Less' : 'See All'}
+                </Text>
+                <ChevronRight size={16} color="#D4673A" />
+              </Pressable>
             </View>
 
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={{ marginHorizontal: -16, flexGrow: 0 }}
-              contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
-            >
-              {/* Marketplace */}
-              <Pressable onPress={() => navigateTo('/marketplace')}>
-                <LinearGradient
-                  colors={['#D4673A', '#B85430']}
-                  style={{ borderRadius: 16, padding: 16, width: 140 }}
+            {/* Quick Access Icons */}
+            <View className="flex-row flex-wrap justify-between">
+              {quickFeatures.map((feature, index) => (
+                <Pressable
+                  key={feature.route}
+                  onPress={() => navigateTo(feature.route)}
+                  className="items-center mb-4"
+                  style={{ width: '16%' }}
                 >
-                  <ShoppingBag size={24} color="white" />
-                  <Text className="text-white font-bold mt-2">Marketplace</Text>
-                  <Text className="text-white/80 text-xs">Buy & Sell</Text>
-                </LinearGradient>
-              </Pressable>
+                  <LinearGradient
+                    colors={feature.colors}
+                    style={{ width: 52, height: 52, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginBottom: 6 }}
+                  >
+                    <feature.icon size={24} color="white" />
+                  </LinearGradient>
+                  <Text className="text-warmBrown text-xs font-medium text-center">{feature.label}</Text>
+                </Pressable>
+              ))}
+            </View>
 
-              {/* Businesses */}
-              <Pressable onPress={() => navigateTo('/business-directory')}>
-                <LinearGradient
-                  colors={['#1B4D3E', '#0D3329']}
-                  style={{ borderRadius: 16, padding: 16, width: 140 }}
-                >
-                  <Briefcase size={24} color="white" />
-                  <Text className="text-white font-bold mt-2">Businesses</Text>
-                  <Text className="text-white/80 text-xs">Local listings</Text>
-                </LinearGradient>
-              </Pressable>
-
-              {/* Student Hub */}
-              <Pressable onPress={() => navigateTo('/student-hub')}>
-                <LinearGradient
-                  colors={['#C9A227', '#A6841F']}
-                  style={{ borderRadius: 16, padding: 16, width: 140 }}
-                >
-                  <GraduationCap size={24} color="white" />
-                  <Text className="text-white font-bold mt-2">Student Hub</Text>
-                  <Text className="text-white/80 text-xs">Groups & Mentors</Text>
-                </LinearGradient>
-              </Pressable>
-
-              {/* Faith Centers */}
-              <Pressable onPress={() => navigateTo('/faith-community')}>
-                <LinearGradient
-                  colors={['#7C3AED', '#6D28D9']}
-                  style={{ borderRadius: 16, padding: 16, width: 140 }}
-                >
-                  <Heart size={24} color="white" />
-                  <Text className="text-white font-bold mt-2">Faith Centers</Text>
-                  <Text className="text-white/80 text-xs">Services & Events</Text>
-                </LinearGradient>
-              </Pressable>
-
-              {/* Trust Score */}
-              <Pressable onPress={() => navigateTo('/trust-score')}>
-                <LinearGradient
-                  colors={['#10B981', '#059669']}
-                  style={{ borderRadius: 16, padding: 16, width: 140 }}
-                >
-                  <Shield size={24} color="white" />
-                  <Text className="text-white font-bold mt-2">Trust Score</Text>
-                  <Text className="text-white/80 text-xs">Build reputation</Text>
-                </LinearGradient>
-              </Pressable>
-
-              {/* Village Council */}
-              <Pressable onPress={() => navigateTo('/village-council')}>
-                <LinearGradient
-                  colors={['#8B5CF6', '#7C3AED']}
-                  style={{ borderRadius: 16, padding: 16, width: 140 }}
-                >
-                  <Vote size={24} color="white" />
-                  <Text className="text-white font-bold mt-2">Village Council</Text>
-                  <Text className="text-white/80 text-xs">Polls & votes</Text>
-                </LinearGradient>
-              </Pressable>
-
-              {/* Susu Circles */}
-              <Pressable onPress={() => navigateTo('/susu-circles')}>
-                <LinearGradient
-                  colors={['#F59E0B', '#D97706']}
-                  style={{ borderRadius: 16, padding: 16, width: 140 }}
-                >
-                  <PiggyBank size={24} color="white" />
-                  <Text className="text-white font-bold mt-2">Susu Circles</Text>
-                  <Text className="text-white/80 text-xs">Group savings</Text>
-                </LinearGradient>
-              </Pressable>
-
-              {/* Job Board */}
-              <Pressable onPress={() => navigateTo('/job-board')}>
-                <LinearGradient
-                  colors={['#3B82F6', '#2563EB']}
-                  style={{ borderRadius: 16, padding: 16, width: 140 }}
-                >
-                  <Briefcase size={24} color="white" />
-                  <Text className="text-white font-bold mt-2">Job Board</Text>
-                  <Text className="text-white/80 text-xs">Find work</Text>
-                </LinearGradient>
-              </Pressable>
-
-              {/* Voice Rooms */}
-              <Pressable onPress={() => navigateTo('/voice-rooms')}>
-                <LinearGradient
-                  colors={['#EC4899', '#DB2777']}
-                  style={{ borderRadius: 16, padding: 16, width: 140 }}
-                >
-                  <Mic size={24} color="white" />
-                  <Text className="text-white font-bold mt-2">Voice Rooms</Text>
-                  <Text className="text-white/80 text-xs">Live discussions</Text>
-                </LinearGradient>
-              </Pressable>
-
-              {/* Creator Battles */}
-              <Pressable onPress={() => navigateTo('/creator-battles')}>
-                <LinearGradient
-                  colors={['#7C3AED', '#DB2777']}
-                  style={{ borderRadius: 16, padding: 16, width: 140 }}
-                >
-                  <Trophy size={24} color="white" />
-                  <Text className="text-white font-bold mt-2">Battles</Text>
-                  <Text className="text-white/80 text-xs">Gift competitions</Text>
-                </LinearGradient>
-              </Pressable>
-
-              {/* Stories */}
-              <Pressable onPress={() => navigateTo('/stories')}>
-                <LinearGradient
-                  colors={['#EC4899', '#F97316']}
-                  style={{ borderRadius: 16, padding: 16, width: 140 }}
-                >
-                  <Film size={24} color="white" />
-                  <Text className="text-white font-bold mt-2">Stories</Text>
-                  <Text className="text-white/80 text-xs">24hr moments</Text>
-                </LinearGradient>
-              </Pressable>
-
-              {/* Clips */}
-              <Pressable onPress={() => navigateTo('/clips')}>
-                <LinearGradient
-                  colors={['#3B82F6', '#8B5CF6']}
-                  style={{ borderRadius: 16, padding: 16, width: 140 }}
-                >
-                  <Clapperboard size={24} color="white" />
-                  <Text className="text-white font-bold mt-2">Clips</Text>
-                  <Text className="text-white/80 text-xs">Best highlights</Text>
-                </LinearGradient>
-              </Pressable>
-
-              {/* Duets */}
-              <Pressable onPress={() => navigateTo('/duets')}>
-                <LinearGradient
-                  colors={['#10B981', '#3B82F6']}
-                  style={{ borderRadius: 16, padding: 16, width: 140 }}
-                >
-                  <SplitSquareVertical size={24} color="white" />
-                  <Text className="text-white font-bold mt-2">Duets</Text>
-                  <Text className="text-white/80 text-xs">Split screen</Text>
-                </LinearGradient>
-              </Pressable>
-
-              {/* Heritage Hub */}
-              <Pressable onPress={() => navigateTo('/heritage-hub')}>
-                <LinearGradient
-                  colors={['#D4673A', '#B85430']}
-                  style={{ borderRadius: 16, padding: 16, width: 140 }}
-                >
-                  <BookOpen size={24} color="white" />
-                  <Text className="text-white font-bold mt-2">Heritage Hub</Text>
-                  <Text className="text-white/80 text-xs">Culture & recipes</Text>
-                </LinearGradient>
-              </Pressable>
-
-              {/* Safety Network */}
-              <Pressable onPress={() => navigateTo('/safety-network')}>
-                <LinearGradient
-                  colors={['#EF4444', '#DC2626']}
-                  style={{ borderRadius: 16, padding: 16, width: 140 }}
-                >
-                  <AlertTriangle size={24} color="white" />
-                  <Text className="text-white font-bold mt-2">Safety Net</Text>
-                  <Text className="text-white/80 text-xs">Emergency help</Text>
-                </LinearGradient>
-              </Pressable>
-
-              {/* Support Circles */}
-              <Pressable onPress={() => navigateTo('/support-circles')}>
-                <LinearGradient
-                  colors={['#14B8A6', '#0D9488']}
-                  style={{ borderRadius: 16, padding: 16, width: 140 }}
-                >
-                  <HeartHandshake size={24} color="white" />
-                  <Text className="text-white font-bold mt-2">Support</Text>
-                  <Text className="text-white/80 text-xs">Community help</Text>
-                </LinearGradient>
-              </Pressable>
-
-              {/* Gamification */}
-              <Pressable onPress={() => navigateTo('/gamification')}>
-                <LinearGradient
-                  colors={['#F97316', '#EA580C']}
-                  style={{ borderRadius: 16, padding: 16, width: 140 }}
-                >
-                  <Trophy size={24} color="white" />
-                  <Text className="text-white font-bold mt-2">Achievements</Text>
-                  <Text className="text-white/80 text-xs">Earn rewards</Text>
-                </LinearGradient>
-              </Pressable>
-
-              {/* Advanced Events */}
-              <Pressable onPress={() => navigateTo('/advanced-events')}>
-                <LinearGradient
-                  colors={['#6366F1', '#4F46E5']}
-                  style={{ borderRadius: 16, padding: 16, width: 140 }}
-                >
-                  <Calendar size={24} color="white" />
-                  <Text className="text-white font-bold mt-2">Events+</Text>
-                  <Text className="text-white/80 text-xs">Tickets & virtual</Text>
-                </LinearGradient>
-              </Pressable>
-
-              {/* Send Money - Remittance */}
-              <Pressable onPress={() => navigateTo('/remittance')}>
-                <LinearGradient
-                  colors={['#059669', '#047857']}
-                  style={{ borderRadius: 16, padding: 16, width: 140 }}
-                >
-                  <DollarSign size={24} color="white" />
-                  <Text className="text-white font-bold mt-2">Send Money</Text>
-                  <Text className="text-white/80 text-xs">Compare rates</Text>
-                </LinearGradient>
-              </Pressable>
-
-              {/* Immigration Help */}
-              <Pressable onPress={() => navigateTo('/immigration-help')}>
-                <LinearGradient
-                  colors={['#0284C7', '#0369A1']}
-                  style={{ borderRadius: 16, padding: 16, width: 140 }}
-                >
-                  <FileText size={24} color="white" />
-                  <Text className="text-white font-bold mt-2">Visa Help</Text>
-                  <Text className="text-white/80 text-xs">Immigration guide</Text>
-                </LinearGradient>
-              </Pressable>
-
-              {/* African Food Network */}
-              <Pressable onPress={() => navigateTo('/african-food')}>
-                <LinearGradient
-                  colors={['#DC2626', '#B91C1C']}
-                  style={{ borderRadius: 16, padding: 16, width: 140 }}
-                >
-                  <Utensils size={24} color="white" />
-                  <Text className="text-white font-bold mt-2">Food Network</Text>
-                  <Text className="text-white/80 text-xs">Home-cooked meals</Text>
-                </LinearGradient>
-              </Pressable>
-
-              {/* Sports Betting */}
-              <Pressable onPress={() => navigateTo('/sports-betting')}>
-                <LinearGradient
-                  colors={['#F59E0B', '#D97706']}
-                  style={{ borderRadius: 16, padding: 16, width: 140 }}
-                >
-                  <Gem size={24} color="white" />
-                  <Text className="text-white font-bold mt-2">Sports Bets</Text>
-                  <Text className="text-white/80 text-xs">Bet gems on games</Text>
-                </LinearGradient>
-              </Pressable>
-
-              {/* Live Radio */}
-              <Pressable onPress={() => navigateTo('/live-radio')}>
-                <LinearGradient
-                  colors={['#7C3AED', '#6D28D9']}
-                  style={{ borderRadius: 16, padding: 16, width: 140 }}
-                >
-                  <Radio size={24} color="white" />
-                  <Text className="text-white font-bold mt-2">Live Radio</Text>
-                  <Text className="text-white/80 text-xs">Community stations</Text>
-                </LinearGradient>
-              </Pressable>
-            </ScrollView>
+            {/* Expanded Features Grid */}
+            {showAllFeatures && (
+              <Animated.View
+                entering={FadeIn.duration(300)}
+                className="mt-2"
+              >
+                <View className="bg-white rounded-2xl p-4 shadow-sm">
+                  <View className="flex-row flex-wrap">
+                    {allFeatures.map((feature, index) => (
+                      <Pressable
+                        key={feature.route}
+                        onPress={() => navigateTo(feature.route)}
+                        className="flex-row items-center p-3 mb-2 bg-gray-50 rounded-xl"
+                        style={{ width: '48%', marginRight: index % 2 === 0 ? '4%' : 0 }}
+                      >
+                        <LinearGradient
+                          colors={feature.colors}
+                          style={{ width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' }}
+                        >
+                          <feature.icon size={18} color="white" />
+                        </LinearGradient>
+                        <View className="ml-2 flex-1">
+                          <Text className="text-warmBrown text-sm font-semibold">{feature.label}</Text>
+                          <Text className="text-gray-400 text-xs">{feature.desc}</Text>
+                        </View>
+                      </Pressable>
+                    ))}
+                  </View>
+                </View>
+              </Animated.View>
+            )}
           </Animated.View>
 
-          {/* Local News Section - Only show in local feed */}
+          {/* Local News Section */}
           {feedFilter === 'local' && localNews.length > 0 && (
             <Animated.View
-              entering={FadeInUp.duration(500).delay(310)}
-              className="mb-4"
+              entering={FadeInUp.duration(500).delay(250)}
+              className="mb-5"
             >
               <View className="flex-row items-center justify-between px-4 mb-3">
                 <View className="flex-row items-center">
-                  <View className="bg-terracotta-50 rounded-full p-2 mr-2">
-                    <Newspaper size={18} color="#D4673A" />
-                  </View>
+                  <LinearGradient
+                    colors={['#D4673A', '#C05A2E']}
+                    style={{ width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginRight: 10 }}
+                  >
+                    <Newspaper size={16} color="white" />
+                  </LinearGradient>
                   <Text className="text-warmBrown font-bold text-lg">Local News</Text>
                 </View>
-                <Text className="text-gray-400 text-xs">{displayCommunity.city}</Text>
+                <View className="bg-terracotta-50 px-2.5 py-1 rounded-full">
+                  <Text className="text-terracotta-500 text-xs font-medium">{displayCommunity.city}</Text>
+                </View>
               </View>
 
               <ScrollView
@@ -896,27 +746,54 @@ export default function HomeScreen() {
             </Animated.View>
           )}
 
+          {/* Posts Section Header */}
+          <Animated.View
+            entering={FadeInUp.duration(500).delay(300)}
+            className="px-4 mb-3"
+          >
+            <View className="flex-row items-center">
+              <View className="w-1 h-5 bg-terracotta-500 rounded-full mr-2" />
+              <Text className="text-warmBrown font-bold text-lg">
+                {feedFilter === 'local' ? 'Community Posts' : 'Global Feed'}
+              </Text>
+            </View>
+          </Animated.View>
+
           {/* Posts */}
           {allPosts.length > 0 ? (
             allPosts.map((post, index) => (
               <Animated.View
                 key={post.id}
-                entering={FadeInUp.duration(400).delay(350 + index * 100)}
+                entering={FadeInUp.duration(400).delay(350 + index * 50)}
               >
                 <PostCard post={post} />
               </Animated.View>
             ))
           ) : (
-            <View className="mx-4 py-12 items-center">
-              <View className="bg-gray-100 rounded-full p-4 mb-4">
+            <View className="mx-4 py-16 items-center bg-white rounded-2xl shadow-sm">
+              <LinearGradient
+                colors={['#F3F4F6', '#E5E7EB']}
+                style={{ width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}
+              >
                 <Users size={32} color="#9CA3AF" />
-              </View>
+              </LinearGradient>
               <Text className="text-warmBrown font-semibold text-lg text-center">
-                No posts yet in your area
+                No posts yet
               </Text>
-              <Text className="text-gray-500 text-center mt-2">
+              <Text className="text-gray-400 text-center mt-2 px-8">
                 Be the first to share something with your community!
               </Text>
+              <Pressable
+                onPress={() => navigateTo('/create-post')}
+                className="mt-4"
+              >
+                <LinearGradient
+                  colors={['#D4673A', '#C05A2E']}
+                  style={{ borderRadius: 20, paddingHorizontal: 24, paddingVertical: 12 }}
+                >
+                  <Text className="text-white font-semibold">Create Post</Text>
+                </LinearGradient>
+              </Pressable>
             </View>
           )}
         </ScrollView>
