@@ -748,4 +748,75 @@ Three powerful features designed to make AfroConnect the go-to app for foreigner
 - **Visual Calendar**: See which days you've claimed
 - **Home Screen Banner**: Quick access to claim rewards
 
+### 19. Sports Betting with Gems (`/sports-betting`)
+- **Bet on sports events using virtual gems** - fun, engaging, and safe
+- **Multiple Sports Categories**:
+  - NFL Football
+  - NBA Basketball
+  - Soccer (Premier League, AFCON, La Liga)
+  - MMA/UFC
+  - Boxing
+- **Betting Features**:
+  - Live events with real-time scores
+  - Upcoming events with countdown timers
+  - Odds displayed for home/away/draw (soccer)
+  - Quick bet amounts: 50, 100, 250, 500 gems
+  - Minimum bet: 10 gems, Maximum: 10,000 gems
+  - Potential winnings calculator based on odds
+- **My Bets Tab**:
+  - Track all pending, won, and lost bets
+  - Status color coding (green/red/yellow)
+  - Bet details with team, prediction, odds, and outcome
+- **Stats Dashboard**:
+  - Total bets placed
+  - Win/loss record
+  - Win rate percentage
+  - Current and longest win streaks
+  - Total gems wagered, won, and lost
+- **Referral Integration**:
+  - 100 gem bonus for new users who join with referral code
+  - 50 gem bonus for referrer when their friend places first bet
+
+### 20. Live Radio Broadcasting (`/live-radio`)
+- **Community-powered radio stations** - broadcast from anywhere!
+- **Listen to Live Stations**:
+  - Live Now section with active broadcasts
+  - Listener counts and current track/show info
+  - Station categories: Afrobeats, Gospel, Talk, News, Culture, Sports
+  - Genre-based filtering
+- **Station Features**:
+  - Host profile with avatar and name
+  - Station description and tags
+  - Follower counts
+  - Broadcast duration display
+  - Cover images for visual appeal
+- **Popular Stations**: Top stations ranked by followers
+- **Upcoming Shows**:
+  - Schedule of upcoming broadcasts
+  - Day and time info
+  - Reminder button to get notified
+- **Mini Player**:
+  - Persistent player at bottom of screen
+  - Play/pause controls
+  - Mute toggle
+  - Audio wave visualizer animation
+- **Full Player & Live Chat**:
+  - Full-screen listening experience
+  - Live chat with other listeners
+  - DJ messages highlighted
+  - Follow/unfollow stations
+  - Share station functionality
+- **Start Your Own Station**:
+  - Create and broadcast from your basement, bedroom, anywhere!
+  - Share music, host talk shows, or discuss community topics
+  - Build your listener base and followers
+- **Audio Wave Animation**: Animated bars showing audio activity
+
+### Enhanced Referral System
+- **Gem Bonuses** in addition to cash rewards:
+  - **100 gems** for referrer when friend signs up
+  - **50 gems** for new user when signing up with code
+  - **50 gems** for referrer when their referral places first bet
+- Combined with existing cash rewards for maximum earnings
+
 

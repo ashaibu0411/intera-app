@@ -34,6 +34,11 @@ export interface ReferralRewards {
   // Rewards for new user (referred)
   newUserSignupBonus: number; // When they sign up with referral code
   newUserFirstTransferBonus: number; // Bonus on their first transfer
+
+  // Gem bonuses
+  referrerGemBonus: number; // Gems for referrer when friend signs up
+  newUserGemBonus: number; // Gems for new user when signing up with code
+  referrerBettingBonus: number; // Gems when referral places first bet
 }
 
 // Default reward structure - can be adjusted
@@ -46,6 +51,11 @@ export const REFERRAL_REWARDS: ReferralRewards = {
   // New user gets:
   newUserSignupBonus: 200, // $2.00 for using a referral code
   newUserFirstTransferBonus: 300, // $3.00 off their first transfer
+
+  // Gem bonuses:
+  referrerGemBonus: 100, // 100 gems for referrer
+  newUserGemBonus: 50, // 50 gems for new user
+  referrerBettingBonus: 50, // 50 gems when referral places first bet
 };
 
 // Generate a unique referral code for a user

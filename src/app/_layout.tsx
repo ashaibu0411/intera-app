@@ -95,6 +95,9 @@ function RootLayoutNav() {
         <Stack.Screen name="seller-pro-paywall" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
         {/* Global Translator */}
         <Stack.Screen name="translator" options={{ animation: 'slide_from_right' }} />
+        {/* Sports Betting & Live Radio */}
+        <Stack.Screen name="sports-betting" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="live-radio" options={{ animation: 'slide_from_right' }} />
       </Stack>
     </ThemeProvider>
   );

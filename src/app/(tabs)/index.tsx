@@ -30,6 +30,8 @@ import {
   Film,
   Clapperboard,
   SplitSquareVertical,
+  Radio,
+  Gem,
 } from 'lucide-react-native';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -836,6 +838,30 @@ export default function HomeScreen() {
                   <Utensils size={24} color="white" />
                   <Text className="text-white font-bold mt-2">Food Network</Text>
                   <Text className="text-white/80 text-xs">Home-cooked meals</Text>
+                </LinearGradient>
+              </Pressable>
+
+              {/* Sports Betting */}
+              <Pressable onPress={() => navigateTo('/sports-betting')}>
+                <LinearGradient
+                  colors={['#F59E0B', '#D97706']}
+                  style={{ borderRadius: 16, padding: 16, width: 140 }}
+                >
+                  <Gem size={24} color="white" />
+                  <Text className="text-white font-bold mt-2">Sports Bets</Text>
+                  <Text className="text-white/80 text-xs">Bet gems on games</Text>
+                </LinearGradient>
+              </Pressable>
+
+              {/* Live Radio */}
+              <Pressable onPress={() => navigateTo('/live-radio')}>
+                <LinearGradient
+                  colors={['#7C3AED', '#6D28D9']}
+                  style={{ borderRadius: 16, padding: 16, width: 140 }}
+                >
+                  <Radio size={24} color="white" />
+                  <Text className="text-white font-bold mt-2">Live Radio</Text>
+                  <Text className="text-white/80 text-xs">Community stations</Text>
                 </LinearGradient>
               </Pressable>
             </ScrollView>
