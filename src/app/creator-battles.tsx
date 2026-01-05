@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, ScrollView, Pressable, Image, Modal, Dimensions } from 'react-native';
+import { View, Text, ScrollView, Pressable, Image, Modal, Dimensions, Alert } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -680,7 +680,11 @@ export default function CreatorBattlesScreen() {
           <Pressable
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-              // In real app, this would create a new battle
+              Alert.alert(
+                'Coming Soon!',
+                'Live creator battles are coming soon! You\'ll be able to start battles and compete for gems with other creators.',
+                [{ text: 'OK', style: 'default' }]
+              );
             }}
             className="bg-gradient-to-r overflow-hidden rounded-full"
           >

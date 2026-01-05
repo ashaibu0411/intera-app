@@ -8,6 +8,7 @@ import {
   RefreshControl,
   TextInput,
   Modal,
+  Alert,
 } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -575,7 +576,11 @@ export default function LiveRadioScreen() {
             <Pressable
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                // Would navigate to create station screen
+                Alert.alert(
+                  'Coming Soon!',
+                  'Live radio broadcasting is coming soon! You\'ll be able to create your own station and broadcast to the community.',
+                  [{ text: 'OK', style: 'default' }]
+                );
               }}
               className="bg-white mt-4 py-3 rounded-xl"
             >
