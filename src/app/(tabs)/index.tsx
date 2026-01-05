@@ -692,6 +692,18 @@ export default function HomeScreen() {
                 </LinearGradient>
               </Pressable>
 
+              {/* Creator Battles */}
+              <Pressable onPress={() => navigateTo('/creator-battles')}>
+                <LinearGradient
+                  colors={['#7C3AED', '#DB2777']}
+                  style={{ borderRadius: 16, padding: 16, width: 140 }}
+                >
+                  <Trophy size={24} color="white" />
+                  <Text className="text-white font-bold mt-2">Battles</Text>
+                  <Text className="text-white/80 text-xs">Gift competitions</Text>
+                </LinearGradient>
+              </Pressable>
+
               {/* Heritage Hub */}
               <Pressable onPress={() => navigateTo('/heritage-hub')}>
                 <LinearGradient

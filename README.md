@@ -388,6 +388,24 @@ These 10 major features make AfroConnect superior to Facebook, Nextdoor, and any
   - Transaction history to track sent/received gifts
   - Balance displayed with USD equivalent
 
+### Creator Battles (`/creator-battles`) (NEW!)
+- **Head-to-head gift competitions** between two creators in real-time
+- **Split-screen battle arena**: Purple vs Orange themed sides
+- **Live scoring**: Watch gem counts update in real-time as viewers send gifts
+- **Battle timer**: Timed matches (3 or 5 minutes) with countdown display
+- **Gift to support**: Tap either creator's side to send them gifts
+  - Same 6 gift types as Voice Rooms
+  - Floating gift animations on the chosen side
+  - Instant score updates
+- **Score bar**: Visual progress bar showing who's winning
+- **Battle lobby**:
+  - Browse live battles happening now
+  - See waiting battles you can join as challenger
+  - View battle stats (viewers, total gifts)
+- **Battle categories**: Entertainment, Music, Comedy, Dance, Talent, Chat
+- **Winner determination**: Creator with highest gift score wins when timer ends
+- **Viewer count**: See how many people are watching each battle
+
 ### Daily Rewards System (NEW!)
 - **Daily Login Rewards**: Earn free gems every day just by opening the app
 - **7-Day Reward Cycle**: Increasing rewards each consecutive day:

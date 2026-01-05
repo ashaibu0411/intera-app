@@ -461,6 +461,59 @@ export interface VoiceRoomParticipant {
 }
 
 // ============================================
+// CREATOR BATTLES
+// ============================================
+
+export interface CreatorBattle {
+  id: string;
+  status: 'waiting' | 'countdown' | 'live' | 'ended';
+  creator1: BattleCreator;
+  creator2: BattleCreator | null;
+  duration: number; // in seconds (e.g., 180 for 3 min, 300 for 5 min)
+  startedAt: string | null;
+  endedAt: string | null;
+  winnerId: string | null;
+  viewerCount: number;
+  totalGifts: number;
+  category: 'entertainment' | 'music' | 'comedy' | 'dance' | 'talent' | 'chat';
+  createdAt: string;
+}
+
+export interface BattleCreator {
+  id: string;
+  odooUserId: string;
+  name: string;
+  avatar: string;
+  score: number;
+  giftsReceived: BattleGift[];
+  isReady: boolean;
+}
+
+export interface BattleGift {
+  id: string;
+  senderId: string;
+  senderName: string;
+  senderAvatar: string;
+  giftId: string;
+  giftName: string;
+  giftValue: number;
+  giftIcon: string;
+  timestamp: string;
+}
+
+export interface BattleInvite {
+  id: string;
+  battleId: string;
+  fromUserId: string;
+  fromUserName: string;
+  fromUserAvatar: string;
+  toUserId: string;
+  status: 'pending' | 'accepted' | 'declined' | 'expired';
+  createdAt: string;
+  expiresAt: string;
+}
+
+// ============================================
 // LIVE STREAMING
 // ============================================
 
@@ -1092,6 +1145,10 @@ interface AdvancedFeaturesState {
   // Voice Rooms
   voiceRooms: VoiceRoom[];
 
+  // Creator Battles
+  creatorBattles: CreatorBattle[];
+  battleInvites: BattleInvite[];
+
   // Live Streaming
   liveStreams: LiveStream[];
 
@@ -1151,6 +1208,14 @@ interface AdvancedFeaturesState {
   addVoiceRoom: (room: VoiceRoom) => void;
   joinVoiceRoom: (roomId: string, participant: VoiceRoomParticipant) => void;
   leaveVoiceRoom: (roomId: string, userId: string) => void;
+  // Creator Battles
+  createBattle: (battle: CreatorBattle) => void;
+  joinBattle: (battleId: string, creator: BattleCreator) => void;
+  startBattle: (battleId: string) => void;
+  endBattle: (battleId: string, winnerId: string) => void;
+  addBattleGift: (battleId: string, creatorId: string, gift: BattleGift) => void;
+  sendBattleInvite: (invite: BattleInvite) => void;
+  respondToBattleInvite: (inviteId: string, status: 'accepted' | 'declined') => void;
   addLiveStream: (stream: LiveStream) => void;
   addStreamComment: (streamId: string, comment: StreamComment) => void;
   addEscrowTransaction: (transaction: EscrowTransaction) => void;
@@ -1205,6 +1270,8 @@ export const useAdvancedFeatures = create<AdvancedFeaturesState>()(
       jobApplications: [],
       skillListings: [],
       voiceRooms: [],
+      creatorBattles: [],
+      battleInvites: [],
       liveStreams: [],
       escrowTransactions: [],
       barterListings: [],
@@ -1384,6 +1451,61 @@ export const useAdvancedFeatures = create<AdvancedFeaturesState>()(
             listeners: room.listeners.filter((l) => l.userId !== userId),
             speakers: room.speakers.filter((s) => s.userId !== userId)
           } : room
+        )
+      })),
+
+      // Creator Battles
+      createBattle: (battle) => set((state) => ({
+        creatorBattles: [battle, ...state.creatorBattles]
+      })),
+
+      joinBattle: (battleId, creator) => set((state) => ({
+        creatorBattles: state.creatorBattles.map((battle) =>
+          battle.id === battleId ? { ...battle, creator2: creator, status: 'countdown' } : battle
+        )
+      })),
+
+      startBattle: (battleId) => set((state) => ({
+        creatorBattles: state.creatorBattles.map((battle) =>
+          battle.id === battleId ? { ...battle, status: 'live', startedAt: new Date().toISOString() } : battle
+        )
+      })),
+
+      endBattle: (battleId, winnerId) => set((state) => ({
+        creatorBattles: state.creatorBattles.map((battle) =>
+          battle.id === battleId ? { ...battle, status: 'ended', winnerId, endedAt: new Date().toISOString() } : battle
+        )
+      })),
+
+      addBattleGift: (battleId, creatorId, gift) => set((state) => ({
+        creatorBattles: state.creatorBattles.map((battle) => {
+          if (battle.id !== battleId) return battle;
+
+          const updateCreator = (creator: BattleCreator | null) => {
+            if (!creator || creator.id !== creatorId) return creator;
+            return {
+              ...creator,
+              score: creator.score + gift.giftValue,
+              giftsReceived: [...creator.giftsReceived, gift]
+            };
+          };
+
+          return {
+            ...battle,
+            creator1: updateCreator(battle.creator1) as BattleCreator,
+            creator2: updateCreator(battle.creator2),
+            totalGifts: battle.totalGifts + gift.giftValue
+          };
+        })
+      })),
+
+      sendBattleInvite: (invite) => set((state) => ({
+        battleInvites: [invite, ...state.battleInvites]
+      })),
+
+      respondToBattleInvite: (inviteId, status) => set((state) => ({
+        battleInvites: state.battleInvites.map((invite) =>
+          invite.id === inviteId ? { ...invite, status } : invite
         )
       })),
 
