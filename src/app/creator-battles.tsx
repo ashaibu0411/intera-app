@@ -232,9 +232,7 @@ export default function CreatorBattlesScreen() {
 
   const leaveBattle = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setSelectedBattle(null);
-    setShowGiftPanel(false);
-    setSelectedCreator(null);
+    router.back();
   };
 
   // Battle Room View
