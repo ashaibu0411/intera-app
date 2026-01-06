@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, Pressable, Dimensions } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, ScrollView, Pressable, Dimensions, Animated as RNAnimated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Image } from 'expo-image';
@@ -12,99 +12,153 @@ import {
   GraduationCap,
   Briefcase,
   ArrowRight,
-  Check,
+  Shield,
+  Vote,
+  PiggyBank,
+  Mic,
+  BookOpen,
+  AlertTriangle,
+  HeartHandshake,
+  Trophy,
+  Calendar,
+  DollarSign,
+  FileText,
+  Utensils,
+  Film,
+  Clapperboard,
+  Radio,
+  Gem,
   Sparkles,
+  Globe,
+  Play,
+  ChevronRight,
+  Star,
 } from 'lucide-react-native';
-import Animated, { FadeIn, FadeInUp, FadeInRight, FadeOut } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInUp, FadeInRight, FadeInDown, useSharedValue, useAnimatedStyle, withRepeat, withTiming, withSequence, withDelay } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { useStore } from '@/lib/store';
+import { LucideIcon } from 'lucide-react-native';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
-// Global culture images that will rotate
-const CULTURE_IMAGES = [
+// Feature type
+type Feature = {
+  icon: LucideIcon;
+  label: string;
+  desc: string;
+  colors: readonly [string, string];
+};
+
+type FeatureCategory = {
+  title: string;
+  features: Feature[];
+};
+
+// All the amazing features in the app
+const FEATURE_CATEGORIES: FeatureCategory[] = [
   {
-    uri: 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=800&h=500&fit=crop',
-    caption: 'Global Community',
+    title: 'Connect & Communicate',
+    features: [
+      { icon: Users, label: 'Community Feed', desc: 'Connect with expats worldwide', colors: ['#1B4D3E', '#153D31'] as const },
+      { icon: MessageCircle, label: 'Messages', desc: 'Private conversations', colors: ['#6366F1', '#4F46E5'] as const },
+      { icon: Mic, label: 'Voice Rooms', desc: 'Live audio discussions', colors: ['#EC4899', '#DB2777'] as const },
+      { icon: Radio, label: 'Live Radio', desc: 'Community broadcasts', colors: ['#7C3AED', '#6D28D9'] as const },
+    ],
   },
   {
-    uri: 'https://images.unsplash.com/photo-1523805009345-7448845a9e53?w=800&h=500&fit=crop',
-    caption: 'Cultural Heritage',
+    title: 'Business & Finance',
+    features: [
+      { icon: ShoppingBag, label: 'Marketplace', desc: 'Buy & sell locally', colors: ['#D4673A', '#C05A2E'] as const },
+      { icon: Briefcase, label: 'Jobs Board', desc: 'Find opportunities', colors: ['#059669', '#047857'] as const },
+      { icon: DollarSign, label: 'Send Money', desc: 'Easy remittance', colors: ['#10B981', '#059669'] as const },
+      { icon: PiggyBank, label: 'Susu Circles', desc: 'Savings groups', colors: ['#F59E0B', '#D97706'] as const },
+    ],
   },
   {
-    uri: 'https://images.unsplash.com/photo-1517457373958-b7bdd4587205?w=800&h=500&fit=crop',
-    caption: 'International Connections',
+    title: 'Culture & Heritage',
+    features: [
+      { icon: BookOpen, label: 'Heritage Hub', desc: 'Preserve your roots', colors: ['#D4673A', '#B85430'] as const },
+      { icon: Utensils, label: 'African Food', desc: 'Recipes & restaurants', colors: ['#DC2626', '#B91C1C'] as const },
+      { icon: Heart, label: 'Faith Community', desc: 'Spiritual connections', colors: ['#8B5CF6', '#7C3AED'] as const },
+      { icon: Calendar, label: 'Events', desc: 'Cultural gatherings', colors: ['#6366F1', '#4F46E5'] as const },
+    ],
   },
   {
-    uri: 'https://images.unsplash.com/photo-1511632765486-a01980e01a18?w=800&h=500&fit=crop',
-    caption: 'Family & Friends Abroad',
+    title: 'Content & Entertainment',
+    features: [
+      { icon: Film, label: 'Stories', desc: '24-hour moments', colors: ['#EC4899', '#F97316'] as const },
+      { icon: Clapperboard, label: 'Clips', desc: 'Short videos', colors: ['#3B82F6', '#8B5CF6'] as const },
+      { icon: Trophy, label: 'Creator Battles', desc: 'Compete & win', colors: ['#7C3AED', '#DB2777'] as const },
+      { icon: Gem, label: 'Gem Store', desc: 'Virtual gifts', colors: ['#F59E0B', '#EA580C'] as const },
+    ],
   },
   {
-    uri: 'https://images.unsplash.com/photo-1559027615-cd4628902d4a?w=800&h=500&fit=crop',
-    caption: 'Expat Life',
+    title: 'Support & Safety',
+    features: [
+      { icon: Shield, label: 'Trust Score', desc: 'Verified members', colors: ['#10B981', '#059669'] as const },
+      { icon: AlertTriangle, label: 'Safety Network', desc: 'Emergency help', colors: ['#EF4444', '#DC2626'] as const },
+      { icon: HeartHandshake, label: 'Support Circles', desc: 'Community care', colors: ['#14B8A6', '#0D9488'] as const },
+      { icon: FileText, label: 'Visa Help', desc: 'Immigration support', colors: ['#0284C7', '#0369A1'] as const },
+    ],
   },
   {
-    uri: 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=800&h=500&fit=crop',
-    caption: 'Building New Connections',
+    title: 'Learning & Growth',
+    features: [
+      { icon: GraduationCap, label: 'Student Hub', desc: 'Study groups & mentors', colors: ['#C9A227', '#A6841F'] as const },
+      { icon: Vote, label: 'Village Council', desc: 'Community decisions', colors: ['#8B5CF6', '#7C3AED'] as const },
+      { icon: Globe, label: 'Translator', desc: 'Break language barriers', colors: ['#3B82F6', '#2563EB'] as const },
+      { icon: Star, label: 'Rewards', desc: 'Earn as you engage', colors: ['#F97316', '#EA580C'] as const },
+    ],
   },
 ];
 
-const FEATURES = [
-  {
-    icon: GraduationCap,
-    title: 'Student Groups',
-    description: 'Join study groups, find scholarships, and connect with mentors',
-    color: '#3A8F76',
-  },
-  {
-    icon: Briefcase,
-    title: 'Businesses',
-    description: 'Discover and support local businesses in your community',
-    color: '#B85430',
-  },
-  {
-    icon: Sparkles,
-    title: 'Interest Groups',
-    description: 'Find people who share your hobbies and passions',
-    color: '#C9A227',
-  },
-  {
-    icon: Heart,
-    title: 'Faith Centers',
-    description: 'Connect with churches, mosques, and spiritual communities',
-    color: '#D4673A',
-  },
-  {
-    icon: MessageCircle,
-    title: 'Direct Messaging',
-    description: 'Chat privately with community members',
-    color: '#1B4D3E',
-  },
-  {
-    icon: Users,
-    title: 'Community Feed',
-    description: 'Stay updated with local expat and foreigner communities worldwide',
-    color: '#6B7280',
-  },
-];
-
-const HIGHLIGHTS = [
-  'Location-based communities worldwide',
-  'Support local entrepreneurs',
-  'Find cultural events and gatherings',
-  'Connect with fellow expats & foreigners',
-  'Free to browse as a guest',
-];
+// Flatten features for the showcase carousel
+const ALL_FEATURES: Feature[] = FEATURE_CATEGORIES.flatMap(cat => cat.features);
 
 export default function WelcomeScreen() {
   const setHasSeenWelcome = useStore((s) => s.setHasSeenWelcome);
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [currentCategoryIndex, setCurrentCategoryIndex] = useState(0);
+  const scrollX = useRef(new RNAnimated.Value(0)).current;
 
-  // Rotate through culture images every 4 seconds
+  // Animated values for logo
+  const logoScale = useSharedValue(1);
+  const glowOpacity = useSharedValue(0.3);
+
+  useEffect(() => {
+    // Subtle pulse animation for logo
+    logoScale.value = withRepeat(
+      withSequence(
+        withTiming(1.02, { duration: 2000 }),
+        withTiming(1, { duration: 2000 })
+      ),
+      -1,
+      true
+    );
+
+    // Glow animation
+    glowOpacity.value = withRepeat(
+      withSequence(
+        withTiming(0.6, { duration: 1500 }),
+        withTiming(0.3, { duration: 1500 })
+      ),
+      -1,
+      true
+    );
+  }, []);
+
+  const logoAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: logoScale.value }],
+  }));
+
+  const glowAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: glowOpacity.value,
+  }));
+
+  // Auto-scroll categories
   useEffect(() => {
     const interval = setInterval(() => {
-      setCurrentImageIndex((prev) => (prev + 1) % CULTURE_IMAGES.length);
+      setCurrentCategoryIndex((prev) => (prev + 1) % FEATURE_CATEGORIES.length);
     }, 4000);
     return () => clearInterval(interval);
   }, []);
@@ -115,229 +169,352 @@ export default function WelcomeScreen() {
     router.push('/location-select');
   };
 
-  const currentImage = CULTURE_IMAGES[currentImageIndex];
+  const currentCategory = FEATURE_CATEGORIES[currentCategoryIndex];
 
   return (
-    <View className="flex-1 bg-cream">
+    <View className="flex-1 bg-[#0A0A0A]">
       <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
-        {/* Hero Section */}
+        {/* Hero Section with Logo */}
         <LinearGradient
-          colors={['#D4673A', '#B85430', '#974327']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
+          colors={['#1B4D3E', '#0D2922', '#0A0A0A']}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
           style={{ paddingBottom: 40 }}
         >
           <SafeAreaView edges={['top']}>
             <Animated.View
-              entering={FadeIn.duration(600)}
-              className="px-6 pt-8 pb-6"
+              entering={FadeIn.duration(800)}
+              className="items-center pt-8 pb-6"
             >
-              {/* AfroConnect Logo */}
-              <View className="items-center mb-6">
-                <View className="bg-white/20 rounded-full p-3 mb-4">
-                  <View className="bg-white rounded-full p-3">
-                    {/* Africa continent shape represented with layered circles */}
-                    <View className="w-12 h-12 items-center justify-center">
-                      <View className="absolute">
-                        <View className="w-10 h-12 rounded-t-full rounded-b-[40%] bg-forest-600" />
-                      </View>
-                      <View className="absolute top-1 left-1">
-                        <View className="w-3 h-3 rounded-full bg-terracotta-500" />
-                      </View>
-                      <View className="absolute top-4 right-1">
-                        <View className="w-2 h-2 rounded-full bg-gold-500" />
-                      </View>
-                      <View className="absolute bottom-2">
-                        <View className="w-2.5 h-2.5 rounded-full bg-terracotta-400" />
+              {/* Logo Container with Glow Effect */}
+              <Animated.View style={logoAnimatedStyle} className="relative">
+                {/* Outer Glow */}
+                <Animated.View
+                  style={[
+                    {
+                      position: 'absolute',
+                      width: 140,
+                      height: 140,
+                      borderRadius: 70,
+                      backgroundColor: '#D4673A',
+                      top: -10,
+                      left: -10,
+                    },
+                    glowAnimatedStyle,
+                  ]}
+                />
+
+                {/* Main Logo Circle */}
+                <View className="relative">
+                  <LinearGradient
+                    colors={['#D4673A', '#B85430', '#974327']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={{
+                      width: 120,
+                      height: 120,
+                      borderRadius: 60,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      shadowColor: '#D4673A',
+                      shadowOffset: { width: 0, height: 8 },
+                      shadowOpacity: 0.4,
+                      shadowRadius: 20,
+                      elevation: 15,
+                    }}
+                  >
+                    {/* Africa Shape Representation */}
+                    <View className="items-center justify-center">
+                      <View className="relative w-16 h-20">
+                        {/* Main continent shape */}
+                        <View className="absolute top-0 left-2 w-12 h-16 rounded-t-[24px] rounded-bl-[40%] rounded-br-[20%] bg-white/90" />
+                        {/* Detail dots */}
+                        <View className="absolute top-3 left-4 w-3 h-3 rounded-full bg-[#1B4D3E]" />
+                        <View className="absolute top-7 right-3 w-2 h-2 rounded-full bg-[#C9A227]" />
+                        <View className="absolute bottom-4 left-5 w-2.5 h-2.5 rounded-full bg-[#D4673A]" />
                       </View>
                     </View>
+                  </LinearGradient>
+
+                  {/* Sparkle decorations */}
+                  <View className="absolute -top-1 -right-1">
+                    <Sparkles size={20} color="#FFD700" />
                   </View>
                 </View>
-                <Text className="text-4xl font-bold text-white text-center">
+              </Animated.View>
+
+              {/* App Name */}
+              <Animated.View
+                entering={FadeInUp.duration(600).delay(200)}
+                className="mt-6"
+              >
+                <Text className="text-5xl font-bold text-white text-center tracking-tight">
                   AfroConnect
                 </Text>
-                <Text className="text-white/90 text-center mt-2 text-base italic">
-                  Connecting Foreigners Globally, Building Communities
-                </Text>
-              </View>
-
-              {/* Rotating Culture Image */}
-              <View className="items-center">
-                <View style={{ width: width - 48, height: 180, borderRadius: 16, overflow: 'hidden' }}>
-                  <Animated.View
-                    key={currentImageIndex}
-                    entering={FadeIn.duration(800)}
-                    exiting={FadeOut.duration(400)}
-                    style={{ position: 'absolute', width: '100%', height: '100%' }}
-                  >
-                    <Image
-                      source={{ uri: currentImage.uri }}
-                      style={{ width: '100%', height: '100%' }}
-                      contentFit="cover"
-                    />
-                    {/* Caption overlay */}
-                    <LinearGradient
-                      colors={['transparent', 'rgba(0,0,0,0.6)']}
-                      style={{
-                        position: 'absolute',
-                        bottom: 0,
-                        left: 0,
-                        right: 0,
-                        paddingVertical: 8,
-                        paddingHorizontal: 12,
-                      }}
-                    >
-                      <Text className="text-white text-sm font-medium">
-                        {currentImage.caption}
-                      </Text>
-                    </LinearGradient>
-                  </Animated.View>
+                <View className="flex-row items-center justify-center mt-2">
+                  <View className="h-[1px] w-8 bg-terracotta-500/50" />
+                  <Text className="text-white/70 text-center mx-3 text-sm font-medium">
+                    Global Community Platform
+                  </Text>
+                  <View className="h-[1px] w-8 bg-terracotta-500/50" />
                 </View>
-                {/* Image indicator dots */}
-                <View className="flex-row mt-3">
-                  {CULTURE_IMAGES.map((_, index) => (
-                    <View
-                      key={index}
-                      className={`w-2 h-2 rounded-full mx-1 ${
-                        index === currentImageIndex ? 'bg-white' : 'bg-white/40'
-                      }`}
-                    />
-                  ))}
-                </View>
-              </View>
+              </Animated.View>
 
               {/* Tagline */}
               <Animated.View
-                entering={FadeInUp.duration(600).delay(300)}
-                className="mt-6"
+                entering={FadeInUp.duration(600).delay(400)}
+                className="mt-6 px-8"
               >
-                <Text className="text-white text-center text-lg leading-7">
-                  The first social platform designed for{' '}
-                  <Text className="font-bold">foreigners, expats, and global citizens</Text> to connect,
-                  support, and grow together wherever they are.
+                <Text className="text-white/90 text-center text-lg leading-7">
+                  The <Text className="text-terracotta-400 font-semibold">all-in-one platform</Text> for
+                  foreigners, expats, and global citizens to{' '}
+                  <Text className="text-forest-400 font-semibold">connect</Text>,{' '}
+                  <Text className="text-gold-400 font-semibold">grow</Text>, and{' '}
+                  <Text className="text-terracotta-400 font-semibold">thrive</Text> together.
                 </Text>
+              </Animated.View>
+
+              {/* Stats Row */}
+              <Animated.View
+                entering={FadeInUp.duration(600).delay(500)}
+                className="flex-row items-center justify-center mt-6 space-x-6"
+              >
+                <View className="items-center">
+                  <Text className="text-2xl font-bold text-white">20+</Text>
+                  <Text className="text-white/60 text-xs">Features</Text>
+                </View>
+                <View className="w-[1px] h-8 bg-white/20" />
+                <View className="items-center">
+                  <Text className="text-2xl font-bold text-white">150+</Text>
+                  <Text className="text-white/60 text-xs">Countries</Text>
+                </View>
+                <View className="w-[1px] h-8 bg-white/20" />
+                <View className="items-center">
+                  <Text className="text-2xl font-bold text-white">24/7</Text>
+                  <Text className="text-white/60 text-xs">Community</Text>
+                </View>
               </Animated.View>
             </Animated.View>
           </SafeAreaView>
         </LinearGradient>
 
-        {/* What is AfroConnect */}
-        <View className="px-6 py-8">
-          <Animated.View entering={FadeInUp.duration(500).delay(400)}>
-            <Text className="text-2xl font-bold text-warmBrown mb-4">
-              What is AfroConnect?
+        {/* Everything You Need Section */}
+        <View className="px-5 pt-8 pb-6">
+          <Animated.View entering={FadeInUp.duration(500).delay(600)}>
+            <View className="flex-row items-center mb-2">
+              <Sparkles size={18} color="#D4673A" />
+              <Text className="text-terracotta-400 text-sm font-semibold ml-2 uppercase tracking-wider">
+                Everything You Need
+              </Text>
+            </View>
+            <Text className="text-white text-2xl font-bold mb-1">
+              One App, Endless Possibilities
             </Text>
-            <Text className="text-gray-600 text-base leading-7">
-              AfroConnect is a community-driven platform that helps foreigners and expats find their people wherever they are in the world. Whether you're looking for local communities, businesses, events, or just want to connect with others who share your background and values - AfroConnect makes it easy.
+            <Text className="text-white/60 text-base">
+              Discover all the amazing features waiting for you
             </Text>
-          </Animated.View>
-
-          {/* Highlights */}
-          <Animated.View
-            entering={FadeInUp.duration(500).delay(500)}
-            className="mt-6"
-          >
-            {HIGHLIGHTS.map((highlight, index) => (
-              <Animated.View
-                key={highlight}
-                entering={FadeInRight.duration(400).delay(550 + index * 50)}
-                className="flex-row items-center mb-3"
-              >
-                <View className="bg-forest-100 rounded-full p-1 mr-3">
-                  <Check size={16} color="#1B4D3E" />
-                </View>
-                <Text className="text-warmBrown text-base">{highlight}</Text>
-              </Animated.View>
-            ))}
           </Animated.View>
         </View>
 
-        {/* Features */}
-        <View className="px-6 pb-8">
-          <Animated.View entering={FadeInUp.duration(500).delay(600)}>
-            <Text className="text-2xl font-bold text-warmBrown mb-4">
-              Everything You Need
-            </Text>
-          </Animated.View>
-
-          <View className="flex-row flex-wrap justify-between">
-            {FEATURES.map((feature, index) => (
-              <Animated.View
-                key={feature.title}
-                entering={FadeInUp.duration(400).delay(650 + index * 50)}
-                style={{ width: (width - 60) / 2 }}
-                className="mb-4"
+        {/* Auto-rotating Category Showcase */}
+        <Animated.View
+          entering={FadeInUp.duration(500).delay(700)}
+          className="mb-6"
+        >
+          {/* Category Tabs */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingHorizontal: 16 }}
+            style={{ flexGrow: 0 }}
+          >
+            {FEATURE_CATEGORIES.map((cat, index) => (
+              <Pressable
+                key={cat.title}
+                onPress={() => {
+                  Haptics.selectionAsync();
+                  setCurrentCategoryIndex(index);
+                }}
+                className={`mr-2 px-4 py-2 rounded-full ${
+                  currentCategoryIndex === index
+                    ? 'bg-terracotta-500'
+                    : 'bg-white/10'
+                }`}
               >
-                <View className="bg-white rounded-2xl p-4 shadow-sm h-full">
-                  <View
-                    className="w-12 h-12 rounded-full items-center justify-center mb-3"
-                    style={{ backgroundColor: `${feature.color}15` }}
-                  >
-                    <feature.icon size={24} color={feature.color} />
+                <Text
+                  className={`text-sm font-medium ${
+                    currentCategoryIndex === index ? 'text-white' : 'text-white/60'
+                  }`}
+                >
+                  {cat.title}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+
+          {/* Feature Cards for Current Category */}
+          <View className="mt-4 px-5">
+            <Animated.View
+              key={currentCategoryIndex}
+              entering={FadeIn.duration(400)}
+              className="flex-row flex-wrap justify-between"
+            >
+              {currentCategory.features.map((feature, index) => (
+                <Animated.View
+                  key={feature.label}
+                  entering={FadeInUp.duration(400).delay(index * 100)}
+                  style={{ width: (width - 52) / 2 }}
+                  className="mb-3"
+                >
+                  <View className="bg-white/5 border border-white/10 rounded-2xl p-4 h-full">
+                    <LinearGradient
+                      colors={feature.colors}
+                      style={{
+                        width: 48,
+                        height: 48,
+                        borderRadius: 14,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        marginBottom: 12,
+                      }}
+                    >
+                      <feature.icon size={24} color="white" />
+                    </LinearGradient>
+                    <Text className="text-white font-semibold text-base mb-1">
+                      {feature.label}
+                    </Text>
+                    <Text className="text-white/50 text-sm">
+                      {feature.desc}
+                    </Text>
                   </View>
-                  <Text className="text-warmBrown font-semibold mb-1">
-                    {feature.title}
-                  </Text>
-                  <Text className="text-gray-500 text-sm">
-                    {feature.description}
-                  </Text>
-                </View>
+                </Animated.View>
+              ))}
+            </Animated.View>
+          </View>
+
+          {/* Category Dots */}
+          <View className="flex-row justify-center mt-4">
+            {FEATURE_CATEGORIES.map((_, index) => (
+              <View
+                key={index}
+                className={`w-2 h-2 rounded-full mx-1 ${
+                  index === currentCategoryIndex ? 'bg-terracotta-500' : 'bg-white/20'
+                }`}
+              />
+            ))}
+          </View>
+        </Animated.View>
+
+        {/* Quick Feature Grid - All Features at a Glance */}
+        <Animated.View
+          entering={FadeInUp.duration(500).delay(800)}
+          className="px-5 mb-6"
+        >
+          <Text className="text-white text-lg font-bold mb-4">
+            At a Glance
+          </Text>
+          <View className="flex-row flex-wrap justify-between">
+            {ALL_FEATURES.slice(0, 12).map((feature, index) => (
+              <Animated.View
+                key={feature.label}
+                entering={FadeInUp.duration(300).delay(850 + index * 30)}
+                className="items-center mb-5"
+                style={{ width: '25%' }}
+              >
+                <LinearGradient
+                  colors={feature.colors}
+                  style={{
+                    width: 52,
+                    height: 52,
+                    borderRadius: 16,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginBottom: 6,
+                  }}
+                >
+                  <feature.icon size={24} color="white" />
+                </LinearGradient>
+                <Text className="text-white/80 text-xs text-center font-medium">
+                  {feature.label}
+                </Text>
               </Animated.View>
             ))}
           </View>
-        </View>
+
+          {/* More features indicator */}
+          <View className="flex-row items-center justify-center mt-2">
+            <Text className="text-white/40 text-sm">
+              + {ALL_FEATURES.length - 12} more features inside
+            </Text>
+            <Sparkles size={14} color="#D4673A" style={{ marginLeft: 6 }} />
+          </View>
+        </Animated.View>
 
         {/* How It Works */}
-        <View className="px-6 pb-8">
-          <Animated.View entering={FadeInUp.duration(500).delay(800)}>
-            <Text className="text-2xl font-bold text-warmBrown mb-4">
-              How It Works
-            </Text>
-
-            <View className="bg-white rounded-2xl p-5 shadow-sm">
-              {[
-                { step: '1', title: 'Select Your Location', desc: 'Choose your country, state, and city' },
-                { step: '2', title: 'Browse Your Community', desc: 'See what\'s happening locally' },
-                { step: '3', title: 'Create an Account', desc: 'Sign up to post, comment, and connect' },
-              ].map((item, index) => (
-                <View
-                  key={item.step}
-                  className={`flex-row items-center ${index < 2 ? 'mb-4 pb-4 border-b border-gray-100' : ''}`}
-                >
-                  <View className="w-10 h-10 rounded-full bg-terracotta-500 items-center justify-center mr-4">
-                    <Text className="text-white font-bold">{item.step}</Text>
-                  </View>
-                  <View className="flex-1">
-                    <Text className="text-warmBrown font-semibold">{item.title}</Text>
-                    <Text className="text-gray-500 text-sm">{item.desc}</Text>
-                  </View>
-                </View>
-              ))}
-            </View>
-          </Animated.View>
-        </View>
-
-        {/* Guest Access Note */}
         <Animated.View
           entering={FadeInUp.duration(500).delay(900)}
-          className="px-6 pb-8"
+          className="px-5 mb-6"
+        >
+          <Text className="text-white text-lg font-bold mb-4">
+            Get Started in 3 Steps
+          </Text>
+          <View className="bg-white/5 border border-white/10 rounded-2xl p-5">
+            {[
+              { step: '1', title: 'Choose Your Location', desc: 'Find your local community', icon: MapPin },
+              { step: '2', title: 'Explore Features', desc: 'Browse as a guest, free', icon: Globe },
+              { step: '3', title: 'Join & Connect', desc: 'Create account to engage', icon: Users },
+            ].map((item, index) => (
+              <View
+                key={item.step}
+                className={`flex-row items-center ${index < 2 ? 'mb-4 pb-4 border-b border-white/10' : ''}`}
+              >
+                <LinearGradient
+                  colors={['#D4673A', '#B85430']}
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: 14,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginRight: 14,
+                  }}
+                >
+                  <item.icon size={22} color="white" />
+                </LinearGradient>
+                <View className="flex-1">
+                  <Text className="text-white font-semibold">{item.title}</Text>
+                  <Text className="text-white/50 text-sm">{item.desc}</Text>
+                </View>
+                <View className="w-8 h-8 rounded-full bg-white/10 items-center justify-center">
+                  <Text className="text-white font-bold text-sm">{item.step}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        </Animated.View>
+
+        {/* Guest Access Banner */}
+        <Animated.View
+          entering={FadeInUp.duration(500).delay(1000)}
+          className="px-5 mb-6"
         >
           <LinearGradient
             colors={['#1B4D3E', '#153D31']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
-            style={{ borderRadius: 16, padding: 20 }}
+            style={{ borderRadius: 20, padding: 20, overflow: 'hidden' }}
           >
+            <View className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-white/5" />
             <View className="flex-row items-center">
-              <View className="bg-white/20 rounded-full p-3 mr-4">
-                <MapPin size={24} color="#FFFFFF" />
+              <View className="bg-white/15 rounded-2xl p-3 mr-4">
+                <Play size={28} color="#FFFFFF" />
               </View>
               <View className="flex-1">
-                <Text className="text-white font-bold text-base">
-                  Browse as a Guest
+                <Text className="text-white font-bold text-lg">
+                  Try Before You Sign Up
                 </Text>
-                <Text className="text-white/80 text-sm mt-1">
-                  Explore communities before signing up. Create an account when you're ready to post and connect!
+                <Text className="text-white/70 text-sm mt-1">
+                  Browse communities and explore features for free
                 </Text>
               </View>
             </View>
@@ -349,29 +526,40 @@ export default function WelcomeScreen() {
       </ScrollView>
 
       {/* Fixed Bottom Button */}
-      <View className="absolute bottom-0 left-0 right-0 bg-cream border-t border-gray-100">
+      <LinearGradient
+        colors={['transparent', '#0A0A0A', '#0A0A0A']}
+        style={{ position: 'absolute', bottom: 0, left: 0, right: 0, paddingTop: 40 }}
+      >
         <SafeAreaView edges={['bottom']}>
-          <View className="px-6 pt-4 pb-2">
+          <View className="px-5 pb-2">
             <Pressable onPress={handleGetStarted}>
               <LinearGradient
                 colors={['#D4673A', '#B85430']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={{
-                  borderRadius: 16,
+                  borderRadius: 20,
                   paddingVertical: 18,
                   flexDirection: 'row',
                   alignItems: 'center',
                   justifyContent: 'center',
+                  shadowColor: '#D4673A',
+                  shadowOffset: { width: 0, height: 4 },
+                  shadowOpacity: 0.3,
+                  shadowRadius: 12,
+                  elevation: 8,
                 }}
               >
                 <Text className="text-white font-bold text-lg">Get Started</Text>
-                <ArrowRight size={20} color="#FFFFFF" style={{ marginLeft: 8 }} />
+                <ArrowRight size={22} color="#FFFFFF" style={{ marginLeft: 10 }} />
               </LinearGradient>
             </Pressable>
+            <Text className="text-white/40 text-center text-xs mt-3">
+              No account required to browse
+            </Text>
           </View>
         </SafeAreaView>
-      </View>
+      </LinearGradient>
     </View>
   );
 }
