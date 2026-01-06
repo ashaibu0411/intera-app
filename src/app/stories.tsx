@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, ScrollView, Pressable, Image, Dimensions, Modal, TextInput } from 'react-native';
+import { View, Text, ScrollView, Pressable, Image, Dimensions, Modal, TextInput, Alert } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -16,8 +16,13 @@ import {
   MoreHorizontal,
   Flag,
   Trash2,
-  Clock
+  Clock,
+  Video,
+  Image as ImageIconLucide,
+  Type,
+  Play
 } from 'lucide-react-native';
+import * as ImagePicker from 'expo-image-picker';
 import Animated, {
   FadeIn,
   FadeOut,
@@ -36,17 +41,18 @@ import { ContentGuidelinesModal } from '@/components/ContentGuidelinesModal';
 import { ReportContentModal } from '@/components/ReportContentModal';
 import * as Haptics from 'expo-haptics';
 import { v4 as uuidv4 } from 'uuid';
+import { Video as ExpoVideo, ResizeMode } from 'expo-av';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 // Story interfaces
 interface StoryItem {
   id: string;
-  type: 'image' | 'text';
-  content: string; // URL for image, text content for text
+  type: 'image' | 'text' | 'video';
+  content: string; // URL for image/video, text content for text
   backgroundColor?: string;
   textColor?: string;
-  duration: number; // seconds to show (default 5)
+  duration: number; // seconds to show (default 5, videos play full duration)
   views: number;
   reactions: StoryReaction[];
   replies: StoryReply[];
@@ -487,6 +493,19 @@ export default function StoriesScreen() {
                     className="flex-1"
                     resizeMode="cover"
                   />
+                ) : viewingStories.stories[currentStoryIndex].type === 'video' ? (
+                  <ExpoVideo
+                    source={{ uri: viewingStories.stories[currentStoryIndex].content }}
+                    style={{ flex: 1 }}
+                    resizeMode={ResizeMode.COVER}
+                    shouldPlay
+                    isLooping={false}
+                    onPlaybackStatusUpdate={(status) => {
+                      if (status.isLoaded && status.didJustFinish) {
+                        handleNextStory();
+                      }
+                    }}
+                  />
                 ) : (
                   <LinearGradient
                     colors={TEXT_BACKGROUNDS[0]}
@@ -565,16 +584,141 @@ interface CreateStoryModalProps {
 }
 
 function CreateStoryModal({ visible, onClose, onSubmit }: CreateStoryModalProps) {
-  const [storyType, setStoryType] = useState<'image' | 'text'>('text');
+  const [storyType, setStoryType] = useState<'image' | 'text' | 'video'>('text');
   const [textContent, setTextContent] = useState('');
   const [selectedBg, setSelectedBg] = useState(0);
   const [moderationError, setModerationError] = useState<string | null>(null);
+  const [selectedMedia, setSelectedMedia] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const resetState = () => {
+    setTextContent('');
+    setSelectedMedia(null);
+    setModerationError(null);
+    setIsLoading(false);
+  };
+
+  const handleClose = () => {
+    resetState();
+    onClose();
+  };
+
+  const pickImage = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'Please allow access to your photo library to upload photos.');
+        return;
+      }
+
+      setIsLoading(true);
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [9, 16],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setSelectedMedia(result.assets[0].uri);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to pick image. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const takePhoto = async () => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'Please allow access to your camera to take photos.');
+        return;
+      }
+
+      setIsLoading(true);
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [9, 16],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setSelectedMedia(result.assets[0].uri);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to take photo. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const pickVideo = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'Please allow access to your photo library to upload videos.');
+        return;
+      }
+
+      setIsLoading(true);
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['videos'],
+        allowsEditing: true,
+        videoMaxDuration: 30,
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setSelectedMedia(result.assets[0].uri);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to pick video. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const recordVideo = async () => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'Please allow access to your camera to record videos.');
+        return;
+      }
+
+      setIsLoading(true);
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ['videos'],
+        allowsEditing: true,
+        videoMaxDuration: 30,
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setSelectedMedia(result.assets[0].uri);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to record video. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const canSubmit = () => {
+    if (storyType === 'text') return textContent.trim().length > 0;
+    return selectedMedia !== null;
+  };
 
   const handleSubmit = () => {
     if (storyType === 'text') {
       if (!textContent.trim()) return;
 
-      // Check content moderation
       const modResult = moderateText(textContent);
       if (modResult.action === 'blocked') {
         setModerationError(modResult.message);
@@ -590,10 +734,30 @@ function CreateStoryModal({ visible, onClose, onSubmit }: CreateStoryModalProps)
         textColor: '#FFFFFF',
         duration: 5,
       });
-
-      setTextContent('');
-      setModerationError(null);
+    } else if (storyType === 'image' && selectedMedia) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      onSubmit({
+        type: 'image',
+        content: selectedMedia,
+        duration: 5,
+      });
+    } else if (storyType === 'video' && selectedMedia) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      onSubmit({
+        type: 'video',
+        content: selectedMedia,
+        duration: 30,
+      });
     }
+
+    resetState();
+  };
+
+  const handleTypeChange = (type: 'text' | 'image' | 'video') => {
+    setStoryType(type);
+    setSelectedMedia(null);
+    setModerationError(null);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
   return (
@@ -601,42 +765,53 @@ function CreateStoryModal({ visible, onClose, onSubmit }: CreateStoryModalProps)
       visible={visible}
       animationType="slide"
       statusBarTranslucent
-      onRequestClose={onClose}
+      onRequestClose={handleClose}
     >
       <View className="flex-1 bg-black">
         <SafeAreaView edges={['top', 'bottom']} className="flex-1">
           {/* Header */}
           <View className="flex-row items-center justify-between px-4 py-3">
-            <Pressable onPress={onClose}>
+            <Pressable onPress={handleClose}>
               <X size={24} color="white" />
             </Pressable>
             <Text className="text-white font-bold text-lg">Create Story</Text>
             <Pressable
               onPress={handleSubmit}
-              disabled={storyType === 'text' && !textContent.trim()}
-              style={{ opacity: storyType === 'text' && !textContent.trim() ? 0.5 : 1 }}
+              disabled={!canSubmit()}
+              style={{ opacity: canSubmit() ? 1 : 0.5 }}
             >
               <Text className="text-purple-400 font-bold">Share</Text>
             </Pressable>
           </View>
 
-          {/* Type Selector */}
+          {/* Type Selector - 3 options */}
           <View className="flex-row px-4 mb-4">
             <Pressable
-              onPress={() => setStoryType('text')}
-              className={`flex-1 py-3 rounded-l-xl items-center ${
+              onPress={() => handleTypeChange('text')}
+              className={`flex-1 py-3 rounded-l-xl items-center flex-row justify-center ${
                 storyType === 'text' ? 'bg-purple-600' : 'bg-gray-800'
               }`}
             >
-              <Text className="text-white font-medium">Text</Text>
+              <Type size={16} color="white" />
+              <Text className="text-white font-medium ml-2">Text</Text>
             </Pressable>
             <Pressable
-              onPress={() => setStoryType('image')}
-              className={`flex-1 py-3 rounded-r-xl items-center ${
+              onPress={() => handleTypeChange('image')}
+              className={`flex-1 py-3 items-center flex-row justify-center border-x border-gray-700 ${
                 storyType === 'image' ? 'bg-purple-600' : 'bg-gray-800'
               }`}
             >
-              <Text className="text-white font-medium">Photo</Text>
+              <ImageIconLucide size={16} color="white" />
+              <Text className="text-white font-medium ml-2">Photo</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => handleTypeChange('video')}
+              className={`flex-1 py-3 rounded-r-xl items-center flex-row justify-center ${
+                storyType === 'video' ? 'bg-purple-600' : 'bg-gray-800'
+              }`}
+            >
+              <Video size={16} color="white" />
+              <Text className="text-white font-medium ml-2">Video</Text>
             </Pressable>
           </View>
 
@@ -697,16 +872,105 @@ function CreateStoryModal({ visible, onClose, onSubmit }: CreateStoryModalProps)
                 </ScrollView>
               </View>
             </View>
+          ) : storyType === 'image' ? (
+            <View className="flex-1">
+              {selectedMedia ? (
+                <View className="flex-1 m-4">
+                  <Image
+                    source={{ uri: selectedMedia }}
+                    className="flex-1 rounded-2xl"
+                    resizeMode="cover"
+                  />
+                  <Pressable
+                    onPress={() => setSelectedMedia(null)}
+                    className="absolute top-4 right-4 bg-black/60 rounded-full p-2"
+                  >
+                    <X size={20} color="white" />
+                  </Pressable>
+                </View>
+              ) : (
+                <View className="flex-1 items-center justify-center px-4">
+                  <View className="w-full bg-gray-900 rounded-2xl p-6">
+                    <Text className="text-white font-bold text-lg text-center mb-6">Add a Photo</Text>
+
+                    <Pressable
+                      onPress={takePhoto}
+                      disabled={isLoading}
+                      className="bg-purple-600 rounded-xl py-4 flex-row items-center justify-center mb-3"
+                    >
+                      <Camera size={22} color="white" />
+                      <Text className="text-white font-semibold ml-3">Take Photo</Text>
+                    </Pressable>
+
+                    <Pressable
+                      onPress={pickImage}
+                      disabled={isLoading}
+                      className="bg-gray-800 rounded-xl py-4 flex-row items-center justify-center"
+                    >
+                      <ImageIconLucide size={22} color="white" />
+                      <Text className="text-white font-semibold ml-3">Choose from Gallery</Text>
+                    </Pressable>
+
+                    {isLoading && (
+                      <Text className="text-gray-400 text-center mt-4">Loading...</Text>
+                    )}
+                  </View>
+                </View>
+              )}
+            </View>
           ) : (
-            <View className="flex-1 items-center justify-center">
-              <View className="bg-gray-800 rounded-2xl p-8 items-center">
-                <Camera size={48} color="#9CA3AF" />
-                <Text className="text-white font-medium mt-4">Take a Photo</Text>
-                <Text className="text-gray-500 text-sm mt-1">or choose from gallery</Text>
-                <Pressable className="mt-6 bg-purple-600 rounded-full px-6 py-3">
-                  <Text className="text-white font-medium">Open Camera</Text>
-                </Pressable>
-              </View>
+            <View className="flex-1">
+              {selectedMedia ? (
+                <View className="flex-1 m-4">
+                  <ExpoVideo
+                    source={{ uri: selectedMedia }}
+                    style={{ flex: 1, borderRadius: 20 }}
+                    resizeMode={ResizeMode.COVER}
+                    shouldPlay
+                    isLooping
+                    isMuted={false}
+                  />
+                  <Pressable
+                    onPress={() => setSelectedMedia(null)}
+                    className="absolute top-4 right-4 bg-black/60 rounded-full p-2"
+                  >
+                    <X size={20} color="white" />
+                  </Pressable>
+                  <View className="absolute bottom-4 left-4 bg-black/60 rounded-full px-3 py-1.5 flex-row items-center">
+                    <Play size={14} color="white" fill="white" />
+                    <Text className="text-white text-sm ml-1">Video</Text>
+                  </View>
+                </View>
+              ) : (
+                <View className="flex-1 items-center justify-center px-4">
+                  <View className="w-full bg-gray-900 rounded-2xl p-6">
+                    <Text className="text-white font-bold text-lg text-center mb-2">Add a Video</Text>
+                    <Text className="text-gray-400 text-sm text-center mb-6">Maximum 30 seconds</Text>
+
+                    <Pressable
+                      onPress={recordVideo}
+                      disabled={isLoading}
+                      className="bg-purple-600 rounded-xl py-4 flex-row items-center justify-center mb-3"
+                    >
+                      <Video size={22} color="white" />
+                      <Text className="text-white font-semibold ml-3">Record Video</Text>
+                    </Pressable>
+
+                    <Pressable
+                      onPress={pickVideo}
+                      disabled={isLoading}
+                      className="bg-gray-800 rounded-xl py-4 flex-row items-center justify-center"
+                    >
+                      <ImageIcon size={22} color="white" />
+                      <Text className="text-white font-semibold ml-3">Choose from Gallery</Text>
+                    </Pressable>
+
+                    {isLoading && (
+                      <Text className="text-gray-400 text-center mt-4">Loading...</Text>
+                    )}
+                  </View>
+                </View>
+              )}
             </View>
           )}
         </SafeAreaView>
