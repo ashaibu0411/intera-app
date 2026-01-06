@@ -1,8 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, ScrollView, Pressable, Dimensions, Animated as RNAnimated } from 'react-native';
+import { View, Text, ScrollView, Pressable, Dimensions, Animated as RNAnimated, ImageBackground } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Image } from 'expo-image';
+
+// Logo image
+const LOGO_IMAGE = require('../../assets/icon.png');
 import {
   Users,
   ShoppingBag,
@@ -172,11 +175,11 @@ export default function WelcomeScreen() {
   const currentCategory = FEATURE_CATEGORIES[currentCategoryIndex];
 
   return (
-    <View className="flex-1 bg-[#0A0A0A]">
+    <View className="flex-1 bg-[#062A1E]">
       <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
         {/* Hero Section with Logo */}
         <LinearGradient
-          colors={['#1B4D3E', '#0D2922', '#0A0A0A']}
+          colors={['#0D3D2D', '#062A1E', '#041A13']}
           start={{ x: 0.5, y: 0 }}
           end={{ x: 0.5, y: 1 }}
           style={{ paddingBottom: 40 }}
@@ -193,10 +196,10 @@ export default function WelcomeScreen() {
                   style={[
                     {
                       position: 'absolute',
-                      width: 140,
-                      height: 140,
-                      borderRadius: 70,
-                      backgroundColor: '#D4673A',
+                      width: 160,
+                      height: 160,
+                      borderRadius: 40,
+                      backgroundColor: '#C9A227',
                       top: -10,
                       left: -10,
                     },
@@ -204,41 +207,28 @@ export default function WelcomeScreen() {
                   ]}
                 />
 
-                {/* Main Logo Circle */}
+                {/* Main Logo Image */}
                 <View className="relative">
-                  <LinearGradient
-                    colors={['#D4673A', '#B85430', '#974327']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
+                  <Image
+                    source={LOGO_IMAGE}
                     style={{
-                      width: 120,
-                      height: 120,
-                      borderRadius: 60,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      shadowColor: '#D4673A',
+                      width: 140,
+                      height: 140,
+                      borderRadius: 32,
+                      shadowColor: '#C9A227',
                       shadowOffset: { width: 0, height: 8 },
-                      shadowOpacity: 0.4,
+                      shadowOpacity: 0.5,
                       shadowRadius: 20,
-                      elevation: 15,
                     }}
-                  >
-                    {/* Africa Shape Representation */}
-                    <View className="items-center justify-center">
-                      <View className="relative w-16 h-20">
-                        {/* Main continent shape */}
-                        <View className="absolute top-0 left-2 w-12 h-16 rounded-t-[24px] rounded-bl-[40%] rounded-br-[20%] bg-white/90" />
-                        {/* Detail dots */}
-                        <View className="absolute top-3 left-4 w-3 h-3 rounded-full bg-[#1B4D3E]" />
-                        <View className="absolute top-7 right-3 w-2 h-2 rounded-full bg-[#C9A227]" />
-                        <View className="absolute bottom-4 left-5 w-2.5 h-2.5 rounded-full bg-[#D4673A]" />
-                      </View>
-                    </View>
-                  </LinearGradient>
+                    contentFit="cover"
+                  />
 
                   {/* Sparkle decorations */}
-                  <View className="absolute -top-1 -right-1">
-                    <Sparkles size={20} color="#FFD700" />
+                  <View className="absolute -top-2 -right-2">
+                    <Sparkles size={24} color="#FFD700" />
+                  </View>
+                  <View className="absolute -bottom-1 -left-1">
+                    <Sparkles size={16} color="#C9A227" />
                   </View>
                 </View>
               </Animated.View>
@@ -252,11 +242,11 @@ export default function WelcomeScreen() {
                   AfroConnect
                 </Text>
                 <View className="flex-row items-center justify-center mt-2">
-                  <View className="h-[1px] w-8 bg-terracotta-500/50" />
-                  <Text className="text-white/70 text-center mx-3 text-sm font-medium">
+                  <View className="h-[1px] w-8 bg-[#C9A227]/50" />
+                  <Text className="text-[#C9A227] text-center mx-3 text-sm font-medium">
                     Global Community Platform
                   </Text>
-                  <View className="h-[1px] w-8 bg-terracotta-500/50" />
+                  <View className="h-[1px] w-8 bg-[#C9A227]/50" />
                 </View>
               </Animated.View>
 
@@ -266,11 +256,11 @@ export default function WelcomeScreen() {
                 className="mt-6 px-8"
               >
                 <Text className="text-white/90 text-center text-lg leading-7">
-                  The <Text className="text-terracotta-400 font-semibold">all-in-one platform</Text> for
+                  The <Text className="text-[#C9A227] font-semibold">all-in-one platform</Text> for
                   foreigners, expats, and global citizens to{' '}
-                  <Text className="text-forest-400 font-semibold">connect</Text>,{' '}
-                  <Text className="text-gold-400 font-semibold">grow</Text>, and{' '}
-                  <Text className="text-terracotta-400 font-semibold">thrive</Text> together.
+                  <Text className="text-emerald-400 font-semibold">connect</Text>,{' '}
+                  <Text className="text-[#C9A227] font-semibold">grow</Text>, and{' '}
+                  <Text className="text-emerald-400 font-semibold">thrive</Text> together.
                 </Text>
               </Animated.View>
 
@@ -280,7 +270,7 @@ export default function WelcomeScreen() {
                 className="flex-row items-center justify-center mt-6 space-x-6"
               >
                 <View className="items-center">
-                  <Text className="text-2xl font-bold text-white">20+</Text>
+                  <Text className="text-2xl font-bold text-[#C9A227]">20+</Text>
                   <Text className="text-white/60 text-xs">Features</Text>
                 </View>
                 <View className="w-[1px] h-8 bg-white/20" />
@@ -302,8 +292,8 @@ export default function WelcomeScreen() {
         <View className="px-5 pt-8 pb-6">
           <Animated.View entering={FadeInUp.duration(500).delay(600)}>
             <View className="flex-row items-center mb-2">
-              <Sparkles size={18} color="#D4673A" />
-              <Text className="text-terracotta-400 text-sm font-semibold ml-2 uppercase tracking-wider">
+              <Sparkles size={18} color="#C9A227" />
+              <Text className="text-[#C9A227] text-sm font-semibold ml-2 uppercase tracking-wider">
                 Everything You Need
               </Text>
             </View>
@@ -337,13 +327,13 @@ export default function WelcomeScreen() {
                 }}
                 className={`mr-2 px-4 py-2 rounded-full ${
                   currentCategoryIndex === index
-                    ? 'bg-terracotta-500'
+                    ? 'bg-[#C9A227]'
                     : 'bg-white/10'
                 }`}
               >
                 <Text
                   className={`text-sm font-medium ${
-                    currentCategoryIndex === index ? 'text-white' : 'text-white/60'
+                    currentCategoryIndex === index ? 'text-[#062A1E]' : 'text-white/60'
                   }`}
                 >
                   {cat.title}
@@ -366,7 +356,7 @@ export default function WelcomeScreen() {
                   style={{ width: (width - 52) / 2 }}
                   className="mb-3"
                 >
-                  <View className="bg-white/5 border border-white/10 rounded-2xl p-4 h-full">
+                  <View className="bg-white/5 border border-[#C9A227]/20 rounded-2xl p-4 h-full">
                     <LinearGradient
                       colors={feature.colors}
                       style={{
@@ -398,7 +388,7 @@ export default function WelcomeScreen() {
               <View
                 key={index}
                 className={`w-2 h-2 rounded-full mx-1 ${
-                  index === currentCategoryIndex ? 'bg-terracotta-500' : 'bg-white/20'
+                  index === currentCategoryIndex ? 'bg-[#C9A227]' : 'bg-white/20'
                 }`}
               />
             ))}
@@ -446,7 +436,7 @@ export default function WelcomeScreen() {
             <Text className="text-white/40 text-sm">
               + {ALL_FEATURES.length - 12} more features inside
             </Text>
-            <Sparkles size={14} color="#D4673A" style={{ marginLeft: 6 }} />
+            <Sparkles size={14} color="#C9A227" style={{ marginLeft: 6 }} />
           </View>
         </Animated.View>
 
@@ -458,7 +448,7 @@ export default function WelcomeScreen() {
           <Text className="text-white text-lg font-bold mb-4">
             Get Started in 3 Steps
           </Text>
-          <View className="bg-white/5 border border-white/10 rounded-2xl p-5">
+          <View className="bg-white/5 border border-[#C9A227]/20 rounded-2xl p-5">
             {[
               { step: '1', title: 'Choose Your Location', desc: 'Find your local community', icon: MapPin },
               { step: '2', title: 'Explore Features', desc: 'Browse as a guest, free', icon: Globe },
@@ -469,7 +459,7 @@ export default function WelcomeScreen() {
                 className={`flex-row items-center ${index < 2 ? 'mb-4 pb-4 border-b border-white/10' : ''}`}
               >
                 <LinearGradient
-                  colors={['#D4673A', '#B85430']}
+                  colors={['#0D5C43', '#0A4A36']}
                   style={{
                     width: 44,
                     height: 44,
@@ -477,16 +467,18 @@ export default function WelcomeScreen() {
                     alignItems: 'center',
                     justifyContent: 'center',
                     marginRight: 14,
+                    borderWidth: 1,
+                    borderColor: '#C9A22730',
                   }}
                 >
-                  <item.icon size={22} color="white" />
+                  <item.icon size={22} color="#C9A227" />
                 </LinearGradient>
                 <View className="flex-1">
                   <Text className="text-white font-semibold">{item.title}</Text>
                   <Text className="text-white/50 text-sm">{item.desc}</Text>
                 </View>
-                <View className="w-8 h-8 rounded-full bg-white/10 items-center justify-center">
-                  <Text className="text-white font-bold text-sm">{item.step}</Text>
+                <View className="w-8 h-8 rounded-full bg-[#C9A227]/20 items-center justify-center">
+                  <Text className="text-[#C9A227] font-bold text-sm">{item.step}</Text>
                 </View>
               </View>
             ))}
@@ -499,15 +491,15 @@ export default function WelcomeScreen() {
           className="px-5 mb-6"
         >
           <LinearGradient
-            colors={['#1B4D3E', '#153D31']}
+            colors={['#0D5C43', '#0A4A36']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
-            style={{ borderRadius: 20, padding: 20, overflow: 'hidden' }}
+            style={{ borderRadius: 20, padding: 20, overflow: 'hidden', borderWidth: 1, borderColor: '#C9A22730' }}
           >
-            <View className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-white/5" />
+            <View className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-[#C9A227]/10" />
             <View className="flex-row items-center">
-              <View className="bg-white/15 rounded-2xl p-3 mr-4">
-                <Play size={28} color="#FFFFFF" />
+              <View className="bg-[#C9A227]/20 rounded-2xl p-3 mr-4">
+                <Play size={28} color="#C9A227" />
               </View>
               <View className="flex-1">
                 <Text className="text-white font-bold text-lg">
@@ -527,14 +519,14 @@ export default function WelcomeScreen() {
 
       {/* Fixed Bottom Button */}
       <LinearGradient
-        colors={['transparent', '#0A0A0A', '#0A0A0A']}
+        colors={['transparent', '#062A1E', '#062A1E']}
         style={{ position: 'absolute', bottom: 0, left: 0, right: 0, paddingTop: 40 }}
       >
         <SafeAreaView edges={['bottom']}>
           <View className="px-5 pb-2">
             <Pressable onPress={handleGetStarted}>
               <LinearGradient
-                colors={['#D4673A', '#B85430']}
+                colors={['#C9A227', '#A6841F']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={{
@@ -543,15 +535,15 @@ export default function WelcomeScreen() {
                   flexDirection: 'row',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  shadowColor: '#D4673A',
+                  shadowColor: '#C9A227',
                   shadowOffset: { width: 0, height: 4 },
                   shadowOpacity: 0.3,
                   shadowRadius: 12,
                   elevation: 8,
                 }}
               >
-                <Text className="text-white font-bold text-lg">Get Started</Text>
-                <ArrowRight size={22} color="#FFFFFF" style={{ marginLeft: 10 }} />
+                <Text className="text-[#062A1E] font-bold text-lg">Get Started</Text>
+                <ArrowRight size={22} color="#062A1E" style={{ marginLeft: 10 }} />
               </LinearGradient>
             </Pressable>
             <Text className="text-white/40 text-center text-xs mt-3">
