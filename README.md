@@ -636,8 +636,9 @@ Three powerful features designed to make AfroConnect the go-to app for foreigner
   - Profile photos throughout the app show gradient rings when user has stories
   - Purple/pink gradient ring for unseen stories
   - Gray ring for already-viewed stories
-  - Tap profile picture to view their story (or go to profile if no story)
-  - Integrated in PostCard, Comments, and other areas
+  - Tap profile picture to view their story
+  - **Current user's profile picture**: Shows dashed purple ring with "+" icon to create a story
+  - Integrated in PostCard, Profile, Comments, and other areas
 - **Story Viewer**: Full-screen immersive viewing experience
   - Auto-progress timer bar for each story
   - Tap left/right to navigate between stories

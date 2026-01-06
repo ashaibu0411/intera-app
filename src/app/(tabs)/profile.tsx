@@ -10,6 +10,7 @@ import { router } from 'expo-router';
 import { useStore, MOCK_USERS, MOCK_POSTS } from '@/lib/store';
 import { signOut } from '@/lib/auth';
 import { usePremium } from '@/hooks/usePremium';
+import { StoryAvatar } from '@/components/StoryAvatar';
 
 export default function ProfileScreen() {
   const currentUser = useStore((s) => s.currentUser);
@@ -149,16 +150,18 @@ export default function ProfileScreen() {
             >
               <View className="flex-row items-center">
                 <View className="relative">
-                  <Image
-                    source={{ uri: user.avatar }}
-                    style={{ width: 80, height: 80, borderRadius: 40, borderWidth: 3, borderColor: '#FFFFFF' }}
-                    contentFit="cover"
+                  <StoryAvatar
+                    userId={user.id}
+                    avatarUrl={user.avatar}
+                    size={80}
+                    isCurrentUser={true}
+                    showRing={true}
                   />
                   <Pressable
                     onPress={handleEditProfile}
-                    className="absolute -bottom-1 -right-1 bg-terracotta-500 rounded-full p-2"
+                    className="absolute -bottom-1 -left-1 bg-forest-600 rounded-full p-1.5"
                   >
-                    <Edit3 size={14} color="#FFFFFF" />
+                    <Edit3 size={12} color="#FFFFFF" />
                   </Pressable>
                 </View>
 
