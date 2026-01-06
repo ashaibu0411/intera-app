@@ -350,6 +350,11 @@ export default function StoriesScreen() {
           headerStyle: { backgroundColor: '#000' },
           headerTintColor: '#fff',
           headerBackVisible: true,
+          headerLeft: () => (
+            <Pressable onPress={() => router.back()} className="p-2 -ml-2">
+              <ChevronLeft size={28} color="#fff" />
+            </Pressable>
+          ),
         }}
       />
 
