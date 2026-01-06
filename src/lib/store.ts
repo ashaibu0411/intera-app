@@ -407,6 +407,7 @@ export interface UserStory {
   stories: StoryItem[];
   hasUnseenStories: boolean;
   lastUpdated: string;
+  blockedUserIds?: string[]; // Users who cannot see this user's stories
 }
 
 // Mock user stories data
@@ -538,7 +539,12 @@ interface AppState {
 
   // Stories state
   userStories: UserStory[];
+  storyBlockedUserIds: string[]; // Users blocked from seeing current user's stories
   markStoryAsSeen: (userId: string) => void;
+  addStory: (story: StoryItem) => void;
+  deleteStory: (storyId: string) => void;
+  blockUserFromStories: (userId: string) => void;
+  unblockUserFromStories: (userId: string) => void;
 
   // Actions
   setCurrentUser: (user: User | null) => void;
@@ -646,10 +652,68 @@ export const useStore = create<AppState>()(
         weekStartDate: null,
       },
       userStories: MOCK_USER_STORIES,
+      storyBlockedUserIds: [],
       markStoryAsSeen: (userId) => set((state) => ({
         userStories: state.userStories.map((story) =>
           story.userId === userId ? { ...story, hasUnseenStories: false } : story
         ),
+      })),
+      addStory: (story) => set((state) => {
+        const currentUser = state.currentUser;
+        if (!currentUser) return state;
+
+        const existingUserStory = state.userStories.find((us) => us.userId === currentUser.id);
+
+        if (existingUserStory) {
+          // Add to existing user's stories
+          return {
+            userStories: state.userStories.map((us) =>
+              us.userId === currentUser.id
+                ? {
+                    ...us,
+                    stories: [story, ...us.stories],
+                    hasUnseenStories: true,
+                    lastUpdated: new Date().toISOString(),
+                  }
+                : us
+            ),
+          };
+        } else {
+          // Create new user story entry
+          const newUserStory: UserStory = {
+            userId: currentUser.id,
+            userName: currentUser.name,
+            userAvatar: currentUser.avatar,
+            stories: [story],
+            hasUnseenStories: true,
+            lastUpdated: new Date().toISOString(),
+            blockedUserIds: state.storyBlockedUserIds,
+          };
+          return {
+            userStories: [newUserStory, ...state.userStories],
+          };
+        }
+      }),
+      deleteStory: (storyId) => set((state) => {
+        const currentUser = state.currentUser;
+        if (!currentUser) return state;
+
+        return {
+          userStories: state.userStories.map((us) =>
+            us.userId === currentUser.id
+              ? {
+                  ...us,
+                  stories: us.stories.filter((s) => s.id !== storyId),
+                }
+              : us
+          ).filter((us) => us.stories.length > 0), // Remove user entry if no stories left
+        };
+      }),
+      blockUserFromStories: (userId) => set((state) => ({
+        storyBlockedUserIds: [...state.storyBlockedUserIds, userId],
+      })),
+      unblockUserFromStories: (userId) => set((state) => ({
+        storyBlockedUserIds: state.storyBlockedUserIds.filter((id) => id !== userId),
       })),
 
       setCurrentUser: (user) => set({ currentUser: user }),

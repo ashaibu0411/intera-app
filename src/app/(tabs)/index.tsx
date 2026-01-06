@@ -38,6 +38,7 @@ import {
   Bell,
   Search,
   Gift,
+  Plus,
 } from 'lucide-react-native';
 import Animated, { FadeInDown, FadeInUp, FadeIn, useSharedValue, useAnimatedStyle, withSpring, interpolate, Extrapolation } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -48,7 +49,8 @@ import { NewsCard } from '@/components/NewsCard';
 import { LocationChangeModal } from '@/components/LocationChangeModal';
 import { DailyRewardsBanner } from '@/components/DailyRewardsBanner';
 import { DailyRewardsModal } from '@/components/DailyRewardsModal';
-import { useStore, MOCK_POSTS, MOCK_COMMUNITIES, type Post, type NewsArticle, getCommunityMemberCount } from '@/lib/store';
+import { StoryAvatar } from '@/components/StoryAvatar';
+import { useStore, MOCK_POSTS, MOCK_COMMUNITIES, type Post, type NewsArticle, getCommunityMemberCount, type UserStory } from '@/lib/store';
 import { getCommunityByLocation, subscribeToCommunityUpdates, getOrCreateCommunity, joinCommunity } from '@/lib/communities';
 import { DbCommunity } from '@/lib/supabase';
 import { getPosts } from '@/lib/posts';
@@ -143,6 +145,7 @@ export default function HomeScreen() {
   const setLocationDetectionDismissed = useStore((s) => s.setLocationDetectionDismissed);
   const setLastDetectedCity = useStore((s) => s.setLastDetectedCity);
   const joinCommunityStore = useStore((s) => s.joinCommunity);
+  const userStories = useStore((s) => s.userStories);
 
   const displayCommunity = currentCommunity ?? MOCK_COMMUNITIES[0];
   const communityMemberCount = getCommunityMemberCount(displayCommunity.city);
@@ -643,6 +646,73 @@ export default function HomeScreen() {
                 </Pressable>
               </View>
             </LinearGradient>
+          </Animated.View>
+
+          {/* Stories Row */}
+          <Animated.View
+            entering={FadeInUp.duration(500).delay(175)}
+            className="mb-4"
+          >
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingHorizontal: 16 }}
+            >
+              {/* Current User Story Avatar - Add Story */}
+              {currentUser && (
+                <Pressable
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    router.push('/stories');
+                  }}
+                  className="items-center mr-3"
+                >
+                  <View className="relative">
+                    <StoryAvatar
+                      userId={currentUser.id}
+                      avatarUrl={currentUser.avatar}
+                      size={60}
+                      isCurrentUser={true}
+                    />
+                  </View>
+                  <Text className="text-gray-600 text-xs mt-1.5 font-medium">Your Story</Text>
+                </Pressable>
+              )}
+
+              {/* Other Users' Stories */}
+              {userStories
+                .filter((story: UserStory) => story.userId !== currentUser?.id && story.stories.length > 0)
+                .slice(0, 10)
+                .map((userStory: UserStory) => (
+                  <Pressable
+                    key={userStory.userId}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      router.push({
+                        pathname: '/stories',
+                        params: { userId: userStory.userId },
+                      });
+                    }}
+                    className="items-center mr-3"
+                  >
+                    <StoryAvatar
+                      userId={userStory.userId}
+                      avatarUrl={userStory.userAvatar}
+                      size={60}
+                      showRing={true}
+                    />
+                    <Text
+                      className={`text-xs mt-1.5 font-medium ${
+                        userStory.hasUnseenStories ? 'text-gray-900' : 'text-gray-400'
+                      }`}
+                      numberOfLines={1}
+                      style={{ maxWidth: 64 }}
+                    >
+                      {userStory.userName.split(' ')[0]}
+                    </Text>
+                  </Pressable>
+                ))}
+            </ScrollView>
           </Animated.View>
 
           {/* Daily Rewards Banner */}

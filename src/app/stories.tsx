@@ -20,7 +20,11 @@ import {
   Video,
   Image as ImageIconLucide,
   Type,
-  Play
+  Play,
+  Settings,
+  Shield,
+  UserX,
+  Check,
 } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import Animated, {
@@ -244,9 +248,11 @@ export default function StoriesScreen() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showGuidelines, setShowGuidelines] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [replyText, setReplyText] = useState('');
 
   const currentUser = useStore((s) => s.currentUser);
+  const storyBlockedUserIds = useStore((s) => s.storyBlockedUserIds);
 
   // Progress bar animation
   const progress = useSharedValue(0);
@@ -351,8 +357,24 @@ export default function StoriesScreen() {
           headerTintColor: '#fff',
           headerBackVisible: true,
           headerLeft: () => (
-            <Pressable onPress={() => router.back()} className="p-2 -ml-2">
+            <Pressable
+              onPress={() => router.back()}
+              hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+              className="p-2 -ml-2"
+            >
               <ChevronLeft size={28} color="#fff" />
+            </Pressable>
+          ),
+          headerRight: () => (
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setShowPrivacyModal(true);
+              }}
+              hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+              className="p-2 -mr-2"
+            >
+              <Settings size={24} color="#fff" />
             </Pressable>
           ),
         }}
@@ -475,8 +497,12 @@ export default function StoriesScreen() {
                     {getTimeRemaining(viewingStories.stories[currentStoryIndex].createdAt)}
                   </Text>
                 </View>
-                <Pressable onPress={closeStoryViewer} className="p-2">
-                  <X size={24} color="white" />
+                <Pressable
+                  onPress={closeStoryViewer}
+                  hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                  className="p-3 -mr-1"
+                >
+                  <X size={28} color="white" />
                 </Pressable>
               </View>
 
@@ -573,10 +599,12 @@ export default function StoriesScreen() {
       <CreateStoryModal
         visible={showCreateModal}
         onClose={() => setShowCreateModal(false)}
-        onSubmit={(story) => {
-          // In real app, upload story to backend
-          setShowCreateModal(false);
-        }}
+      />
+
+      {/* Story Privacy Modal */}
+      <StoryPrivacyModal
+        visible={showPrivacyModal}
+        onClose={() => setShowPrivacyModal(false)}
       />
     </View>
   );
@@ -585,16 +613,17 @@ export default function StoriesScreen() {
 interface CreateStoryModalProps {
   visible: boolean;
   onClose: () => void;
-  onSubmit: (story: Partial<StoryItem>) => void;
 }
 
-function CreateStoryModal({ visible, onClose, onSubmit }: CreateStoryModalProps) {
+function CreateStoryModal({ visible, onClose }: CreateStoryModalProps) {
   const [storyType, setStoryType] = useState<'image' | 'text' | 'video'>('text');
   const [textContent, setTextContent] = useState('');
   const [selectedBg, setSelectedBg] = useState(0);
   const [moderationError, setModerationError] = useState<string | null>(null);
   const [selectedMedia, setSelectedMedia] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  const addStory = useStore((s) => s.addStory);
 
   const resetState = () => {
     setTextContent('');
@@ -732,30 +761,40 @@ function CreateStoryModal({ visible, onClose, onSubmit }: CreateStoryModalProps)
       }
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      onSubmit({
+      addStory({
+        id: uuidv4(),
         type: 'text',
         content: textContent,
         backgroundColor: TEXT_BACKGROUNDS[selectedBg][0],
         textColor: '#FFFFFF',
         duration: 5,
+        views: 0,
+        createdAt: new Date().toISOString(),
       });
     } else if (storyType === 'image' && selectedMedia) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      onSubmit({
+      addStory({
+        id: uuidv4(),
         type: 'image',
         content: selectedMedia,
         duration: 5,
+        views: 0,
+        createdAt: new Date().toISOString(),
       });
     } else if (storyType === 'video' && selectedMedia) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      onSubmit({
+      addStory({
+        id: uuidv4(),
         type: 'video',
         content: selectedMedia,
         duration: 30,
+        views: 0,
+        createdAt: new Date().toISOString(),
       });
     }
 
     resetState();
+    onClose();
   };
 
   const handleTypeChange = (type: 'text' | 'image' | 'video') => {
@@ -776,16 +815,22 @@ function CreateStoryModal({ visible, onClose, onSubmit }: CreateStoryModalProps)
         <SafeAreaView edges={['top', 'bottom']} className="flex-1">
           {/* Header */}
           <View className="flex-row items-center justify-between px-4 py-3">
-            <Pressable onPress={handleClose}>
-              <X size={24} color="white" />
+            <Pressable
+              onPress={handleClose}
+              hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+              className="p-2 -ml-2"
+            >
+              <X size={28} color="white" />
             </Pressable>
             <Text className="text-white font-bold text-lg">Create Story</Text>
             <Pressable
               onPress={handleSubmit}
               disabled={!canSubmit()}
+              hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+              className="p-2 -mr-2"
               style={{ opacity: canSubmit() ? 1 : 0.5 }}
             >
-              <Text className="text-purple-400 font-bold">Share</Text>
+              <Text className="text-purple-400 font-bold text-base">Share</Text>
             </Pressable>
           </View>
 
@@ -978,6 +1023,113 @@ function CreateStoryModal({ visible, onClose, onSubmit }: CreateStoryModalProps)
               )}
             </View>
           )}
+        </SafeAreaView>
+      </View>
+    </Modal>
+  );
+}
+
+// Story Privacy Settings Modal
+interface StoryPrivacyModalProps {
+  visible: boolean;
+  onClose: () => void;
+}
+
+// Mock users for blocking (in real app, this would come from connections/followers)
+const MOCK_USERS_TO_BLOCK = [
+  { id: 'u1', name: 'Amara J.', avatar: 'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=200' },
+  { id: 'u2', name: 'Kwame A.', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200' },
+  { id: 'u3', name: 'Fatou S.', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200' },
+  { id: 'u4', name: 'Grace N.', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200' },
+  { id: 'u5', name: 'David O.', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200' },
+  { id: 'u6', name: 'Adaeze M.', avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200' },
+  { id: 'u7', name: 'Kofi B.', avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200' },
+];
+
+function StoryPrivacyModal({ visible, onClose }: StoryPrivacyModalProps) {
+  const storyBlockedUserIds = useStore((s) => s.storyBlockedUserIds);
+  const blockUserFromStories = useStore((s) => s.blockUserFromStories);
+  const unblockUserFromStories = useStore((s) => s.unblockUserFromStories);
+
+  const toggleBlockUser = (userId: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (storyBlockedUserIds.includes(userId)) {
+      unblockUserFromStories(userId);
+    } else {
+      blockUserFromStories(userId);
+    }
+  };
+
+  return (
+    <Modal
+      visible={visible}
+      animationType="slide"
+      statusBarTranslucent
+      onRequestClose={onClose}
+    >
+      <View className="flex-1 bg-black">
+        <SafeAreaView edges={['top', 'bottom']} className="flex-1">
+          {/* Header */}
+          <View className="flex-row items-center justify-between px-4 py-3 border-b border-gray-800">
+            <Pressable
+              onPress={onClose}
+              hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+              className="p-2 -ml-2"
+            >
+              <X size={28} color="white" />
+            </Pressable>
+            <Text className="text-white font-bold text-lg">Story Privacy</Text>
+            <View style={{ width: 44 }} />
+          </View>
+
+          <ScrollView className="flex-1" contentContainerStyle={{ padding: 16 }}>
+            {/* Info Card */}
+            <View className="bg-gray-900 rounded-2xl p-4 mb-6">
+              <View className="flex-row items-center mb-3">
+                <Shield size={20} color="#A855F7" />
+                <Text className="text-white font-bold text-base ml-2">Hide Your Stories</Text>
+              </View>
+              <Text className="text-gray-400 text-sm leading-5">
+                Select people who won't be able to see your stories. They won't be notified that you've hidden your stories from them.
+              </Text>
+            </View>
+
+            {/* Blocked Count */}
+            {storyBlockedUserIds.length > 0 && (
+              <View className="flex-row items-center mb-4">
+                <UserX size={16} color="#EF4444" />
+                <Text className="text-red-400 text-sm ml-2">
+                  {storyBlockedUserIds.length} {storyBlockedUserIds.length === 1 ? 'person' : 'people'} hidden
+                </Text>
+              </View>
+            )}
+
+            {/* User List */}
+            <Text className="text-gray-400 text-sm mb-3">Your Connections</Text>
+            {MOCK_USERS_TO_BLOCK.map((user) => {
+              const isBlocked = storyBlockedUserIds.includes(user.id);
+              return (
+                <Pressable
+                  key={user.id}
+                  onPress={() => toggleBlockUser(user.id)}
+                  className="flex-row items-center py-3 border-b border-gray-800"
+                >
+                  <Image
+                    source={{ uri: user.avatar }}
+                    className="w-12 h-12 rounded-full"
+                  />
+                  <Text className="flex-1 text-white font-medium ml-3">{user.name}</Text>
+                  <View
+                    className={`w-6 h-6 rounded-full items-center justify-center ${
+                      isBlocked ? 'bg-red-500' : 'bg-gray-700'
+                    }`}
+                  >
+                    {isBlocked && <Check size={14} color="white" />}
+                  </View>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
         </SafeAreaView>
       </View>
     </Modal>

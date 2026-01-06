@@ -639,10 +639,15 @@ Three powerful features designed to make AfroConnect the go-to app for foreigner
   - Tap profile picture to view their story
   - **Current user's profile picture**: Shows dashed purple ring with "+" icon to create a story
   - Integrated in PostCard, Profile, Comments, and other areas
+- **Stories Row on Home Feed**: Horizontal scrollable stories bar at the top of the feed
+  - Your story avatar with add button
+  - Other users' stories with ring indicators
+  - Tap to view or create stories
 - **Story Viewer**: Full-screen immersive viewing experience
   - Auto-progress timer bar for each story
   - Tap left/right to navigate between stories
   - Swipe to skip to next user's stories
+  - Larger close (X) button with improved tap area
 - **Story Types**:
   - Photo stories with full-screen images
   - Text stories with colorful gradient backgrounds
@@ -652,6 +657,12 @@ Three powerful features designed to make AfroConnect the go-to app for foreigner
   - 7 beautiful gradient background options for text
   - Content moderation - inappropriate content blocked
   - Guidelines acceptance before posting
+  - Stories are saved to your profile
+- **Story Privacy Settings** (Settings gear icon):
+  - Hide your stories from specific people
+  - Select which connections can't see your stories
+  - Privacy list shows count of blocked users
+  - Toggle individual users on/off
 - **Engagement**:
   - Reply to stories directly
   - View count tracking
