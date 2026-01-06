@@ -819,4 +819,36 @@ Three powerful features designed to make AfroConnect the go-to app for foreigner
   - **50 gems** for referrer when their referral places first bet
 - Combined with existing cash rewards for maximum earnings
 
+### 21. Partner Referral Hub (`/referral-hub`) (NEW!)
+- **Earn from top financial apps** with two-tier referral system
+- **4 Partner Categories**:
+  1. **Invest**: Robinhood, Webull, Public, Acorns
+     - Earn $5-$12 per referral + free stocks for friends
+  2. **Crypto**: Coinbase, Crypto.com, Binance US, Gemini
+     - Earn $10-$25 per referral + crypto bonuses for friends
+  3. **Banking**: Chime, Cash App, SoFi, Venmo
+     - Earn $10-$100 per referral (Chime pays $100!)
+  4. **Cashback**: Rakuten, Ibotta, Honey, Fetch Rewards
+     - Earn $2-$30 per referral + shopping rewards for friends
+- **Two-Tier Earnings System**:
+  - **Tier 1**: Earn full bonus when you refer friends directly
+  - **Tier 2**: Earn 15-25% when YOUR friends refer others!
+  - Passive income from your network's referrals
+- **Features**:
+  - Browse 16+ popular financial apps
+  - See exactly how much you and your friend earn
+  - Popular partners highlighted with badges
+  - Filter by category or view all popular partners
+  - One-tap share to WhatsApp, SMS, or any app
+  - Real-time earnings tracking by category
+  - Complete earnings history with status (pending/confirmed/paid)
+  - Detailed "How It Works" guide
+  - Potential earnings calculator
+- **Example Earnings**:
+  - 5 friends join Robinhood: $50
+  - 3 friends join Chime: $300
+  - 5 friends join Coinbase: $50
+  - 10 friends join Rakuten: $300
+  - **Tier 1 Total: $700+** plus Tier 2 earnings!
+
 

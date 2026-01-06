@@ -37,6 +37,7 @@ import {
   Sparkles,
   Bell,
   Search,
+  Gift,
 } from 'lucide-react-native';
 import Animated, { FadeInDown, FadeInUp, FadeIn, useSharedValue, useAnimatedStyle, withSpring, interpolate, Extrapolation } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -429,7 +430,7 @@ export default function HomeScreen() {
     { route: '/marketplace', icon: ShoppingBag, label: 'Market', colors: ['#D4673A', '#C05A2E'] as const },
     { route: '/job-board', icon: Briefcase, label: 'Jobs', colors: ['#1B4D3E', '#153D31'] as const },
     { route: '/advanced-events', icon: Calendar, label: 'Events', colors: ['#6366F1', '#4F46E5'] as const },
-    { route: '/voice-rooms', icon: Mic, label: 'Voice', colors: ['#EC4899', '#DB2777'] as const },
+    { route: '/referral-hub', icon: Gift, label: 'Refer', colors: ['#7C3AED', '#6D28D9'] as const },
     { route: '/remittance', icon: DollarSign, label: 'Send $', colors: ['#059669', '#047857'] as const },
     { route: '/african-food', icon: Utensils, label: 'Food', colors: ['#DC2626', '#B91C1C'] as const },
   ];
