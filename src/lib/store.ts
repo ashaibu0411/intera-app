@@ -388,6 +388,84 @@ export const EVENT_CATEGORIES = [
   'Other',
 ];
 
+// Story interfaces
+export interface StoryItem {
+  id: string;
+  type: 'image' | 'text' | 'video';
+  content: string;
+  backgroundColor?: string;
+  textColor?: string;
+  duration: number;
+  views: number;
+  createdAt: string;
+}
+
+export interface UserStory {
+  userId: string;
+  userName: string;
+  userAvatar: string;
+  stories: StoryItem[];
+  hasUnseenStories: boolean;
+  lastUpdated: string;
+}
+
+// Mock user stories data
+export const MOCK_USER_STORIES: UserStory[] = [
+  {
+    userId: 'u1',
+    userName: 'Amara J.',
+    userAvatar: 'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=200',
+    stories: [
+      {
+        id: 's1',
+        type: 'image',
+        content: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=800',
+        duration: 5,
+        views: 234,
+        createdAt: new Date(Date.now() - 3600000).toISOString(),
+      },
+    ],
+    hasUnseenStories: true,
+    lastUpdated: new Date(Date.now() - 1800000).toISOString(),
+  },
+  {
+    userId: 'g1',
+    userName: 'Fatou Diop',
+    userAvatar: 'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=200&h=200&fit=crop&crop=face',
+    stories: [
+      {
+        id: 's2',
+        type: 'text',
+        content: 'Just launched my new collection!',
+        backgroundColor: '#7C3AED',
+        textColor: '#FFFFFF',
+        duration: 5,
+        views: 189,
+        createdAt: new Date(Date.now() - 7200000).toISOString(),
+      },
+    ],
+    hasUnseenStories: true,
+    lastUpdated: new Date(Date.now() - 7200000).toISOString(),
+  },
+  {
+    userId: 'g2',
+    userName: 'Kofi Mensah',
+    userAvatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=200&h=200&fit=crop&crop=face',
+    stories: [
+      {
+        id: 's3',
+        type: 'image',
+        content: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=800',
+        duration: 5,
+        views: 456,
+        createdAt: new Date(Date.now() - 14400000).toISOString(),
+      },
+    ],
+    hasUnseenStories: false,
+    lastUpdated: new Date(Date.now() - 14400000).toISOString(),
+  },
+];
+
 interface AppState {
   // User state
   currentUser: User | null;
@@ -457,6 +535,10 @@ interface AppState {
 
   // Daily Rewards state
   dailyRewards: DailyRewardsState;
+
+  // Stories state
+  userStories: UserStory[];
+  markStoryAsSeen: (userId: string) => void;
 
   // Actions
   setCurrentUser: (user: User | null) => void;
@@ -563,6 +645,12 @@ export const useStore = create<AppState>()(
         claimedDays: [],
         weekStartDate: null,
       },
+      userStories: MOCK_USER_STORIES,
+      markStoryAsSeen: (userId) => set((state) => ({
+        userStories: state.userStories.map((story) =>
+          story.userId === userId ? { ...story, hasUnseenStories: false } : story
+        ),
+      })),
 
       setCurrentUser: (user) => set({ currentUser: user }),
       setIsOnboarded: (value) => set({ isOnboarded: value }),

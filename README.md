@@ -632,7 +632,12 @@ Three powerful features designed to make AfroConnect the go-to app for foreigner
 
 ### 14. Stories (`/stories`)
 - **24-hour disappearing stories** for sharing moments
-- **Story Ring**: Profile photos with gradient ring for unseen stories
+- **Story Ring on Profile Pictures**:
+  - Profile photos throughout the app show gradient rings when user has stories
+  - Purple/pink gradient ring for unseen stories
+  - Gray ring for already-viewed stories
+  - Tap profile picture to view their story (or go to profile if no story)
+  - Integrated in PostCard, Comments, and other areas
 - **Story Viewer**: Full-screen immersive viewing experience
   - Auto-progress timer bar for each story
   - Tap left/right to navigate between stories
@@ -640,8 +645,9 @@ Three powerful features designed to make AfroConnect the go-to app for foreigner
 - **Story Types**:
   - Photo stories with full-screen images
   - Text stories with colorful gradient backgrounds
+  - Video stories (up to 30 seconds)
 - **Create Story**:
-  - Choose between photo or text story
+  - Choose between photo, text, or video story
   - 7 beautiful gradient background options for text
   - Content moderation - inappropriate content blocked
   - Guidelines acceptance before posting

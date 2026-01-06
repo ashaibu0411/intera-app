@@ -25,6 +25,7 @@ import { router } from 'expo-router';
 import * as DropdownMenu from 'zeego/dropdown-menu';
 import { useStore, MOCK_COMMENTS, type Post } from '@/lib/store';
 import { getCommentsCount } from '@/lib/posts';
+import { StoryAvatar } from '@/components/StoryAvatar';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -415,10 +416,10 @@ export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
 
       {/* Header */}
       <View className="flex-row items-center p-4 pb-3">
-        <Image
-          source={{ uri: post.author.avatar }}
-          style={{ width: 44, height: 44, borderRadius: 22 }}
-          contentFit="cover"
+        <StoryAvatar
+          userId={post.author.id}
+          avatarUrl={post.author.avatar}
+          size={44}
         />
         <View className="flex-1 ml-3">
           <View className="flex-row items-center">
