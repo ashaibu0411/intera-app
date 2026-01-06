@@ -17,15 +17,15 @@ SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
 
-// Custom light theme with AfroConnect colors - Green & Gold
+// Custom light theme with AfroConnect colors - Colorful Professional
 const AfroConnectTheme = {
   ...DefaultTheme,
   colors: {
     ...DefaultTheme.colors,
-    background: '#F5F7F5',
+    background: '#FAFAFA',
     card: '#FFFFFF',
-    text: '#0D3D2D',
-    primary: '#0D5C43',
+    text: '#1F2937',
+    primary: '#7C3AED',
     border: '#E5E7EB',
   },
 };

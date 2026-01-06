@@ -461,7 +461,7 @@ export default function HomeScreen() {
   const LOGO_IMAGE = require('../../../assets/icon.png');
 
   return (
-    <View className="flex-1 bg-[#F5F7F5]">
+    <View className="flex-1 bg-[#FAFAFA]">
       <SafeAreaView edges={['top']} className="flex-1">
         {/* Modern Header */}
         <Animated.View
@@ -477,16 +477,16 @@ export default function HomeScreen() {
                 contentFit="cover"
               />
               <View className="ml-3">
-                <Text className="text-xl font-bold text-[#0D3D2D]">AfroConnect</Text>
+                <Text className="text-xl font-bold text-gray-900">AfroConnect</Text>
                 <Pressable
                   onPress={() => navigateTo('/location-select')}
                   className="flex-row items-center"
                 >
-                  <MapPin size={12} color="#C9A227" />
-                  <Text className="text-[#C9A227] text-xs font-medium ml-1">
+                  <MapPin size={12} color="#7C3AED" />
+                  <Text className="text-violet-600 text-xs font-medium ml-1">
                     {displayCommunity.city}
                   </Text>
-                  <ChevronDown size={12} color="#C9A227" />
+                  <ChevronDown size={12} color="#7C3AED" />
                 </Pressable>
               </View>
             </View>
@@ -494,30 +494,30 @@ export default function HomeScreen() {
             <View className="flex-row items-center space-x-2">
               <Pressable
                 onPress={() => navigateTo('/notifications')}
-                className="w-10 h-10 rounded-full bg-white items-center justify-center shadow-sm border border-[#0D3D2D]/10"
+                className="w-10 h-10 rounded-full bg-white items-center justify-center shadow-sm border border-gray-100"
               >
-                <Bell size={20} color="#0D3D2D" />
+                <Bell size={20} color="#374151" />
               </Pressable>
               <Pressable
                 onPress={() => navigateTo('/messages')}
-                className="w-10 h-10 rounded-full bg-white items-center justify-center shadow-sm ml-2 border border-[#0D3D2D]/10"
+                className="w-10 h-10 rounded-full bg-white items-center justify-center shadow-sm ml-2 border border-gray-100"
               >
-                <MessageCircle size={20} color="#0D3D2D" />
+                <MessageCircle size={20} color="#374151" />
               </Pressable>
             </View>
           </View>
 
           {/* Filter Tabs - Pill Style */}
-          <View className="flex-row bg-white rounded-2xl p-1.5 shadow-sm border border-[#0D3D2D]/10">
+          <View className="flex-row bg-white rounded-2xl p-1.5 shadow-sm border border-gray-100">
             <Pressable
               onPress={() => toggleFilter('local')}
               className="flex-1"
             >
               <LinearGradient
-                colors={feedFilter === 'local' ? ['#0D5C43', '#0A4A36'] : ['transparent', 'transparent']}
+                colors={feedFilter === 'local' ? ['#7C3AED', '#6D28D9'] : ['transparent', 'transparent']}
                 style={{ borderRadius: 14, paddingVertical: 10, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' }}
               >
-                <Users size={16} color={feedFilter === 'local' ? '#C9A227' : '#6B7280'} />
+                <Users size={16} color={feedFilter === 'local' ? '#FFFFFF' : '#6B7280'} />
                 <Text
                   className={`ml-2 font-semibold text-sm ${
                     feedFilter === 'local' ? 'text-white' : 'text-gray-500'
@@ -533,10 +533,10 @@ export default function HomeScreen() {
               className="flex-1"
             >
               <LinearGradient
-                colors={feedFilter === 'global' ? ['#0D5C43', '#0A4A36'] : ['transparent', 'transparent']}
+                colors={feedFilter === 'global' ? ['#7C3AED', '#6D28D9'] : ['transparent', 'transparent']}
                 style={{ borderRadius: 14, paddingVertical: 10, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' }}
               >
-                <Globe size={16} color={feedFilter === 'global' ? '#C9A227' : '#6B7280'} />
+                <Globe size={16} color={feedFilter === 'global' ? '#FFFFFF' : '#6B7280'} />
                 <Text
                   className={`ml-2 font-semibold text-sm ${
                     feedFilter === 'global' ? 'text-white' : 'text-gray-500'
@@ -556,8 +556,8 @@ export default function HomeScreen() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              tintColor="#0D5C43"
-              colors={['#0D5C43']}
+              tintColor="#7C3AED"
+              colors={['#7C3AED']}
             />
           }
           contentContainerStyle={{ paddingBottom: 20 }}
@@ -570,26 +570,26 @@ export default function HomeScreen() {
             >
               <Pressable onPress={() => navigateTo('/signup')}>
                 <LinearGradient
-                  colors={['#0D5C43', '#0A4A36']}
+                  colors={['#7C3AED', '#6D28D9']}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
-                  style={{ borderRadius: 20, padding: 16, overflow: 'hidden', borderWidth: 1, borderColor: '#C9A22730' }}
+                  style={{ borderRadius: 20, padding: 16, overflow: 'hidden' }}
                 >
-                  <View className="absolute top-0 right-0 w-32 h-32 rounded-full bg-[#C9A227]/10" style={{ transform: [{ translateX: 40 }, { translateY: -40 }] }} />
+                  <View className="absolute top-0 right-0 w-32 h-32 rounded-full bg-white/10" style={{ transform: [{ translateX: 40 }, { translateY: -40 }] }} />
                   <View className="flex-row items-center">
-                    <View className="bg-[#C9A227]/20 rounded-2xl p-3">
-                      <UserPlus size={24} color="#C9A227" />
+                    <View className="bg-white/20 rounded-2xl p-3">
+                      <UserPlus size={24} color="#FFFFFF" />
                     </View>
                     <View className="flex-1 ml-4">
                       <Text className="text-white font-bold text-base">
                         Join the Community
                       </Text>
-                      <Text className="text-white/70 text-sm mt-0.5">
+                      <Text className="text-white/80 text-sm mt-0.5">
                         Connect with {communityMemberCount.toLocaleString()}+ members
                       </Text>
                     </View>
-                    <View className="bg-[#C9A227]/20 rounded-full p-2">
-                      <ChevronRight size={20} color="#C9A227" />
+                    <View className="bg-white/20 rounded-full p-2">
+                      <ChevronRight size={20} color="#FFFFFF" />
                     </View>
                   </View>
                 </LinearGradient>
@@ -603,20 +603,20 @@ export default function HomeScreen() {
             className="mx-4 mb-5"
           >
             <LinearGradient
-              colors={['#0D5C43', '#0A4A36']}
+              colors={['#EC4899', '#DB2777', '#BE185D']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
-              style={{ borderRadius: 24, padding: 20, overflow: 'hidden', borderWidth: 1, borderColor: '#C9A22730' }}
+              style={{ borderRadius: 24, padding: 20, overflow: 'hidden' }}
             >
               {/* Decorative circles */}
-              <View className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-[#C9A227]/10" />
+              <View className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-white/10" />
               <View className="absolute -bottom-8 -left-8 w-32 h-32 rounded-full bg-black/10" />
 
               <View className="flex-row items-center justify-between relative">
                 <View className="flex-1">
                   <View className="flex-row items-center mb-1">
-                    <Sparkles size={16} color="#C9A227" />
-                    <Text className="text-[#C9A227] text-xs font-medium ml-1.5 uppercase tracking-wider">
+                    <Sparkles size={16} color="#FDE68A" />
+                    <Text className="text-white/90 text-xs font-medium ml-1.5 uppercase tracking-wider">
                       Welcome to
                     </Text>
                   </View>
@@ -624,21 +624,21 @@ export default function HomeScreen() {
                     {displayCommunity.city}
                   </Text>
                   <View className="flex-row items-center mt-3">
-                    <View className="flex-row items-center bg-[#C9A227]/20 rounded-full px-3 py-1.5">
-                      <Users size={14} color="#C9A227" />
-                      <Text className="text-[#C9A227] font-semibold text-sm ml-1.5">
+                    <View className="flex-row items-center bg-white/20 rounded-full px-3 py-1.5">
+                      <Users size={14} color="#FFFFFF" />
+                      <Text className="text-white font-semibold text-sm ml-1.5">
                         {memberCount.toLocaleString()}
                       </Text>
                     </View>
-                    <Text className="text-white/70 text-sm ml-2">members</Text>
+                    <Text className="text-white/80 text-sm ml-2">members</Text>
                   </View>
                 </View>
 
                 <Pressable
                   onPress={() => navigateTo('/location-select')}
-                  className="bg-[#C9A227]/20 rounded-2xl p-4"
+                  className="bg-white/20 rounded-2xl p-4"
                 >
-                  <MapPin size={28} color="#C9A227" />
+                  <MapPin size={28} color="#FFFFFF" />
                 </Pressable>
               </View>
             </LinearGradient>
@@ -653,15 +653,15 @@ export default function HomeScreen() {
             className="mx-4 mb-5"
           >
             <View className="flex-row items-center justify-between mb-3">
-              <Text className="text-[#0D3D2D] font-bold text-lg">Quick Access</Text>
+              <Text className="text-gray-900 font-bold text-lg">Quick Access</Text>
               <Pressable
                 onPress={() => setShowAllFeatures(!showAllFeatures)}
                 className="flex-row items-center"
               >
-                <Text className="text-[#C9A227] text-sm font-medium">
+                <Text className="text-[#7C3AED] text-sm font-medium">
                   {showAllFeatures ? 'Show Less' : 'See All'}
                 </Text>
-                <ChevronRight size={16} color="#C9A227" />
+                <ChevronRight size={16} color="#7C3AED" />
               </Pressable>
             </View>
 
@@ -680,7 +680,7 @@ export default function HomeScreen() {
                   >
                     <feature.icon size={24} color="white" />
                   </LinearGradient>
-                  <Text className="text-[#0D3D2D] text-xs font-medium text-center">{feature.label}</Text>
+                  <Text className="text-gray-700 text-xs font-medium text-center">{feature.label}</Text>
                 </Pressable>
               ))}
             </View>
@@ -691,13 +691,13 @@ export default function HomeScreen() {
                 entering={FadeIn.duration(300)}
                 className="mt-2"
               >
-                <View className="bg-white rounded-2xl p-4 shadow-sm border border-[#0D3D2D]/10">
+                <View className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200">
                   <View className="flex-row flex-wrap">
                     {allFeatures.map((feature, index) => (
                       <Pressable
                         key={feature.route}
                         onPress={() => navigateTo(feature.route)}
-                        className="flex-row items-center p-3 mb-2 bg-[#F5F7F5] rounded-xl"
+                        className="flex-row items-center p-3 mb-2 bg-gray-50 rounded-xl"
                         style={{ width: '48%', marginRight: index % 2 === 0 ? '4%' : 0 }}
                       >
                         <LinearGradient
@@ -707,7 +707,7 @@ export default function HomeScreen() {
                           <feature.icon size={18} color="white" />
                         </LinearGradient>
                         <View className="ml-2 flex-1">
-                          <Text className="text-[#0D3D2D] text-sm font-semibold">{feature.label}</Text>
+                          <Text className="text-gray-900 text-sm font-semibold">{feature.label}</Text>
                           <Text className="text-gray-400 text-xs">{feature.desc}</Text>
                         </View>
                       </Pressable>
@@ -727,15 +727,15 @@ export default function HomeScreen() {
               <View className="flex-row items-center justify-between px-4 mb-3">
                 <View className="flex-row items-center">
                   <LinearGradient
-                    colors={['#0D5C43', '#0A4A36']}
+                    colors={['#6366F1', '#4F46E5'] as const}
                     style={{ width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginRight: 10 }}
                   >
-                    <Newspaper size={16} color="#C9A227" />
+                    <Newspaper size={16} color="#FFFFFF" />
                   </LinearGradient>
-                  <Text className="text-[#0D3D2D] font-bold text-lg">Local News</Text>
+                  <Text className="text-gray-900 font-bold text-lg">Local News</Text>
                 </View>
-                <View className="bg-[#0D5C43]/10 px-2.5 py-1 rounded-full">
-                  <Text className="text-[#0D5C43] text-xs font-medium">{displayCommunity.city}</Text>
+                <View className="bg-indigo-100 px-2.5 py-1 rounded-full">
+                  <Text className="text-indigo-600 text-xs font-medium">{displayCommunity.city}</Text>
                 </View>
               </View>
 
@@ -758,8 +758,8 @@ export default function HomeScreen() {
             className="px-4 mb-3"
           >
             <View className="flex-row items-center">
-              <View className="w-1 h-5 bg-[#C9A227] rounded-full mr-2" />
-              <Text className="text-[#0D3D2D] font-bold text-lg">
+              <View className="w-1 h-5 bg-violet-500 rounded-full mr-2" />
+              <Text className="text-gray-900 font-bold text-lg">
                 {feedFilter === 'local' ? 'Community Posts' : 'Global Feed'}
               </Text>
             </View>
@@ -776,14 +776,14 @@ export default function HomeScreen() {
               </Animated.View>
             ))
           ) : (
-            <View className="mx-4 py-16 items-center bg-white rounded-2xl shadow-sm border border-[#0D3D2D]/10">
+            <View className="mx-4 py-16 items-center bg-white rounded-2xl shadow-sm border border-gray-200">
               <LinearGradient
-                colors={['#0D5C43', '#0A4A36']}
+                colors={['#7C3AED', '#6D28D9'] as const}
                 style={{ width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}
               >
-                <Users size={32} color="#C9A227" />
+                <Users size={32} color="#FFFFFF" />
               </LinearGradient>
-              <Text className="text-[#0D3D2D] font-semibold text-lg text-center">
+              <Text className="text-gray-900 font-semibold text-lg text-center">
                 No posts yet
               </Text>
               <Text className="text-gray-400 text-center mt-2 px-8">
@@ -794,10 +794,10 @@ export default function HomeScreen() {
                 className="mt-4"
               >
                 <LinearGradient
-                  colors={['#C9A227', '#A6841F']}
+                  colors={['#EC4899', '#DB2777'] as const}
                   style={{ borderRadius: 20, paddingHorizontal: 24, paddingVertical: 12 }}
                 >
-                  <Text className="text-[#062A1E] font-semibold">Create Post</Text>
+                  <Text className="text-white font-semibold">Create Post</Text>
                 </LinearGradient>
               </Pressable>
             </View>
