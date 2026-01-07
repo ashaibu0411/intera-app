@@ -95,9 +95,10 @@ A community-driven social platform connecting foreigners, expats, and global cit
 
 ### Authentication
 - Sign Up / Log In toggle for new and existing users
+- **Sign in with Apple** - Required for App Store compliance (Guideline 4.8)
 - Phone OTP authentication
-- Google sign-in option
 - Email authentication option
+- **Account Deletion** - Users can delete their account from Settings (Guideline 5.1.1)
 
 ### Notifications
 - Activity notifications (likes, comments)

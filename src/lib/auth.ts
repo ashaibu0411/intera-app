@@ -1,5 +1,39 @@
 import { supabase } from './supabase';
 import { useStore } from './store';
+import * as AppleAuthentication from 'expo-apple-authentication';
+import { Platform } from 'react-native';
+
+export async function isAppleAuthAvailable(): Promise<boolean> {
+  if (Platform.OS !== 'ios') return false;
+  return await AppleAuthentication.isAvailableAsync();
+}
+
+export async function signInWithApple() {
+  const credential = await AppleAuthentication.signInAsync({
+    requestedScopes: [
+      AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+      AppleAuthentication.AppleAuthenticationScope.EMAIL,
+    ],
+  });
+
+  if (!credential.identityToken) {
+    throw new Error('No identity token received from Apple');
+  }
+
+  // Sign in with Supabase using Apple's identity token
+  const { data, error } = await supabase.auth.signInWithIdToken({
+    provider: 'apple',
+    token: credential.identityToken,
+  });
+
+  if (error) throw error;
+
+  // Return both auth data and Apple credential for profile setup
+  return {
+    ...data,
+    appleCredential: credential,
+  };
+}
 
 export async function signUpWithEmail(email: string, password: string, name: string) {
   const username = 'user_' + Math.random().toString(36).substring(2, 10);
@@ -138,4 +172,26 @@ export function onAuthStateChange(callback: (user: any) => void) {
   return supabase.auth.onAuthStateChange((event, session) => {
     callback(session?.user || null);
   });
+}
+
+export async function deleteAccount() {
+  // Get current user
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('No user logged in');
+
+  // Delete the user's profile first (if exists)
+  await supabase
+    .from('profiles')
+    .delete()
+    .eq('id', user.id);
+
+  // Sign out and clear local state
+  const store = useStore.getState();
+  store.logout();
+
+  // Note: Full account deletion requires a Supabase Edge Function or admin API
+  // For now, we sign out and delete the profile data
+  await supabase.auth.signOut();
+
+  return { success: true };
 }

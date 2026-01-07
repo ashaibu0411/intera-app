@@ -1,19 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, Pressable, Switch, Linking } from 'react-native';
+import { View, Text, ScrollView, Pressable, Switch, Linking, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Bell, BellOff, ChevronRight, Shield, CircleHelp, LogOut } from 'lucide-react-native';
+import { ArrowLeft, Bell, BellOff, ChevronRight, Shield, CircleHelp, LogOut, Trash2, AlertTriangle } from 'lucide-react-native';
 import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { useStore } from '@/lib/store';
 import { requestNotificationPermissions, areNotificationsEnabled } from '@/lib/notifications';
-import { signOut } from '@/lib/auth';
+import { signOut, deleteAccount } from '@/lib/auth';
 
 export default function SettingsScreen() {
   const notificationsEnabled = useStore((s) => s.notificationsEnabled);
   const setNotificationsEnabled = useStore((s) => s.setNotificationsEnabled);
   const currentUser = useStore((s) => s.currentUser);
   const [systemNotificationsEnabled, setSystemNotificationsEnabled] = useState(true);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Check system notification permissions on mount
   useEffect(() => {
@@ -49,6 +51,19 @@ export default function SettingsScreen() {
       router.replace('/welcome');
     } catch (error) {
       console.error('Logout error:', error);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    setIsDeleting(true);
+    try {
+      await deleteAccount();
+      setShowDeleteModal(false);
+      router.replace('/welcome');
+    } catch (error) {
+      console.error('Delete account error:', error);
+      setIsDeleting(false);
     }
   };
 
@@ -125,7 +140,10 @@ export default function SettingsScreen() {
             </Text>
 
             <View className="bg-white rounded-2xl overflow-hidden shadow-sm">
-              <Pressable className="flex-row items-center p-4 border-b border-gray-100">
+              <Pressable
+                onPress={() => Linking.openURL('https://afroconnect.app/privacy')}
+                className="flex-row items-center p-4 border-b border-gray-100"
+              >
                 <View className="bg-forest-50 rounded-full p-2.5 mr-3">
                   <Shield size={20} color="#1B4D3E" />
                 </View>
@@ -133,7 +151,10 @@ export default function SettingsScreen() {
                 <ChevronRight size={18} color="#9CA3AF" />
               </Pressable>
 
-              <Pressable className="flex-row items-center p-4">
+              <Pressable
+                onPress={() => Linking.openURL('mailto:support@afroconnect.app?subject=Help%20Request')}
+                className="flex-row items-center p-4"
+              >
                 <View className="bg-gold-50 rounded-full p-2.5 mr-3">
                   <CircleHelp size={20} color="#C9A227" />
                 </View>
@@ -153,12 +174,25 @@ export default function SettingsScreen() {
               <View className="bg-white rounded-2xl overflow-hidden shadow-sm">
                 <Pressable
                   onPress={handleLogout}
-                  className="flex-row items-center p-4"
+                  className="flex-row items-center p-4 border-b border-gray-100"
                 >
                   <View className="bg-red-50 rounded-full p-2.5 mr-3">
                     <LogOut size={20} color="#EF4444" />
                   </View>
                   <Text className="flex-1 text-red-500 font-medium">Log Out</Text>
+                </Pressable>
+
+                <Pressable
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                    setShowDeleteModal(true);
+                  }}
+                  className="flex-row items-center p-4"
+                >
+                  <View className="bg-red-50 rounded-full p-2.5 mr-3">
+                    <Trash2 size={20} color="#DC2626" />
+                  </View>
+                  <Text className="flex-1 text-red-600 font-medium">Delete Account</Text>
                 </Pressable>
               </View>
             </Animated.View>
@@ -173,6 +207,55 @@ export default function SettingsScreen() {
           </Animated.View>
         </ScrollView>
       </SafeAreaView>
+
+      {/* Delete Account Confirmation Modal */}
+      <Modal
+        visible={showDeleteModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowDeleteModal(false)}
+      >
+        <Pressable
+          className="flex-1 bg-black/50 justify-center items-center px-6"
+          onPress={() => setShowDeleteModal(false)}
+        >
+          <Pressable
+            className="bg-white rounded-3xl w-full max-w-sm overflow-hidden"
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View className="items-center pt-6 pb-4 px-6">
+              <View className="bg-red-100 rounded-full p-4 mb-4">
+                <AlertTriangle size={32} color="#DC2626" />
+              </View>
+              <Text className="text-xl font-bold text-warmBrown text-center">
+                Delete Account?
+              </Text>
+              <Text className="text-gray-500 text-center mt-2 leading-5">
+                This will permanently delete your account and all your data. This action cannot be undone.
+              </Text>
+            </View>
+
+            <View className="border-t border-gray-100 flex-row">
+              <Pressable
+                onPress={() => setShowDeleteModal(false)}
+                className="flex-1 py-4 border-r border-gray-100"
+                disabled={isDeleting}
+              >
+                <Text className="text-center font-semibold text-gray-600">Cancel</Text>
+              </Pressable>
+              <Pressable
+                onPress={handleDeleteAccount}
+                className="flex-1 py-4"
+                disabled={isDeleting}
+              >
+                <Text className="text-center font-semibold text-red-600">
+                  {isDeleting ? 'Deleting...' : 'Delete'}
+                </Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }

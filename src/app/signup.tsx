@@ -20,9 +20,10 @@ import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { useStore } from '@/lib/store';
-import { signUpWithEmail, signInWithEmail, signUpWithPhone, verifyOtp, getProfile, getOrCreateProfile } from '@/lib/auth';
+import { signUpWithEmail, signInWithEmail, signUpWithPhone, verifyOtp, getProfile, getOrCreateProfile, signInWithApple, isAppleAuthAvailable } from '@/lib/auth';
+import * as AppleAuthentication from 'expo-apple-authentication';
 
-type AuthMethod = 'email' | 'phone' | 'google';
+type AuthMethod = 'email' | 'phone' | 'apple';
 type AuthMode = 'signup' | 'signin';
 type PhoneStep = 'phone' | 'otp';
 
@@ -40,6 +41,7 @@ export default function SignUpScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [appleAuthAvailable, setAppleAuthAvailable] = useState(false);
 
   const setCurrentUser = useStore((s) => s.setCurrentUser);
   const setIsGuest = useStore((s) => s.setIsGuest);
@@ -51,13 +53,64 @@ export default function SignUpScreen() {
   const communityName = displayName.trim() || fullName;
   const hasRequiredName = firstName.trim().length > 0 && lastName.trim().length > 0;
 
-  const handleGoogleSignIn = () => {
+  // Check if Apple Auth is available on mount
+  React.useEffect(() => {
+    isAppleAuthAvailable().then(setAppleAuthAvailable);
+  }, []);
+
+  const handleAppleSignIn = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    Alert.alert(
-      'Google Sign-In',
-      'Google sign-in requires additional configuration. Please use email or phone for now.',
-      [{ text: 'OK' }]
-    );
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const result = await signInWithApple();
+
+      if (result.user) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+        // Get name from Apple credential if available
+        const appleName = result.appleCredential?.fullName;
+        const nameFromApple = appleName?.givenName && appleName?.familyName
+          ? `${appleName.givenName} ${appleName.familyName}`
+          : undefined;
+
+        const profile = await getOrCreateProfile(result.user.id, {
+          name: nameFromApple,
+          email: result.appleCredential?.email || result.user.email,
+        });
+
+        setCurrentUser({
+          id: result.user.id,
+          name: profile?.name || nameFromApple || 'User',
+          username: profile?.username || `user_${result.user.id.slice(0, 8)}`,
+          avatar: profile?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&h=200&fit=crop',
+          bio: profile?.bio || '',
+          location: profile?.location || (selectedLocation ? `${selectedLocation.city}, ${selectedLocation.country}` : 'Not set'),
+          interests: profile?.interests || [],
+          joinedDate: profile?.created_at || new Date().toISOString(),
+          email: result.appleCredential?.email || result.user.email,
+        });
+        setIsGuest(false);
+        setIsOnboarded(true);
+
+        // Go to profile setup for new users, home for returning
+        if (profile?.bio || profile?.interests?.length) {
+          router.replace('/(tabs)');
+        } else {
+          router.replace('/profile-setup');
+        }
+      }
+    } catch (err: unknown) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      const errorMessage = err instanceof Error ? err.message : 'Apple sign-in failed';
+      // Don't show error if user cancelled
+      if (!errorMessage.includes('canceled') && !errorMessage.includes('cancelled')) {
+        setError(errorMessage);
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleEmailSignUp = async () => {
@@ -249,26 +302,21 @@ export default function SignUpScreen() {
         </View>
       </Animated.View>
 
-      {/* Google Sign In */}
-      <Animated.View entering={FadeInUp.duration(400).delay(100)}>
-        <Pressable
-          onPress={handleGoogleSignIn}
-          className="flex-row items-center bg-white rounded-2xl p-4 mb-3 shadow-sm border border-gray-100"
-        >
-          <Image
-            source={{ uri: 'https://www.google.com/favicon.ico' }}
-            style={{ width: 24, height: 24 }}
-            contentFit="contain"
+      {/* Sign in with Apple - Only show on iOS when available */}
+      {appleAuthAvailable && (
+        <Animated.View entering={FadeInUp.duration(400).delay(100)}>
+          <AppleAuthentication.AppleAuthenticationButton
+            buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+            buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+            cornerRadius={16}
+            style={{ width: '100%', height: 56, marginBottom: 12 }}
+            onPress={handleAppleSignIn}
           />
-          <Text className="flex-1 text-warmBrown font-medium ml-4">
-            Continue with Google
-          </Text>
-          <ArrowRight size={20} color="#9CA3AF" />
-        </Pressable>
-      </Animated.View>
+        </Animated.View>
+      )}
 
       {/* Email */}
-      <Animated.View entering={FadeInUp.duration(400).delay(150)}>
+      <Animated.View entering={FadeInUp.duration(400).delay(appleAuthAvailable ? 150 : 100)}>
         <Pressable
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -287,7 +335,7 @@ export default function SignUpScreen() {
       </Animated.View>
 
       {/* Phone */}
-      <Animated.View entering={FadeInUp.duration(400).delay(200)}>
+      <Animated.View entering={FadeInUp.duration(400).delay(appleAuthAvailable ? 200 : 150)}>
         <Pressable
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
