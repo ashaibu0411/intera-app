@@ -379,7 +379,19 @@ export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
     router.push(`/profile/${post.author.id}` as any);
   };
 
-  const timeAgo = formatDistanceToNow(new Date(post.createdAt), { addSuffix: true });
+  // Safely parse date - handle invalid dates gracefully
+  const getTimeAgo = () => {
+    try {
+      const date = new Date(post.createdAt);
+      if (isNaN(date.getTime())) {
+        return 'recently';
+      }
+      return formatDistanceToNow(date, { addSuffix: true });
+    } catch {
+      return 'recently';
+    }
+  };
+  const timeAgo = getTimeAgo();
 
   // Get display emoji for reaction button
   const displayEmoji = currentReaction || '❤️';
