@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, ScrollView, Pressable, Image, Dimensions, Modal, TextInput, ActivityIndicator } from 'react-native';
-import { Stack, router } from 'expo-router';
+import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Plus,
@@ -90,6 +90,9 @@ function VideoStoryPlayer({ uri, onEnd }: { uri: string; onEnd: () => void }) {
 }
 
 export default function StoriesScreen() {
+  // Get URL params - if userId is passed, auto-play their stories
+  const { userId: targetUserId } = useLocalSearchParams<{ userId?: string }>();
+
   // Get stories from the store
   const userStories = useStore((s) => s.userStories);
   const currentUser = useStore((s) => s.currentUser);
@@ -101,6 +104,7 @@ export default function StoriesScreen() {
   const [showGuidelines, setShowGuidelines] = useState(false);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [replyText, setReplyText] = useState('');
+  const [hasAutoPlayed, setHasAutoPlayed] = useState(false);
 
   const progress = useSharedValue(0);
 
@@ -108,6 +112,22 @@ export default function StoriesScreen() {
   const myStories = userStories.find((s) => s.userId === currentUser?.id);
   // Get other users' stories
   const otherStories = userStories.filter((s) => s.userId !== currentUser?.id);
+
+  // Auto-play stories if userId param is passed
+  useEffect(() => {
+    if (targetUserId && !hasAutoPlayed) {
+      const targetUserStories = userStories.find((s) => s.userId === targetUserId);
+      if (targetUserStories && targetUserStories.stories.length > 0) {
+        setViewingStories(targetUserStories);
+        setCurrentStoryIndex(0);
+        setHasAutoPlayed(true);
+        // Mark as seen if it's not the current user
+        if (targetUserId !== currentUser?.id) {
+          markStoryAsSeen(targetUserId);
+        }
+      }
+    }
+  }, [targetUserId, userStories, hasAutoPlayed, currentUser?.id, markStoryAsSeen]);
 
   // Close story viewer
   const closeStoryViewer = useCallback(() => {

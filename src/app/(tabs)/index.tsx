@@ -337,7 +337,16 @@ export default function HomeScreen() {
                 <Pressable
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    router.push('/stories');
+                    // Check if user has stories - if yes, auto-play them, otherwise go to create
+                    const myStories = userStories.find((s: UserStory) => s.userId === currentUser.id);
+                    if (myStories && myStories.stories.length > 0) {
+                      router.push({
+                        pathname: '/stories',
+                        params: { userId: currentUser.id },
+                      });
+                    } else {
+                      router.push('/stories');
+                    }
                   }}
                   className="items-center mr-4"
                 >

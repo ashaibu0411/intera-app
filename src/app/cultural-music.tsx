@@ -1393,14 +1393,15 @@ export default function CulturalMusicScreen() {
             )}
           </View>
 
-          <View className="h-32" />
+          <View className={showPlayer ? "h-40" : "h-32"} />
         </ScrollView>
 
         {/* Mini Player */}
         {showPlayer && currentSong && !showFullPlayer && (
           <Animated.View
             entering={FadeInDown.springify()}
-            className="absolute bottom-0 left-0 right-0"
+            className="absolute left-0 right-0"
+            style={{ bottom: 34 }}
           >
             <Pressable
               onPress={() => setShowFullPlayer(true)}
