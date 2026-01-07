@@ -1,19 +1,21 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, ScrollView, Pressable, TextInput, Modal, Dimensions } from 'react-native';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { View, Text, ScrollView, Pressable, TextInput, Modal, Dimensions, Share, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Image } from 'expo-image';
 import {
   ArrowLeft, Search, Play, Pause, SkipBack, SkipForward, Heart, Share2,
   Music, Globe, Clock, Users, Shuffle, Repeat, Volume2, ChevronDown,
-  ListMusic, Disc3, Mic2, X, Plus, Filter
+  ListMusic, Disc3, Mic2, X, Plus, Filter, Repeat1, VolumeX, Volume1
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import Animated, {
   FadeInDown, FadeIn, useSharedValue, useAnimatedStyle,
-  withRepeat, withTiming, Easing, withSequence
+  withRepeat, withTiming, Easing, withSequence, runOnJS
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Audio, AVPlaybackStatus } from 'expo-av';
+import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -33,6 +35,26 @@ interface Song {
   plays: number;
   isLiked: boolean;
 }
+
+// Sample audio URLs for demo (public domain / royalty-free)
+const SAMPLE_AUDIO_URLS = [
+  'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
+  'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3',
+  'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3',
+  'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3',
+  'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3',
+  'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-6.mp3',
+  'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-7.mp3',
+  'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3',
+  'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-9.mp3',
+  'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-10.mp3',
+];
+
+// Helper function to get audio URL for a song
+const getAudioUrl = (songId: string): string => {
+  const index = (parseInt(songId, 10) - 1) % SAMPLE_AUDIO_URLS.length;
+  return SAMPLE_AUDIO_URLS[index];
+};
 
 interface Playlist {
   id: string;
@@ -1070,12 +1092,28 @@ export default function CulturalMusicScreen() {
   const [selectedRegion, setSelectedRegion] = useState('all');
   const [selectedGenre, setSelectedGenre] = useState('All');
   const [currentSong, setCurrentSong] = useState<Song | null>(null);
+  const [currentSongIndex, setCurrentSongIndex] = useState<number>(-1);
   const [isPlaying, setIsPlaying] = useState(false);
   const [showPlayer, setShowPlayer] = useState(false);
   const [showFullPlayer, setShowFullPlayer] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
   const [likedSongs, setLikedSongs] = useState<Set<string>>(new Set(['1', '3', '5', '7', '9', '11', '12', '14', '15']));
   const [showFilters, setShowFilters] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Audio player controls state
+  const [volume, setVolume] = useState(1.0);
+  const [showVolumeSlider, setShowVolumeSlider] = useState(false);
+  const [isShuffleOn, setIsShuffleOn] = useState(false);
+  const [repeatMode, setRepeatMode] = useState<'off' | 'all' | 'one'>('off');
+  const [shuffledIndices, setShuffledIndices] = useState<number[]>([]);
+  const [showQueue, setShowQueue] = useState(false);
+
+  // Audio ref
+  const soundRef = useRef<Audio.Sound | null>(null);
+  const playbackStatusRef = useRef<AVPlaybackStatus | null>(null);
 
   // Animation for spinning disc
   const rotation = useSharedValue(0);
@@ -1096,22 +1134,6 @@ export default function CulturalMusicScreen() {
     transform: [{ rotate: `${rotation.value}deg` }],
   }));
 
-  // Simulate progress
-  useEffect(() => {
-    let interval: ReturnType<typeof setInterval> | undefined;
-    if (isPlaying && currentSong) {
-      interval = setInterval(() => {
-        setProgress((prev) => {
-          if (prev >= 100) {
-            return 0;
-          }
-          return prev + (100 / currentSong.durationSeconds);
-        });
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [isPlaying, currentSong]);
-
   const filteredSongs = MOCK_SONGS.filter(song => {
     const matchesRegion = selectedRegion === 'all' || song.region === selectedRegion;
     const matchesGenre = selectedGenre === 'All' || song.genre === selectedGenre;
@@ -1123,17 +1145,209 @@ export default function CulturalMusicScreen() {
     return matchesRegion && matchesGenre && matchesSearch;
   });
 
-  const playSong = (song: Song) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setCurrentSong(song);
-    setIsPlaying(true);
-    setShowPlayer(true);
-    setProgress(0);
+  // Setup audio mode on mount
+  useEffect(() => {
+    const setupAudio = async () => {
+      try {
+        await Audio.setAudioModeAsync({
+          playsInSilentModeIOS: true,
+          staysActiveInBackground: true,
+          shouldDuckAndroid: true,
+        });
+      } catch (error) {
+        console.log('Error setting audio mode:', error);
+      }
+    };
+    setupAudio();
+
+    // Cleanup on unmount
+    return () => {
+      if (soundRef.current) {
+        soundRef.current.unloadAsync();
+      }
+    };
+  }, []);
+
+  // Generate shuffled indices when shuffle is turned on
+  useEffect(() => {
+    if (isShuffleOn && filteredSongs.length > 0) {
+      const indices = Array.from({ length: filteredSongs.length }, (_, i) => i);
+      // Fisher-Yates shuffle
+      for (let i = indices.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [indices[i], indices[j]] = [indices[j], indices[i]];
+      }
+      setShuffledIndices(indices);
+    }
+  }, [isShuffleOn, filteredSongs.length]);
+
+  // Playback status update handler
+  const onPlaybackStatusUpdate = useCallback((status: AVPlaybackStatus) => {
+    playbackStatusRef.current = status;
+    if (status.isLoaded) {
+      setCurrentTime(status.positionMillis / 1000);
+      setDuration(status.durationMillis ? status.durationMillis / 1000 : 0);
+      setProgress(status.durationMillis ? (status.positionMillis / status.durationMillis) * 100 : 0);
+      setIsPlaying(status.isPlaying);
+      setIsLoading(status.isBuffering);
+
+      // Handle song end
+      if (status.didJustFinish && !status.isLooping) {
+        handleSongEnd();
+      }
+    }
+  }, []);
+
+  const handleSongEnd = useCallback(() => {
+    if (repeatMode === 'one') {
+      // Replay current song
+      soundRef.current?.setPositionAsync(0);
+      soundRef.current?.playAsync();
+    } else {
+      // Play next song
+      playNext();
+    }
+  }, [repeatMode]);
+
+  const loadAndPlaySong = async (song: Song, index: number) => {
+    try {
+      setIsLoading(true);
+
+      // Unload previous sound
+      if (soundRef.current) {
+        await soundRef.current.unloadAsync();
+        soundRef.current = null;
+      }
+
+      const audioUrl = getAudioUrl(song.id);
+      console.log('Loading audio:', audioUrl);
+
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: audioUrl },
+        {
+          shouldPlay: true,
+          volume: volume,
+          isLooping: repeatMode === 'one',
+        },
+        onPlaybackStatusUpdate
+      );
+
+      soundRef.current = sound;
+      setCurrentSong(song);
+      setCurrentSongIndex(index);
+      setShowPlayer(true);
+      setProgress(0);
+      setCurrentTime(0);
+      setIsPlaying(true);
+
+    } catch (error) {
+      console.log('Error loading audio:', error);
+      setIsLoading(false);
+    }
   };
 
-  const togglePlay = () => {
+  const playSong = (song: Song) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const index = filteredSongs.findIndex(s => s.id === song.id);
+    loadAndPlaySong(song, index);
+  };
+
+  const togglePlay = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setIsPlaying(!isPlaying);
+    if (soundRef.current) {
+      if (isPlaying) {
+        await soundRef.current.pauseAsync();
+      } else {
+        await soundRef.current.playAsync();
+      }
+    }
+  };
+
+  const playNext = useCallback(async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (filteredSongs.length === 0) return;
+
+    let nextIndex: number;
+    if (isShuffleOn && shuffledIndices.length > 0) {
+      const currentShufflePos = shuffledIndices.indexOf(currentSongIndex);
+      const nextShufflePos = (currentShufflePos + 1) % shuffledIndices.length;
+      nextIndex = shuffledIndices[nextShufflePos];
+    } else {
+      nextIndex = (currentSongIndex + 1) % filteredSongs.length;
+    }
+
+    // If repeat is off and we've reached the end, stop
+    if (repeatMode === 'off' && nextIndex === 0 && currentSongIndex === filteredSongs.length - 1) {
+      await soundRef.current?.pauseAsync();
+      return;
+    }
+
+    loadAndPlaySong(filteredSongs[nextIndex], nextIndex);
+  }, [currentSongIndex, filteredSongs, isShuffleOn, shuffledIndices, repeatMode]);
+
+  const playPrevious = useCallback(async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (filteredSongs.length === 0) return;
+
+    // If more than 3 seconds into song, restart current song
+    if (currentTime > 3) {
+      await soundRef.current?.setPositionAsync(0);
+      return;
+    }
+
+    let prevIndex: number;
+    if (isShuffleOn && shuffledIndices.length > 0) {
+      const currentShufflePos = shuffledIndices.indexOf(currentSongIndex);
+      const prevShufflePos = currentShufflePos === 0 ? shuffledIndices.length - 1 : currentShufflePos - 1;
+      prevIndex = shuffledIndices[prevShufflePos];
+    } else {
+      prevIndex = currentSongIndex === 0 ? filteredSongs.length - 1 : currentSongIndex - 1;
+    }
+
+    loadAndPlaySong(filteredSongs[prevIndex], prevIndex);
+  }, [currentSongIndex, currentTime, filteredSongs, isShuffleOn, shuffledIndices]);
+
+  const seekTo = async (position: number) => {
+    if (soundRef.current && duration > 0) {
+      const seekPosition = (position / 100) * duration * 1000;
+      await soundRef.current.setPositionAsync(seekPosition);
+    }
+  };
+
+  const changeVolume = async (newVolume: number) => {
+    setVolume(newVolume);
+    if (soundRef.current) {
+      await soundRef.current.setVolumeAsync(newVolume);
+    }
+  };
+
+  const toggleShuffle = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setIsShuffleOn(!isShuffleOn);
+  };
+
+  const toggleRepeat = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const modes: ('off' | 'all' | 'one')[] = ['off', 'all', 'one'];
+    const currentIndex = modes.indexOf(repeatMode);
+    const nextMode = modes[(currentIndex + 1) % modes.length];
+    setRepeatMode(nextMode);
+
+    if (soundRef.current) {
+      soundRef.current.setIsLoopingAsync(nextMode === 'one');
+    }
+  };
+
+  const handleShare = async () => {
+    if (!currentSong) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      await Share.share({
+        message: `Check out "${currentSong.title}" by ${currentSong.artist} - ${currentSong.description}`,
+      });
+    } catch (error) {
+      console.log('Error sharing:', error);
+    }
   };
 
   const toggleLike = (songId: string) => {
@@ -1149,6 +1363,12 @@ export default function CulturalMusicScreen() {
     });
   };
 
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
   const formatPlays = (plays: number) => {
     if (plays >= 1000000) {
       return `${(plays / 1000000).toFixed(1)}M`;
@@ -1158,6 +1378,14 @@ export default function CulturalMusicScreen() {
     }
     return plays.toString();
   };
+
+  const getVolumeIcon = () => {
+    if (volume === 0) return VolumeX;
+    if (volume < 0.5) return Volume1;
+    return Volume2;
+  };
+
+  const VolumeIcon = getVolumeIcon();
 
   return (
     <View className="flex-1 bg-[#0A0A0A]">
@@ -1432,22 +1660,35 @@ export default function CulturalMusicScreen() {
                   <Pressable
                     onPress={(e) => {
                       e.stopPropagation();
-                      toggleLike(currentSong.id);
+                      playPrevious();
                     }}
                     className="p-2"
                   >
-                    <Heart
-                      size={20}
-                      color={likedSongs.has(currentSong.id) ? '#EF4444' : '#fff'}
-                      fill={likedSongs.has(currentSong.id) ? '#EF4444' : 'transparent'}
-                    />
+                    <SkipBack size={20} color="#fff" fill="#fff" />
                   </Pressable>
-                  <Pressable onPress={togglePlay} className="w-12 h-12 rounded-full bg-[#D4673A] items-center justify-center ml-2">
-                    {isPlaying ? (
+                  <Pressable
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      togglePlay();
+                    }}
+                    className="w-12 h-12 rounded-full bg-[#D4673A] items-center justify-center mx-1"
+                  >
+                    {isLoading ? (
+                      <View className="w-5 h-5 border-2 border-white border-t-transparent rounded-full" />
+                    ) : isPlaying ? (
                       <Pause size={24} color="#fff" fill="#fff" />
                     ) : (
                       <Play size={24} color="#fff" fill="#fff" />
                     )}
+                  </Pressable>
+                  <Pressable
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      playNext();
+                    }}
+                    className="p-2"
+                  >
+                    <SkipForward size={20} color="#fff" fill="#fff" />
                   </Pressable>
                 </View>
               </LinearGradient>
@@ -1471,8 +1712,13 @@ export default function CulturalMusicScreen() {
                   >
                     <ChevronDown size={28} color="#fff" />
                   </Pressable>
-                  <Text className="text-white text-sm font-medium">Now Playing</Text>
-                  <Pressable className="p-2">
+                  <View className="items-center">
+                    <Text className="text-white text-sm font-medium">Now Playing</Text>
+                    {isLoading && (
+                      <Text className="text-gray-500 text-xs">Loading...</Text>
+                    )}
+                  </View>
+                  <Pressable onPress={handleShare} className="p-2">
                     <Share2 size={22} color="#fff" />
                   </Pressable>
                 </View>
@@ -1509,48 +1755,93 @@ export default function CulturalMusicScreen() {
                       </View>
                     </View>
 
-                    {/* Progress */}
+                    {/* Progress - Seekable */}
                     <View className="mb-6">
-                      <View className="h-1.5 bg-white/10 rounded-full overflow-hidden">
-                        <View
-                          className="h-full bg-[#D4673A] rounded-full"
-                          style={{ width: `${progress}%` }}
-                        />
-                      </View>
-                      <View className="flex-row justify-between mt-2">
+                      <Pressable
+                        onPress={(e) => {
+                          const { locationX } = e.nativeEvent;
+                          const progressBarWidth = SCREEN_WIDTH - 64; // Account for padding
+                          const seekPercent = (locationX / progressBarWidth) * 100;
+                          seekTo(Math.max(0, Math.min(100, seekPercent)));
+                        }}
+                        className="py-2"
+                      >
+                        <View className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                          <View
+                            className="h-full bg-[#D4673A] rounded-full"
+                            style={{ width: `${progress}%` }}
+                          />
+                        </View>
+                      </Pressable>
+                      <View className="flex-row justify-between mt-1">
                         <Text className="text-gray-500 text-sm">
-                          {Math.floor((progress / 100) * currentSong.durationSeconds / 60)}:
-                          {String(Math.floor((progress / 100) * currentSong.durationSeconds % 60)).padStart(2, '0')}
+                          {formatTime(currentTime)}
                         </Text>
-                        <Text className="text-gray-500 text-sm">{currentSong.duration}</Text>
+                        <Text className="text-gray-500 text-sm">
+                          {duration > 0 ? formatTime(duration) : currentSong.duration}
+                        </Text>
                       </View>
                     </View>
 
                     {/* Controls */}
                     <View className="flex-row items-center justify-between px-4">
-                      <Pressable className="p-3">
-                        <Shuffle size={22} color="#6B7280" />
+                      <Pressable onPress={toggleShuffle} className="p-3">
+                        <Shuffle size={22} color={isShuffleOn ? '#D4673A' : '#6B7280'} />
                       </Pressable>
-                      <Pressable className="p-3">
+                      <Pressable onPress={playPrevious} className="p-3">
                         <SkipBack size={28} color="#fff" fill="#fff" />
                       </Pressable>
                       <Pressable
                         onPress={togglePlay}
                         className="w-20 h-20 rounded-full bg-[#D4673A] items-center justify-center"
                       >
-                        {isPlaying ? (
+                        {isLoading ? (
+                          <View className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        ) : isPlaying ? (
                           <Pause size={36} color="#fff" fill="#fff" />
                         ) : (
                           <Play size={36} color="#fff" fill="#fff" style={{ marginLeft: 4 }} />
                         )}
                       </Pressable>
-                      <Pressable className="p-3">
+                      <Pressable onPress={playNext} className="p-3">
                         <SkipForward size={28} color="#fff" fill="#fff" />
                       </Pressable>
-                      <Pressable className="p-3">
-                        <Repeat size={22} color="#6B7280" />
+                      <Pressable onPress={toggleRepeat} className="p-3">
+                        {repeatMode === 'one' ? (
+                          <Repeat1 size={22} color="#D4673A" />
+                        ) : (
+                          <Repeat size={22} color={repeatMode === 'all' ? '#D4673A' : '#6B7280'} />
+                        )}
                       </Pressable>
                     </View>
+
+                    {/* Volume Control */}
+                    {showVolumeSlider && (
+                      <Animated.View entering={FadeInDown.duration(200)} className="mt-6 px-4">
+                        <View className="flex-row items-center gap-3">
+                          <VolumeX size={18} color="#6B7280" />
+                          <View className="flex-1 h-10 justify-center">
+                            <Pressable
+                              onPress={(e) => {
+                                const { locationX } = e.nativeEvent;
+                                const sliderWidth = SCREEN_WIDTH - 120;
+                                const newVolume = Math.max(0, Math.min(1, locationX / sliderWidth));
+                                changeVolume(newVolume);
+                              }}
+                              className="py-3"
+                            >
+                              <View className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                                <View
+                                  className="h-full bg-[#D4673A] rounded-full"
+                                  style={{ width: `${volume * 100}%` }}
+                                />
+                              </View>
+                            </Pressable>
+                          </View>
+                          <Volume2 size={18} color="#6B7280" />
+                        </View>
+                      </Animated.View>
+                    )}
 
                     {/* Extra Controls */}
                     <View className="flex-row items-center justify-center gap-8 mt-8">
@@ -1565,13 +1856,19 @@ export default function CulturalMusicScreen() {
                         />
                         <Text className="text-gray-500 text-xs mt-1">Like</Text>
                       </Pressable>
-                      <Pressable className="items-center">
-                        <Volume2 size={24} color="#6B7280" />
+                      <Pressable
+                        onPress={() => setShowVolumeSlider(!showVolumeSlider)}
+                        className="items-center"
+                      >
+                        <VolumeIcon size={24} color={showVolumeSlider ? '#D4673A' : '#6B7280'} />
                         <Text className="text-gray-500 text-xs mt-1">Volume</Text>
                       </Pressable>
-                      <Pressable className="items-center">
-                        <ListMusic size={24} color="#6B7280" />
-                        <Text className="text-gray-500 text-xs mt-1">Queue</Text>
+                      <Pressable
+                        onPress={handleShare}
+                        className="items-center"
+                      >
+                        <Share2 size={24} color="#6B7280" />
+                        <Text className="text-gray-500 text-xs mt-1">Share</Text>
                       </Pressable>
                     </View>
 

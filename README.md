@@ -489,11 +489,18 @@ These 10 major features make AfroConnect superior to Facebook, Nextdoor, and any
     - **Sufi Rock**: Junoon (Sayonee, Bulleya)
     - **Pakistani Pop**: Vital Signs (Dil Dil Pakistan)
   - **Full Music Player**:
-    - Mini player with progress bar and controls
+    - **Real Audio Playback**: Actual streaming audio playback using expo-av
+    - Mini player with progress bar and playback controls (play/pause, skip forward/back)
     - Full-screen player with spinning disc animation
-    - Play/pause, skip, shuffle, repeat controls
+    - **Seekable Progress Bar**: Tap anywhere on the progress bar to jump to that position
+    - **Volume Control**: Tap volume button to show/hide volume slider
+    - **Shuffle Mode**: Randomize playback order
+    - **Repeat Modes**: Off, Repeat All, or Repeat One
+    - **Skip Controls**: Skip to next/previous song (previous restarts if >3 seconds in)
+    - **Share Songs**: Share song info with friends via native share sheet
     - Song descriptions and play counts
     - Like/favorite songs
+    - Loading indicator while buffering
   - **Search & Filter**: Search by song, artist, country, or genre
   - **Classic Songs**: Timeless hits like "Sweet Mother", "Zombie", "One Love", "Pata Pata", "Garota de Ipanema", and more
   - **Song Details**: Artist, album, year, country, genre, description, and play count
