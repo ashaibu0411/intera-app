@@ -144,17 +144,22 @@ export default function StoriesScreen() {
     if (currentStoryIndex < viewingStories.stories.length - 1) {
       setCurrentStoryIndex((prev) => prev + 1);
     } else {
-      // Find next user's stories
-      const allStories = myStories ? [myStories, ...otherStories] : otherStories;
-      const currentUserIndex = allStories.findIndex((u) => u.userId === viewingStories.userId);
-      if (currentUserIndex < allStories.length - 1) {
-        setViewingStories(allStories[currentUserIndex + 1]);
+      // If viewing own stories, just close - don't auto-advance to others
+      if (viewingStories.userId === currentUser?.id) {
+        closeStoryViewer();
+        return;
+      }
+
+      // Find next user's stories (only for other users' stories)
+      const currentUserIndex = otherStories.findIndex((u) => u.userId === viewingStories.userId);
+      if (currentUserIndex < otherStories.length - 1) {
+        setViewingStories(otherStories[currentUserIndex + 1]);
         setCurrentStoryIndex(0);
       } else {
         closeStoryViewer();
       }
     }
-  }, [viewingStories, currentStoryIndex, myStories, otherStories, closeStoryViewer]);
+  }, [viewingStories, currentStoryIndex, currentUser?.id, otherStories, closeStoryViewer]);
 
   // Progress animation
   useEffect(() => {
