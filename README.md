@@ -896,6 +896,17 @@ Three powerful features designed to make AfroConnect the go-to app for foreigner
 - Amenities badges (WiFi, Phone Charger, Quiet Ride, etc.)
 - Price with custom currency display (USD, GBP, NGN, KES, GHS, EUR, CFA, etc.)
 - Seat availability display
+- **Flexible Pricing Options**:
+  - **Fixed Price** - Set your own price per seat
+  - **Split Gas** - Riders share actual gas costs (40-60% cheaper than rideshare!)
+    - Enter trip distance, gas cost is calculated and split among all riders
+    - Shows "your share of gas" on ride cards
+  - **Free Ride** - Community spirit rides for those who need it
+    - Perfect for going to the same destination anyway
+    - Builds community trust and goodwill
+  - **Tips Welcome** - Pay what you can model
+    - Great for building goodwill while covering some costs
+    - Riders can tip whatever they can afford
 - **International Payment Methods**:
   - **M-Pesa / Mobile Money** - Popular in Africa (Kenya, Tanzania, Ghana, Nigeria, etc.)
   - **PayPal** - Global payments
@@ -907,7 +918,8 @@ Three powerful features designed to make AfroConnect the go-to app for foreigner
   - **Cash** - Pay driver in person
   - **In-App Payment** - Secure payment through AfroConnect (5% platform fee)
 - Post your own rides with:
-  - Flexible pricing in your local currency
+  - Flexible pricing type selection with visual icons
+  - Local currency support
   - Multiple payment method options
   - "Support the driver" toggle for passengers to cover platform fees
 - Sample rides from multiple countries: USA, Ghana, Nigeria, UK, Senegal, Kenya

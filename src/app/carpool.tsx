@@ -6,13 +6,14 @@ import { Image } from 'expo-image';
 import {
   ArrowLeft, Car, MapPin, Calendar, Clock, Users, Star, MessageCircle, Plus, X,
   ChevronRight, Plane, Briefcase, Music, PartyPopper, CreditCard, Banknote, Gem,
-  DollarSign, Smartphone, Check, Info, Shield, Globe, Building, Send, Wallet
+  DollarSign, Smartphone, Check, Info, Shield, Globe, Building, Send, Wallet, Heart, Fuel
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import Animated, { FadeInDown, ZoomIn } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 
 type PaymentMethod = 'cash' | 'cashapp' | 'venmo' | 'zelle' | 'paypal' | 'wise' | 'mpesa' | 'bank' | 'inapp';
+type PricingType = 'fixed' | 'gas-split' | 'free' | 'donation';
 
 interface PaymentInfo {
   cashApp?: string;
@@ -45,6 +46,9 @@ interface CarpoolRide {
   seatsAvailable: number;
   price: number;
   priceDisplay: string;
+  pricingType: PricingType;
+  estimatedDistance?: number; // in miles/km
+  estimatedGasCost?: number; // total gas cost for trip
   type: 'commute' | 'airport' | 'event' | 'road-trip';
   description: string;
   amenities: string[];
@@ -72,6 +76,7 @@ const MOCK_RIDES: CarpoolRide[] = [
     seatsAvailable: 3,
     price: 25,
     priceDisplay: '$25 USD',
+    pricingType: 'fixed',
     type: 'airport',
     description: 'Early morning airport run. I have a spacious SUV with room for luggage. Playing smooth jazz during the ride.',
     amenities: ['AC', 'Music', 'Luggage Space', 'Charger'],
@@ -104,6 +109,7 @@ const MOCK_RIDES: CarpoolRide[] = [
     seatsAvailable: 2,
     price: 80,
     priceDisplay: '₵80 GHS',
+    pricingType: 'fixed',
     type: 'airport',
     description: 'Daily airport runs. Reliable service with comfortable AC vehicle. I speak English, Twi, and French.',
     amenities: ['AC', 'Quiet Ride', 'Charger'],
@@ -132,17 +138,20 @@ const MOCK_RIDES: CarpoolRide[] = [
     time: '7:30 AM',
     seats: 4,
     seatsAvailable: 2,
-    price: 3000,
-    priceDisplay: '₦3,000 NGN',
+    price: 0,
+    priceDisplay: 'Split Gas',
+    pricingType: 'gas-split',
+    estimatedDistance: 12,
+    estimatedGasCost: 2500,
     type: 'commute',
-    description: 'Daily commute through Victoria Island to Lekki. Avoid Third Mainland traffic. AC vehicle, very punctual.',
+    description: 'Daily commute through Victoria Island to Lekki. Avoid Third Mainland traffic. AC vehicle, very punctual. Just split gas costs!',
     amenities: ['AC', 'Music', 'Rest Stops', 'Good Vibes'],
     isRecurring: true,
     paymentInfo: {
       bankDetails: 'GTBank - 0123456789 (Fatima Okonkwo)',
       mpesa: '+234 803 123 4567',
       acceptsCash: true,
-      acceptsInApp: true,
+      acceptsInApp: false,
     },
   },
   {
@@ -164,6 +173,7 @@ const MOCK_RIDES: CarpoolRide[] = [
     seatsAvailable: 2,
     price: 35,
     priceDisplay: '£35 GBP',
+    pricingType: 'fixed',
     type: 'airport',
     description: 'Quick airport drop-off. Can accommodate 2 large suitcases. Clean car with great reviews!',
     amenities: ['AC', 'Luggage Space', 'Charger', 'Water'],
@@ -193,17 +203,16 @@ const MOCK_RIDES: CarpoolRide[] = [
     time: '5:00 AM',
     seats: 4,
     seatsAvailable: 3,
-    price: 15000,
-    priceDisplay: '15,000 CFA',
+    price: 0,
+    priceDisplay: 'Free Ride',
+    pricingType: 'free',
     type: 'airport',
-    description: 'Airport transfer to AIBD. Spacious vehicle with plenty of luggage space. I speak French, Wolof, and English.',
+    description: 'FREE community ride! I\'m already going to the airport, happy to give you a lift. Just be on time! I speak French, Wolof, and English.',
     amenities: ['AC', 'Music', 'Luggage Space', 'Water'],
     isRecurring: false,
     paymentInfo: {
-      mpesa: '+221 77 123 4567',
-      wise: 'jpdiallo@email.com',
-      acceptsCash: true,
-      acceptsInApp: true,
+      acceptsCash: false,
+      acceptsInApp: false,
     },
   },
   {
@@ -223,17 +232,20 @@ const MOCK_RIDES: CarpoolRide[] = [
     time: '6:00 AM',
     seats: 3,
     seatsAvailable: 2,
-    price: 2500,
-    priceDisplay: 'KSh 2,500',
+    price: 0,
+    priceDisplay: 'Tip Welcome',
+    pricingType: 'donation',
+    estimatedDistance: 18,
+    estimatedGasCost: 800,
     type: 'airport',
-    description: 'Early morning airport runs. Comfortable SUV, reliable timing. M-Pesa accepted. Habari!',
+    description: 'Early morning airport runs. Comfortable SUV, reliable timing. Pay what you can - tips appreciated but not required! Habari!',
     amenities: ['AC', 'Charger', 'Luggage Space', 'Snacks'],
     isRecurring: true,
     paymentInfo: {
       mpesa: '+254 712 345 678',
       bankDetails: 'Equity Bank - 0987654321',
       acceptsCash: true,
-      acceptsInApp: true,
+      acceptsInApp: false,
     },
   },
 ];
@@ -251,6 +263,13 @@ const TYPE_COLORS: Record<string, string> = {
   commute: '#10B981',
   event: '#F59E0B',
   'road-trip': '#EC4899',
+};
+
+const PRICING_COLORS: Record<PricingType, { bg: string; text: string; label: string }> = {
+  fixed: { bg: '#3B82F620', text: '#3B82F6', label: 'Fixed Price' },
+  'gas-split': { bg: '#10B98120', text: '#10B981', label: 'Split Gas' },
+  free: { bg: '#22C55E20', text: '#22C55E', label: 'Free' },
+  donation: { bg: '#F59E0B20', text: '#F59E0B', label: 'Tip Welcome' },
 };
 
 const PLATFORM_FEE_PERCENT = 5; // 5% platform fee for in-app payments
@@ -273,6 +292,8 @@ export default function CarpoolScreen() {
     seats: '',
     price: '',
     currency: '',
+    pricingType: 'fixed' as PricingType,
+    estimatedDistance: '',
     cashApp: '',
     venmo: '',
     zelle: '',
@@ -283,6 +304,13 @@ export default function CarpoolScreen() {
     acceptsCash: true,
     acceptsInApp: true,
   });
+
+  // Calculate gas split per person
+  const getGasSplitAmount = (ride: CarpoolRide) => {
+    if (ride.pricingType !== 'gas-split' || !ride.estimatedGasCost) return 0;
+    const totalRiders = ride.seats - ride.seatsAvailable + 1; // +1 for driver
+    return Math.ceil(ride.estimatedGasCost / totalRiders);
+  };
 
   const filteredRides = MOCK_RIDES.filter(ride => {
     const matchesType = selectedType === 'all' || ride.type === selectedType;
@@ -444,27 +472,37 @@ export default function CarpoolScreen() {
                 onPress={() => handleRequestRide(ride)}
                 className="bg-white/5 rounded-3xl overflow-hidden mb-4 border border-white/10"
               >
-                {/* Type Badge & Payment Icons */}
+                {/* Type Badge & Pricing Type */}
                 <View className="flex-row items-center justify-between px-4 pt-4">
-                  <View
-                    className="px-3 py-1.5 rounded-full"
-                    style={{ backgroundColor: TYPE_COLORS[ride.type] + '30' }}
-                  >
-                    <Text style={{ color: TYPE_COLORS[ride.type] }} className="text-xs font-bold uppercase">
-                      {ride.type.replace('-', ' ')}
-                    </Text>
+                  <View className="flex-row items-center gap-2">
+                    <View
+                      className="px-3 py-1.5 rounded-full"
+                      style={{ backgroundColor: TYPE_COLORS[ride.type] + '30' }}
+                    >
+                      <Text style={{ color: TYPE_COLORS[ride.type] }} className="text-xs font-bold uppercase">
+                        {ride.type.replace('-', ' ')}
+                      </Text>
+                    </View>
+                    {/* Pricing Type Badge */}
+                    <View
+                      className="px-3 py-1.5 rounded-full"
+                      style={{ backgroundColor: PRICING_COLORS[ride.pricingType].bg }}
+                    >
+                      <Text style={{ color: PRICING_COLORS[ride.pricingType].text }} className="text-xs font-bold">
+                        {PRICING_COLORS[ride.pricingType].label}
+                      </Text>
+                    </View>
                   </View>
                   {/* Payment Methods Available */}
                   <View className="flex-row items-center gap-1">
                     {ride.paymentInfo.acceptsInApp && (
                       <View className="bg-purple-500/30 px-2 py-1 rounded-full flex-row items-center">
                         <Gem size={12} color="#A855F7" />
-                        <Text className="text-purple-400 text-xs ml-1">In-App</Text>
                       </View>
                     )}
-                    {(ride.paymentInfo.cashApp || ride.paymentInfo.venmo || ride.paymentInfo.zelle) && (
+                    {(ride.paymentInfo.cashApp || ride.paymentInfo.venmo || ride.paymentInfo.zelle || ride.paymentInfo.mpesa) && (
                       <View className="bg-green-500/30 px-2 py-1 rounded-full">
-                        <Text className="text-green-400 text-xs">External</Text>
+                        <DollarSign size={12} color="#22C55E" />
                       </View>
                     )}
                   </View>
@@ -488,9 +526,33 @@ export default function CarpoolScreen() {
                         <Text className="text-gray-500 text-sm">{ride.toCity}</Text>
                       </View>
                     </View>
+                    {/* Dynamic Price Display */}
                     <View className="items-end">
-                      <Text className="text-blue-400 text-2xl font-bold">{ride.priceDisplay}</Text>
-                      <Text className="text-gray-500 text-xs">per seat</Text>
+                      {ride.pricingType === 'free' ? (
+                        <>
+                          <Text className="text-green-400 text-2xl font-bold">FREE</Text>
+                          <Text className="text-gray-500 text-xs">community ride</Text>
+                        </>
+                      ) : ride.pricingType === 'gas-split' ? (
+                        <>
+                          <Text className="text-emerald-400 text-lg font-bold">~{getGasSplitAmount(ride).toLocaleString()}</Text>
+                          <Text className="text-gray-500 text-xs">your share of gas</Text>
+                          {ride.estimatedDistance && (
+                            <Text className="text-gray-600 text-xs">{ride.estimatedDistance} mi trip</Text>
+                          )}
+                        </>
+                      ) : ride.pricingType === 'donation' ? (
+                        <>
+                          <Text className="text-amber-400 text-xl font-bold">Pay what</Text>
+                          <Text className="text-amber-400 text-xl font-bold">you can</Text>
+                          <Text className="text-gray-500 text-xs">tips welcome</Text>
+                        </>
+                      ) : (
+                        <>
+                          <Text className="text-blue-400 text-2xl font-bold">{ride.priceDisplay}</Text>
+                          <Text className="text-gray-500 text-xs">per seat</Text>
+                        </>
+                      )}
                     </View>
                   </View>
                 </View>
@@ -817,44 +879,173 @@ export default function CarpoolScreen() {
                   </View>
                 </View>
 
-                <View className="flex-row gap-3 mb-6">
-                  <View className="flex-1">
-                    <Text className="text-gray-400 text-sm mb-2">Seats Available</Text>
-                    <TextInput
-                      placeholder="1-4"
-                      placeholderTextColor="#6B7280"
-                      keyboardType="number-pad"
-                      value={postForm.seats}
-                      onChangeText={(text) => setPostForm({ ...postForm, seats: text })}
-                      className="bg-white/10 rounded-xl px-4 py-3 text-white"
-                    />
-                  </View>
-                  <View className="flex-1">
-                    <Text className="text-gray-400 text-sm mb-2">Price per Seat</Text>
-                    <TextInput
-                      placeholder="25"
-                      placeholderTextColor="#6B7280"
-                      keyboardType="number-pad"
-                      value={postForm.price}
-                      onChangeText={(text) => setPostForm({ ...postForm, price: text })}
-                      className="bg-white/10 rounded-xl px-4 py-3 text-white"
-                    />
+                {/* Pricing Type Selection */}
+                <View className="mb-4">
+                  <Text className="text-gray-400 text-sm mb-2">How do you want to price this ride?</Text>
+                  <View className="flex-row flex-wrap gap-2">
+                    {([
+                      { key: 'fixed', label: 'Fixed Price', icon: DollarSign, desc: 'Set your own price' },
+                      { key: 'gas-split', label: 'Split Gas', icon: Fuel, desc: 'Share fuel costs' },
+                      { key: 'free', label: 'Free Ride', icon: Heart, desc: 'Community spirit' },
+                      { key: 'donation', label: 'Tips Welcome', icon: Gem, desc: 'Pay what you can' },
+                    ] as const).map((option) => (
+                      <Pressable
+                        key={option.key}
+                        onPress={() => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          setPostForm({ ...postForm, pricingType: option.key });
+                        }}
+                        className={`flex-1 min-w-[45%] p-3 rounded-xl border ${
+                          postForm.pricingType === option.key
+                            ? 'border-blue-500 bg-blue-500/20'
+                            : 'border-white/10 bg-white/5'
+                        }`}
+                      >
+                        <View className="flex-row items-center mb-1">
+                          <option.icon
+                            size={16}
+                            color={postForm.pricingType === option.key ? '#3B82F6' : '#9CA3AF'}
+                          />
+                          <Text className={`ml-2 font-semibold ${
+                            postForm.pricingType === option.key ? 'text-blue-400' : 'text-white'
+                          }`}>
+                            {option.label}
+                          </Text>
+                        </View>
+                        <Text className="text-gray-500 text-xs">{option.desc}</Text>
+                      </Pressable>
+                    ))}
                   </View>
                 </View>
 
-                {/* Currency Selection */}
-                <View className="mb-6">
-                  <Text className="text-gray-400 text-sm mb-2">Currency</Text>
-                  <TextInput
-                    placeholder="e.g., USD, GBP, NGN, KES, GHS, EUR, CFA"
-                    placeholderTextColor="#6B7280"
-                    value={postForm.currency}
-                    onChangeText={(text) => setPostForm({ ...postForm, currency: text.toUpperCase() })}
-                    autoCapitalize="characters"
-                    className="bg-white/10 rounded-xl px-4 py-3 text-white"
-                  />
-                  <Text className="text-gray-500 text-xs mt-1">Enter your local currency code</Text>
-                </View>
+                {/* Conditional fields based on pricing type */}
+                {postForm.pricingType === 'fixed' && (
+                  <View className="flex-row gap-3 mb-4">
+                    <View className="flex-1">
+                      <Text className="text-gray-400 text-sm mb-2">Seats Available</Text>
+                      <TextInput
+                        placeholder="1-4"
+                        placeholderTextColor="#6B7280"
+                        keyboardType="number-pad"
+                        value={postForm.seats}
+                        onChangeText={(text) => setPostForm({ ...postForm, seats: text })}
+                        className="bg-white/10 rounded-xl px-4 py-3 text-white"
+                      />
+                    </View>
+                    <View className="flex-1">
+                      <Text className="text-gray-400 text-sm mb-2">Price per Seat</Text>
+                      <TextInput
+                        placeholder="25"
+                        placeholderTextColor="#6B7280"
+                        keyboardType="number-pad"
+                        value={postForm.price}
+                        onChangeText={(text) => setPostForm({ ...postForm, price: text })}
+                        className="bg-white/10 rounded-xl px-4 py-3 text-white"
+                      />
+                    </View>
+                  </View>
+                )}
+
+                {postForm.pricingType === 'gas-split' && (
+                  <View className="bg-emerald-500/10 rounded-2xl p-4 mb-4 border border-emerald-500/30">
+                    <View className="flex-row items-center mb-3">
+                      <Fuel size={18} color="#10B981" />
+                      <Text className="text-emerald-400 font-bold ml-2">Gas Split Details</Text>
+                    </View>
+                    <Text className="text-gray-400 text-sm mb-3">
+                      Riders will split the total gas cost evenly. This is typically 40-60% cheaper than regular rideshare rates.
+                    </Text>
+                    <View className="flex-row gap-3">
+                      <View className="flex-1">
+                        <Text className="text-gray-400 text-sm mb-2">Seats</Text>
+                        <TextInput
+                          placeholder="1-4"
+                          placeholderTextColor="#6B7280"
+                          keyboardType="number-pad"
+                          value={postForm.seats}
+                          onChangeText={(text) => setPostForm({ ...postForm, seats: text })}
+                          className="bg-white/10 rounded-xl px-4 py-3 text-white"
+                        />
+                      </View>
+                      <View className="flex-1">
+                        <Text className="text-gray-400 text-sm mb-2">Trip Distance (mi)</Text>
+                        <TextInput
+                          placeholder="e.g., 25"
+                          placeholderTextColor="#6B7280"
+                          keyboardType="number-pad"
+                          value={postForm.estimatedDistance}
+                          onChangeText={(text) => setPostForm({ ...postForm, estimatedDistance: text })}
+                          className="bg-white/10 rounded-xl px-4 py-3 text-white"
+                        />
+                      </View>
+                    </View>
+                    <Text className="text-gray-500 text-xs mt-2">
+                      Tip: Gas cost is calculated as (distance ÷ fuel efficiency × gas price). Riders split this total.
+                    </Text>
+                  </View>
+                )}
+
+                {postForm.pricingType === 'free' && (
+                  <View className="bg-green-500/10 rounded-2xl p-4 mb-4 border border-green-500/30">
+                    <View className="flex-row items-center mb-2">
+                      <Heart size={18} color="#22C55E" />
+                      <Text className="text-green-400 font-bold ml-2">Free Community Ride</Text>
+                    </View>
+                    <Text className="text-gray-400 text-sm mb-3">
+                      You're offering a free ride — this builds community trust and helps those who need it!
+                    </Text>
+                    <View className="flex-1">
+                      <Text className="text-gray-400 text-sm mb-2">Seats Available</Text>
+                      <TextInput
+                        placeholder="1-4"
+                        placeholderTextColor="#6B7280"
+                        keyboardType="number-pad"
+                        value={postForm.seats}
+                        onChangeText={(text) => setPostForm({ ...postForm, seats: text })}
+                        className="bg-white/10 rounded-xl px-4 py-3 text-white"
+                      />
+                    </View>
+                  </View>
+                )}
+
+                {postForm.pricingType === 'donation' && (
+                  <View className="bg-amber-500/10 rounded-2xl p-4 mb-4 border border-amber-500/30">
+                    <View className="flex-row items-center mb-2">
+                      <Gem size={18} color="#F59E0B" />
+                      <Text className="text-amber-400 font-bold ml-2">Pay What You Can</Text>
+                    </View>
+                    <Text className="text-gray-400 text-sm mb-3">
+                      Riders can tip whatever they can afford. Great for building goodwill while covering some costs.
+                    </Text>
+                    <View className="flex-1">
+                      <Text className="text-gray-400 text-sm mb-2">Seats Available</Text>
+                      <TextInput
+                        placeholder="1-4"
+                        placeholderTextColor="#6B7280"
+                        keyboardType="number-pad"
+                        value={postForm.seats}
+                        onChangeText={(text) => setPostForm({ ...postForm, seats: text })}
+                        className="bg-white/10 rounded-xl px-4 py-3 text-white"
+                      />
+                    </View>
+                  </View>
+                )}
+
+                {/* Currency Selection - only show for fixed pricing */}
+                {postForm.pricingType === 'fixed' && (
+                  <View className="mb-6">
+                    <Text className="text-gray-400 text-sm mb-2">Currency</Text>
+                    <TextInput
+                      placeholder="e.g., USD, GBP, NGN, KES, GHS, EUR, CFA"
+                      placeholderTextColor="#6B7280"
+                      value={postForm.currency}
+                      onChangeText={(text) => setPostForm({ ...postForm, currency: text.toUpperCase() })}
+                      autoCapitalize="characters"
+                      className="bg-white/10 rounded-xl px-4 py-3 text-white"
+                    />
+                    <Text className="text-gray-500 text-xs mt-1">Enter your local currency code</Text>
+                  </View>
+                )}
 
                 {/* Payment Methods Section */}
                 <View className="bg-white/5 rounded-2xl p-4 mb-6">
