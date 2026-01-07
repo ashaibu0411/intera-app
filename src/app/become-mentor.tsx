@@ -319,7 +319,7 @@ export default function BecomeMentorScreen() {
                 {/* Agreement */}
                 <View className="bg-forest-50 rounded-xl p-4 mb-4">
                   <Text className="text-forest-800 text-sm">
-                    By submitting, you agree to volunteer your time to help African students and professionals grow in their careers. Your profile will be visible to the AfroConnect community.
+                    By submitting, you agree to volunteer your time to help African students and professionals grow in their careers. Your profile will be visible to the Diaspora community.
                   </Text>
                 </View>
               </Animated.View>

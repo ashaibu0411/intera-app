@@ -324,7 +324,7 @@ export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
       await Share.share({
-        message: `Check out this post from ${post.author.name} on AfroConnect:\n\n"${post.content}"\n\nJoin our community: afroconnect.app`,
+        message: `Check out this post from ${post.author.name} on Diaspora:\n\n"${post.content}"\n\nJoin our community: diaspora.app`,
         title: 'Share Post',
       });
       onShare?.(post.id);
@@ -341,7 +341,7 @@ export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
 
   const handleCopyLink = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    await Clipboard.setStringAsync(`afroconnect.app/post/${post.id}`);
+    await Clipboard.setStringAsync(`diaspora.app/post/${post.id}`);
     Alert.alert('Copied', 'Post link copied to clipboard');
   };
 

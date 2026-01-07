@@ -141,7 +141,7 @@ export default function SettingsScreen() {
 
             <View className="bg-white rounded-2xl overflow-hidden shadow-sm">
               <Pressable
-                onPress={() => Linking.openURL('https://afroconnect.app/privacy')}
+                onPress={() => Linking.openURL('https://diaspora.app/privacy')}
                 className="flex-row items-center p-4 border-b border-gray-100"
               >
                 <View className="bg-forest-50 rounded-full p-2.5 mr-3">
@@ -152,7 +152,7 @@ export default function SettingsScreen() {
               </Pressable>
 
               <Pressable
-                onPress={() => Linking.openURL('mailto:support@afroconnect.app?subject=Help%20Request')}
+                onPress={() => Linking.openURL('mailto:support@diaspora.app?subject=Help%20Request')}
                 className="flex-row items-center p-4"
               >
                 <View className="bg-gold-50 rounded-full p-2.5 mr-3">
@@ -203,7 +203,7 @@ export default function SettingsScreen() {
             entering={FadeInUp.duration(300).delay(400)}
             className="items-center mt-8 mb-8"
           >
-            <Text className="text-gray-400 text-sm">AfroConnect v1.0.0</Text>
+            <Text className="text-gray-400 text-sm">Diaspora v1.0.0</Text>
           </Animated.View>
         </ScrollView>
       </SafeAreaView>

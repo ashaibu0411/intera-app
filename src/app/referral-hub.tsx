@@ -701,7 +701,7 @@ export default function ReferralHubScreen() {
               <View className="mb-4">
                 <Text className="text-gray-900 font-semibold">Is there a limit?</Text>
                 <Text className="text-gray-500 text-sm mt-1">
-                  No limit on AfroConnect's side! Some partners may have their own limits, but you can refer to as many apps as you want.
+                  No limit on Diaspora's side! Some partners may have their own limits, but you can refer to as many apps as you want.
                 </Text>
               </View>
               <View>

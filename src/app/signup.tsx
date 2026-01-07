@@ -270,7 +270,7 @@ export default function SignUpScreen() {
           {authMode === 'signup' ? 'Create Your Account' : 'Welcome Back'}
         </Text>
         <Text className="text-gray-500 text-center mt-2">
-          {authMode === 'signup' ? 'Join the AfroConnect community' : 'Sign in to your account'}
+          {authMode === 'signup' ? 'Join the Diaspora community' : 'Sign in to your account'}
         </Text>
       </View>
 

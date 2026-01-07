@@ -337,7 +337,7 @@ export const REPORT_REASONS: { value: ViolationType; label: string; description:
 // ============================================
 
 export const COMMUNITY_GUIDELINES = {
-  title: 'AfroConnect Community Guidelines',
+  title: 'Diaspora Community Guidelines',
   lastUpdated: '2025-01-01',
   sections: [
     {
@@ -483,7 +483,7 @@ export function getUploadDisclaimer(contentType: ContentType): string {
 • It does not contain sexual, violent, or harmful content
 • It does not promote hate speech or discrimination
 • You have the right to share this content
-• It complies with AfroConnect Community Guidelines
+• It complies with Diaspora Community Guidelines
 
 Violations will result in content removal and possible account suspension.`;
 }

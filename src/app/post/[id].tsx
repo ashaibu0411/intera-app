@@ -302,7 +302,7 @@ export default function PostDetailScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
       await Share.share({
-        message: `Check out this post from ${post.author.name} on AfroConnect:\n\n"${post.content}"\n\nJoin our community: afroconnect.app`,
+        message: `Check out this post from ${post.author.name} on Diaspora:\n\n"${post.content}"\n\nJoin our community: diaspora.app`,
         title: 'Share Post',
       });
     } catch (error) {

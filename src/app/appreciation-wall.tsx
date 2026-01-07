@@ -90,7 +90,7 @@ const MOCK_POSTS: AppreciationPost[] = [
     id: '4',
     type: 'milestone',
     from: {
-      name: 'AfroConnect Community',
+      name: 'Diaspora Community',
       avatar: 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=200',
     },
     to: {

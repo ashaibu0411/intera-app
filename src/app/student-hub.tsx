@@ -31,7 +31,7 @@ const SCHOLARSHIPS = [
   {
     id: '1',
     title: 'African Diaspora Scholarship',
-    organization: 'AfroConnect Foundation',
+    organization: 'Diaspora Foundation',
     amount: '$5,000',
     deadline: '2025-02-15',
     image: 'https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=400&h=300&fit=crop',

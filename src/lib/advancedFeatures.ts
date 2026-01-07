@@ -1714,7 +1714,7 @@ export const useAdvancedFeatures = create<AdvancedFeaturesState>()(
       })),
     }),
     {
-      name: 'afroconnect-advanced-storage',
+      name: 'diaspora-advanced-storage',
       storage: createJSONStorage(() => AsyncStorage),
     }
   )

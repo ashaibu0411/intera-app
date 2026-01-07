@@ -794,7 +794,7 @@ function InviteTab({ circle, canInvite }: { circle: SusuCircle; canInvite: boole
 
   const inviteCode = circle.inviteCode ?? 'INVITE';
   const maxMembers = circle.maxMembers ?? 12;
-  const inviteLink = `afroconnect://susu/join/${circle.id}?code=${inviteCode}`;
+  const inviteLink = `diaspora://susu/join/${circle.id}?code=${inviteCode}`;
 
   const handleCopyLink = async () => {
     await Clipboard.setStringAsync(inviteLink);
@@ -806,7 +806,7 @@ function InviteTab({ circle, canInvite }: { circle: SusuCircle; canInvite: boole
   const handleShareLink = async () => {
     try {
       await Share.share({
-        message: `Join my Susu savings circle "${circle.name}" on AfroConnect!\n\nContribution: $${circle.contributionAmount} ${circle.frequency}\nMembers: ${circle.members.length}/${maxMembers}\n\nUse invite code: ${inviteCode}\n\nOr tap this link: ${inviteLink}`,
+        message: `Join my Susu savings circle "${circle.name}" on Diaspora!\n\nContribution: $${circle.contributionAmount} ${circle.frequency}\nMembers: ${circle.members.length}/${maxMembers}\n\nUse invite code: ${inviteCode}\n\nOr tap this link: ${inviteLink}`,
         title: `Join ${circle.name} Susu Circle`,
       });
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -975,7 +975,7 @@ function InviteTab({ circle, canInvite }: { circle: SusuCircle; canInvite: boole
                 <Text className="text-amber-800 font-medium ml-2">How it works</Text>
               </View>
               <Text className="text-amber-700 text-sm">
-                Share the invite link or code with people you trust. They can join the circle using the AfroConnect app. Once they join, they'll appear in the Members tab and be assigned a payout position.
+                Share the invite link or code with people you trust. They can join the circle using the Diaspora app. Once they join, they'll appear in the Members tab and be assigned a payout position.
               </Text>
             </View>
           )}

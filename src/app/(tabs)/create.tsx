@@ -54,7 +54,7 @@ export default function CreateScreen() {
               Sign In to Create
             </Text>
             <Text className="text-gray-500 text-center mb-8">
-              Join AfroConnect to post updates, sell items, and create events for your community.
+              Join Diaspora to post updates, sell items, and create events for your community.
             </Text>
             <Pressable onPress={() => router.push('/signup')}>
               <LinearGradient

@@ -1211,7 +1211,7 @@ export default function CarpoolScreen() {
                     <View className="flex-row items-center justify-between">
                       <View className="flex-1 mr-3">
                         <Text className="text-white font-medium">Accept In-App Payment</Text>
-                        <Text className="text-gray-500 text-xs">5% fee • Secure payment via AfroConnect</Text>
+                        <Text className="text-gray-500 text-xs">5% fee • Secure payment via Diaspora</Text>
                       </View>
                       <Switch
                         value={postForm.acceptsInApp}

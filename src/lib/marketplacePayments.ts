@@ -21,7 +21,7 @@ export const PLATFORM_FEE_PERCENTAGE = 0.05; // 5% fee - sellers keep 95%!
 export const SELLER_PERCENTAGE = 1 - PLATFORM_FEE_PERCENTAGE; // 95% to sellers
 
 // Fee comparison for transparency:
-// - AfroConnect: 5% (sellers keep 95%)
+// - Diaspora: 5% (sellers keep 95%)
 // - TikTok: 50% (creators keep 50%)
 // - Stripe: 2.9% + $0.30
 // - Fiverr: 20% (sellers keep 80%)

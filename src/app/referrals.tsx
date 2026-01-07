@@ -90,7 +90,7 @@ export default function ReferralsScreen() {
     try {
       await Share.share({
         message: getReferralShareMessage(referralCode, 'I'),
-        title: 'Join AfroConnect',
+        title: 'Join Diaspora',
       });
     } catch (error) {
       console.error('Error sharing:', error);
@@ -414,7 +414,7 @@ export default function ReferralsScreen() {
                 <View className="flex-1">
                   <Text className="text-warmBrown font-semibold">Friend Joins</Text>
                   <Text className="text-gray-500 text-sm mt-1">
-                    They download AfroConnect and sign up using your code. You both get a bonus!
+                    They download Diaspora and sign up using your code. You both get a bonus!
                   </Text>
                 </View>
               </View>
@@ -438,7 +438,7 @@ export default function ReferralsScreen() {
                 <View className="flex-1">
                   <Text className="text-warmBrown font-semibold">Keep Earning Forever</Text>
                   <Text className="text-gray-500 text-sm mt-1">
-                    You earn a commission on every transfer they make through AfroConnect
+                    You earn a commission on every transfer they make through Diaspora
                   </Text>
                 </View>
               </View>

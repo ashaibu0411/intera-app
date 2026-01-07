@@ -267,7 +267,7 @@ export default function NewArrivalHelpScreen() {
                 <Text className="text-warmBrown font-bold text-lg ml-2">Can't Find What You Need?</Text>
               </View>
               <Text className="text-gray-600 mb-4">
-                Ask the AfroConnect community! Someone in {cityName} has probably been through the same situation and can help.
+                Ask the Diaspora community! Someone in {cityName} has probably been through the same situation and can help.
               </Text>
               <Pressable onPress={handleAskCommunity}>
                 <LinearGradient

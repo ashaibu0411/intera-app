@@ -1041,7 +1041,7 @@ export const useStore = create<AppState>()(
       logout: () => set({ currentUser: null, isOnboarded: false, isGuest: false }),
     }),
     {
-      name: 'afroconnect-storage',
+      name: 'diaspora-storage',
       storage: createJSONStorage(() => AsyncStorage),
       partialize: (state) => ({
         currentUser: state.currentUser,

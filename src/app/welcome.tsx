@@ -239,7 +239,7 @@ export default function WelcomeScreen() {
                 className="mt-6"
               >
                 <Text className="text-5xl font-bold text-white text-center tracking-tight">
-                  AfroConnect
+                  Diaspora
                 </Text>
                 <View className="flex-row items-center justify-center mt-2">
                   <View className="h-[1px] w-8 bg-[#C9A227]/50" />

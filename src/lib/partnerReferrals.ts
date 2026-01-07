@@ -469,7 +469,7 @@ ${partner.description}`;
 
 // Generate a user-specific referral link for a partner
 export function getPartnerReferralLink(partnerId: string, userCode: string): string {
-  return `https://afroconnect.app/partner/${partnerId}?ref=${userCode}`;
+  return `https://diaspora.app/partner/${partnerId}?ref=${userCode}`;
 }
 
 // Add mock data for demo

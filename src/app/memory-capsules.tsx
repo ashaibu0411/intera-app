@@ -84,14 +84,14 @@ const MOCK_CAPSULES: MemoryCapsule[] = [
     id: '4',
     title: 'Community Time Capsule 2024',
     type: 'community',
-    content: 'Messages and predictions from the AfroConnect community for 2025.',
+    content: 'Messages and predictions from the Diaspora community for 2025.',
     images: ['https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=400'],
     createdAt: 'Dec 31, 2023',
     unlockDate: 'Dec 31, 2024',
     isUnlocked: false,
     unlocksIn: '30 days',
     creator: {
-      name: 'AfroConnect',
+      name: 'Diaspora',
       avatar: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=200',
     },
     recipients: [

@@ -17,8 +17,8 @@ SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
 
-// Custom light theme with AfroConnect colors - Colorful Professional
-const AfroConnectTheme = {
+// Custom light theme with Diaspora colors - Colorful Professional
+const DiasporaTheme = {
   ...DefaultTheme,
   colors: {
     ...DefaultTheme.colors,
@@ -37,7 +37,7 @@ function RootLayoutNav() {
   }, []);
 
   return (
-    <ThemeProvider value={AfroConnectTheme}>
+    <ThemeProvider value={DiasporaTheme}>
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="welcome" options={{ animation: 'fade' }} />

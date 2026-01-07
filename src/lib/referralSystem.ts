@@ -29,7 +29,7 @@ export interface ReferralRewards {
   // Rewards for referrer
   referrerSignupBonus: number; // When referred user signs up (in cents)
   referrerFirstTransferBonus: number; // When referred user makes first transfer
-  referrerTransferCommission: number; // Percentage of AfroConnect's commission per transfer
+  referrerTransferCommission: number; // Percentage of Diaspora's commission per transfer
 
   // Rewards for new user (referred)
   newUserSignupBonus: number; // When they sign up with referral code
@@ -46,7 +46,7 @@ export const REFERRAL_REWARDS: ReferralRewards = {
   // Referrer gets:
   referrerSignupBonus: 100, // $1.00 when friend signs up
   referrerFirstTransferBonus: 500, // $5.00 when friend makes first transfer
-  referrerTransferCommission: 10, // 10% of AfroConnect's commission on each transfer
+  referrerTransferCommission: 10, // 10% of Diaspora's commission on each transfer
 
   // New user gets:
   newUserSignupBonus: 200, // $2.00 for using a referral code
@@ -60,12 +60,12 @@ export const REFERRAL_REWARDS: ReferralRewards = {
 
 // Generate a unique referral code for a user
 export function generateReferralCode(userId: string, userName?: string): string {
-  // Create a code like "AFRO-JOHN-A3X9"
+  // Create a code like "DIASPORA-JOHN-A3X9"
   const namePrefix = userName
     ? userName.split(' ')[0].toUpperCase().slice(0, 4)
     : 'USER';
   const randomSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
-  return `AFRO-${namePrefix}-${randomSuffix}`;
+  return `DIASPORA-${namePrefix}-${randomSuffix}`;
 }
 
 // Get or create the user's referral code
@@ -221,9 +221,9 @@ export async function recordReferralFirstTransfer(referredUserName: string): Pro
 // Record commission from referred user's transfer
 export async function recordTransferCommission(
   referredUserName: string,
-  afroConnectCommission: number // The commission AfroConnect earned
+  diasporaCommission: number // The commission Diaspora earned
 ): Promise<void> {
-  const userShare = Math.floor(afroConnectCommission * (REFERRAL_REWARDS.referrerTransferCommission / 100));
+  const userShare = Math.floor(diasporaCommission * (REFERRAL_REWARDS.referrerTransferCommission / 100));
 
   if (userShare > 0) {
     const stats = await getReferralStats();
@@ -251,13 +251,13 @@ export function formatRewardAmount(cents: number): string {
 // Get shareable referral link
 export function getReferralLink(code: string): string {
   // In production, this would be a deep link to the app
-  return `https://afroconnect.app/join?ref=${code}`;
+  return `https://diaspora.app/join?ref=${code}`;
 }
 
 // Get share message for referrals
 export function getReferralShareMessage(code: string, userName?: string): string {
   const name = userName || 'I';
-  return `${name === 'I' ? "I'm" : `${name} is`} using AfroConnect to connect with the global expat community and send money home with the best rates!
+  return `${name === 'I' ? "I'm" : `${name} is`} using Diaspora to connect with the global expat community and send money home with the best rates!
 
 Join using my code ${code} and get $2 bonus!
 
@@ -266,8 +266,8 @@ Download: ${getReferralLink(code)}`;
 
 // Validate referral code format
 export function isValidReferralCode(code: string): boolean {
-  // Format: AFRO-XXXX-XXXX
-  const pattern = /^AFRO-[A-Z0-9]{1,4}-[A-Z0-9]{4}$/;
+  // Format: DIASPORA-XXXX-XXXX
+  const pattern = /^DIASPORA-[A-Z0-9]{1,4}-[A-Z0-9]{4}$/;
   return pattern.test(code.toUpperCase());
 }
 

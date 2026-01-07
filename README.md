@@ -1,4 +1,4 @@
-# AfroConnect
+# Diaspora
 
 A community-driven social platform connecting foreigners, expats, and global citizens worldwide through local neighborhoods, shared culture, business, and opportunities.
 
