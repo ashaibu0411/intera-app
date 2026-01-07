@@ -155,7 +155,7 @@ export default function SettingsScreen() {
               </Pressable>
 
               <Pressable
-                onPress={() => Linking.openURL('mailto:support@diaspora.app?subject=Help%20Request')}
+                onPress={() => Linking.openURL('mailto:diasporaapp.app@gmail.com?subject=Help%20Request')}
                 className="flex-row items-center p-4"
               >
                 <View className="bg-gold-50 rounded-full p-2.5 mr-3">
