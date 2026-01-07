@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, ScrollView, Pressable, Image, Dimensions, Modal, TextInput, Alert, TouchableOpacity } from 'react-native';
+import { View, Text, ScrollView, Pressable, Image, Dimensions, Modal, TextInput, Alert } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -700,6 +700,7 @@ function CreateStoryModal({ visible, onClose }: CreateStoryModalProps) {
       }
 
       setIsLoading(true);
+      console.log('[CreateStoryModal] Launching video picker');
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['videos'],
         allowsEditing: true,
@@ -707,11 +708,18 @@ function CreateStoryModal({ visible, onClose }: CreateStoryModalProps) {
         quality: 0.8,
       });
 
-      if (!result.canceled && result.assets[0]) {
-        setSelectedMedia(result.assets[0].uri);
+      console.log('[CreateStoryModal] Video picker result:', JSON.stringify(result, null, 2));
+
+      if (!result.canceled && result.assets && result.assets.length > 0 && result.assets[0].uri) {
+        const uri = result.assets[0].uri;
+        console.log('[CreateStoryModal] Setting video media:', uri);
+        setSelectedMedia(uri);
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      } else {
+        console.log('[CreateStoryModal] Video picker was canceled or no asset');
       }
     } catch (error) {
+      console.log('[CreateStoryModal] Video picker error:', error);
       Alert.alert('Error', 'Failed to pick video. Please try again.');
     } finally {
       setIsLoading(false);
@@ -827,45 +835,45 @@ function CreateStoryModal({ visible, onClose }: CreateStoryModalProps) {
       <View className="flex-1 bg-black">
         <SafeAreaView edges={['top']} className="bg-black">
           {/* Header */}
-          <View className="flex-row items-center justify-between px-4 py-4 bg-black">
-            <TouchableOpacity
+          <View className="flex-row items-center justify-between px-4 py-4 bg-black" style={{ zIndex: 100 }}>
+            <Pressable
               onPress={() => {
                 console.log('[CreateStoryModal] X button pressed');
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                 handleClose();
               }}
-              activeOpacity={0.6}
+              hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
               style={{
                 width: 48,
                 height: 48,
                 alignItems: 'center',
                 justifyContent: 'center',
-                backgroundColor: 'rgba(255,255,255,0.1)',
+                backgroundColor: 'rgba(255,255,255,0.15)',
                 borderRadius: 24,
               }}
             >
               <X size={28} color="white" />
-            </TouchableOpacity>
+            </Pressable>
             <Text className="text-white font-bold text-lg">Create Story</Text>
-            <TouchableOpacity
+            <Pressable
               onPress={() => {
-                console.log('[CreateStoryModal] Share button pressed, canSubmit:', canSubmit());
+                console.log('[CreateStoryModal] Share button pressed, canSubmit:', canSubmit(), 'storyType:', storyType, 'selectedMedia:', selectedMedia);
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                 if (canSubmit()) {
                   handleSubmit();
                 }
               }}
-              activeOpacity={0.6}
+              hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
               style={{
                 paddingHorizontal: 16,
                 paddingVertical: 10,
-                backgroundColor: canSubmit() ? '#7C3AED' : 'rgba(255,255,255,0.1)',
+                backgroundColor: canSubmit() ? '#7C3AED' : 'rgba(255,255,255,0.15)',
                 borderRadius: 20,
                 opacity: canSubmit() ? 1 : 0.5,
               }}
             >
               <Text className="text-white font-bold text-base">Share</Text>
-            </TouchableOpacity>
+            </Pressable>
           </View>
         </SafeAreaView>
 
@@ -969,10 +977,22 @@ function CreateStoryModal({ visible, onClose }: CreateStoryModalProps) {
                     resizeMode="cover"
                   />
                   <Pressable
-                    onPress={() => setSelectedMedia(null)}
-                    className="absolute top-4 right-4 bg-black/60 rounded-full p-2"
+                    onPress={() => {
+                      console.log('[CreateStoryModal] Clearing image selection');
+                      setSelectedMedia(null);
+                    }}
+                    hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                    style={{
+                      position: 'absolute',
+                      top: 12,
+                      right: 12,
+                      backgroundColor: 'rgba(0,0,0,0.7)',
+                      borderRadius: 20,
+                      padding: 10,
+                      zIndex: 10,
+                    }}
                   >
-                    <X size={20} color="white" />
+                    <X size={22} color="white" />
                   </Pressable>
                 </View>
               ) : (
@@ -1011,17 +1031,29 @@ function CreateStoryModal({ visible, onClose }: CreateStoryModalProps) {
                 <View className="flex-1 m-4">
                   <ExpoVideo
                     source={{ uri: selectedMedia }}
-                    style={{ flex: 1, borderRadius: 20 }}
+                    style={{ flex: 1, borderRadius: 20, overflow: 'hidden' }}
                     resizeMode={ResizeMode.COVER}
                     shouldPlay
                     isLooping
                     isMuted={false}
                   />
                   <Pressable
-                    onPress={() => setSelectedMedia(null)}
-                    className="absolute top-4 right-4 bg-black/60 rounded-full p-2"
+                    onPress={() => {
+                      console.log('[CreateStoryModal] Clearing video selection');
+                      setSelectedMedia(null);
+                    }}
+                    hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                    style={{
+                      position: 'absolute',
+                      top: 12,
+                      right: 12,
+                      backgroundColor: 'rgba(0,0,0,0.7)',
+                      borderRadius: 20,
+                      padding: 10,
+                      zIndex: 10,
+                    }}
                   >
-                    <X size={20} color="white" />
+                    <X size={22} color="white" />
                   </Pressable>
                   <View className="absolute bottom-4 left-4 bg-black/60 rounded-full px-3 py-1.5 flex-row items-center">
                     <Play size={14} color="white" fill="white" />
