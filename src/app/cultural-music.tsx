@@ -1,12 +1,13 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { View, Text, ScrollView, Pressable, TextInput, Modal, Dimensions, Share, Platform } from 'react-native';
+import { View, Text, ScrollView, Pressable, TextInput, Modal, Dimensions, Share, Platform, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Image } from 'expo-image';
 import {
   ArrowLeft, Search, Play, Pause, SkipBack, SkipForward, Heart, Share2,
   Music, Globe, Clock, Users, Shuffle, Repeat, Volume2, ChevronDown,
-  ListMusic, Disc3, Mic2, X, Plus, Filter, Repeat1, VolumeX, Volume1
+  ListMusic, Disc3, Mic2, X, Plus, Filter, Repeat1, VolumeX, Volume1,
+  Radio, Wifi, WifiOff
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import Animated, {
@@ -16,6 +17,13 @@ import Animated, {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Audio, AVPlaybackStatus } from 'expo-av';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
+import {
+  searchJioSaavn,
+  searchDeezer,
+  searchAllSources,
+  getPlayableUrl,
+  type StreamingSong,
+} from '../lib/music-api';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -1092,6 +1100,7 @@ export default function CulturalMusicScreen() {
   const [selectedRegion, setSelectedRegion] = useState('all');
   const [selectedGenre, setSelectedGenre] = useState('All');
   const [currentSong, setCurrentSong] = useState<Song | null>(null);
+  const [currentStreamingSong, setCurrentStreamingSong] = useState<StreamingSong | null>(null);
   const [currentSongIndex, setCurrentSongIndex] = useState<number>(-1);
   const [isPlaying, setIsPlaying] = useState(false);
   const [showPlayer, setShowPlayer] = useState(false);
@@ -1102,6 +1111,12 @@ export default function CulturalMusicScreen() {
   const [likedSongs, setLikedSongs] = useState<Set<string>>(new Set(['1', '3', '5', '7', '9', '11', '12', '14', '15']));
   const [showFilters, setShowFilters] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Streaming mode state
+  const [streamingMode, setStreamingMode] = useState(false);
+  const [streamingSongs, setStreamingSongs] = useState<StreamingSong[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
 
   // Audio player controls state
   const [volume, setVolume] = useState(1.0);
@@ -1167,6 +1182,47 @@ export default function CulturalMusicScreen() {
       }
     };
   }, []);
+
+  // Search streaming services when query changes
+  const searchStreamingServices = useCallback(async (query: string) => {
+    if (!query.trim()) {
+      setStreamingSongs([]);
+      setStreamingMode(false);
+      return;
+    }
+
+    setIsSearching(true);
+    setSearchError(null);
+    setStreamingMode(true);
+
+    try {
+      const results = await searchAllSources(query, selectedRegion);
+      setStreamingSongs(results);
+      if (results.length === 0) {
+        setSearchError('No streaming results found. Showing offline library.');
+      }
+    } catch (error) {
+      console.log('Streaming search error:', error);
+      setSearchError('Could not connect to streaming services.');
+      setStreamingSongs([]);
+    } finally {
+      setIsSearching(false);
+    }
+  }, [selectedRegion]);
+
+  // Debounced search effect
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (searchQuery.length >= 2) {
+        searchStreamingServices(searchQuery);
+      } else {
+        setStreamingSongs([]);
+        setStreamingMode(false);
+      }
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery, searchStreamingServices]);
 
   // Generate shuffled indices when shuffle is turned on
   useEffect(() => {
@@ -1244,6 +1300,59 @@ export default function CulturalMusicScreen() {
       console.log('Error loading audio:', error);
       setIsLoading(false);
     }
+  };
+
+  // Load and play streaming song
+  const loadAndPlayStreamingSong = async (song: StreamingSong, index: number) => {
+    try {
+      setIsLoading(true);
+
+      // Unload previous sound
+      if (soundRef.current) {
+        await soundRef.current.unloadAsync();
+        soundRef.current = null;
+      }
+
+      const audioUrl = getPlayableUrl(song);
+      if (!audioUrl) {
+        console.log('No playable URL for song:', song.title);
+        setIsLoading(false);
+        setSearchError('This song is not available for streaming.');
+        return;
+      }
+
+      console.log('Loading streaming audio:', audioUrl);
+
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: audioUrl },
+        {
+          shouldPlay: true,
+          volume: volume,
+          isLooping: repeatMode === 'one',
+        },
+        onPlaybackStatusUpdate
+      );
+
+      soundRef.current = sound;
+      setCurrentStreamingSong(song);
+      setCurrentSong(null); // Clear local song
+      setCurrentSongIndex(index);
+      setShowPlayer(true);
+      setProgress(0);
+      setCurrentTime(0);
+      setIsPlaying(true);
+
+    } catch (error) {
+      console.log('Error loading streaming audio:', error);
+      setIsLoading(false);
+      setSearchError('Could not play this song. Try another.');
+    }
+  };
+
+  const playStreamingSong = (song: StreamingSong) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const index = streamingSongs.findIndex(s => s.id === song.id);
+    loadAndPlayStreamingSong(song, index);
   };
 
   const playSong = (song: Song) => {
@@ -1536,14 +1645,122 @@ export default function CulturalMusicScreen() {
 
           {/* Songs List */}
           <View className="px-5">
+            {/* Streaming Mode Indicator */}
+            {streamingMode && (
+              <Animated.View entering={FadeInDown.duration(200)} className="mb-4">
+                <View className="flex-row items-center bg-green-900/30 rounded-2xl px-4 py-3 border border-green-500/30">
+                  <Radio size={18} color="#22C55E" />
+                  <Text className="text-green-400 font-medium ml-2 flex-1">
+                    Streaming from JioSaavn & Deezer
+                  </Text>
+                  {isSearching && (
+                    <ActivityIndicator size="small" color="#22C55E" />
+                  )}
+                </View>
+              </Animated.View>
+            )}
+
+            {/* Search Error */}
+            {searchError && !isSearching && (
+              <View className="mb-4 bg-amber-900/30 rounded-2xl px-4 py-3 border border-amber-500/30">
+                <Text className="text-amber-400 text-sm">{searchError}</Text>
+              </View>
+            )}
+
             <View className="flex-row items-center justify-between mb-3">
               <Text className="text-white text-lg font-bold">
-                {searchQuery ? 'Search Results' : selectedRegion === 'all' ? 'All Songs' : `${REGIONS.find(r => r.key === selectedRegion)?.label} Music`}
+                {streamingMode ? 'Streaming Results' : searchQuery ? 'Search Results' : selectedRegion === 'all' ? 'All Songs' : `${REGIONS.find(r => r.key === selectedRegion)?.label} Music`}
               </Text>
-              <Text className="text-gray-500 text-sm">{filteredSongs.length} songs</Text>
+              <Text className="text-gray-500 text-sm">
+                {streamingMode ? streamingSongs.length : filteredSongs.length} songs
+              </Text>
             </View>
 
-            {filteredSongs.map((song, index) => (
+            {/* Streaming Songs */}
+            {streamingMode && streamingSongs.length > 0 && streamingSongs.map((song, index) => (
+              <Animated.View
+                key={song.id}
+                entering={FadeInDown.delay(index * 50).springify()}
+              >
+                <Pressable
+                  onPress={() => playStreamingSong(song)}
+                  className={`flex-row items-center p-3 rounded-2xl mb-2 ${
+                    currentStreamingSong?.id === song.id ? 'bg-[#D4673A]/20 border border-[#D4673A]/50' : 'bg-white/5'
+                  }`}
+                >
+                  {/* Album Art */}
+                  <View className="relative">
+                    <Image
+                      source={{ uri: song.coverImage }}
+                      style={{ width: 56, height: 56, borderRadius: 12 }}
+                      contentFit="cover"
+                    />
+                    {currentStreamingSong?.id === song.id && isPlaying && (
+                      <View className="absolute inset-0 bg-black/40 rounded-xl items-center justify-center">
+                        <View className="flex-row items-end gap-0.5">
+                          {[1, 2, 3].map((bar) => (
+                            <Animated.View
+                              key={bar}
+                              className="w-1 bg-[#D4673A] rounded-full"
+                              style={{ height: 8 + bar * 4 }}
+                            />
+                          ))}
+                        </View>
+                      </View>
+                    )}
+                    {/* Streaming badge */}
+                    <View className="absolute -top-1 -right-1 bg-green-500 rounded-full p-1">
+                      <Wifi size={10} color="#fff" />
+                    </View>
+                  </View>
+
+                  {/* Song Info */}
+                  <View className="flex-1 ml-3">
+                    <Text className={`font-semibold ${currentStreamingSong?.id === song.id ? 'text-[#D4673A]' : 'text-white'}`} numberOfLines={1}>
+                      {song.title}
+                    </Text>
+                    <Text className="text-gray-400 text-sm" numberOfLines={1}>{song.artist}</Text>
+                    <View className="flex-row items-center mt-1">
+                      <Text className="text-gray-500 text-xs">{song.country}</Text>
+                      <Text className="text-gray-600 mx-1">•</Text>
+                      <Text className="text-gray-500 text-xs">{song.genre}</Text>
+                      {song.year && (
+                        <>
+                          <Text className="text-gray-600 mx-1">•</Text>
+                          <Text className="text-gray-500 text-xs">{song.year}</Text>
+                        </>
+                      )}
+                    </View>
+                  </View>
+
+                  {/* Actions */}
+                  <View className="flex-row items-center gap-2">
+                    <Text className="text-gray-500 text-xs">{song.durationFormatted}</Text>
+                    {song.previewUrl && !song.streamUrl && (
+                      <View className="bg-amber-500/20 px-2 py-0.5 rounded">
+                        <Text className="text-amber-400 text-xs">30s</Text>
+                      </View>
+                    )}
+                    <Pressable
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        toggleLike(song.id);
+                      }}
+                      className="p-2"
+                    >
+                      <Heart
+                        size={18}
+                        color={likedSongs.has(song.id) ? '#EF4444' : '#6B7280'}
+                        fill={likedSongs.has(song.id) ? '#EF4444' : 'transparent'}
+                      />
+                    </Pressable>
+                  </View>
+                </Pressable>
+              </Animated.View>
+            ))}
+
+            {/* Local/Offline Songs */}
+            {!streamingMode && filteredSongs.map((song, index) => (
               <Animated.View
                 key={song.id}
                 entering={FadeInDown.delay(index * 50).springify()}
@@ -1612,11 +1829,31 @@ export default function CulturalMusicScreen() {
               </Animated.View>
             ))}
 
-            {filteredSongs.length === 0 && (
+            {/* No songs message */}
+            {!streamingMode && filteredSongs.length === 0 && (
               <View className="items-center py-12">
                 <Music size={48} color="#374151" />
                 <Text className="text-gray-500 text-lg mt-4">No songs found</Text>
                 <Text className="text-gray-600 text-sm mt-1">Try adjusting your search or filters</Text>
+              </View>
+            )}
+
+            {/* Loading spinner for streaming search */}
+            {isSearching && (
+              <View className="items-center py-12">
+                <ActivityIndicator size="large" color="#D4673A" />
+                <Text className="text-gray-400 mt-4">Searching streaming services...</Text>
+              </View>
+            )}
+
+            {/* No streaming results */}
+            {streamingMode && !isSearching && streamingSongs.length === 0 && (
+              <View className="items-center py-12">
+                <WifiOff size={48} color="#374151" />
+                <Text className="text-gray-500 text-lg mt-4">No streaming results</Text>
+                <Text className="text-gray-600 text-sm mt-1 text-center px-8">
+                  Try searching for artists like "Atif Aslam", "Bob Marley", or "Afrobeat"
+                </Text>
               </View>
             )}
           </View>
@@ -1624,8 +1861,8 @@ export default function CulturalMusicScreen() {
           <View className={showPlayer ? "h-40" : "h-32"} />
         </ScrollView>
 
-        {/* Mini Player */}
-        {showPlayer && currentSong && !showFullPlayer && (
+        {/* Mini Player - works with both local and streaming songs */}
+        {showPlayer && (currentSong || currentStreamingSong) && !showFullPlayer && (
           <Animated.View
             entering={FadeInDown.springify()}
             className="absolute left-0 right-0"
@@ -1648,14 +1885,25 @@ export default function CulturalMusicScreen() {
                 </View>
 
                 <View className="flex-row items-center">
-                  <Image
-                    source={{ uri: currentSong.coverImage }}
-                    style={{ width: 48, height: 48, borderRadius: 8 }}
-                    contentFit="cover"
-                  />
+                  <View className="relative">
+                    <Image
+                      source={{ uri: currentStreamingSong?.coverImage || currentSong?.coverImage }}
+                      style={{ width: 48, height: 48, borderRadius: 8 }}
+                      contentFit="cover"
+                    />
+                    {currentStreamingSong && (
+                      <View className="absolute -top-1 -right-1 bg-green-500 rounded-full p-0.5">
+                        <Wifi size={8} color="#fff" />
+                      </View>
+                    )}
+                  </View>
                   <View className="flex-1 mx-3">
-                    <Text className="text-white font-semibold" numberOfLines={1}>{currentSong.title}</Text>
-                    <Text className="text-gray-400 text-sm" numberOfLines={1}>{currentSong.artist}</Text>
+                    <Text className="text-white font-semibold" numberOfLines={1}>
+                      {currentStreamingSong?.title || currentSong?.title}
+                    </Text>
+                    <Text className="text-gray-400 text-sm" numberOfLines={1}>
+                      {currentStreamingSong?.artist || currentSong?.artist}
+                    </Text>
                   </View>
                   <Pressable
                     onPress={(e) => {
@@ -1713,7 +1961,15 @@ export default function CulturalMusicScreen() {
                     <ChevronDown size={28} color="#fff" />
                   </Pressable>
                   <View className="items-center">
-                    <Text className="text-white text-sm font-medium">Now Playing</Text>
+                    <View className="flex-row items-center">
+                      <Text className="text-white text-sm font-medium">Now Playing</Text>
+                      {currentStreamingSong && (
+                        <View className="ml-2 bg-green-500/20 px-2 py-0.5 rounded-full flex-row items-center">
+                          <Wifi size={10} color="#22C55E" />
+                          <Text className="text-green-400 text-xs ml-1">Streaming</Text>
+                        </View>
+                      )}
+                    </View>
                     {isLoading && (
                       <Text className="text-gray-500 text-xs">Loading...</Text>
                     )}
@@ -1723,13 +1979,13 @@ export default function CulturalMusicScreen() {
                   </Pressable>
                 </View>
 
-                {currentSong && (
+                {(currentSong || currentStreamingSong) && (
                   <View className="flex-1 px-8">
                     {/* Album Art */}
                     <Animated.View style={[discStyle]} className="items-center justify-center my-8">
                       <View className="w-72 h-72 rounded-full overflow-hidden border-4 border-[#D4673A]/30">
                         <Image
-                          source={{ uri: currentSong.coverImage }}
+                          source={{ uri: currentStreamingSong?.coverImage || currentSong?.coverImage }}
                           style={{ width: '100%', height: '100%' }}
                           contentFit="cover"
                         />
@@ -1742,17 +1998,35 @@ export default function CulturalMusicScreen() {
                     {/* Song Info */}
                     <View className="items-center mb-8">
                       <Text className="text-white text-2xl font-bold text-center" numberOfLines={1}>
-                        {currentSong.title}
+                        {currentStreamingSong?.title || currentSong?.title}
                       </Text>
-                      <Text className="text-gray-400 text-lg mt-1">{currentSong.artist}</Text>
+                      <Text className="text-gray-400 text-lg mt-1">
+                        {currentStreamingSong?.artist || currentSong?.artist}
+                      </Text>
                       <View className="flex-row items-center mt-2">
                         <Globe size={14} color="#9CA3AF" />
-                        <Text className="text-gray-500 text-sm ml-1">{currentSong.country}</Text>
+                        <Text className="text-gray-500 text-sm ml-1">
+                          {currentStreamingSong?.country || currentSong?.country}
+                        </Text>
                         <Text className="text-gray-600 mx-2">•</Text>
-                        <Text className="text-gray-500 text-sm">{currentSong.genre}</Text>
-                        <Text className="text-gray-600 mx-2">•</Text>
-                        <Text className="text-gray-500 text-sm">{currentSong.year}</Text>
+                        <Text className="text-gray-500 text-sm">
+                          {currentStreamingSong?.genre || currentSong?.genre}
+                        </Text>
+                        {(currentStreamingSong?.year || currentSong?.year) && (
+                          <>
+                            <Text className="text-gray-600 mx-2">•</Text>
+                            <Text className="text-gray-500 text-sm">
+                              {currentStreamingSong?.year || currentSong?.year}
+                            </Text>
+                          </>
+                        )}
                       </View>
+                      {/* Preview warning */}
+                      {currentStreamingSong && currentStreamingSong.previewUrl && !currentStreamingSong.streamUrl && (
+                        <View className="mt-3 bg-amber-500/20 px-3 py-1 rounded-full">
+                          <Text className="text-amber-400 text-xs">30-second preview</Text>
+                        </View>
+                      )}
                     </View>
 
                     {/* Progress - Seekable */}
@@ -1778,7 +2052,7 @@ export default function CulturalMusicScreen() {
                           {formatTime(currentTime)}
                         </Text>
                         <Text className="text-gray-500 text-sm">
-                          {duration > 0 ? formatTime(duration) : currentSong.duration}
+                          {duration > 0 ? formatTime(duration) : (currentStreamingSong?.durationFormatted || currentSong?.duration)}
                         </Text>
                       </View>
                     </View>
@@ -1846,13 +2120,13 @@ export default function CulturalMusicScreen() {
                     {/* Extra Controls */}
                     <View className="flex-row items-center justify-center gap-8 mt-8">
                       <Pressable
-                        onPress={() => toggleLike(currentSong.id)}
+                        onPress={() => toggleLike(currentStreamingSong?.id || currentSong?.id || '')}
                         className="items-center"
                       >
                         <Heart
                           size={24}
-                          color={likedSongs.has(currentSong.id) ? '#EF4444' : '#6B7280'}
-                          fill={likedSongs.has(currentSong.id) ? '#EF4444' : 'transparent'}
+                          color={likedSongs.has(currentStreamingSong?.id || currentSong?.id || '') ? '#EF4444' : '#6B7280'}
+                          fill={likedSongs.has(currentStreamingSong?.id || currentSong?.id || '') ? '#EF4444' : 'transparent'}
                         />
                         <Text className="text-gray-500 text-xs mt-1">Like</Text>
                       </Pressable>
@@ -1872,14 +2146,29 @@ export default function CulturalMusicScreen() {
                       </Pressable>
                     </View>
 
-                    {/* Song Description */}
-                    <View className="mt-8 p-4 bg-white/5 rounded-2xl">
-                      <Text className="text-gray-400 text-sm leading-5">{currentSong.description}</Text>
-                      <View className="flex-row items-center mt-3">
-                        <Users size={14} color="#6B7280" />
-                        <Text className="text-gray-500 text-xs ml-1">{formatPlays(currentSong.plays)} plays</Text>
+                    {/* Song Description - only for local songs */}
+                    {currentSong && currentSong.description && (
+                      <View className="mt-8 p-4 bg-white/5 rounded-2xl">
+                        <Text className="text-gray-400 text-sm leading-5">{currentSong.description}</Text>
+                        <View className="flex-row items-center mt-3">
+                          <Users size={14} color="#6B7280" />
+                          <Text className="text-gray-500 text-xs ml-1">{formatPlays(currentSong.plays)} plays</Text>
+                        </View>
                       </View>
-                    </View>
+                    )}
+
+                    {/* Source info for streaming songs */}
+                    {currentStreamingSong && (
+                      <View className="mt-8 p-4 bg-white/5 rounded-2xl">
+                        <View className="flex-row items-center">
+                          <Wifi size={14} color="#22C55E" />
+                          <Text className="text-gray-400 text-sm ml-2">
+                            Streaming from {currentStreamingSong.source === 'jiosaavn' ? 'JioSaavn' :
+                              currentStreamingSong.source === 'deezer' ? 'Deezer' : 'Online'}
+                          </Text>
+                        </View>
+                      </View>
+                    )}
                   </View>
                 )}
               </LinearGradient>

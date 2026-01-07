@@ -488,6 +488,13 @@ These 10 major features make AfroConnect superior to Facebook, Nextdoor, and any
     - **Coke Studio**: Tajdar-e-Haram (Atif Aslam), Afreen Afreen (Rahat & Momina), Pasoori (Ali Sethi & Shae Gill)
     - **Sufi Rock**: Junoon (Sayonee, Bulleya)
     - **Pakistani Pop**: Vital Signs (Dil Dil Pakistan)
+  - **LIVE STREAMING (NEW!)**: Real music streaming from multiple sources
+    - **JioSaavn Integration**: Stream real Pakistani and Indian music (Qawwali, Ghazal, Bollywood, Coke Studio)
+    - **Deezer Integration**: Stream Caribbean (Reggae, Soca), Latin (Bossa Nova, Salsa), Middle Eastern, and global music
+    - **30-Second Previews**: For songs not available for full streaming
+    - **Smart Search**: Type any artist or song to search across streaming services
+    - **Streaming Indicator**: Green badge shows when playing from streaming services
+    - **Hybrid Mode**: Seamlessly switch between offline library and streaming results
   - **Full Music Player**:
     - **Real Audio Playback**: Actual streaming audio playback using expo-av
     - Mini player with progress bar and playback controls (play/pause, skip forward/back)
