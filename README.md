@@ -1082,4 +1082,16 @@ Three powerful features designed to make AfroConnect the go-to app for foreigner
 - Photo editing: Flip, change filters/frames/stickers
 - Save and share your creations
 
-
+### 40. Universal Feature Search (`/app-search`)
+- **Find any feature or tab** by typing to search
+- **Search Button**: Quick access from the home screen header (magnifying glass icon)
+- **55+ Features Indexed**: All app features are searchable
+- **Smart Search**: Search by feature name, description, or keywords
+  - Type "pet" to find Pet Connect
+  - Type "music" to find Cultural Music (Ghana Highlife, Pakistan Qawwali, etc.)
+  - Type "money" to find Money Transfer, Susu Circles, Gem Store
+  - Type "pakistan" to find Pakistani music collection
+- **Category Filters**: Filter by Social, Community, Culture, Finance, Entertainment, Health, Services, Food, Safety
+- **Popular Features**: Quick access to most-used features
+- **Beautiful Cards**: Each feature shows icon, name, description, and category badge
+- **Instant Navigation**: Tap any feature to go directly to that screen

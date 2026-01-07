@@ -536,8 +536,14 @@ export default function HomeScreen() {
 
             <View className="flex-row items-center space-x-2">
               <Pressable
-                onPress={() => navigateTo('/notifications')}
+                onPress={() => navigateTo('/app-search')}
                 className="w-10 h-10 rounded-full bg-white items-center justify-center shadow-sm border border-gray-100"
+              >
+                <Search size={20} color="#374151" />
+              </Pressable>
+              <Pressable
+                onPress={() => navigateTo('/notifications')}
+                className="w-10 h-10 rounded-full bg-white items-center justify-center shadow-sm ml-2 border border-gray-100"
               >
                 <Bell size={20} color="#374151" />
               </Pressable>
