@@ -2,69 +2,25 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { View, Text, ScrollView, Pressable, RefreshControl, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
 import { Image } from 'expo-image';
 import {
   MapPin,
   ChevronDown,
   Globe,
   Users,
-  GraduationCap,
   ChevronRight,
-  ShoppingBag,
-  Heart,
   UserPlus,
   MessageCircle,
-  Briefcase,
-  Newspaper,
-  Shield,
-  Vote,
-  PiggyBank,
-  Mic,
-  BookOpen,
-  AlertTriangle,
-  HeartHandshake,
-  Trophy,
-  Calendar,
-  DollarSign,
-  FileText,
-  Utensils,
-  Film,
-  Clapperboard,
-  SplitSquareVertical,
-  Radio,
-  Gem,
-  Sparkles,
   Bell,
   Search,
-  Gift,
   Plus,
-  CalendarDays,
-  Repeat,
-  Car,
-  PawPrint,
-  Lock,
-  Home,
-  SearchX,
-  ThumbsUp,
-  Quote,
-  Type,
-  ShoppingCart,
-  Shirt,
-  Dumbbell,
-  Brain,
-  Phone,
-  Languages,
-  Leaf,
-  Camera,
-  HandHeart,
+  Compass,
 } from 'lucide-react-native';
-import Animated, { FadeInDown, FadeInUp, FadeIn, useSharedValue, useAnimatedStyle, withSpring, interpolate, Extrapolation } from 'react-native-reanimated';
+import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { PostCard } from '@/components/PostCard';
-import { NewsCard } from '@/components/NewsCard';
 import { LocationChangeModal } from '@/components/LocationChangeModal';
 import { DailyRewardsBanner } from '@/components/DailyRewardsBanner';
 import { DailyRewardsModal } from '@/components/DailyRewardsModal';
@@ -149,278 +105,140 @@ export default function HomeScreen() {
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [detectedLocation, setDetectedLocation] = useState<DetectedLocation | null>(null);
   const [showDailyRewards, setShowDailyRewards] = useState(false);
+  const [feedFilter, setFeedFilter] = useState<'local' | 'global'>('local');
 
-  const feedFilter = useStore((s) => s.feedFilter);
-  const setFeedFilter = useStore((s) => s.setFeedFilter);
-  const currentCommunity = useStore((s) => s.currentCommunity);
-  const isGuest = useStore((s) => s.isGuest);
-  const currentUser = useStore((s) => s.currentUser);
-  const userPosts = useStore((s) => s.userPosts);
   const selectedLocation = useStore((s) => s.selectedLocation);
-  const locationDetectionDismissed = useStore((s) => s.locationDetectionDismissed);
-  const lastDetectedCity = useStore((s) => s.lastDetectedCity);
-  const setSelectedLocation = useStore((s) => s.setSelectedLocation);
-  const setCurrentCommunity = useStore((s) => s.setCurrentCommunity);
-  const setLocationDetectionDismissed = useStore((s) => s.setLocationDetectionDismissed);
-  const setLastDetectedCity = useStore((s) => s.setLastDetectedCity);
-  const joinCommunityStore = useStore((s) => s.joinCommunity);
+  const userPosts = useStore((s) => s.userPosts);
+  const isGuest = useStore((s) => s.isGuest);
   const userStories = useStore((s) => s.userStories);
-
-  const displayCommunity = currentCommunity ?? MOCK_COMMUNITIES[0];
-  const communityMemberCount = getCommunityMemberCount(displayCommunity.city);
-
-  // Fetch posts from database
-  const fetchDbPosts = async () => {
-    try {
-      console.log('[Home] Fetching posts from database...');
-      const posts = await getPosts();
-      console.log('[Home] Fetched posts:', posts?.length || 0);
-      if (posts && posts.length > 0) {
-        // Convert database posts to app format
-        const formattedPosts: Post[] = posts.map((p: any) => ({
-          id: p.id,
-          author: {
-            id: p.author?.id || p.author_id,
-            name: p.author?.name || 'Unknown',
-            username: p.author?.username || 'unknown',
-            avatar: p.author?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&h=200&fit=crop&crop=face',
-            bio: p.author?.bio || '',
-            location: p.author?.location || '',
-            interests: p.author?.interests || [],
-            joinedDate: p.author?.created_at || new Date().toISOString(),
-          },
-          content: p.content,
-          images: p.images || [],
-          likes: p.likes?.[0]?.count || 0,
-          comments: p.comments?.[0]?.count || 0,
-          createdAt: p.created_at,
-          isLiked: false,
-          location: p.location || '',
-        }));
-        console.log('[Home] Formatted posts:', formattedPosts.length);
-        setDbPosts(formattedPosts);
-      }
-    } catch (error) {
-      console.log('[Home] Error fetching posts from database:', error);
-    }
-  };
+  const storeJoinCommunity = useStore((s) => s.joinCommunity);
+  const [currentUser, setCurrentUser] = useState<any>(null);
 
   useEffect(() => {
-    fetchDbPosts();
+    getCurrentUser().then(setCurrentUser);
   }, []);
 
-  // Fetch local news
-  const fetchNews = async () => {
+  const displayCommunity = useMemo(() => {
+    if (selectedLocation) {
+      return {
+        city: selectedLocation.city,
+        country: selectedLocation.country,
+        state: selectedLocation.state,
+      };
+    }
+    return MOCK_COMMUNITIES[0];
+  }, [selectedLocation]);
+
+  const communityMemberCount = useMemo(() => {
+    return getCommunityMemberCount(displayCommunity.city);
+  }, [displayCommunity.city]);
+
+  const memberCount = realCommunity?.member_count || communityMemberCount;
+
+  const fetchCommunity = async () => {
     try {
-      const city = selectedLocation?.city || displayCommunity.city;
-      const state = selectedLocation?.state || displayCommunity.state;
-      const country = selectedLocation?.country || displayCommunity.country;
-      const news = await getLocalNews(city, 4, state, country);
-      setLocalNews(news);
+      const community = await getCommunityByLocation(
+        displayCommunity.city,
+        displayCommunity.country
+      );
+      setRealCommunity(community);
     } catch (error) {
-      console.log('[Home] Error fetching news:', error);
+      console.log('Using mock community data');
     }
   };
 
-  useEffect(() => {
-    fetchNews();
-  }, [selectedLocation, displayCommunity.city]);
-
-  // Join community when user switches cities (increment member count)
-  useEffect(() => {
-    const city = selectedLocation?.city || displayCommunity.city;
-    if (city) {
-      joinCommunityStore(city);
+  const fetchDbPosts = async () => {
+    try {
+      const posts = await getPosts();
+      setDbPosts(posts);
+    } catch (error) {
+      console.log('Using mock posts');
     }
-  }, [selectedLocation?.city, displayCommunity.city]);
+  };
 
-  // Refresh posts when screen comes into focus (e.g., after creating a post)
+  const fetchNews = async () => {
+    const city = displayCommunity.city;
+    const state = displayCommunity.state || '';
+    const articles = await getLocalNews(city, 4, state, displayCommunity.country);
+    setLocalNews(articles);
+  };
+
   useFocusEffect(
     useCallback(() => {
+      fetchCommunity();
       fetchDbPosts();
-    }, [])
+      fetchNews();
+
+      const unsubscribe = subscribeToCommunityUpdates(
+        displayCommunity.city,
+        (community: DbCommunity) => setRealCommunity(community)
+      );
+      return () => unsubscribe();
+    }, [displayCommunity.city])
   );
 
-  // Fetch real community data from Supabase
-  const fetchCommunity = async () => {
-    const city = selectedLocation?.city || displayCommunity.city;
-    const country = selectedLocation?.country || displayCommunity.country;
-
-    const community = await getCommunityByLocation(city, country);
-    if (community) {
-      setRealCommunity(community);
-    }
-  };
-
   useEffect(() => {
-    fetchCommunity();
-  }, [selectedLocation, displayCommunity.city, displayCommunity.country]);
-
-  // Detect user's current location and show modal if it changed
-  useEffect(() => {
-    const checkLocation = async () => {
-      // Skip if user dismissed the detection permanently
-      if (locationDetectionDismissed) return;
-
-      // Only check if user has a selected location
-      if (!selectedLocation) return;
-
-      try {
-        const detected = await detectCurrentLocation();
-        if (!detected) return;
-
-        console.log('[Home] Detected location:', detected.city, detected.country);
-
-        // Check if detected city is different from current AND from last detected
-        const isDifferent = isLocationDifferent(detected, selectedLocation);
-        const isSameAsLastDetected = lastDetectedCity?.toLowerCase() === detected.city.toLowerCase();
-
-        if (isDifferent && !isSameAsLastDetected) {
-          setDetectedLocation(detected);
-          setShowLocationModal(true);
-        }
-      } catch (error) {
-        console.log('[Home] Location detection error:', error);
+    const checkLocationChange = async () => {
+      const detected = await detectCurrentLocation();
+      if (detected && isLocationDifferent(detected, selectedLocation)) {
+        setDetectedLocation(detected);
+        setShowLocationModal(true);
       }
     };
+    const timeout = setTimeout(checkLocationChange, 3000);
+    return () => clearTimeout(timeout);
+  }, [displayCommunity.city, selectedLocation]);
 
-    // Check location after a short delay to avoid blocking initial render
-    const timer = setTimeout(checkLocation, 2000);
-    return () => clearTimeout(timer);
-  }, [selectedLocation, locationDetectionDismissed, lastDetectedCity]);
-
-  // Handle confirming location switch
   const handleConfirmLocationSwitch = async () => {
     if (!detectedLocation) return;
-
-    setShowLocationModal(false);
-    setLastDetectedCity(detectedLocation.city);
-
-    // Update the selected location
-    setSelectedLocation({
-      country: detectedLocation.country,
-      state: detectedLocation.state,
-      city: detectedLocation.city,
-    });
-
-    // Get or create community for new location
-    const dbCommunity = await getOrCreateCommunity(
+    const community = await getOrCreateCommunity(
       detectedLocation.city,
       detectedLocation.state || null,
       detectedLocation.country
     );
-
-    if (dbCommunity) {
-      // Join the community if user is logged in
-      const user = await getCurrentUser();
-      if (user) {
-        await joinCommunity(user.id, dbCommunity.id);
-      }
-
-      setCurrentCommunity({
-        id: dbCommunity.id,
-        name: dbCommunity.name,
-        city: dbCommunity.city,
-        state: dbCommunity.state ?? undefined,
-        country: dbCommunity.country,
-        memberCount: dbCommunity.member_count,
-        image: dbCommunity.image_url || 'https://images.unsplash.com/photo-1489392191049-fc10c97e64b6?w=400&h=300&fit=crop',
-      });
-    } else {
-      // Fallback to custom community
-      setCurrentCommunity({
-        id: 'custom',
-        name: `${detectedLocation.city} Expats`,
-        city: detectedLocation.city,
-        state: detectedLocation.state,
+    if (community && currentUser?.id) {
+      await joinCommunity(currentUser.id, community.id);
+      useStore.getState().setSelectedLocation({
         country: detectedLocation.country,
-        memberCount: 1,
-        image: 'https://images.unsplash.com/photo-1489392191049-fc10c97e64b6?w=400&h=300&fit=crop',
+        state: detectedLocation.state,
+        city: detectedLocation.city,
       });
     }
-
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setShowLocationModal(false);
+    setDetectedLocation(null);
   };
 
-  // Handle keeping current location
   const handleKeepCurrentLocation = () => {
     setShowLocationModal(false);
-    if (detectedLocation) {
-      setLastDetectedCity(detectedLocation.city);
-    }
+    setDetectedLocation(null);
   };
 
-  // Handle dismissing location detection permanently
   const handleDismissLocationDetection = () => {
     setShowLocationModal(false);
-    setLocationDetectionDismissed(true);
+    setDetectedLocation(null);
   };
 
-  // Subscribe to real-time community updates
-  useEffect(() => {
-    if (!realCommunity?.id) return;
-
-    const unsubscribe = subscribeToCommunityUpdates(realCommunity.id, (updated) => {
-      setRealCommunity(updated);
-    });
-
-    return () => {
-      unsubscribe();
-    };
-  }, [realCommunity?.id]);
-
-  // Get the member count - use real data if available, otherwise mock
-  const memberCount = realCommunity?.member_count ?? displayCommunity.memberCount;
-
-  // Combine user posts with database posts and mock posts, filter based on local/global
   const allPosts = useMemo(() => {
-    // Combine all sources, avoiding duplicates by ID
-    const postMap = new Map<string, Post>();
-
-    // Add user posts first (highest priority)
-    userPosts.forEach(post => postMap.set(post.id, post));
-
-    // Add database posts (from other users)
-    dbPosts.forEach(post => {
-      if (!postMap.has(post.id)) {
-        postMap.set(post.id, post);
-      }
-    });
-
-    // Add mock posts
-    MOCK_POSTS.forEach(post => {
-      if (!postMap.has(post.id)) {
-        postMap.set(post.id, post);
-      }
-    });
-
-    const combined = Array.from(postMap.values());
+    const combined = [...userPosts, ...dbPosts, ...MOCK_POSTS];
+    const uniquePosts = combined.filter(
+      (post, index, self) => index === self.findIndex((p) => p.id === post.id)
+    );
 
     if (feedFilter === 'local') {
-      // Local: Show all database posts + posts matching user's city
       const userCity = selectedLocation?.city || displayCommunity.city;
-
-      // Filter posts that match the local city OR are from the database (community posts)
-      const localPosts = combined.filter(post => {
-        // Always show posts from database (they're from the community)
+      const localPosts = uniquePosts.filter(post => {
         const isDbPost = dbPosts.some(dbPost => dbPost.id === post.id);
         if (isDbPost) return true;
-
-        // Show user's own posts
         const isUserPost = userPosts.some(userPost => userPost.id === post.id);
         if (isUserPost) return true;
-
-        // For mock posts, filter by location
         if (!post.location) return true;
         return post.location.toLowerCase().includes(userCity.toLowerCase());
       });
-
       return localPosts.sort((a, b) =>
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       );
     } else {
-      // Global: Show all posts including from other locations
-      return [...combined, ...GLOBAL_MOCK_POSTS].sort((a, b) =>
+      return [...uniquePosts, ...GLOBAL_MOCK_POSTS].sort((a, b) =>
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       );
     }
@@ -429,11 +247,7 @@ export default function HomeScreen() {
   const onRefresh = async () => {
     setRefreshing(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    await Promise.all([
-      fetchDbPosts(),
-      fetchCommunity(),
-      fetchNews(),
-    ]);
+    await Promise.all([fetchDbPosts(), fetchCommunity(), fetchNews()]);
     setRefreshing(false);
   };
 
@@ -447,156 +261,57 @@ export default function HomeScreen() {
     router.push(route as any);
   };
 
-  // Quick access features - top 6 most important
-  const quickFeatures = [
-    { route: '/marketplace', icon: ShoppingBag, label: 'Market', colors: ['#D4673A', '#C05A2E'] as const },
-    { route: '/job-board', icon: Briefcase, label: 'Jobs', colors: ['#1B4D3E', '#153D31'] as const },
-    { route: '/advanced-events', icon: Calendar, label: 'Events', colors: ['#6366F1', '#4F46E5'] as const },
-    { route: '/referral-hub', icon: Gift, label: 'Refer', colors: ['#7C3AED', '#6D28D9'] as const },
-    { route: '/remittance', icon: DollarSign, label: 'Send $', colors: ['#059669', '#047857'] as const },
-    { route: '/african-food', icon: Utensils, label: 'Food', colors: ['#DC2626', '#B91C1C'] as const },
-  ];
-
-  // All features for the "More" section
-  const allFeatures = [
-    { route: '/business-directory', icon: Briefcase, label: 'Businesses', desc: 'Local listings', colors: ['#1B4D3E', '#0D3329'] as const },
-    { route: '/student-hub', icon: GraduationCap, label: 'Students', desc: 'Groups & Mentors', colors: ['#C9A227', '#A6841F'] as const },
-    { route: '/faith-community', icon: Heart, label: 'Faith', desc: 'Services', colors: ['#7C3AED', '#6D28D9'] as const },
-    { route: '/trust-score', icon: Shield, label: 'Trust', desc: 'Reputation', colors: ['#10B981', '#059669'] as const },
-    { route: '/village-council', icon: Vote, label: 'Council', desc: 'Community', colors: ['#8B5CF6', '#7C3AED'] as const },
-    { route: '/susu-circles', icon: PiggyBank, label: 'Savings', desc: 'Susu circles', colors: ['#F59E0B', '#D97706'] as const },
-    { route: '/creator-battles', icon: Trophy, label: 'Battles', desc: 'Compete', colors: ['#7C3AED', '#DB2777'] as const },
-    { route: '/stories', icon: Film, label: 'Stories', desc: '24hr posts', colors: ['#EC4899', '#F97316'] as const },
-    { route: '/clips', icon: Clapperboard, label: 'Clips', desc: 'Highlights', colors: ['#3B82F6', '#8B5CF6'] as const },
-    { route: '/duets', icon: SplitSquareVertical, label: 'Duets', desc: 'Collabs', colors: ['#10B981', '#3B82F6'] as const },
-    { route: '/heritage-hub', icon: BookOpen, label: 'Heritage', desc: 'Culture', colors: ['#D4673A', '#B85430'] as const },
-    { route: '/safety-network', icon: AlertTriangle, label: 'Safety', desc: 'Emergency', colors: ['#EF4444', '#DC2626'] as const },
-    { route: '/support-circles', icon: HeartHandshake, label: 'Support', desc: 'Help', colors: ['#14B8A6', '#0D9488'] as const },
-    { route: '/gamification', icon: Trophy, label: 'Rewards', desc: 'Earn gems', colors: ['#F97316', '#EA580C'] as const },
-    { route: '/immigration-help', icon: FileText, label: 'Visa', desc: 'Immigration', colors: ['#0284C7', '#0369A1'] as const },
-    { route: '/sports-betting', icon: Gem, label: 'Sports', desc: 'Predictions', colors: ['#F59E0B', '#D97706'] as const },
-    { route: '/live-radio', icon: Radio, label: 'Radio', desc: 'Live audio', colors: ['#7C3AED', '#6D28D9'] as const },
-    // New Community Features
-    { route: '/cultural-calendar', icon: CalendarDays, label: 'Holidays', desc: 'Cultural dates', colors: ['#EC4899', '#BE185D'] as const },
-    { route: '/skill-swap', icon: Repeat, label: 'Skill Swap', desc: 'Trade skills', colors: ['#06B6D4', '#0891B2'] as const },
-    { route: '/carpool', icon: Car, label: 'Carpool', desc: 'Ride share', colors: ['#10B981', '#059669'] as const },
-    { route: '/pet-connect', icon: PawPrint, label: 'Pets', desc: 'Pet friends', colors: ['#F59E0B', '#D97706'] as const },
-    { route: '/memory-capsules', icon: Lock, label: 'Capsules', desc: 'Time-locked', colors: ['#8B5CF6', '#7C3AED'] as const },
-    { route: '/housing-board', icon: Home, label: 'Housing', desc: 'Roommates', colors: ['#6366F1', '#4F46E5'] as const },
-    { route: '/lost-found', icon: SearchX, label: 'Lost/Found', desc: 'Find items', colors: ['#EF4444', '#DC2626'] as const },
-    { route: '/appreciation-wall', icon: ThumbsUp, label: 'Shoutouts', desc: 'Thank yous', colors: ['#F472B6', '#EC4899'] as const },
-    { route: '/proverbs-wisdom', icon: Quote, label: 'Proverbs', desc: 'Daily wisdom', colors: ['#D4673A', '#B85430'] as const },
-    { route: '/name-meanings', icon: Type, label: 'Names', desc: 'Meanings', colors: ['#7C3AED', '#6D28D9'] as const },
-    { route: '/group-grocery', icon: ShoppingCart, label: 'Bulk Buy', desc: 'Group orders', colors: ['#059669', '#047857'] as const },
-    { route: '/traditional-attire', icon: Shirt, label: 'Attire', desc: 'Fashion guide', colors: ['#D4673A', '#B85430'] as const },
-    { route: '/fitness-challenges', icon: Dumbbell, label: 'Fitness', desc: 'Challenges', colors: ['#EF4444', '#DC2626'] as const },
-    { route: '/mental-health', icon: Brain, label: 'Wellness', desc: 'Check-ins', colors: ['#14B8A6', '#0D9488'] as const },
-    { route: '/emergency-contacts', icon: Phone, label: 'Emergency', desc: 'Contacts', colors: ['#DC2626', '#B91C1C'] as const },
-    { route: '/document-translation', icon: Languages, label: 'Translate', desc: 'Documents', colors: ['#3B82F6', '#2563EB'] as const },
-    { route: '/traditional-medicine', icon: Leaf, label: 'Herbalists', desc: 'Healers', colors: ['#059669', '#047857'] as const },
-    { route: '/photo-booth', icon: Camera, label: 'Photo Booth', desc: 'Filters', colors: ['#EC4899', '#DB2777'] as const },
-    { route: '/talk-to-someone', icon: HandHeart, label: 'Talk', desc: 'Need support', colors: ['#8B5CF6', '#7C3AED'] as const },
-  ];
-
-  const [showAllFeatures, setShowAllFeatures] = useState(false);
-
-  // Logo image
   const LOGO_IMAGE = require('../../../assets/icon.png');
 
   return (
-    <View className="flex-1 bg-[#FAFAFA]">
+    <View className="flex-1 bg-white">
       <SafeAreaView edges={['top']} className="flex-1">
-        {/* Modern Header */}
-        <Animated.View
-          entering={FadeInDown.duration(400)}
-          className="px-5 pt-3 pb-4"
-        >
-          {/* Top Row - Logo and Actions */}
-          <View className="flex-row items-center justify-between mb-4">
-            <View className="flex-row items-center">
+        {/* Clean Header - Instagram Style */}
+        <View className="px-4 py-2 border-b border-gray-100">
+          <View className="flex-row items-center justify-between">
+            {/* Logo & Location */}
+            <Pressable
+              onPress={() => navigateTo('/location-select')}
+              className="flex-row items-center"
+            >
               <Image
                 source={LOGO_IMAGE}
-                style={{ width: 44, height: 44, borderRadius: 12 }}
+                style={{ width: 32, height: 32, borderRadius: 8 }}
                 contentFit="cover"
               />
-              <View className="ml-3">
-                <Text className="text-xl font-bold text-gray-900">AfroConnect</Text>
-                <Pressable
-                  onPress={() => navigateTo('/location-select')}
-                  className="flex-row items-center"
-                >
-                  <MapPin size={12} color="#7C3AED" />
-                  <Text className="text-violet-600 text-xs font-medium ml-1">
+              <View className="ml-2">
+                <View className="flex-row items-center">
+                  <Text className="text-lg font-bold text-gray-900">
                     {displayCommunity.city}
                   </Text>
-                  <ChevronDown size={12} color="#7C3AED" />
-                </Pressable>
+                  <ChevronDown size={18} color="#374151" />
+                </View>
               </View>
-            </View>
+            </Pressable>
 
-            <View className="flex-row items-center space-x-2">
+            {/* Actions */}
+            <View className="flex-row items-center gap-1">
               <Pressable
                 onPress={() => navigateTo('/app-search')}
-                className="w-10 h-10 rounded-full bg-white items-center justify-center shadow-sm border border-gray-100"
+                className="w-10 h-10 items-center justify-center"
               >
-                <Search size={20} color="#374151" />
+                <Search size={24} color="#374151" />
               </Pressable>
               <Pressable
                 onPress={() => navigateTo('/notifications')}
-                className="w-10 h-10 rounded-full bg-white items-center justify-center shadow-sm ml-2 border border-gray-100"
+                className="w-10 h-10 items-center justify-center"
               >
-                <Bell size={20} color="#374151" />
+                <Bell size={24} color="#374151" />
               </Pressable>
               <Pressable
                 onPress={() => navigateTo('/messages')}
-                className="w-10 h-10 rounded-full bg-white items-center justify-center shadow-sm ml-2 border border-gray-100"
+                className="w-10 h-10 items-center justify-center"
               >
-                <MessageCircle size={20} color="#374151" />
+                <MessageCircle size={24} color="#374151" />
               </Pressable>
             </View>
           </View>
-
-          {/* Filter Tabs - Pill Style */}
-          <View className="flex-row bg-white rounded-2xl p-1.5 shadow-sm border border-gray-100">
-            <Pressable
-              onPress={() => toggleFilter('local')}
-              className="flex-1"
-            >
-              <LinearGradient
-                colors={feedFilter === 'local' ? ['#7C3AED', '#6D28D9'] : ['transparent', 'transparent']}
-                style={{ borderRadius: 14, paddingVertical: 10, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' }}
-              >
-                <Users size={16} color={feedFilter === 'local' ? '#FFFFFF' : '#6B7280'} />
-                <Text
-                  className={`ml-2 font-semibold text-sm ${
-                    feedFilter === 'local' ? 'text-white' : 'text-gray-500'
-                  }`}
-                >
-                  My Community
-                </Text>
-              </LinearGradient>
-            </Pressable>
-
-            <Pressable
-              onPress={() => toggleFilter('global')}
-              className="flex-1"
-            >
-              <LinearGradient
-                colors={feedFilter === 'global' ? ['#7C3AED', '#6D28D9'] : ['transparent', 'transparent']}
-                style={{ borderRadius: 14, paddingVertical: 10, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' }}
-              >
-                <Globe size={16} color={feedFilter === 'global' ? '#FFFFFF' : '#6B7280'} />
-                <Text
-                  className={`ml-2 font-semibold text-sm ${
-                    feedFilter === 'global' ? 'text-white' : 'text-gray-500'
-                  }`}
-                >
-                  Worldwide
-                </Text>
-              </LinearGradient>
-            </Pressable>
-          </View>
-        </Animated.View>
+        </View>
 
         {/* Feed */}
         <ScrollView
@@ -609,125 +324,39 @@ export default function HomeScreen() {
               colors={['#7C3AED']}
             />
           }
-          contentContainerStyle={{ paddingBottom: 20 }}
         >
-          {/* Guest Sign Up Banner */}
-          {(isGuest || !currentUser) && (
-            <Animated.View
-              entering={FadeInUp.duration(500).delay(100)}
-              className="mx-4 mb-4"
-            >
-              <Pressable onPress={() => navigateTo('/signup')}>
-                <LinearGradient
-                  colors={['#7C3AED', '#6D28D9']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={{ borderRadius: 20, padding: 16, overflow: 'hidden' }}
-                >
-                  <View className="absolute top-0 right-0 w-32 h-32 rounded-full bg-white/10" style={{ transform: [{ translateX: 40 }, { translateY: -40 }] }} />
-                  <View className="flex-row items-center">
-                    <View className="bg-white/20 rounded-2xl p-3">
-                      <UserPlus size={24} color="#FFFFFF" />
-                    </View>
-                    <View className="flex-1 ml-4">
-                      <Text className="text-white font-bold text-base">
-                        Join the Community
-                      </Text>
-                      <Text className="text-white/80 text-sm mt-0.5">
-                        Connect with {communityMemberCount.toLocaleString()}+ members
-                      </Text>
-                    </View>
-                    <View className="bg-white/20 rounded-full p-2">
-                      <ChevronRight size={20} color="#FFFFFF" />
-                    </View>
-                  </View>
-                </LinearGradient>
-              </Pressable>
-            </Animated.View>
-          )}
-
-          {/* Community Stats Card */}
-          <Animated.View
-            entering={FadeInUp.duration(500).delay(150)}
-            className="mx-4 mb-5"
-          >
-            <LinearGradient
-              colors={['#EC4899', '#DB2777', '#BE185D']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={{ borderRadius: 24, padding: 20, overflow: 'hidden' }}
-            >
-              {/* Decorative circles */}
-              <View className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-white/10" />
-              <View className="absolute -bottom-8 -left-8 w-32 h-32 rounded-full bg-black/10" />
-
-              <View className="flex-row items-center justify-between relative">
-                <View className="flex-1">
-                  <View className="flex-row items-center mb-1">
-                    <Sparkles size={16} color="#FDE68A" />
-                    <Text className="text-white/90 text-xs font-medium ml-1.5 uppercase tracking-wider">
-                      Welcome to
-                    </Text>
-                  </View>
-                  <Text className="text-white text-2xl font-bold">
-                    {displayCommunity.city}
-                  </Text>
-                  <View className="flex-row items-center mt-3">
-                    <View className="flex-row items-center bg-white/20 rounded-full px-3 py-1.5">
-                      <Users size={14} color="#FFFFFF" />
-                      <Text className="text-white font-semibold text-sm ml-1.5">
-                        {memberCount.toLocaleString()}
-                      </Text>
-                    </View>
-                    <Text className="text-white/80 text-sm ml-2">members</Text>
-                  </View>
-                </View>
-
-                <Pressable
-                  onPress={() => navigateTo('/location-select')}
-                  className="bg-white/20 rounded-2xl p-4"
-                >
-                  <MapPin size={28} color="#FFFFFF" />
-                </Pressable>
-              </View>
-            </LinearGradient>
-          </Animated.View>
-
-          {/* Stories Row */}
-          <Animated.View
-            entering={FadeInUp.duration(500).delay(175)}
-            className="mb-4"
-          >
+          {/* Stories Row - Instagram Style */}
+          <View className="border-b border-gray-100 py-3">
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ paddingHorizontal: 16 }}
+              contentContainerStyle={{ paddingHorizontal: 12 }}
             >
-              {/* Current User Story Avatar - Add Story */}
+              {/* Current User Story */}
               {currentUser && (
                 <Pressable
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                     router.push('/stories');
                   }}
-                  className="items-center mr-3"
+                  className="items-center mr-4"
                 >
                   <View className="relative">
                     <StoryAvatar
                       userId={currentUser.id}
                       avatarUrl={currentUser.avatar}
-                      size={60}
+                      size={64}
                       isCurrentUser={true}
                     />
                   </View>
-                  <Text className="text-gray-600 text-xs mt-1.5 font-medium">Your Story</Text>
+                  <Text className="text-xs mt-1 text-gray-600">Your story</Text>
                 </Pressable>
               )}
 
-              {/* Other Users' Stories */}
+              {/* Other Stories */}
               {userStories
                 .filter((story: UserStory) => story.userId !== currentUser?.id && story.stories.length > 0)
-                .slice(0, 10)
+                .slice(0, 8)
                 .map((userStory: UserStory) => (
                   <Pressable
                     key={userStory.userId}
@@ -738,18 +367,16 @@ export default function HomeScreen() {
                         params: { userId: userStory.userId },
                       });
                     }}
-                    className="items-center mr-3"
+                    className="items-center mr-4"
                   >
                     <StoryAvatar
                       userId={userStory.userId}
                       avatarUrl={userStory.userAvatar}
-                      size={60}
+                      size={64}
                       showRing={true}
                     />
                     <Text
-                      className={`text-xs mt-1.5 font-medium ${
-                        userStory.hasUnseenStories ? 'text-gray-900' : 'text-gray-400'
-                      }`}
+                      className={`text-xs mt-1 ${userStory.hasUnseenStories ? 'text-gray-900' : 'text-gray-400'}`}
                       numberOfLines={1}
                       style={{ maxWidth: 64 }}
                     >
@@ -758,170 +385,131 @@ export default function HomeScreen() {
                   </Pressable>
                 ))}
             </ScrollView>
-          </Animated.View>
+          </View>
 
-          {/* Daily Rewards Banner */}
+          {/* Feed Filter - Nextdoor Style */}
+          <View className="flex-row px-4 py-3 gap-2 border-b border-gray-100">
+            <Pressable
+              onPress={() => toggleFilter('local')}
+              className={`flex-row items-center px-4 py-2 rounded-full ${
+                feedFilter === 'local' ? 'bg-gray-900' : 'bg-gray-100'
+              }`}
+            >
+              <Users size={16} color={feedFilter === 'local' ? '#fff' : '#6B7280'} />
+              <Text className={`ml-2 font-medium text-sm ${
+                feedFilter === 'local' ? 'text-white' : 'text-gray-600'
+              }`}>
+                Local
+              </Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => toggleFilter('global')}
+              className={`flex-row items-center px-4 py-2 rounded-full ${
+                feedFilter === 'global' ? 'bg-gray-900' : 'bg-gray-100'
+              }`}
+            >
+              <Globe size={16} color={feedFilter === 'global' ? '#fff' : '#6B7280'} />
+              <Text className={`ml-2 font-medium text-sm ${
+                feedFilter === 'global' ? 'text-white' : 'text-gray-600'
+              }`}>
+                Global
+              </Text>
+            </Pressable>
+
+            {/* Explore Button */}
+            <Pressable
+              onPress={() => navigateTo('/app-search')}
+              className="flex-row items-center px-4 py-2 rounded-full bg-gray-100 ml-auto"
+            >
+              <Compass size={16} color="#6B7280" />
+              <Text className="ml-2 font-medium text-sm text-gray-600">Explore</Text>
+            </Pressable>
+          </View>
+
+          {/* Guest Sign Up Banner - Minimal */}
+          {(isGuest || !currentUser) && (
+            <Pressable
+              onPress={() => navigateTo('/signup')}
+              className="mx-4 mt-3 p-4 bg-violet-50 rounded-xl border border-violet-100"
+            >
+              <View className="flex-row items-center">
+                <View className="w-10 h-10 rounded-full bg-violet-500 items-center justify-center">
+                  <UserPlus size={20} color="#fff" />
+                </View>
+                <View className="flex-1 ml-3">
+                  <Text className="text-gray-900 font-semibold">Join the community</Text>
+                  <Text className="text-gray-500 text-sm">{memberCount.toLocaleString()} members nearby</Text>
+                </View>
+                <ChevronRight size={20} color="#7C3AED" />
+              </View>
+            </Pressable>
+          )}
+
+          {/* Daily Rewards - Compact */}
           <DailyRewardsBanner onPress={() => setShowDailyRewards(true)} />
 
-          {/* Quick Access Grid */}
-          <Animated.View
-            entering={FadeInUp.duration(500).delay(200)}
-            className="mx-4 mb-5"
-          >
-            <View className="flex-row items-center justify-between mb-3">
-              <Text className="text-gray-900 font-bold text-lg">Quick Access</Text>
-              <Pressable
-                onPress={() => setShowAllFeatures(!showAllFeatures)}
-                className="flex-row items-center"
-              >
-                <Text className="text-[#7C3AED] text-sm font-medium">
-                  {showAllFeatures ? 'Show Less' : 'See All'}
-                </Text>
-                <ChevronRight size={16} color="#7C3AED" />
-              </Pressable>
-            </View>
-
-            {/* Quick Access Icons */}
-            <View className="flex-row flex-wrap justify-between">
-              {quickFeatures.map((feature, index) => (
-                <Pressable
-                  key={feature.route}
-                  onPress={() => navigateTo(feature.route)}
-                  className="items-center mb-4"
-                  style={{ width: '16%' }}
-                >
-                  <LinearGradient
-                    colors={feature.colors}
-                    style={{ width: 52, height: 52, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginBottom: 6 }}
-                  >
-                    <feature.icon size={24} color="white" />
-                  </LinearGradient>
-                  <Text className="text-gray-700 text-xs font-medium text-center">{feature.label}</Text>
-                </Pressable>
-              ))}
-            </View>
-
-            {/* Expanded Features Grid */}
-            {showAllFeatures && (
-              <Animated.View
-                entering={FadeIn.duration(300)}
-                className="mt-2"
-              >
-                <View className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200">
-                  <View className="flex-row flex-wrap">
-                    {allFeatures.map((feature, index) => (
-                      <Pressable
-                        key={feature.route}
-                        onPress={() => navigateTo(feature.route)}
-                        className="flex-row items-center p-3 mb-2 bg-gray-50 rounded-xl"
-                        style={{ width: '48%', marginRight: index % 2 === 0 ? '4%' : 0 }}
-                      >
-                        <LinearGradient
-                          colors={feature.colors}
-                          style={{ width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' }}
-                        >
-                          <feature.icon size={18} color="white" />
-                        </LinearGradient>
-                        <View className="ml-2 flex-1">
-                          <Text className="text-gray-900 text-sm font-semibold">{feature.label}</Text>
-                          <Text className="text-gray-400 text-xs">{feature.desc}</Text>
-                        </View>
-                      </Pressable>
-                    ))}
-                  </View>
-                </View>
-              </Animated.View>
-            )}
-          </Animated.View>
-
-          {/* Local News Section */}
-          {feedFilter === 'local' && localNews.length > 0 && (
-            <Animated.View
-              entering={FadeInUp.duration(500).delay(250)}
-              className="mb-5"
-            >
-              <View className="flex-row items-center justify-between px-4 mb-3">
-                <View className="flex-row items-center">
-                  <LinearGradient
-                    colors={['#6366F1', '#4F46E5'] as const}
-                    style={{ width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginRight: 10 }}
-                  >
-                    <Newspaper size={16} color="#FFFFFF" />
-                  </LinearGradient>
-                  <Text className="text-gray-900 font-bold text-lg">Local News</Text>
-                </View>
-                <View className="bg-indigo-100 px-2.5 py-1 rounded-full">
-                  <Text className="text-indigo-600 text-xs font-medium">{displayCommunity.city}</Text>
-                </View>
-              </View>
-
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
-                style={{ flexGrow: 0 }}
-              >
-                {localNews.map((article) => (
-                  <NewsCard key={article.id} article={article} variant="compact" />
-                ))}
-              </ScrollView>
-            </Animated.View>
-          )}
-
-          {/* Posts Section Header */}
-          <Animated.View
-            entering={FadeInUp.duration(500).delay(300)}
-            className="px-4 mb-3"
-          >
-            <View className="flex-row items-center">
-              <View className="w-1 h-5 bg-violet-500 rounded-full mr-2" />
-              <Text className="text-gray-900 font-bold text-lg">
-                {feedFilter === 'local' ? 'Community Posts' : 'Global Feed'}
-              </Text>
-            </View>
-          </Animated.View>
-
           {/* Posts */}
-          {allPosts.length > 0 ? (
-            allPosts.map((post, index) => (
-              <Animated.View
-                key={post.id}
-                entering={FadeInUp.duration(400).delay(350 + index * 50)}
-              >
-                <PostCard post={post} />
-              </Animated.View>
-            ))
-          ) : (
-            <View className="mx-4 py-16 items-center bg-white rounded-2xl shadow-sm border border-gray-200">
-              <LinearGradient
-                colors={['#7C3AED', '#6D28D9'] as const}
-                style={{ width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}
-              >
-                <Users size={32} color="#FFFFFF" />
-              </LinearGradient>
-              <Text className="text-gray-900 font-semibold text-lg text-center">
-                No posts yet
-              </Text>
-              <Text className="text-gray-400 text-center mt-2 px-8">
-                Be the first to share something with your community!
-              </Text>
-              <Pressable
-                onPress={() => navigateTo('/create-post')}
-                className="mt-4"
-              >
-                <LinearGradient
-                  colors={['#EC4899', '#DB2777'] as const}
-                  style={{ borderRadius: 20, paddingHorizontal: 24, paddingVertical: 12 }}
+          <View className="mt-2">
+            {allPosts.length > 0 ? (
+              allPosts.map((post, index) => (
+                <Animated.View
+                  key={post.id}
+                  entering={FadeInUp.duration(300).delay(index * 30)}
+                >
+                  <PostCard post={post} />
+                </Animated.View>
+              ))
+            ) : (
+              <View className="mx-4 py-16 items-center">
+                <View className="w-16 h-16 rounded-full bg-gray-100 items-center justify-center mb-4">
+                  <Users size={28} color="#9CA3AF" />
+                </View>
+                <Text className="text-gray-900 font-semibold text-lg">No posts yet</Text>
+                <Text className="text-gray-500 text-center mt-1 px-8">
+                  Be the first to share something with your community
+                </Text>
+                <Pressable
+                  onPress={() => navigateTo('/create-post')}
+                  className="mt-4 bg-gray-900 px-6 py-3 rounded-full"
                 >
                   <Text className="text-white font-semibold">Create Post</Text>
-                </LinearGradient>
-              </Pressable>
-            </View>
-          )}
+                </Pressable>
+              </View>
+            )}
+          </View>
+
+          <View className="h-20" />
         </ScrollView>
+
+        {/* Floating Create Button */}
+        <Pressable
+          onPress={() => navigateTo('/create-post')}
+          className="absolute bottom-6 right-6"
+          style={{
+            shadowColor: '#7C3AED',
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.3,
+            shadowRadius: 8,
+            elevation: 8,
+          }}
+        >
+          <LinearGradient
+            colors={['#7C3AED', '#6D28D9']}
+            style={{
+              width: 56,
+              height: 56,
+              borderRadius: 28,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Plus size={28} color="#fff" strokeWidth={2.5} />
+          </LinearGradient>
+        </Pressable>
       </SafeAreaView>
 
-      {/* Location Change Modal */}
+      {/* Modals */}
       <LocationChangeModal
         visible={showLocationModal}
         detectedCity={detectedLocation?.city ?? ''}
@@ -933,7 +521,6 @@ export default function HomeScreen() {
         onDismiss={handleDismissLocationDetection}
       />
 
-      {/* Daily Rewards Modal */}
       <DailyRewardsModal
         visible={showDailyRewards}
         onClose={() => setShowDailyRewards(false)}
