@@ -141,7 +141,10 @@ export default function SettingsScreen() {
 
             <View className="bg-white rounded-2xl overflow-hidden shadow-sm">
               <Pressable
-                onPress={() => Linking.openURL('https://diaspora.app/privacy')}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  router.push('/privacy-policy');
+                }}
                 className="flex-row items-center p-4 border-b border-gray-100"
               >
                 <View className="bg-forest-50 rounded-full p-2.5 mr-3">
