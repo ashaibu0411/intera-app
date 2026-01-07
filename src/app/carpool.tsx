@@ -6,18 +6,22 @@ import { Image } from 'expo-image';
 import {
   ArrowLeft, Car, MapPin, Calendar, Clock, Users, Star, MessageCircle, Plus, X,
   ChevronRight, Plane, Briefcase, Music, PartyPopper, CreditCard, Banknote, Gem,
-  DollarSign, Smartphone, Check, Info, Shield
+  DollarSign, Smartphone, Check, Info, Shield, Globe, Building, Send, Wallet
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import Animated, { FadeInDown, ZoomIn } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 
-type PaymentMethod = 'cash' | 'cashapp' | 'venmo' | 'zelle' | 'inapp';
+type PaymentMethod = 'cash' | 'cashapp' | 'venmo' | 'zelle' | 'paypal' | 'wise' | 'mpesa' | 'bank' | 'inapp';
 
 interface PaymentInfo {
   cashApp?: string;
   venmo?: string;
   zelle?: string;
+  paypal?: string;
+  wise?: string;
+  mpesa?: string;
+  bankDetails?: string;
   acceptsCash: boolean;
   acceptsInApp: boolean;
 }
@@ -59,15 +63,15 @@ const MOCK_RIDES: CarpoolRide[] = [
       isVerified: true,
     },
     from: 'Harlem, Manhattan',
-    fromCity: 'New York',
+    fromCity: 'New York, USA',
     to: 'JFK Airport',
-    toCity: 'Queens',
+    toCity: 'Queens, USA',
     date: 'Tomorrow',
     time: '6:30 AM',
     seats: 4,
     seatsAvailable: 3,
     price: 25,
-    priceDisplay: '$25',
+    priceDisplay: '$25 USD',
     type: 'airport',
     description: 'Early morning airport run. I have a spacious SUV with room for luggage. Playing smooth jazz during the ride.',
     amenities: ['AC', 'Music', 'Luggage Space', 'Charger'],
@@ -76,6 +80,7 @@ const MOCK_RIDES: CarpoolRide[] = [
       cashApp: '$MikeAdeyemi',
       venmo: '@MikeAdeyemi',
       zelle: 'mike@email.com',
+      paypal: 'mike.adeyemi@email.com',
       acceptsCash: true,
       acceptsInApp: true,
     },
@@ -83,29 +88,29 @@ const MOCK_RIDES: CarpoolRide[] = [
   {
     id: '2',
     driver: {
-      name: 'Aisha Mohammed',
+      name: 'Kwame Asante',
       avatar: 'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=200',
       rating: 4.8,
       rides: 89,
       isVerified: true,
     },
-    from: 'Brooklyn Heights',
-    fromCity: 'Brooklyn',
-    to: 'Midtown Manhattan',
-    toCity: 'Manhattan',
+    from: 'Accra Central',
+    fromCity: 'Accra, Ghana',
+    to: 'Kotoka Airport',
+    toCity: 'Accra, Ghana',
     date: 'Mon-Fri',
     time: '8:00 AM',
     seats: 3,
     seatsAvailable: 2,
-    price: 10,
-    priceDisplay: '$10/day',
-    type: 'commute',
-    description: 'Daily commute to work. Looking for regular carpool partners to share costs. Quiet ride, good for catching up on podcasts.',
+    price: 80,
+    priceDisplay: '₵80 GHS',
+    type: 'airport',
+    description: 'Daily airport runs. Reliable service with comfortable AC vehicle. I speak English, Twi, and French.',
     amenities: ['AC', 'Quiet Ride', 'Charger'],
     isRecurring: true,
     paymentInfo: {
-      cashApp: '$AishaMo',
-      venmo: '@AishaMohammed',
+      mpesa: '+233 24 123 4567',
+      bankDetails: 'Access Bank - 1234567890',
       acceptsCash: true,
       acceptsInApp: true,
     },
@@ -113,28 +118,29 @@ const MOCK_RIDES: CarpoolRide[] = [
   {
     id: '3',
     driver: {
-      name: 'James Okafor',
+      name: 'Fatima Okonkwo',
       avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200',
       rating: 4.7,
       rides: 45,
       isVerified: true,
     },
-    from: 'Atlanta, GA',
-    fromCity: 'Atlanta',
-    to: 'Essence Festival',
-    toCity: 'New Orleans',
-    date: 'July 4',
-    time: '6:00 AM',
+    from: 'Victoria Island',
+    fromCity: 'Lagos, Nigeria',
+    to: 'Lekki Phase 1',
+    toCity: 'Lagos, Nigeria',
+    date: 'Daily',
+    time: '7:30 AM',
     seats: 4,
     seatsAvailable: 2,
-    price: 75,
-    priceDisplay: '$75',
-    type: 'event',
-    description: 'Road trip to Essence Festival! 7-hour drive with good vibes and music. Splitting gas and tolls. Let\'s make it a party!',
-    amenities: ['Music', 'Snacks', 'Rest Stops', 'Good Vibes'],
-    isRecurring: false,
+    price: 3000,
+    priceDisplay: '₦3,000 NGN',
+    type: 'commute',
+    description: 'Daily commute through Victoria Island to Lekki. Avoid Third Mainland traffic. AC vehicle, very punctual.',
+    amenities: ['AC', 'Music', 'Rest Stops', 'Good Vibes'],
+    isRecurring: true,
     paymentInfo: {
-      zelle: 'james.okafor@email.com',
+      bankDetails: 'GTBank - 0123456789 (Fatima Okonkwo)',
+      mpesa: '+234 803 123 4567',
       acceptsCash: true,
       acceptsInApp: true,
     },
@@ -142,30 +148,30 @@ const MOCK_RIDES: CarpoolRide[] = [
   {
     id: '4',
     driver: {
-      name: 'Keisha Williams',
+      name: 'Sophie Mensah',
       avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200',
       rating: 5.0,
       rides: 234,
       isVerified: true,
     },
-    from: 'Newark, NJ',
-    fromCity: 'Newark',
-    to: 'EWR Airport',
-    toCity: 'Newark',
+    from: 'Brixton',
+    fromCity: 'London, UK',
+    to: 'Heathrow Airport',
+    toCity: 'London, UK',
     date: 'Today',
     time: '3:00 PM',
     seats: 3,
     seatsAvailable: 2,
-    price: 15,
-    priceDisplay: '$15',
+    price: 35,
+    priceDisplay: '£35 GBP',
     type: 'airport',
     description: 'Quick airport drop-off. Can accommodate 2 large suitcases. Clean car with great reviews!',
     amenities: ['AC', 'Luggage Space', 'Charger', 'Water'],
     isRecurring: false,
     paymentInfo: {
-      cashApp: '$KeishaW',
-      venmo: '@KeishaWilliams',
-      zelle: '555-123-4567',
+      paypal: 'sophie.mensah@email.com',
+      wise: 'sophie.mensah@email.com',
+      bankDetails: 'Monzo - Sort: 04-00-04 Acc: 12345678',
       acceptsCash: true,
       acceptsInApp: true,
     },
@@ -173,29 +179,60 @@ const MOCK_RIDES: CarpoolRide[] = [
   {
     id: '5',
     driver: {
-      name: 'David Chen',
+      name: 'Jean-Pierre Diallo',
       avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=200',
       rating: 4.6,
       rides: 67,
       isVerified: false,
     },
-    from: 'Jersey City',
-    fromCity: 'New Jersey',
-    to: 'AfroNation Concert',
-    toCity: 'Miami',
-    date: 'May 25',
+    from: 'Dakar Centre',
+    fromCity: 'Dakar, Senegal',
+    to: 'Blaise Diagne Airport',
+    toCity: 'Diass, Senegal',
+    date: 'Tomorrow',
     time: '5:00 AM',
     seats: 4,
     seatsAvailable: 3,
-    price: 120,
-    priceDisplay: '$120',
-    type: 'road-trip',
-    description: '18-hour road trip to AfroNation Miami! Splitting driving, gas, and snacks. Bringing the Afrobeats playlist. Let\'s go!',
-    amenities: ['Music', 'Snacks', 'Rest Stops', 'Luggage Space'],
+    price: 15000,
+    priceDisplay: '15,000 CFA',
+    type: 'airport',
+    description: 'Airport transfer to AIBD. Spacious vehicle with plenty of luggage space. I speak French, Wolof, and English.',
+    amenities: ['AC', 'Music', 'Luggage Space', 'Water'],
     isRecurring: false,
     paymentInfo: {
-      venmo: '@DavidC',
-      acceptsCash: false,
+      mpesa: '+221 77 123 4567',
+      wise: 'jpdiallo@email.com',
+      acceptsCash: true,
+      acceptsInApp: true,
+    },
+  },
+  {
+    id: '6',
+    driver: {
+      name: 'Amara Keita',
+      avatar: 'https://images.unsplash.com/photo-1489424731084-a5d8b219a5bb?w=200',
+      rating: 4.9,
+      rides: 112,
+      isVerified: true,
+    },
+    from: 'Nairobi CBD',
+    fromCity: 'Nairobi, Kenya',
+    to: 'JKIA Airport',
+    toCity: 'Nairobi, Kenya',
+    date: 'Daily',
+    time: '6:00 AM',
+    seats: 3,
+    seatsAvailable: 2,
+    price: 2500,
+    priceDisplay: 'KSh 2,500',
+    type: 'airport',
+    description: 'Early morning airport runs. Comfortable SUV, reliable timing. M-Pesa accepted. Habari!',
+    amenities: ['AC', 'Charger', 'Luggage Space', 'Snacks'],
+    isRecurring: true,
+    paymentInfo: {
+      mpesa: '+254 712 345 678',
+      bankDetails: 'Equity Bank - 0987654321',
+      acceptsCash: true,
       acceptsInApp: true,
     },
   },
@@ -235,9 +272,14 @@ export default function CarpoolScreen() {
     time: '',
     seats: '',
     price: '',
+    currency: '',
     cashApp: '',
     venmo: '',
     zelle: '',
+    paypal: '',
+    wise: '',
+    mpesa: '',
+    bankDetails: '',
     acceptsCash: true,
     acceptsInApp: true,
   });
@@ -290,6 +332,15 @@ export default function CarpoolScreen() {
     if (ride.paymentInfo.acceptsInApp) {
       methods.push({ method: 'inapp', label: 'Pay in App', icon: Gem });
     }
+    if (ride.paymentInfo.mpesa) {
+      methods.push({ method: 'mpesa', label: 'M-Pesa / Mobile Money', icon: Smartphone, handle: ride.paymentInfo.mpesa });
+    }
+    if (ride.paymentInfo.paypal) {
+      methods.push({ method: 'paypal', label: 'PayPal', icon: Globe, handle: ride.paymentInfo.paypal });
+    }
+    if (ride.paymentInfo.wise) {
+      methods.push({ method: 'wise', label: 'Wise (TransferWise)', icon: Send, handle: ride.paymentInfo.wise });
+    }
     if (ride.paymentInfo.cashApp) {
       methods.push({ method: 'cashapp', label: 'Cash App', icon: DollarSign, handle: ride.paymentInfo.cashApp });
     }
@@ -299,8 +350,11 @@ export default function CarpoolScreen() {
     if (ride.paymentInfo.zelle) {
       methods.push({ method: 'zelle', label: 'Zelle', icon: Banknote, handle: ride.paymentInfo.zelle });
     }
+    if (ride.paymentInfo.bankDetails) {
+      methods.push({ method: 'bank', label: 'Bank Transfer', icon: Building, handle: ride.paymentInfo.bankDetails });
+    }
     if (ride.paymentInfo.acceptsCash) {
-      methods.push({ method: 'cash', label: 'Cash', icon: Banknote });
+      methods.push({ method: 'cash', label: 'Cash', icon: Wallet });
     }
 
     return methods;
@@ -571,13 +625,21 @@ export default function CarpoolScreen() {
                           method.method === 'inapp' ? 'bg-purple-500/30' :
                           method.method === 'cashapp' ? 'bg-green-500/30' :
                           method.method === 'venmo' ? 'bg-blue-500/30' :
-                          method.method === 'zelle' ? 'bg-purple-500/30' : 'bg-gray-500/30'
+                          method.method === 'zelle' ? 'bg-purple-500/30' :
+                          method.method === 'paypal' ? 'bg-blue-500/30' :
+                          method.method === 'wise' ? 'bg-emerald-500/30' :
+                          method.method === 'mpesa' ? 'bg-green-500/30' :
+                          method.method === 'bank' ? 'bg-slate-500/30' : 'bg-amber-500/30'
                         }`}>
                           <method.icon size={20} color={
                             method.method === 'inapp' ? '#A855F7' :
                             method.method === 'cashapp' ? '#00D632' :
                             method.method === 'venmo' ? '#008CFF' :
-                            method.method === 'zelle' ? '#6D1ED4' : '#9CA3AF'
+                            method.method === 'zelle' ? '#6D1ED4' :
+                            method.method === 'paypal' ? '#003087' :
+                            method.method === 'wise' ? '#37517E' :
+                            method.method === 'mpesa' ? '#4CAF50' :
+                            method.method === 'bank' ? '#64748B' : '#F59E0B'
                           } />
                         </View>
                         <View className="flex-1 ml-3">
@@ -652,7 +714,11 @@ export default function CarpoolScreen() {
                       <View className="flex-row items-start bg-blue-500/10 rounded-2xl p-4 mt-2 mb-4">
                         <Info size={18} color="#3B82F6" style={{ marginTop: 2 }} />
                         <Text className="text-blue-300 text-sm ml-2 flex-1">
-                          Send payment to the driver using their {selectedPaymentMethod === 'cashapp' ? 'Cash App' : selectedPaymentMethod === 'venmo' ? 'Venmo' : 'Zelle'} before or after the ride.
+                          {selectedPaymentMethod === 'mpesa' ? 'Send payment via M-Pesa or Mobile Money to the driver\'s number before or after the ride.' :
+                           selectedPaymentMethod === 'paypal' ? 'Send payment via PayPal to the driver\'s email before or after the ride.' :
+                           selectedPaymentMethod === 'wise' ? 'Send payment via Wise (TransferWise) to the driver before or after the ride.' :
+                           selectedPaymentMethod === 'bank' ? 'Transfer payment to the driver\'s bank account before or after the ride.' :
+                           `Send payment to the driver using their ${selectedPaymentMethod === 'cashapp' ? 'Cash App' : selectedPaymentMethod === 'venmo' ? 'Venmo' : 'Zelle'} before or after the ride.`}
                         </Text>
                       </View>
                     )}
@@ -766,7 +832,7 @@ export default function CarpoolScreen() {
                   <View className="flex-1">
                     <Text className="text-gray-400 text-sm mb-2">Price per Seat</Text>
                     <TextInput
-                      placeholder="$0"
+                      placeholder="25"
                       placeholderTextColor="#6B7280"
                       keyboardType="number-pad"
                       value={postForm.price}
@@ -776,12 +842,111 @@ export default function CarpoolScreen() {
                   </View>
                 </View>
 
+                {/* Currency Selection */}
+                <View className="mb-6">
+                  <Text className="text-gray-400 text-sm mb-2">Currency</Text>
+                  <TextInput
+                    placeholder="e.g., USD, GBP, NGN, KES, GHS, EUR, CFA"
+                    placeholderTextColor="#6B7280"
+                    value={postForm.currency}
+                    onChangeText={(text) => setPostForm({ ...postForm, currency: text.toUpperCase() })}
+                    autoCapitalize="characters"
+                    className="bg-white/10 rounded-xl px-4 py-3 text-white"
+                  />
+                  <Text className="text-gray-500 text-xs mt-1">Enter your local currency code</Text>
+                </View>
+
                 {/* Payment Methods Section */}
                 <View className="bg-white/5 rounded-2xl p-4 mb-6">
-                  <Text className="text-white font-bold text-base mb-3">Payment Methods</Text>
+                  <View className="flex-row items-center mb-3">
+                    <Globe size={18} color="#3B82F6" />
+                    <Text className="text-white font-bold text-base ml-2">Payment Methods</Text>
+                  </View>
                   <Text className="text-gray-400 text-sm mb-4">
-                    Add your payment details so passengers can pay you easily
+                    Add your payment details. Only fill in the methods you use in your country.
                   </Text>
+
+                  {/* M-Pesa / Mobile Money */}
+                  <View className="mb-3">
+                    <View className="flex-row items-center mb-2">
+                      <View className="w-6 h-6 rounded bg-green-500/30 items-center justify-center mr-2">
+                        <Smartphone size={14} color="#4CAF50" />
+                      </View>
+                      <Text className="text-gray-300 text-sm">M-Pesa / Mobile Money</Text>
+                      <Text className="text-green-400 text-xs ml-auto">Africa</Text>
+                    </View>
+                    <TextInput
+                      placeholder="+254 712 345 678"
+                      placeholderTextColor="#6B7280"
+                      value={postForm.mpesa}
+                      onChangeText={(text) => setPostForm({ ...postForm, mpesa: text })}
+                      keyboardType="phone-pad"
+                      className="bg-white/10 rounded-xl px-4 py-3 text-white"
+                    />
+                  </View>
+
+                  {/* PayPal */}
+                  <View className="mb-3">
+                    <View className="flex-row items-center mb-2">
+                      <View className="w-6 h-6 rounded bg-blue-500/30 items-center justify-center mr-2">
+                        <Globe size={14} color="#003087" />
+                      </View>
+                      <Text className="text-gray-300 text-sm">PayPal</Text>
+                      <Text className="text-blue-400 text-xs ml-auto">Global</Text>
+                    </View>
+                    <TextInput
+                      placeholder="your.email@example.com"
+                      placeholderTextColor="#6B7280"
+                      value={postForm.paypal}
+                      onChangeText={(text) => setPostForm({ ...postForm, paypal: text })}
+                      keyboardType="email-address"
+                      className="bg-white/10 rounded-xl px-4 py-3 text-white"
+                    />
+                  </View>
+
+                  {/* Wise */}
+                  <View className="mb-3">
+                    <View className="flex-row items-center mb-2">
+                      <View className="w-6 h-6 rounded bg-emerald-500/30 items-center justify-center mr-2">
+                        <Send size={14} color="#37517E" />
+                      </View>
+                      <Text className="text-gray-300 text-sm">Wise (TransferWise)</Text>
+                      <Text className="text-emerald-400 text-xs ml-auto">Global</Text>
+                    </View>
+                    <TextInput
+                      placeholder="your.email@example.com"
+                      placeholderTextColor="#6B7280"
+                      value={postForm.wise}
+                      onChangeText={(text) => setPostForm({ ...postForm, wise: text })}
+                      keyboardType="email-address"
+                      className="bg-white/10 rounded-xl px-4 py-3 text-white"
+                    />
+                  </View>
+
+                  {/* Bank Transfer */}
+                  <View className="mb-3">
+                    <View className="flex-row items-center mb-2">
+                      <View className="w-6 h-6 rounded bg-slate-500/30 items-center justify-center mr-2">
+                        <Building size={14} color="#64748B" />
+                      </View>
+                      <Text className="text-gray-300 text-sm">Bank Transfer</Text>
+                      <Text className="text-slate-400 text-xs ml-auto">Global</Text>
+                    </View>
+                    <TextInput
+                      placeholder="Bank Name - Account Number"
+                      placeholderTextColor="#6B7280"
+                      value={postForm.bankDetails}
+                      onChangeText={(text) => setPostForm({ ...postForm, bankDetails: text })}
+                      className="bg-white/10 rounded-xl px-4 py-3 text-white"
+                    />
+                  </View>
+
+                  {/* Divider */}
+                  <View className="flex-row items-center my-4">
+                    <View className="flex-1 h-px bg-white/10" />
+                    <Text className="text-gray-500 text-xs mx-3">US-ONLY METHODS</Text>
+                    <View className="flex-1 h-px bg-white/10" />
+                  </View>
 
                   {/* Cash App */}
                   <View className="mb-3">
@@ -790,6 +955,7 @@ export default function CarpoolScreen() {
                         <DollarSign size={14} color="#00D632" />
                       </View>
                       <Text className="text-gray-300 text-sm">Cash App</Text>
+                      <Text className="text-gray-500 text-xs ml-auto">US</Text>
                     </View>
                     <TextInput
                       placeholder="$YourCashTag"
@@ -807,6 +973,7 @@ export default function CarpoolScreen() {
                         <Smartphone size={14} color="#008CFF" />
                       </View>
                       <Text className="text-gray-300 text-sm">Venmo</Text>
+                      <Text className="text-gray-500 text-xs ml-auto">US</Text>
                     </View>
                     <TextInput
                       placeholder="@YourVenmo"
@@ -823,10 +990,11 @@ export default function CarpoolScreen() {
                       <View className="w-6 h-6 rounded bg-purple-500/30 items-center justify-center mr-2">
                         <Banknote size={14} color="#6D1ED4" />
                       </View>
-                      <Text className="text-gray-300 text-sm">Zelle (email or phone)</Text>
+                      <Text className="text-gray-300 text-sm">Zelle</Text>
+                      <Text className="text-gray-500 text-xs ml-auto">US</Text>
                     </View>
                     <TextInput
-                      placeholder="email@example.com or 555-123-4567"
+                      placeholder="email@example.com or phone"
                       placeholderTextColor="#6B7280"
                       value={postForm.zelle}
                       onChangeText={(text) => setPostForm({ ...postForm, zelle: text })}
@@ -852,7 +1020,7 @@ export default function CarpoolScreen() {
                     <View className="flex-row items-center justify-between">
                       <View className="flex-1 mr-3">
                         <Text className="text-white font-medium">Accept In-App Payment</Text>
-                        <Text className="text-gray-500 text-xs">5% fee • Get paid securely through AfroConnect</Text>
+                        <Text className="text-gray-500 text-xs">5% fee • Secure payment via AfroConnect</Text>
                       </View>
                       <Switch
                         value={postForm.acceptsInApp}

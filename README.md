@@ -889,12 +889,28 @@ Three powerful features designed to make AfroConnect the go-to app for foreigner
 
 ### 24. Carpool & Ride Share (`/carpool`)
 - **Community ride sharing** for commutes, events, and trips
+- **Works in any country** - supports local currencies and payment methods
 - Ride types: Airport, Commute, Events, Road Trips
 - Driver profiles with ratings and car info
 - Route visualization (from → stops → destination)
 - Amenities badges (WiFi, Phone Charger, Quiet Ride, etc.)
-- Price and seat availability display
-- Post your own rides with flexible pricing
+- Price with custom currency display (USD, GBP, NGN, KES, GHS, EUR, CFA, etc.)
+- Seat availability display
+- **International Payment Methods**:
+  - **M-Pesa / Mobile Money** - Popular in Africa (Kenya, Tanzania, Ghana, Nigeria, etc.)
+  - **PayPal** - Global payments
+  - **Wise (TransferWise)** - International transfers
+  - **Bank Transfer** - Direct bank payments
+  - **Cash App** - US-based
+  - **Venmo** - US-based
+  - **Zelle** - US-based
+  - **Cash** - Pay driver in person
+  - **In-App Payment** - Secure payment through AfroConnect (5% platform fee)
+- Post your own rides with:
+  - Flexible pricing in your local currency
+  - Multiple payment method options
+  - "Support the driver" toggle for passengers to cover platform fees
+- Sample rides from multiple countries: USA, Ghana, Nigeria, UK, Senegal, Kenya
 
 ### 25. Pet Connect (`/pet-connect`)
 - **Connect with pet owners** in your community
