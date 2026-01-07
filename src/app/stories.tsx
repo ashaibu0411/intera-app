@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, ScrollView, Pressable, Image, Dimensions, Modal, TextInput, Alert } from 'react-native';
+import { View, Text, ScrollView, Pressable, Image, Dimensions, Modal, TextInput, Alert, TouchableOpacity } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -633,6 +633,7 @@ function CreateStoryModal({ visible, onClose }: CreateStoryModalProps) {
   };
 
   const handleClose = () => {
+    console.log('[CreateStoryModal] handleClose called');
     resetState();
     onClose();
   };
@@ -750,8 +751,13 @@ function CreateStoryModal({ visible, onClose }: CreateStoryModalProps) {
   };
 
   const handleSubmit = () => {
+    console.log('[CreateStoryModal] handleSubmit called, storyType:', storyType, 'selectedMedia:', selectedMedia);
+
     if (storyType === 'text') {
-      if (!textContent.trim()) return;
+      if (!textContent.trim()) {
+        console.log('[CreateStoryModal] Text content is empty, returning');
+        return;
+      }
 
       const modResult = moderateText(textContent);
       if (modResult.action === 'blocked') {
@@ -760,6 +766,7 @@ function CreateStoryModal({ visible, onClose }: CreateStoryModalProps) {
         return;
       }
 
+      console.log('[CreateStoryModal] Adding text story');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       addStory({
         id: uuidv4(),
@@ -772,6 +779,7 @@ function CreateStoryModal({ visible, onClose }: CreateStoryModalProps) {
         createdAt: new Date().toISOString(),
       });
     } else if (storyType === 'image' && selectedMedia) {
+      console.log('[CreateStoryModal] Adding image story');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       addStory({
         id: uuidv4(),
@@ -782,6 +790,7 @@ function CreateStoryModal({ visible, onClose }: CreateStoryModalProps) {
         createdAt: new Date().toISOString(),
       });
     } else if (storyType === 'video' && selectedMedia) {
+      console.log('[CreateStoryModal] Adding video story');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       addStory({
         id: uuidv4(),
@@ -791,8 +800,12 @@ function CreateStoryModal({ visible, onClose }: CreateStoryModalProps) {
         views: 0,
         createdAt: new Date().toISOString(),
       });
+    } else {
+      console.log('[CreateStoryModal] No valid story to submit');
+      return;
     }
 
+    console.log('[CreateStoryModal] Story added, closing modal');
     resetState();
     onClose();
   };
@@ -815,23 +828,30 @@ function CreateStoryModal({ visible, onClose }: CreateStoryModalProps) {
         <SafeAreaView edges={['top', 'bottom']} className="flex-1">
           {/* Header */}
           <View className="flex-row items-center justify-between px-4 py-3">
-            <Pressable
-              onPress={handleClose}
-              hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-              className="p-2 -ml-2"
+            <TouchableOpacity
+              onPress={() => {
+                console.log('[CreateStoryModal] X button pressed');
+                handleClose();
+              }}
+              activeOpacity={0.7}
+              style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}
             >
               <X size={28} color="white" />
-            </Pressable>
+            </TouchableOpacity>
             <Text className="text-white font-bold text-lg">Create Story</Text>
-            <Pressable
-              onPress={handleSubmit}
+            <TouchableOpacity
+              onPress={() => {
+                console.log('[CreateStoryModal] Share button pressed, canSubmit:', canSubmit());
+                if (canSubmit()) {
+                  handleSubmit();
+                }
+              }}
+              activeOpacity={0.7}
               disabled={!canSubmit()}
-              hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-              className="p-2 -mr-2"
-              style={{ opacity: canSubmit() ? 1 : 0.5 }}
+              style={{ width: 60, height: 44, alignItems: 'center', justifyContent: 'center', opacity: canSubmit() ? 1 : 0.5 }}
             >
               <Text className="text-purple-400 font-bold text-base">Share</Text>
-            </Pressable>
+            </TouchableOpacity>
           </View>
 
           {/* Type Selector - 3 options */}
