@@ -474,8 +474,20 @@ These 10 major features make AfroConnect superior to Facebook, Nextdoor, and any
 - **Cultural preservation and learning center**
 - **Cultural Music** (`/cultural-music`): Discover and listen to traditional music from around the world
   - **12 World Regions**: West Africa, East Africa, Southern Africa, North Africa, Caribbean, Latin America, South Asia, East Asia, Middle East, Pacific Islands, Indigenous
-  - **30+ Music Genres**: Highlife, Jùjú, Afrobeat, Mbalax, Soukous, Benga, Taarab, Kwaito, Mbaqanga, Gnawa, Raï, Reggae, Calypso, Soca, Cumbia, Bossa Nova, Samba, Qawwali, Bhangra, Gamelan, and more
-  - **Featured Playlists**: Curated collections like "African Classics", "Caribbean Vibes", "Sounds of India", "Latin Rhythms", "Middle Eastern Melodies"
+  - **35+ Music Genres**: Highlife, Jùjú, Afrobeat, Mbalax, Soukous, Benga, Taarab, Kwaito, Mbaqanga, Gnawa, Raï, Reggae, Calypso, Soca, Cumbia, Bossa Nova, Samba, Qawwali, Ghazal, Sufi, Pakistani Folk, Coke Studio, Bhangra, and more
+  - **Featured Playlists**: Curated collections including:
+    - **Ghana Highlife Classics**: 18 iconic Highlife songs from Nana Ampadu, Daddy Lumba, Amakye Dede, and more
+    - **Pakistani Legends**: Qawwali, Ghazal, and Sufi masters from Pakistan
+    - **Coke Studio Hits**: Best of Pakistani Coke Studio performances
+    - "African Classics", "Caribbean Vibes", "Sounds of India", "Latin Rhythms", "Middle Eastern Melodies"
+  - **Pakistan Music Collection**: 25+ classic Pakistani songs including:
+    - **Qawwali**: Nusrat Fateh Ali Khan (Mustt Mustt, Allah Hoo, Tumhe Dillagi, Afreen Afreen)
+    - **Sufi**: Abida Parveen (Tere Ishq Nachaya, Ghoom Charakhra, Yaar Ko Humne)
+    - **Ghazal**: Mehdi Hassan (Ranjish Hi Sahi, Gulon Mein Rang Bhare), Ghulam Ali (Chupke Chupke Raat Din)
+    - **Pakistani Folk**: Reshma (Lambi Judai, Ankhiyan Nu Rehn De, Hayo Rabba)
+    - **Coke Studio**: Tajdar-e-Haram (Atif Aslam), Afreen Afreen (Rahat & Momina), Pasoori (Ali Sethi & Shae Gill)
+    - **Sufi Rock**: Junoon (Sayonee, Bulleya)
+    - **Pakistani Pop**: Vital Signs (Dil Dil Pakistan)
   - **Full Music Player**:
     - Mini player with progress bar and controls
     - Full-screen player with spinning disc animation
