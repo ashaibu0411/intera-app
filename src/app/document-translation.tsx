@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, ScrollView, Pressable, TextInput, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { router } from 'expo-router';
 import { Image } from 'expo-image';
 import { ArrowLeft, Search, FileText, Upload, Camera, Languages, Check, X, Clock, MessageCircle, Star, ChevronRight } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
@@ -139,7 +139,6 @@ const DOCUMENT_TYPES = ['Immigration', 'Medical', 'Legal', 'Education', 'Financi
 const LANGUAGES = ['English', 'Spanish', 'French', 'Arabic', 'Portuguese', 'Swahili', 'Yoruba', 'Twi', 'Wolof', 'Amharic'];
 
 export default function DocumentTranslationScreen() {
-  const router = useRouter();
   const [activeTab, setActiveTab] = useState<'request' | 'helpers' | 'history'>('helpers');
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
