@@ -472,6 +472,19 @@ These 10 major features make AfroConnect superior to Facebook, Nextdoor, and any
 
 ### 6. Heritage Hub (`/heritage-hub`)
 - **Cultural preservation and learning center**
+- **Cultural Music** (`/cultural-music`): Discover and listen to traditional music from around the world
+  - **12 World Regions**: West Africa, East Africa, Southern Africa, North Africa, Caribbean, Latin America, South Asia, East Asia, Middle East, Pacific Islands, Indigenous
+  - **30+ Music Genres**: Highlife, Jùjú, Afrobeat, Mbalax, Soukous, Benga, Taarab, Kwaito, Mbaqanga, Gnawa, Raï, Reggae, Calypso, Soca, Cumbia, Bossa Nova, Samba, Qawwali, Bhangra, Gamelan, and more
+  - **Featured Playlists**: Curated collections like "African Classics", "Caribbean Vibes", "Sounds of India", "Latin Rhythms", "Middle Eastern Melodies"
+  - **Full Music Player**:
+    - Mini player with progress bar and controls
+    - Full-screen player with spinning disc animation
+    - Play/pause, skip, shuffle, repeat controls
+    - Song descriptions and play counts
+    - Like/favorite songs
+  - **Search & Filter**: Search by song, artist, country, or genre
+  - **Classic Songs**: Timeless hits like "Sweet Mother", "Zombie", "One Love", "Pata Pata", "Garota de Ipanema", and more
+  - **Song Details**: Artist, album, year, country, genre, description, and play count
 - **Global Translator** (`/translator`): Translate anywhere in the world
   - **Type or Speak**: Voice input with microphone button or type your text
   - **50+ Languages**: English, Spanish, French, Portuguese, Arabic, Chinese, Hindi, Swahili, Yoruba, Tagalog, and more
