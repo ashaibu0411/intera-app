@@ -20,7 +20,13 @@ export async function getPosts(communityId?: string, limit = 20) {
   const { data, error } = await query;
 
   if (error) throw error;
-  return data;
+
+  // Transform the data to extract count values from aggregate objects
+  return (data || []).map(post => ({
+    ...post,
+    likes: Array.isArray(post.likes) ? post.likes[0]?.count ?? 0 : (typeof post.likes === 'object' && post.likes !== null ? (post.likes as any).count ?? 0 : post.likes ?? 0),
+    comments: Array.isArray(post.comments) ? post.comments[0]?.count ?? 0 : (typeof post.comments === 'object' && post.comments !== null ? (post.comments as any).count ?? 0 : post.comments ?? 0),
+  }));
 }
 
 export async function getPost(postId: string) {

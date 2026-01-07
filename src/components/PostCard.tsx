@@ -135,7 +135,11 @@ export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
   const isSaved = savedPostIds.includes(post.id);
   const isOwnPost = currentUser?.id === post.author.id;
   const currentReaction = postReactions[post.id];
-  const baseLikes = post.likes;
+
+  // Safely extract likes count - handle object or number
+  const baseLikes = typeof post.likes === 'object' && post.likes !== null
+    ? (post.likes as any).count ?? 0
+    : (post.likes ?? 0);
   // If the post was originally liked but we unliked it, subtract 1. If it wasn't liked but we liked it, add 1.
   const likeCount = post.isLiked
     ? (isLiked ? baseLikes : baseLikes - 1)
@@ -157,8 +161,12 @@ export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
   // Calculate total comment count: database count OR (mock comments + user comments for this post)
   const mockCommentsCount = MOCK_COMMENTS.filter((c) => c.postId === post.id).length;
   const userCommentsCount = userComments.filter((c) => c.postId === post.id).length;
+  // Safely extract comments count - handle object or number
+  const baseComments = typeof post.comments === 'object' && post.comments !== null
+    ? (post.comments as any).count ?? 0
+    : (post.comments ?? 0);
   // Use database count if available, otherwise use local counts
-  const commentCount = dbCommentCount > 0 ? dbCommentCount : (mockCommentsCount + userCommentsCount + (post.comments || 0));
+  const commentCount = dbCommentCount > 0 ? dbCommentCount : (mockCommentsCount + userCommentsCount + baseComments);
 
   const [isPlaying, setIsPlaying] = React.useState(false);
   const [isMuted, setIsMuted] = React.useState(true);
