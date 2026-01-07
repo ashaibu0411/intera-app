@@ -1,4 +1,64 @@
 import { supabase, DbPost, DbComment } from './supabase';
+import * as FileSystem from 'expo-file-system';
+import { decode } from 'base64-arraybuffer';
+
+// Upload image to Supabase Storage
+export async function uploadImage(uri: string, userId: string): Promise<string | null> {
+  try {
+    // Read the file as base64
+    const base64 = await FileSystem.readAsStringAsync(uri, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+
+    // Generate unique filename
+    const fileExt = uri.split('.').pop()?.toLowerCase() || 'jpg';
+    const fileName = `${userId}/${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+    const contentType = fileExt === 'png' ? 'image/png' : 'image/jpeg';
+
+    // Upload to Supabase Storage
+    const { data, error } = await supabase.storage
+      .from('post-images')
+      .upload(fileName, decode(base64), {
+        contentType,
+        upsert: false,
+      });
+
+    if (error) {
+      console.log('Upload error:', error);
+      return null;
+    }
+
+    // Get public URL
+    const { data: urlData } = supabase.storage
+      .from('post-images')
+      .getPublicUrl(fileName);
+
+    return urlData.publicUrl;
+  } catch (error) {
+    console.log('Image upload failed:', error);
+    return null;
+  }
+}
+
+// Upload multiple images
+export async function uploadImages(uris: string[], userId: string): Promise<string[]> {
+  const uploadedUrls: string[] = [];
+
+  for (const uri of uris) {
+    // Skip if already a remote URL
+    if (uri.startsWith('http://') || uri.startsWith('https://')) {
+      uploadedUrls.push(uri);
+      continue;
+    }
+
+    const url = await uploadImage(uri, userId);
+    if (url) {
+      uploadedUrls.push(url);
+    }
+  }
+
+  return uploadedUrls;
+}
 
 // Posts API
 export async function getPosts(communityId?: string, limit = 20) {

@@ -27,7 +27,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useStore, MOCK_COMMUNITIES, MARKETPLACE_CATEGORIES, EVENT_CATEGORIES } from '@/lib/store';
 import { router } from 'expo-router';
 import { sendNewPostNotification } from '@/lib/notifications';
-import { createPost as createDbPost } from '@/lib/posts';
+import { createPost as createDbPost, uploadImages } from '@/lib/posts';
 
 type CreateMode = 'select' | 'post' | 'sell' | 'event';
 
@@ -236,9 +236,20 @@ function CreatePostForm({ user, community, onBack }: { user: any; community: any
     let postId = `post_${Date.now()}`;
     let savedToDb = false;
 
+    // Upload images to cloud storage first
+    let uploadedImageUrls: string[] = [];
+    if (selectedImages.length > 0) {
+      try {
+        uploadedImageUrls = await uploadImages(selectedImages, user.id);
+      } catch (uploadError) {
+        console.log('Image upload failed, will use local URIs:', uploadError);
+        uploadedImageUrls = selectedImages; // Fallback to local URIs
+      }
+    }
+
     // Try to save to database first (so other users can see it)
     try {
-      const dbPost = await createDbPost(user.id, content.trim(), selectedImages, community.city);
+      const dbPost = await createDbPost(user.id, content.trim(), uploadedImageUrls, community.city);
       if (dbPost?.id) {
         postId = dbPost.id;
         savedToDb = true;
@@ -263,7 +274,7 @@ function CreatePostForm({ user, community, onBack }: { user: any; community: any
           joinedDate: user.joinedDate || new Date().toISOString(),
         },
         content: content.trim(),
-        images: selectedImages,
+        images: uploadedImageUrls.length > 0 ? uploadedImageUrls : selectedImages,
         video: selectedVideo ?? undefined,
         likes: 0,
         comments: 0,
