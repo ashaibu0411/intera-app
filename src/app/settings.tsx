@@ -143,7 +143,7 @@ export default function SettingsScreen() {
               <Pressable
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  router.push('/privacy-policy');
+                  Linking.openURL('https://www.notion.so/Diaspora-Privacy-Policy-2db279c60d55807ab3f0e0d6879ba4b3');
                 }}
                 className="flex-row items-center p-4 border-b border-gray-100"
               >
