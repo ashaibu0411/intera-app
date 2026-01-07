@@ -6,7 +6,6 @@ import {
   Plus,
   X,
   ChevronLeft,
-  Heart,
   Send,
   Eye,
   Camera,
@@ -29,7 +28,7 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useStore } from '@/lib/store';
+import { useStore, UserStory, StoryItem } from '@/lib/store';
 import { moderateText } from '@/lib/contentModeration';
 import { ContentGuidelinesModal } from '@/components/ContentGuidelinesModal';
 import * as Haptics from 'expo-haptics';
@@ -37,138 +36,6 @@ import { v4 as uuidv4 } from 'uuid';
 import { useVideoPlayer, VideoView } from 'expo-video';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
-// Story interfaces
-interface StoryItem {
-  id: string;
-  type: 'image' | 'text' | 'video';
-  content: string;
-  backgroundColor?: string;
-  textColor?: string;
-  duration: number;
-  views: number;
-  reactions: StoryReaction[];
-  replies: StoryReply[];
-  createdAt: string;
-}
-
-interface StoryReaction {
-  userId: string;
-  emoji: string;
-  timestamp: string;
-}
-
-interface StoryReply {
-  id: string;
-  userId: string;
-  userName: string;
-  userAvatar: string;
-  message: string;
-  timestamp: string;
-}
-
-interface UserStories {
-  userId: string;
-  userName: string;
-  userAvatar: string;
-  stories: StoryItem[];
-  hasUnseenStories: boolean;
-  lastUpdated: string;
-}
-
-// Mock stories data
-const MOCK_USER_STORIES: UserStories[] = [
-  {
-    userId: 'u1',
-    userName: 'Amara J.',
-    userAvatar: 'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=200',
-    stories: [
-      {
-        id: 's1',
-        type: 'image',
-        content: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=800',
-        duration: 5,
-        views: 234,
-        reactions: [],
-        replies: [],
-        createdAt: new Date(Date.now() - 3600000).toISOString(),
-      },
-      {
-        id: 's2',
-        type: 'text',
-        content: 'Big announcement coming tomorrow! Stay tuned!',
-        backgroundColor: '#7C3AED',
-        textColor: '#FFFFFF',
-        duration: 5,
-        views: 189,
-        reactions: [],
-        replies: [],
-        createdAt: new Date(Date.now() - 1800000).toISOString(),
-      },
-    ],
-    hasUnseenStories: true,
-    lastUpdated: new Date(Date.now() - 1800000).toISOString(),
-  },
-  {
-    userId: 'u2',
-    userName: 'Kwame A.',
-    userAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200',
-    stories: [
-      {
-        id: 's3',
-        type: 'image',
-        content: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=800',
-        duration: 5,
-        views: 456,
-        reactions: [],
-        replies: [],
-        createdAt: new Date(Date.now() - 7200000).toISOString(),
-      },
-    ],
-    hasUnseenStories: true,
-    lastUpdated: new Date(Date.now() - 7200000).toISOString(),
-  },
-  {
-    userId: 'u3',
-    userName: 'Fatou S.',
-    userAvatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200',
-    stories: [
-      {
-        id: 's4',
-        type: 'text',
-        content: 'Just hit 10k followers! Thank you all!',
-        backgroundColor: '#EC4899',
-        textColor: '#FFFFFF',
-        duration: 5,
-        views: 890,
-        reactions: [],
-        replies: [],
-        createdAt: new Date(Date.now() - 14400000).toISOString(),
-      },
-    ],
-    hasUnseenStories: false,
-    lastUpdated: new Date(Date.now() - 14400000).toISOString(),
-  },
-  {
-    userId: 'u4',
-    userName: 'Grace N.',
-    userAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200',
-    stories: [
-      {
-        id: 's5',
-        type: 'image',
-        content: 'https://images.unsplash.com/photo-1547153760-18fc86324498?w=800',
-        duration: 5,
-        views: 1200,
-        reactions: [],
-        replies: [],
-        createdAt: new Date(Date.now() - 21600000).toISOString(),
-      },
-    ],
-    hasUnseenStories: true,
-    lastUpdated: new Date(Date.now() - 21600000).toISOString(),
-  },
-];
 
 // Text story background options
 const TEXT_BACKGROUNDS: [string, string][] = [
@@ -223,8 +90,12 @@ function VideoStoryPlayer({ uri, onEnd }: { uri: string; onEnd: () => void }) {
 }
 
 export default function StoriesScreen() {
-  const [userStories, setUserStories] = useState<UserStories[]>(MOCK_USER_STORIES);
-  const [viewingStories, setViewingStories] = useState<UserStories | null>(null);
+  // Get stories from the store
+  const userStories = useStore((s) => s.userStories);
+  const currentUser = useStore((s) => s.currentUser);
+  const markStoryAsSeen = useStore((s) => s.markStoryAsSeen);
+
+  const [viewingStories, setViewingStories] = useState<UserStory | null>(null);
   const [currentStoryIndex, setCurrentStoryIndex] = useState(0);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showGuidelines, setShowGuidelines] = useState(false);
@@ -232,6 +103,11 @@ export default function StoriesScreen() {
   const [replyText, setReplyText] = useState('');
 
   const progress = useSharedValue(0);
+
+  // Get current user's stories
+  const myStories = userStories.find((s) => s.userId === currentUser?.id);
+  // Get other users' stories
+  const otherStories = userStories.filter((s) => s.userId !== currentUser?.id);
 
   // Close story viewer
   const closeStoryViewer = useCallback(() => {
@@ -248,15 +124,17 @@ export default function StoriesScreen() {
     if (currentStoryIndex < viewingStories.stories.length - 1) {
       setCurrentStoryIndex((prev) => prev + 1);
     } else {
-      const currentUserIndex = userStories.findIndex((u) => u.userId === viewingStories.userId);
-      if (currentUserIndex < userStories.length - 1) {
-        setViewingStories(userStories[currentUserIndex + 1]);
+      // Find next user's stories
+      const allStories = myStories ? [myStories, ...otherStories] : otherStories;
+      const currentUserIndex = allStories.findIndex((u) => u.userId === viewingStories.userId);
+      if (currentUserIndex < allStories.length - 1) {
+        setViewingStories(allStories[currentUserIndex + 1]);
         setCurrentStoryIndex(0);
       } else {
         closeStoryViewer();
       }
     }
-  }, [viewingStories, currentStoryIndex, userStories, closeStoryViewer]);
+  }, [viewingStories, currentStoryIndex, myStories, otherStories, closeStoryViewer]);
 
   // Progress animation
   useEffect(() => {
@@ -283,13 +161,19 @@ export default function StoriesScreen() {
     }
   };
 
-  const openStoryViewer = (userStory: UserStories) => {
+  const openStoryViewer = (userStory: UserStory) => {
+    console.log('[Stories] Opening story viewer for:', userStory.userName, 'with', userStory.stories.length, 'stories');
+    if (userStory.stories.length === 0) {
+      console.log('[Stories] No stories to view');
+      return;
+    }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setViewingStories(userStory);
     setCurrentStoryIndex(0);
-    setUserStories(userStories.map((u) =>
-      u.userId === userStory.userId ? { ...u, hasUnseenStories: false } : u
-    ));
+    // Mark as seen if not current user
+    if (userStory.userId !== currentUser?.id) {
+      markStoryAsSeen(userStory.userId);
+    }
   };
 
   const handleCreateStory = () => {
@@ -368,16 +252,54 @@ export default function StoriesScreen() {
           contentContainerStyle={{ paddingHorizontal: 16 }}
           style={{ flexGrow: 0 }}
         >
-          {/* Add Story Button */}
-          <Pressable onPress={handleCreateStory} className="items-center mr-4">
-            <View className="w-20 h-20 rounded-full bg-gray-800 items-center justify-center border-2 border-dashed border-gray-600">
-              <Plus size={32} color="#9CA3AF" />
-            </View>
-            <Text className="text-white text-xs mt-2 text-center">Add Story</Text>
-          </Pressable>
+          {/* Your Story - Add or View */}
+          {myStories && myStories.stories.length > 0 ? (
+            <Pressable
+              onPress={() => openStoryViewer(myStories)}
+              className="items-center mr-4"
+            >
+              <LinearGradient
+                colors={['#7C3AED', '#EC4899']}
+                style={{ borderRadius: 40, padding: 2 }}
+              >
+                <View style={{ position: 'relative' }}>
+                  <Image
+                    source={{ uri: currentUser?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200' }}
+                    style={{ width: 72, height: 72, borderRadius: 36, borderWidth: 2, borderColor: '#000' }}
+                  />
+                  <View
+                    style={{
+                      position: 'absolute',
+                      bottom: -2,
+                      right: -2,
+                      backgroundColor: '#7C3AED',
+                      borderRadius: 12,
+                      width: 24,
+                      height: 24,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      borderWidth: 2,
+                      borderColor: '#000',
+                    }}
+                  >
+                    <Plus size={14} color="#fff" />
+                  </View>
+                </View>
+              </LinearGradient>
+              <Text className="text-white text-xs mt-2 text-center font-medium">Your Story</Text>
+              <Text className="text-gray-500 text-xs">{myStories.stories.length} {myStories.stories.length === 1 ? 'story' : 'stories'}</Text>
+            </Pressable>
+          ) : (
+            <Pressable onPress={handleCreateStory} className="items-center mr-4">
+              <View className="w-20 h-20 rounded-full bg-gray-800 items-center justify-center border-2 border-dashed border-gray-600">
+                <Plus size={32} color="#9CA3AF" />
+              </View>
+              <Text className="text-white text-xs mt-2 text-center">Add Story</Text>
+            </Pressable>
+          )}
 
-          {/* User Stories */}
-          {userStories.map((userStory) => (
+          {/* Other Users' Stories */}
+          {otherStories.map((userStory) => (
             <Pressable
               key={userStory.userId}
               onPress={() => openStoryViewer(userStory)}
@@ -414,17 +336,36 @@ export default function StoriesScreen() {
             </Text>
             <View className="flex-row mt-4">
               <View className="flex-1 items-center">
-                <Text className="text-purple-400 font-bold text-xl">{userStories.length}</Text>
-                <Text className="text-gray-500 text-xs">Active Stories</Text>
+                <Text className="text-purple-400 font-bold text-xl">{myStories?.stories.length ?? 0}</Text>
+                <Text className="text-gray-500 text-xs">Your Stories</Text>
               </View>
               <View className="flex-1 items-center border-l border-gray-800">
                 <Text className="text-purple-400 font-bold text-xl">
-                  {userStories.filter((u) => u.hasUnseenStories).length}
+                  {otherStories.filter((u) => u.hasUnseenStories).length}
                 </Text>
                 <Text className="text-gray-500 text-xs">Unseen</Text>
               </View>
             </View>
           </View>
+
+          {/* Add Story Button (if you have stories already) */}
+          {myStories && myStories.stories.length > 0 && (
+            <Pressable
+              onPress={handleCreateStory}
+              style={{
+                marginTop: 16,
+                backgroundColor: '#7C3AED',
+                borderRadius: 12,
+                paddingVertical: 14,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Plus size={20} color="#fff" />
+              <Text style={{ color: '#fff', fontWeight: '600', marginLeft: 8 }}>Add Another Story</Text>
+            </Pressable>
+          )}
         </View>
       </ScrollView>
 
@@ -468,7 +409,9 @@ export default function StoriesScreen() {
                   style={{ width: 40, height: 40, borderRadius: 20 }}
                 />
                 <View style={{ flex: 1, marginLeft: 12 }}>
-                  <Text style={{ color: '#fff', fontWeight: '600', fontSize: 15 }}>{viewingStories.userName}</Text>
+                  <Text style={{ color: '#fff', fontWeight: '600', fontSize: 15 }}>
+                    {viewingStories.userId === currentUser?.id ? 'Your Story' : viewingStories.userName}
+                  </Text>
                   <Text style={{ color: '#9CA3AF', fontSize: 12 }}>{getTimeRemaining(currentStory.createdAt)}</Text>
                 </View>
                 <Pressable
@@ -510,7 +453,7 @@ export default function StoriesScreen() {
                   <VideoStoryPlayer uri={currentStory.content} onEnd={handleNextStory} />
                 ) : (
                   <LinearGradient
-                    colors={TEXT_BACKGROUNDS[0]}
+                    colors={[currentStory.backgroundColor || '#7C3AED', '#4C1D95']}
                     style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}
                   >
                     <Text
@@ -529,44 +472,47 @@ export default function StoriesScreen() {
 
               {/* Footer */}
               <View style={{ paddingHorizontal: 16, paddingBottom: 16 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <View
-                    style={{
-                      flex: 1,
-                      backgroundColor: '#1F2937',
-                      borderRadius: 24,
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      paddingHorizontal: 16,
-                      paddingVertical: 10,
-                    }}
-                  >
-                    <TextInput
-                      value={replyText}
-                      onChangeText={setReplyText}
-                      placeholder="Send a reply..."
-                      placeholderTextColor="#6B7280"
-                      style={{ flex: 1, color: '#fff', fontSize: 15 }}
-                    />
+                {viewingStories.userId !== currentUser?.id ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <View
+                      style={{
+                        flex: 1,
+                        backgroundColor: '#1F2937',
+                        borderRadius: 24,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        paddingHorizontal: 16,
+                        paddingVertical: 10,
+                      }}
+                    >
+                      <TextInput
+                        value={replyText}
+                        onChangeText={setReplyText}
+                        placeholder="Send a reply..."
+                        placeholderTextColor="#6B7280"
+                        style={{ flex: 1, color: '#fff', fontSize: 15 }}
+                      />
+                    </View>
+                    <Pressable
+                      onPress={handleSendReply}
+                      disabled={!replyText.trim()}
+                      style={{
+                        marginLeft: 12,
+                        backgroundColor: '#7C3AED',
+                        borderRadius: 24,
+                        padding: 12,
+                        opacity: replyText.trim() ? 1 : 0.5,
+                      }}
+                    >
+                      <Send size={20} color="#fff" />
+                    </Pressable>
                   </View>
-                  <Pressable
-                    onPress={handleSendReply}
-                    disabled={!replyText.trim()}
-                    style={{
-                      marginLeft: 12,
-                      backgroundColor: '#7C3AED',
-                      borderRadius: 24,
-                      padding: 12,
-                      opacity: replyText.trim() ? 1 : 0.5,
-                    }}
-                  >
-                    <Send size={20} color="#fff" />
-                  </Pressable>
-                </View>
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 12 }}>
-                  <Eye size={16} color="#6B7280" />
-                  <Text style={{ color: '#6B7280', fontSize: 13, marginLeft: 4 }}>{currentStory.views} views</Text>
-                </View>
+                ) : (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+                    <Eye size={16} color="#6B7280" />
+                    <Text style={{ color: '#6B7280', fontSize: 13, marginLeft: 4 }}>{currentStory.views} views</Text>
+                  </View>
+                )}
               </View>
             </SafeAreaView>
           </View>
