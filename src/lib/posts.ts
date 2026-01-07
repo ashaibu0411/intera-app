@@ -81,12 +81,31 @@ export async function getPosts(communityId?: string, limit = 20) {
 
   if (error) throw error;
 
-  // Transform the data to extract count values from aggregate objects
-  return (data || []).map(post => ({
-    ...post,
-    likes: Array.isArray(post.likes) ? post.likes[0]?.count ?? 0 : (typeof post.likes === 'object' && post.likes !== null ? (post.likes as any).count ?? 0 : post.likes ?? 0),
-    comments: Array.isArray(post.comments) ? post.comments[0]?.count ?? 0 : (typeof post.comments === 'object' && post.comments !== null ? (post.comments as any).count ?? 0 : post.comments ?? 0),
-  }));
+  // Transform the data to match the expected Post format
+  return (data || []).map(post => {
+    const authorData = post.author as any;
+    return {
+      id: post.id,
+      author: {
+        id: authorData?.id || post.author_id,
+        name: authorData?.name || 'Unknown',
+        username: authorData?.username || 'user',
+        avatar: authorData?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&h=200&fit=crop&crop=face',
+        bio: authorData?.bio || '',
+        location: authorData?.location || post.location || '',
+        interests: authorData?.interests || [],
+        joinedDate: authorData?.created_at || post.created_at,
+      },
+      content: post.content,
+      images: post.images || [],
+      video: post.video,
+      likes: Array.isArray(post.likes) ? post.likes[0]?.count ?? 0 : (typeof post.likes === 'object' && post.likes !== null ? (post.likes as any).count ?? 0 : post.likes ?? 0),
+      comments: Array.isArray(post.comments) ? post.comments[0]?.count ?? 0 : (typeof post.comments === 'object' && post.comments !== null ? (post.comments as any).count ?? 0 : post.comments ?? 0),
+      createdAt: post.created_at,
+      isLiked: false,
+      location: post.location || '',
+    };
+  });
 }
 
 export async function getPost(postId: string) {
