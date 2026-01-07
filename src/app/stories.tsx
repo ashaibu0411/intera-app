@@ -832,52 +832,53 @@ function CreateStoryModal({ visible, onClose }: CreateStoryModalProps) {
       statusBarTranslucent
       onRequestClose={handleClose}
     >
-      <View className="flex-1 bg-black">
-        <SafeAreaView edges={['top']} className="bg-black">
-          {/* Header */}
-          <View className="flex-row items-center justify-between px-4 py-4 bg-black" style={{ zIndex: 100 }}>
-            <Pressable
-              onPress={() => {
-                console.log('[CreateStoryModal] X button pressed');
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                handleClose();
-              }}
-              hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
-              style={{
-                width: 48,
-                height: 48,
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundColor: 'rgba(255,255,255,0.15)',
-                borderRadius: 24,
-              }}
-            >
-              <X size={28} color="white" />
-            </Pressable>
-            <Text className="text-white font-bold text-lg">Create Story</Text>
-            <Pressable
-              onPress={() => {
-                console.log('[CreateStoryModal] Share button pressed, canSubmit:', canSubmit(), 'storyType:', storyType, 'selectedMedia:', selectedMedia);
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                if (canSubmit()) {
-                  handleSubmit();
-                }
-              }}
-              hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
-              style={{
-                paddingHorizontal: 16,
-                paddingVertical: 10,
-                backgroundColor: canSubmit() ? '#7C3AED' : 'rgba(255,255,255,0.15)',
-                borderRadius: 20,
-                opacity: canSubmit() ? 1 : 0.5,
-              }}
-            >
-              <Text className="text-white font-bold text-base">Share</Text>
-            </Pressable>
-          </View>
-        </SafeAreaView>
+      <SafeAreaView edges={['top']} className="flex-1 bg-black">
+        {/* Header - elevated above content */}
+        <View
+          className="flex-row items-center justify-between px-4 py-4 bg-black"
+          style={{ zIndex: 999, elevation: 999 }}
+        >
+          <Pressable
+            onPress={() => {
+              console.log('[CreateStoryModal] X button pressed');
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              handleClose();
+            }}
+            hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
+            style={{
+              width: 48,
+              height: 48,
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: 'rgba(255,255,255,0.15)',
+              borderRadius: 24,
+            }}
+          >
+            <X size={28} color="white" />
+          </Pressable>
+          <Text className="text-white font-bold text-lg">Create Story</Text>
+          <Pressable
+            onPress={() => {
+              console.log('[CreateStoryModal] Share button pressed, canSubmit:', canSubmit(), 'storyType:', storyType, 'selectedMedia:', selectedMedia);
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              if (canSubmit()) {
+                handleSubmit();
+              }
+            }}
+            hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
+            style={{
+              paddingHorizontal: 16,
+              paddingVertical: 10,
+              backgroundColor: canSubmit() ? '#7C3AED' : 'rgba(255,255,255,0.15)',
+              borderRadius: 20,
+              opacity: canSubmit() ? 1 : 0.5,
+            }}
+          >
+            <Text className="text-white font-bold text-base">Share</Text>
+          </Pressable>
+        </View>
 
-        <View className="flex-1">
+        <View className="flex-1" style={{ zIndex: 1 }}>
 
           {/* Type Selector - 3 options */}
           <View className="flex-row px-4 mb-4">
@@ -1093,7 +1094,7 @@ function CreateStoryModal({ visible, onClose }: CreateStoryModalProps) {
             </View>
           )}
         </View>
-      </View>
+      </SafeAreaView>
     </Modal>
   );
 }
