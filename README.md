@@ -869,4 +869,164 @@ Three powerful features designed to make AfroConnect the go-to app for foreigner
   - 10 friends join Rakuten: $300
   - **Tier 1 Total: $700+** plus Tier 2 earnings!
 
+## New Community Features (Latest!)
+
+### 22. Cultural Calendar (`/cultural-calendar`)
+- **Global holiday calendar** with holidays from 32+ cultures worldwide
+- Filter by culture: African, Caribbean, South Asian, East Asian, Middle Eastern, European, Indigenous, and more
+- Reminder toggle for each holiday
+- Holiday details: traditions, food, history, public holiday badges
+- Beautiful holiday cards with cultural images
+- Search holidays by name or culture
+
+### 23. Skill Swap (`/skill-swap`)
+- **Trade skills** with community members - no money needed!
+- Browse skills others are offering and seeking
+- Categories: Music, Cooking, Languages, Tech, Art, Sports, Business, Health, Education
+- Skill levels: Beginner, Intermediate, Advanced
+- Stats: total swaps, skills offered, skills requested
+- Create swap requests with what you're offering and seeking
+
+### 24. Carpool & Ride Share (`/carpool`)
+- **Community ride sharing** for commutes, events, and trips
+- Ride types: Airport, Commute, Events, Road Trips
+- Driver profiles with ratings and car info
+- Route visualization (from → stops → destination)
+- Amenities badges (WiFi, Phone Charger, Quiet Ride, etc.)
+- Price and seat availability display
+- Post your own rides with flexible pricing
+
+### 25. Pet Connect (`/pet-connect`)
+- **Connect with pet owners** in your community
+- Pet profiles with photos, breed, age, and personality
+- Filter by pet type: Dogs, Cats, Birds, Fish, Rabbits, Reptiles
+- "Looking for" tags: Playdate, Pet-Sitting, Walking Buddy, Vet Recommendations
+- Like and connect with pet owners
+- Add your own pet with full profile
+
+### 26. Memory Capsules (`/memory-capsules`)
+- **Time-locked posts** that unlock on a future date
+- Capsule types: Personal, Shared, Community
+- Beautiful gradient themes for each capsule
+- Lock/unlock status with countdown
+- Create capsules with unlock dates months or years away
+- Perfect for future celebrations, anniversaries, or community milestones
+
+### 27. Housing Board (`/housing-board`)
+- **Find roommates, sublets, and housing** in your community
+- Listing types: Room, Apartment, Sublet, House
+- Detailed listings with photos, amenities, and pricing
+- Contact poster directly
+- Save favorite listings
+- Post your own housing with availability dates
+
+### 28. Lost & Found Board (`/lost-found`)
+- **Report and find lost items** in your community
+- Lost and Found tabs for easy browsing
+- Categories: Documents, Electronics, Pets, Keys, Jewelry, Bags, Clothing
+- Reward badges for lost items
+- Status tracking: Active, Claimed, Returned
+- Location and date information
+- Report items with photos and descriptions
+
+### 29. Appreciation Wall (`/appreciation-wall`)
+- **Public shoutouts and thank-yous** for community members
+- Post types: Shoutout, Thank You, Recognition, Milestone
+- From/To display for appreciation posts
+- Emoji reactions and engagement
+- Create appreciation posts to celebrate others
+- Perfect for recognizing community helpers, mentors, and friends
+
+### 30. Proverbs & Wisdom (`/proverbs-wisdom`)
+- **Daily cultural proverbs** from around the world
+- Origins: African, Caribbean, Asian, Indigenous, Middle Eastern, Global
+- Categories: Life, Love, Success, Community, Family, Wisdom
+- Daily proverb with meaning and origin
+- Browse all proverbs with search and filters
+- Save and share your favorite proverbs
+
+### 31. Name Meanings & Origins (`/name-meanings`)
+- **Discover the meaning** of African and cultural names
+- Name details: pronunciation, meaning, origin
+- Variations and famous people with the name
+- Gender and origin filters
+- Expandable cards with full information
+- Save and share names
+- Search 100+ cultural names
+
+### 32. Group Grocery Orders (`/group-grocery`)
+- **Bulk buying** with community members
+- Join group orders for African, Caribbean, and specialty foods
+- Progress bars showing order capacity
+- Participant counts and product variety
+- Total order value display
+- Join orders with item quantity selection
+- Save money by buying in bulk together
+
+### 33. Traditional Attire Guide (`/traditional-attire`)
+- **Learn about cultural clothing** from around the world
+- 15+ traditional garments: Kente, Dashiki, Agbada, Aso Oke, Ankara, Kaftan, Gele, Boubou, Shuka, Habesha Kemis, and more
+- Origin, history, and cultural significance
+- How to wear guides
+- Where to buy information
+- Occasions for each garment
+- Save favorites and share
+
+### 34. Community Fitness Challenges (`/fitness-challenges`)
+- **Join fitness challenges** with community members
+- Challenge types: Steps, Workout, Water intake, Meditation
+- Difficulty levels: Beginner, Intermediate, Advanced
+- Duration options: 7, 14, 30 days
+- Leaderboards with rankings
+- XP rewards and streak tracking
+- Join/leave challenges with progress tracking
+- Stats: active challenges, total XP, current streak
+
+### 35. Mental Health Check-ins (`/mental-health`)
+- **Track your mood** and mental wellness
+- Emoji mood selection: Amazing, Good, Okay, Low, Struggling
+- Activity logging: Exercise, Social, Work, Rest, Outdoors
+- Mood history calendar
+- Journal prompt suggestions
+- Crisis resources with helpline numbers
+- Resources modal with mental health support info
+- Self-care reminders
+
+### 36. Emergency Contacts Directory (`/emergency-contacts`)
+- **Essential emergency numbers** for the diaspora
+- Categories: Emergency Services, Embassies, Health, Community, Legal
+- US emergency services (911, Poison Control, Suicide Prevention)
+- African embassies in the US (Nigeria, Ghana, Ethiopia, Kenya, South Africa, Jamaica)
+- Health resources (CDC, SAMHSA)
+- Community organizations
+- Legal aid services
+- Quick call buttons and website links
+
+### 37. Document Translation Help (`/document-translation`)
+- **Find translation helpers** in your community
+- Helper profiles with languages and specializations
+- Document types: Legal, Medical, Immigration, Academic, Financial
+- Trust scores and verification badges
+- Contact helpers directly
+- Request translation with document upload
+- Urgency levels and fee display
+
+### 38. Traditional Medicine Directory (`/traditional-medicine`)
+- **Find herbalists and holistic practitioners** in your community
+- Traditions: African, Caribbean, Chinese Medicine, Ayurveda, Islamic Medicine
+- Practitioner profiles with ratings and reviews
+- Services and pricing displayed
+- Experience and verification badges
+- Call and view profile buttons
+- Health disclaimer included
+
+### 39. Photo Booth (`/photo-booth`)
+- **Apply cultural filters** to your photos
+- 12+ cultural filters: Ankara Glow, Kente Gold, Safari Sunset, Caribbean Vibes, Reggae Tones, and more
+- Cultural frames: Kente Border, Adinkra Corners, Ankara Frame, Mudcloth Border, Rasta Colors
+- Cultural stickers: Crown, Africa, Lion, Fist, Hibiscus, Drum, and more
+- Filter categories: African, Caribbean, Universal
+- Photo editing: Flip, change filters/frames/stickers
+- Save and share your creations
+
 

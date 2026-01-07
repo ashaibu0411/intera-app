@@ -111,6 +111,25 @@ function RootLayoutNav() {
         <Stack.Screen name="referrals" options={{ headerShown: true, animation: 'slide_from_right' }} />
         <Stack.Screen name="remittance" options={{ headerShown: true, animation: 'slide_from_right' }} />
         <Stack.Screen name="stream-polls" options={{ headerShown: true, animation: 'slide_from_right' }} />
+        {/* New Community Features */}
+        <Stack.Screen name="cultural-calendar" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="skill-swap" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="carpool" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="pet-connect" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="memory-capsules" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="housing-board" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="lost-found" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="appreciation-wall" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="proverbs-wisdom" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="name-meanings" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="group-grocery" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="traditional-attire" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="fitness-challenges" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="mental-health" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="emergency-contacts" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="document-translation" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="traditional-medicine" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="photo-booth" options={{ animation: 'slide_from_right' }} />
       </Stack>
     </ThemeProvider>
   );
