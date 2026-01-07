@@ -825,16 +825,24 @@ function CreateStoryModal({ visible, onClose }: CreateStoryModalProps) {
       onRequestClose={handleClose}
     >
       <View className="flex-1 bg-black">
-        <SafeAreaView edges={['top', 'bottom']} className="flex-1">
+        <SafeAreaView edges={['top']} className="bg-black">
           {/* Header */}
-          <View className="flex-row items-center justify-between px-4 py-3">
+          <View className="flex-row items-center justify-between px-4 py-4 bg-black">
             <TouchableOpacity
               onPress={() => {
                 console.log('[CreateStoryModal] X button pressed');
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                 handleClose();
               }}
-              activeOpacity={0.7}
-              style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}
+              activeOpacity={0.6}
+              style={{
+                width: 48,
+                height: 48,
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: 'rgba(255,255,255,0.1)',
+                borderRadius: 24,
+              }}
             >
               <X size={28} color="white" />
             </TouchableOpacity>
@@ -842,17 +850,26 @@ function CreateStoryModal({ visible, onClose }: CreateStoryModalProps) {
             <TouchableOpacity
               onPress={() => {
                 console.log('[CreateStoryModal] Share button pressed, canSubmit:', canSubmit());
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                 if (canSubmit()) {
                   handleSubmit();
                 }
               }}
-              activeOpacity={0.7}
-              disabled={!canSubmit()}
-              style={{ width: 60, height: 44, alignItems: 'center', justifyContent: 'center', opacity: canSubmit() ? 1 : 0.5 }}
+              activeOpacity={0.6}
+              style={{
+                paddingHorizontal: 16,
+                paddingVertical: 10,
+                backgroundColor: canSubmit() ? '#7C3AED' : 'rgba(255,255,255,0.1)',
+                borderRadius: 20,
+                opacity: canSubmit() ? 1 : 0.5,
+              }}
             >
-              <Text className="text-purple-400 font-bold text-base">Share</Text>
+              <Text className="text-white font-bold text-base">Share</Text>
             </TouchableOpacity>
           </View>
+        </SafeAreaView>
+
+        <View className="flex-1">
 
           {/* Type Selector - 3 options */}
           <View className="flex-row px-4 mb-4">
@@ -1043,7 +1060,7 @@ function CreateStoryModal({ visible, onClose }: CreateStoryModalProps) {
               )}
             </View>
           )}
-        </SafeAreaView>
+        </View>
       </View>
     </Modal>
   );
