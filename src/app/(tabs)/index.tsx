@@ -57,6 +57,7 @@ import {
   Languages,
   Leaf,
   Camera,
+  HandHeart,
 } from 'lucide-react-native';
 import Animated, { FadeInDown, FadeInUp, FadeIn, useSharedValue, useAnimatedStyle, withSpring, interpolate, Extrapolation } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -494,6 +495,7 @@ export default function HomeScreen() {
     { route: '/document-translation', icon: Languages, label: 'Translate', desc: 'Documents', colors: ['#3B82F6', '#2563EB'] as const },
     { route: '/traditional-medicine', icon: Leaf, label: 'Herbalists', desc: 'Healers', colors: ['#059669', '#047857'] as const },
     { route: '/photo-booth', icon: Camera, label: 'Photo Booth', desc: 'Filters', colors: ['#EC4899', '#DB2777'] as const },
+    { route: '/talk-to-someone', icon: HandHeart, label: 'Talk', desc: 'Need support', colors: ['#8B5CF6', '#7C3AED'] as const },
   ];
 
   const [showAllFeatures, setShowAllFeatures] = useState(false);
