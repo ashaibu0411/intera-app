@@ -2,7 +2,7 @@ import React from 'react';
 import { Tabs } from 'expo-router';
 import { View } from 'react-native';
 import { Image } from 'expo-image';
-import { Home, Calendar, PlusSquare, User, Users } from 'lucide-react-native';
+import { Home, Calendar, ShoppingBag, User, Users } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useStore } from '@/lib/store';
 
@@ -52,21 +52,21 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="connect"
+        name="marketplace"
         options={{
           tabBarIcon: ({ color, focused }) => (
             <View className={`items-center justify-center ${focused ? 'scale-110' : ''}`}>
-              <Users size={26} color={color} strokeWidth={focused ? 2.5 : 2} />
+              <ShoppingBag size={26} color={color} strokeWidth={focused ? 2.5 : 2} />
             </View>
           ),
         }}
       />
       <Tabs.Screen
-        name="create"
+        name="connect"
         options={{
           tabBarIcon: ({ color, focused }) => (
             <View className={`items-center justify-center ${focused ? 'scale-110' : ''}`}>
-              <PlusSquare size={28} color={focused ? '#D4673A' : color} strokeWidth={focused ? 2.5 : 2} />
+              <Users size={26} color={color} strokeWidth={focused ? 2.5 : 2} />
             </View>
           ),
         }}
@@ -102,15 +102,21 @@ export default function TabLayout() {
       />
       {/* Hidden tabs - still accessible via navigation but not shown in tab bar */}
       <Tabs.Screen
+        name="create"
+        options={{
+          href: null, // Hides from tab bar - accessible via floating button
+        }}
+      />
+      <Tabs.Screen
         name="search"
         options={{
-          href: null, // Hides from tab bar
+          href: null,
         }}
       />
       <Tabs.Screen
         name="notifications"
         options={{
-          href: null, // Hides from tab bar
+          href: null,
         }}
       />
     </Tabs>
