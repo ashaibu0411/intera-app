@@ -25,6 +25,8 @@ import {
   GraduationCap,
   Heart,
   Home,
+  Bot,
+  Plane,
 } from 'lucide-react-native';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -329,6 +331,76 @@ export default function ImmigrationHelpScreen() {
       </LinearGradient>
 
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+        {/* Quick Access Cards */}
+        <View className="px-4 pt-4 pb-2">
+          <Text className="text-lg font-bold text-gray-900 mb-3">Quick Tools</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ gap: 12 }}
+          >
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push('/immigration-career-guide');
+              }}
+              className="rounded-2xl p-4 w-36"
+              style={{ backgroundColor: '#10B981' }}
+            >
+              <View className="w-10 h-10 rounded-full bg-white/20 items-center justify-center mb-3">
+                <Briefcase size={22} color="#fff" />
+              </View>
+              <Text className="text-white font-bold text-base">Career Guide</Text>
+              <Text className="text-white/80 text-xs mt-1">Nursing, Tech, etc.</Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push('/international-jobs');
+              }}
+              className="rounded-2xl p-4 w-36"
+              style={{ backgroundColor: '#3B82F6' }}
+            >
+              <View className="w-10 h-10 rounded-full bg-white/20 items-center justify-center mb-3">
+                <Plane size={22} color="#fff" />
+              </View>
+              <Text className="text-white font-bold text-base">Visa Jobs</Text>
+              <Text className="text-white/80 text-xs mt-1">Sponsored positions</Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push('/international-schools');
+              }}
+              className="rounded-2xl p-4 w-36"
+              style={{ backgroundColor: '#F59E0B' }}
+            >
+              <View className="w-10 h-10 rounded-full bg-white/20 items-center justify-center mb-3">
+                <GraduationCap size={22} color="#fff" />
+              </View>
+              <Text className="text-white font-bold text-base">Study Abroad</Text>
+              <Text className="text-white/80 text-xs mt-1">Schools & scholarships</Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push('/immigration-assistant');
+              }}
+              className="rounded-2xl p-4 w-36"
+              style={{ backgroundColor: '#8B5CF6' }}
+            >
+              <View className="w-10 h-10 rounded-full bg-white/20 items-center justify-center mb-3">
+                <Bot size={22} color="#fff" />
+              </View>
+              <Text className="text-white font-bold text-base">AI Assistant</Text>
+              <Text className="text-white/80 text-xs mt-1">Ask any question</Text>
+            </Pressable>
+          </ScrollView>
+        </View>
+
         {/* Categories */}
         {activeTab === 'qa' && (
           <ScrollView
