@@ -87,7 +87,7 @@ export default function MessagesScreen() {
       return;
     }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    // Could open a user selector modal here
+    router.push('/new-message');
   };
 
   const filteredConversations = searchQuery
