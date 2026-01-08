@@ -2,7 +2,7 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { View, Text, Pressable, Dimensions, FlatList, ViewToken, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
-import { Video as ExpoVideo, ResizeMode, AVPlaybackStatus } from 'expo-av';
+import { Video as ExpoVideo, ResizeMode, AVPlaybackStatus, Audio } from 'expo-av';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   Play,
@@ -285,6 +285,7 @@ function ClipItem({ clip, isActive }: ClipItemProps) {
             isLooping
             shouldPlay={isActive}
             isMuted={false}
+            volume={1.0}
             onPlaybackStatusUpdate={onPlaybackStatusUpdate}
           />
           {/* Thumbnail while loading */}
@@ -439,6 +440,22 @@ export default function ClipsTabScreen() {
   const [activeTab, setActiveTab] = useState<'following' | 'foryou'>('foryou');
   const isGuest = useStore((s) => s.isGuest);
   const currentUser = useStore((s) => s.currentUser);
+
+  // Configure audio mode to play sound even when phone is on silent
+  useEffect(() => {
+    const configureAudio = async () => {
+      try {
+        await Audio.setAudioModeAsync({
+          playsInSilentModeIOS: true,
+          staysActiveInBackground: false,
+          shouldDuckAndroid: true,
+        });
+      } catch (error) {
+        console.log('Error configuring audio mode:', error);
+      }
+    };
+    configureAudio();
+  }, []);
 
   const viewabilityConfig = useRef({
     itemVisiblePercentThreshold: 50,
