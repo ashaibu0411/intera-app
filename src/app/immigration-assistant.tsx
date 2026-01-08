@@ -160,15 +160,15 @@ export default function ImmigrationAssistantScreen() {
       });
 
       const data = await response.json();
+      console.log('AI Response:', JSON.stringify(data, null, 2));
 
       let assistantContent = "I apologize, but I'm having trouble connecting right now. Please try again in a moment.";
 
       if (data.output_text) {
         assistantContent = data.output_text;
-      } else if (data.output && data.output[0]?.content) {
-        assistantContent = data.output[0].content;
-      } else if (data.choices && data.choices[0]?.message?.content) {
-        assistantContent = data.choices[0].message.content;
+      } else if (data.error) {
+        console.error('API Error:', data.error);
+        assistantContent = "I'm having trouble connecting to the AI service. Please make sure the OpenAI API is configured in the API tab.";
       }
 
       const assistantMessage: Message = {
