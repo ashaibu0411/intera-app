@@ -164,8 +164,12 @@ export default function ImmigrationAssistantScreen() {
 
       let assistantContent = "I apologize, but I'm having trouble connecting right now. Please try again in a moment.";
 
+      // Parse response - check multiple possible formats
       if (data.output_text) {
         assistantContent = data.output_text;
+      } else if (data.output?.[0]?.content?.[0]?.text) {
+        // New API format: output[0].content[0].text
+        assistantContent = data.output[0].content[0].text;
       } else if (data.error) {
         console.error('API Error:', data.error);
         assistantContent = "I'm having trouble connecting to the AI service. Please make sure the OpenAI API is configured in the API tab.";
