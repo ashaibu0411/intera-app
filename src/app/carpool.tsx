@@ -1,16 +1,18 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, Pressable, TextInput, Modal, Switch } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, ScrollView, Pressable, TextInput, Modal, Switch, Linking, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Image } from 'expo-image';
 import {
   ArrowLeft, Car, MapPin, Calendar, Clock, Users, Star, MessageCircle, Plus, X,
   ChevronRight, Plane, Briefcase, Music, PartyPopper, CreditCard, Banknote, Gem,
-  DollarSign, Smartphone, Check, Info, Shield, Globe, Building, Send, Wallet, Heart, Fuel
+  DollarSign, Smartphone, Check, Info, Shield, Globe, Building, Send, Wallet, Heart, Fuel,
+  AlertTriangle, Phone, Share2, UserCheck, BadgeCheck, FileText, CircleAlert
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
-import Animated, { FadeInDown, ZoomIn } from 'react-native-reanimated';
+import Animated, { FadeInDown, ZoomIn, FadeIn } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type PaymentMethod = 'cash' | 'cashapp' | 'venmo' | 'zelle' | 'paypal' | 'wise' | 'mpesa' | 'bank' | 'inapp';
 type PricingType = 'fixed' | 'gas-split' | 'free' | 'donation';
@@ -273,6 +275,7 @@ const PRICING_COLORS: Record<PricingType, { bg: string; text: string; label: str
 };
 
 const PLATFORM_FEE_PERCENT = 5; // 5% platform fee for in-app payments
+const DISCLAIMER_STORAGE_KEY = 'carpool_disclaimer_accepted';
 
 export default function CarpoolScreen() {
   const [selectedType, setSelectedType] = useState('all');
@@ -282,6 +285,68 @@ export default function CarpoolScreen() {
   const [selectedRide, setSelectedRide] = useState<CarpoolRide | null>(null);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod | null>(null);
   const [coverFee, setCoverFee] = useState(false);
+
+  // Safety & Legal state
+  const [showDisclaimerModal, setShowDisclaimerModal] = useState(false);
+  const [disclaimerAccepted, setDisclaimerAccepted] = useState(false);
+  const [showSafetyModal, setShowSafetyModal] = useState(false);
+  const [showEmergencyOptions, setShowEmergencyOptions] = useState(false);
+  const [emergencyContact, setEmergencyContact] = useState('');
+  const [showVerificationInfo, setShowVerificationInfo] = useState(false);
+
+  // Check if disclaimer was previously accepted
+  useEffect(() => {
+    const checkDisclaimer = async () => {
+      try {
+        const accepted = await AsyncStorage.getItem(DISCLAIMER_STORAGE_KEY);
+        if (accepted === 'true') {
+          setDisclaimerAccepted(true);
+        } else {
+          setShowDisclaimerModal(true);
+        }
+      } catch {
+        setShowDisclaimerModal(true);
+      }
+    };
+    checkDisclaimer();
+  }, []);
+
+  const handleAcceptDisclaimer = async () => {
+    try {
+      await AsyncStorage.setItem(DISCLAIMER_STORAGE_KEY, 'true');
+      setDisclaimerAccepted(true);
+      setShowDisclaimerModal(false);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch {
+      setDisclaimerAccepted(true);
+      setShowDisclaimerModal(false);
+    }
+  };
+
+  const handleDeclineDisclaimer = () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    router.back();
+  };
+
+  const handleEmergencyCall = () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    Linking.openURL('tel:911');
+  };
+
+  const handleShareRide = (ride: CarpoolRide) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    // In a real app, this would share ride details with emergency contact
+    Alert.alert(
+      'Share Ride Details',
+      `Share this ride with your emergency contact?\n\nDriver: ${ride.driver.name}\nFrom: ${ride.from}\nTo: ${ride.to}\nDate: ${ride.date} at ${ride.time}`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Share', onPress: () => {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        }}
+      ]
+    );
+  };
 
   // Post ride form state
   const [postForm, setPostForm] = useState({
@@ -407,15 +472,28 @@ export default function CarpoolScreen() {
               <Car size={20} color="#3B82F6" />
               <Text className="text-white text-lg font-bold ml-2">Carpool</Text>
             </View>
-            <Pressable
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                setShowPostModal(true);
-              }}
-              className="w-10 h-10 rounded-full bg-blue-500 items-center justify-center"
-            >
-              <Plus size={20} color="#fff" />
-            </Pressable>
+            <View className="flex-row items-center gap-2">
+              {/* Safety Button */}
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  setShowSafetyModal(true);
+                }}
+                className="w-10 h-10 rounded-full bg-green-500/20 items-center justify-center"
+              >
+                <Shield size={18} color="#22C55E" />
+              </Pressable>
+              {/* Post Ride Button */}
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  setShowPostModal(true);
+                }}
+                className="w-10 h-10 rounded-full bg-blue-500 items-center justify-center"
+              >
+                <Plus size={20} color="#fff" />
+              </Pressable>
+            </View>
           </View>
 
           {/* Search */}
@@ -604,9 +682,15 @@ export default function CarpoolScreen() {
                       <View className="flex-row items-center">
                         <Text className="text-white font-semibold">{ride.driver.name}</Text>
                         {ride.driver.isVerified && (
-                          <View className="ml-1.5 w-4 h-4 rounded-full bg-blue-500 items-center justify-center">
+                          <Pressable
+                            onPress={() => {
+                              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                              setShowVerificationInfo(true);
+                            }}
+                            className="ml-1.5 w-4 h-4 rounded-full bg-blue-500 items-center justify-center"
+                          >
                             <Text className="text-white text-xs">✓</Text>
-                          </View>
+                          </Pressable>
                         )}
                       </View>
                       <View className="flex-row items-center">
@@ -616,13 +700,22 @@ export default function CarpoolScreen() {
                       </View>
                     </View>
                   </View>
-                  <Pressable
-                    onPress={() => handleRequestRide(ride)}
-                    className="flex-row items-center bg-blue-500 px-4 py-2.5 rounded-full"
-                  >
-                    <Text className="text-white font-semibold">Book</Text>
-                    <ChevronRight size={16} color="#fff" />
-                  </Pressable>
+                  <View className="flex-row items-center gap-2">
+                    {/* Share Ride Button */}
+                    <Pressable
+                      onPress={() => handleShareRide(ride)}
+                      className="w-10 h-10 rounded-full bg-white/10 items-center justify-center"
+                    >
+                      <Share2 size={16} color="#9CA3AF" />
+                    </Pressable>
+                    <Pressable
+                      onPress={() => handleRequestRide(ride)}
+                      className="flex-row items-center bg-blue-500 px-4 py-2.5 rounded-full"
+                    >
+                      <Text className="text-white font-semibold">Book</Text>
+                      <ChevronRight size={16} color="#fff" />
+                    </Pressable>
+                  </View>
                 </View>
               </Pressable>
             </Animated.View>
@@ -1236,6 +1329,274 @@ export default function CarpoolScreen() {
                 <View className="h-8" />
               </View>
             </ScrollView>
+          </View>
+        </Modal>
+
+        {/* Legal Disclaimer Modal - Shows on first use */}
+        <Modal visible={showDisclaimerModal} animationType="fade" transparent>
+          <View className="flex-1 bg-black/90 justify-center items-center px-5">
+            <Animated.View
+              entering={ZoomIn.springify()}
+              className="bg-[#1A1A2E] rounded-3xl w-full max-w-md overflow-hidden"
+            >
+              <LinearGradient
+                colors={['#DC2626', '#991B1B']}
+                style={{ paddingVertical: 24, paddingHorizontal: 20, alignItems: 'center' }}
+              >
+                <View className="w-16 h-16 rounded-full bg-white/20 items-center justify-center mb-3">
+                  <FileText size={32} color="#fff" />
+                </View>
+                <Text className="text-white text-xl font-bold text-center">Important Notice</Text>
+                <Text className="text-white/80 text-center mt-1">Please read before continuing</Text>
+              </LinearGradient>
+
+              <ScrollView className="p-5" style={{ maxHeight: 350 }}>
+                <Text className="text-white font-bold text-lg mb-3">Terms & Disclaimer</Text>
+
+                <Text className="text-gray-300 text-sm leading-6 mb-4">
+                  By using the Carpool feature, you acknowledge and agree to the following:
+                </Text>
+
+                <View className="mb-4">
+                  <View className="flex-row items-start mb-3">
+                    <View className="w-6 h-6 rounded-full bg-red-500/20 items-center justify-center mr-3 mt-0.5">
+                      <Text className="text-red-400 font-bold text-xs">1</Text>
+                    </View>
+                    <Text className="text-gray-300 text-sm flex-1 leading-5">
+                      <Text className="font-bold text-white">Connection Platform Only: </Text>
+                      This app is solely a platform for connecting drivers and passengers. We are NOT a transportation company, taxi service, or rideshare operator.
+                    </Text>
+                  </View>
+
+                  <View className="flex-row items-start mb-3">
+                    <View className="w-6 h-6 rounded-full bg-red-500/20 items-center justify-center mr-3 mt-0.5">
+                      <Text className="text-red-400 font-bold text-xs">2</Text>
+                    </View>
+                    <Text className="text-gray-300 text-sm flex-1 leading-5">
+                      <Text className="font-bold text-white">No Liability: </Text>
+                      We are not liable for any accidents, injuries, damages, theft, harassment, or any other incidents that occur before, during, or after any ride arranged through this platform.
+                    </Text>
+                  </View>
+
+                  <View className="flex-row items-start mb-3">
+                    <View className="w-6 h-6 rounded-full bg-red-500/20 items-center justify-center mr-3 mt-0.5">
+                      <Text className="text-red-400 font-bold text-xs">3</Text>
+                    </View>
+                    <Text className="text-gray-300 text-sm flex-1 leading-5">
+                      <Text className="font-bold text-white">User Responsibility: </Text>
+                      You are solely responsible for verifying the identity and credibility of any driver or passenger before entering a vehicle or accepting passengers.
+                    </Text>
+                  </View>
+
+                  <View className="flex-row items-start mb-3">
+                    <View className="w-6 h-6 rounded-full bg-red-500/20 items-center justify-center mr-3 mt-0.5">
+                      <Text className="text-red-400 font-bold text-xs">4</Text>
+                    </View>
+                    <Text className="text-gray-300 text-sm flex-1 leading-5">
+                      <Text className="font-bold text-white">No Background Checks: </Text>
+                      We do not conduct criminal background checks, driving record checks, or vehicle inspections on users. "Verified" badges only indicate identity verification, not safety clearance.
+                    </Text>
+                  </View>
+
+                  <View className="flex-row items-start mb-3">
+                    <View className="w-6 h-6 rounded-full bg-red-500/20 items-center justify-center mr-3 mt-0.5">
+                      <Text className="text-red-400 font-bold text-xs">5</Text>
+                    </View>
+                    <Text className="text-gray-300 text-sm flex-1 leading-5">
+                      <Text className="font-bold text-white">At Your Own Risk: </Text>
+                      All rides are undertaken at your own risk. We strongly recommend sharing ride details with trusted contacts, meeting in public places, and trusting your instincts.
+                    </Text>
+                  </View>
+
+                  <View className="flex-row items-start">
+                    <View className="w-6 h-6 rounded-full bg-red-500/20 items-center justify-center mr-3 mt-0.5">
+                      <Text className="text-red-400 font-bold text-xs">6</Text>
+                    </View>
+                    <Text className="text-gray-300 text-sm flex-1 leading-5">
+                      <Text className="font-bold text-white">Payment Disputes: </Text>
+                      We are not responsible for payment disputes between users. External payment methods (Cash App, Venmo, etc.) are handled directly between parties.
+                    </Text>
+                  </View>
+                </View>
+
+                <View className="bg-amber-500/10 rounded-xl p-4 border border-amber-500/30 mb-4">
+                  <View className="flex-row items-center mb-2">
+                    <AlertTriangle size={18} color="#F59E0B" />
+                    <Text className="text-amber-400 font-bold ml-2">Safety Warning</Text>
+                  </View>
+                  <Text className="text-gray-300 text-sm leading-5">
+                    Never share personal financial information. Always meet in public, well-lit areas. Trust your instincts - if something feels wrong, don't proceed with the ride.
+                  </Text>
+                </View>
+              </ScrollView>
+
+              <View className="p-5 border-t border-white/10">
+                <Pressable
+                  onPress={handleAcceptDisclaimer}
+                  className="bg-blue-500 rounded-xl py-4 items-center mb-3"
+                >
+                  <Text className="text-white font-bold text-lg">I Understand & Accept</Text>
+                </Pressable>
+
+                <Pressable
+                  onPress={handleDeclineDisclaimer}
+                  className="py-3 items-center"
+                >
+                  <Text className="text-gray-400 font-medium">Decline & Go Back</Text>
+                </Pressable>
+              </View>
+            </Animated.View>
+          </View>
+        </Modal>
+
+        {/* Safety Tips Modal */}
+        <Modal visible={showSafetyModal} animationType="slide" transparent>
+          <View className="flex-1 bg-black/80 justify-end">
+            <Animated.View
+              entering={ZoomIn.springify()}
+              className="bg-[#1A1A2E] rounded-t-3xl"
+            >
+              <View className="p-6">
+                <View className="flex-row items-center justify-between mb-4">
+                  <View className="flex-row items-center">
+                    <Shield size={24} color="#22C55E" />
+                    <Text className="text-white text-xl font-bold ml-2">Safety Center</Text>
+                  </View>
+                  <Pressable
+                    onPress={() => setShowSafetyModal(false)}
+                    className="w-8 h-8 rounded-full bg-white/10 items-center justify-center"
+                  >
+                    <X size={18} color="#fff" />
+                  </Pressable>
+                </View>
+
+                {/* Emergency Button */}
+                <Pressable
+                  onPress={handleEmergencyCall}
+                  className="mb-4"
+                >
+                  <LinearGradient
+                    colors={['#DC2626', '#991B1B']}
+                    style={{ borderRadius: 16, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}
+                  >
+                    <Phone size={24} color="#fff" />
+                    <Text className="text-white font-bold text-lg ml-3">Emergency Call (911)</Text>
+                  </LinearGradient>
+                </Pressable>
+
+                {/* Safety Tips */}
+                <Text className="text-gray-400 text-sm mb-3">Safety Tips</Text>
+
+                <View className="bg-white/5 rounded-2xl p-4 mb-3">
+                  <View className="flex-row items-start mb-3">
+                    <View className="w-8 h-8 rounded-full bg-green-500/20 items-center justify-center mr-3">
+                      <Share2 size={16} color="#22C55E" />
+                    </View>
+                    <View className="flex-1">
+                      <Text className="text-white font-semibold">Share Your Trip</Text>
+                      <Text className="text-gray-400 text-sm">Always share ride details with a trusted friend or family member before getting in.</Text>
+                    </View>
+                  </View>
+
+                  <View className="flex-row items-start mb-3">
+                    <View className="w-8 h-8 rounded-full bg-blue-500/20 items-center justify-center mr-3">
+                      <UserCheck size={16} color="#3B82F6" />
+                    </View>
+                    <View className="flex-1">
+                      <Text className="text-white font-semibold">Verify the Driver</Text>
+                      <Text className="text-gray-400 text-sm">Check the driver's photo, name, and vehicle before entering. Ask for ID if unsure.</Text>
+                    </View>
+                  </View>
+
+                  <View className="flex-row items-start mb-3">
+                    <View className="w-8 h-8 rounded-full bg-amber-500/20 items-center justify-center mr-3">
+                      <MapPin size={16} color="#F59E0B" />
+                    </View>
+                    <View className="flex-1">
+                      <Text className="text-white font-semibold">Meet in Public</Text>
+                      <Text className="text-gray-400 text-sm">Always arrange pickup in well-lit, public areas. Avoid secluded locations.</Text>
+                    </View>
+                  </View>
+
+                  <View className="flex-row items-start">
+                    <View className="w-8 h-8 rounded-full bg-purple-500/20 items-center justify-center mr-3">
+                      <AlertTriangle size={16} color="#A855F7" />
+                    </View>
+                    <View className="flex-1">
+                      <Text className="text-white font-semibold">Trust Your Instincts</Text>
+                      <Text className="text-gray-400 text-sm">If something feels wrong, don't get in. Your safety is more important than the ride.</Text>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Emergency Contact Setup */}
+                <View className="bg-white/5 rounded-2xl p-4">
+                  <Text className="text-white font-semibold mb-2">Emergency Contact</Text>
+                  <Text className="text-gray-400 text-sm mb-3">Set up an emergency contact to quickly share ride details</Text>
+                  <TextInput
+                    placeholder="Enter phone number"
+                    placeholderTextColor="#6B7280"
+                    value={emergencyContact}
+                    onChangeText={setEmergencyContact}
+                    keyboardType="phone-pad"
+                    className="bg-white/10 rounded-xl px-4 py-3 text-white mb-3"
+                  />
+                  <Pressable
+                    onPress={() => {
+                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                    }}
+                    className="bg-green-500 rounded-xl py-3 items-center"
+                  >
+                    <Text className="text-white font-semibold">Save Contact</Text>
+                  </Pressable>
+                </View>
+              </View>
+              <View className="h-8" />
+            </Animated.View>
+          </View>
+        </Modal>
+
+        {/* Verification Info Modal */}
+        <Modal visible={showVerificationInfo} animationType="fade" transparent>
+          <View className="flex-1 bg-black/80 justify-center items-center px-5">
+            <Animated.View
+              entering={ZoomIn.springify()}
+              className="bg-[#1A1A2E] rounded-3xl w-full max-w-md p-6"
+            >
+              <View className="items-center mb-4">
+                <View className="w-16 h-16 rounded-full bg-blue-500/20 items-center justify-center mb-3">
+                  <BadgeCheck size={32} color="#3B82F6" />
+                </View>
+                <Text className="text-white text-xl font-bold">Verification Badge</Text>
+              </View>
+
+              <Text className="text-gray-300 text-center mb-4">
+                The blue checkmark indicates the driver has verified their identity through our platform.
+              </Text>
+
+              <View className="bg-amber-500/10 rounded-xl p-4 border border-amber-500/30 mb-4">
+                <View className="flex-row items-center mb-2">
+                  <CircleAlert size={18} color="#F59E0B" />
+                  <Text className="text-amber-400 font-bold ml-2">Important</Text>
+                </View>
+                <Text className="text-gray-300 text-sm leading-5">
+                  Identity verification does NOT include:{'\n'}
+                  {'\n'}• Criminal background checks
+                  {'\n'}• Driving record verification
+                  {'\n'}• Vehicle safety inspections
+                  {'\n'}• Insurance verification
+                  {'\n'}{'\n'}
+                  Always use caution and follow safety guidelines.
+                </Text>
+              </View>
+
+              <Pressable
+                onPress={() => setShowVerificationInfo(false)}
+                className="bg-white/10 rounded-xl py-3 items-center"
+              >
+                <Text className="text-white font-semibold">Got It</Text>
+              </Pressable>
+            </Animated.View>
           </View>
         </Modal>
       </SafeAreaView>
