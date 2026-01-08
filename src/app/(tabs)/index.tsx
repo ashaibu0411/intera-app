@@ -110,13 +110,14 @@ export default function HomeScreen() {
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [detectedLocation, setDetectedLocation] = useState<DetectedLocation | null>(null);
   const [showDailyRewards, setShowDailyRewards] = useState(false);
-  const [feedFilter, setFeedFilter] = useState<'local' | 'global'>('local');
 
   const selectedLocation = useStore((s) => s.selectedLocation);
   const userPosts = useStore((s) => s.userPosts);
   const isGuest = useStore((s) => s.isGuest);
   const userStories = useStore((s) => s.userStories);
   const storeJoinCommunity = useStore((s) => s.joinCommunity);
+  const feedFilter = useStore((s) => s.feedFilter);
+  const setFeedFilter = useStore((s) => s.setFeedFilter);
   const [currentUser, setCurrentUser] = useState<any>(null);
 
   useEffect(() => {
@@ -256,7 +257,7 @@ export default function HomeScreen() {
     setRefreshing(false);
   };
 
-  const toggleFilter = (filter: 'local' | 'global') => {
+  const handleToggleFilter = (filter: 'local' | 'global') => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setFeedFilter(filter);
   };
@@ -404,7 +405,7 @@ export default function HomeScreen() {
           {/* Feed Filter - Nextdoor Style */}
           <View className="flex-row px-4 py-3 gap-2 border-b border-gray-100">
             <Pressable
-              onPress={() => toggleFilter('local')}
+              onPress={() => handleToggleFilter('local')}
               className={`flex-row items-center px-4 py-2 rounded-full ${
                 feedFilter === 'local' ? 'bg-gray-900' : 'bg-gray-100'
               }`}
@@ -418,7 +419,7 @@ export default function HomeScreen() {
             </Pressable>
 
             <Pressable
-              onPress={() => toggleFilter('global')}
+              onPress={() => handleToggleFilter('global')}
               className={`flex-row items-center px-4 py-2 rounded-full ${
                 feedFilter === 'global' ? 'bg-gray-900' : 'bg-gray-100'
               }`}
