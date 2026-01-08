@@ -1137,3 +1137,49 @@ Three powerful features designed to make AfroConnect the go-to app for foreigner
 - **Popular Features**: Quick access to most-used features
 - **Beautiful Cards**: Each feature shows icon, name, description, and category badge
 - **Instant Navigation**: Tap any feature to go directly to that screen
+
+### 41. Immigration Career Guide (`/immigration-career-guide`)
+- **Step-by-step career guides** for professionals immigrating to work abroad
+- **6 Professional Pathways**:
+  1. **Nursing** - NCLEX-RN, VisaScreen, state licensing, H-1B/EB-3 visa paths
+  2. **Software Engineering** - H-1B visa, job search, tech company sponsorship
+  3. **Teaching** - Teaching license, visa sponsorship, J-1 exchange programs
+  4. **Accounting** - CPA licensing, H-1B visa, Big 4 firms sponsorship
+  5. **Physical Therapy** - NPTE exam, credential evaluation, healthcare visas
+  6. **Engineering** - PE license, work authorization, engineering firms
+- **Country Selection**: Guides for USA, UK, Canada, Australia, Germany
+- **Step Details**: Each step includes duration, estimated cost, helpful tips, and links to official resources
+- **Progress Tracking**: Mark steps as complete as you progress
+- **Salary Information**: Expected salary range and job demand level
+- **Top States/Regions**: Where jobs are most in-demand
+
+### 42. International Jobs Board (`/international-jobs`)
+- **Visa-sponsored job listings** from around the world
+- **5 Countries**: USA, UK, Canada, Australia, Germany
+- **Job Categories**: Healthcare, Technology, Education, Engineering, Finance
+- **Features**:
+  - Urgent hiring badges for immediate openings
+  - Salary ranges with currency conversion
+  - Visa sponsorship type displayed (H-1B, Skilled Worker, etc.)
+  - Requirements, benefits, and application deadlines
+  - Company profiles with size and industry
+  - Link to Immigration Career Guide for each profession
+- **Filters**: Country and category filters
+- **Search**: Find jobs by title, company, or location
+- **Quick Apply**: Apply directly through the job modal
+
+### 43. International Schools Finder (`/international-schools`)
+- **Schools accepting international students** for study abroad
+- **5 Countries**: USA, UK, Canada, Australia, Germany
+- **School Types**: Universities, Colleges, Community Colleges, Graduate Schools
+- **Features**:
+  - World rankings and acceptance rates
+  - International tuition fees per year
+  - Scholarship availability and funding types
+  - Application deadlines and test requirements (TOEFL, IELTS, SAT, GRE)
+  - Campus amenities (housing, work permits, career services, etc.)
+  - Popular programs and majors offered
+  - Application checklist with official links
+- **Filters**: Country, school type, and scholarship availability
+- **Search**: Find schools by name, location, or programs
+- **School Details Modal**: Full info with "Apply Now" button
