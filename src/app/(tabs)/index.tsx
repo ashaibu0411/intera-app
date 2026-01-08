@@ -486,7 +486,7 @@ export default function HomeScreen() {
                   Be the first to share something with your community
                 </Text>
                 <Pressable
-                  onPress={() => navigateTo('/create-post')}
+                  onPress={() => navigateTo('/(tabs)/create')}
                   className="mt-4 bg-gray-900 px-6 py-3 rounded-full"
                 >
                   <Text className="text-white font-semibold">Create Post</Text>
