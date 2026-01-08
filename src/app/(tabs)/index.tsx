@@ -25,6 +25,7 @@ import { LocationChangeModal } from '@/components/LocationChangeModal';
 import { DailyRewardsBanner } from '@/components/DailyRewardsBanner';
 import { DailyRewardsModal } from '@/components/DailyRewardsModal';
 import { StoryAvatar } from '@/components/StoryAvatar';
+import { WeatherWidget } from '@/components/WeatherWidget';
 import { useStore, MOCK_POSTS, MOCK_COMMUNITIES, type Post, type NewsArticle, getCommunityMemberCount, type UserStory } from '@/lib/store';
 import { getCommunityByLocation, subscribeToCommunityUpdates, getOrCreateCommunity, joinCommunity } from '@/lib/communities';
 import { DbCommunity } from '@/lib/supabase';
@@ -435,6 +436,12 @@ export default function HomeScreen() {
               <Text className="ml-2 font-medium text-sm text-gray-600">Explore</Text>
             </Pressable>
           </View>
+
+          {/* Weather Widget */}
+          <WeatherWidget
+            city={displayCommunity.city}
+            country={displayCommunity.country}
+          />
 
           {/* Guest Sign Up Banner - Minimal */}
           {(isGuest || !currentUser) && (
