@@ -29,14 +29,29 @@ interface PaymentInfo {
   acceptsInApp: boolean;
 }
 
+interface DriverReview {
+  id: string;
+  reviewer: {
+    name: string;
+    avatar: string;
+  };
+  rating: number;
+  comment: string;
+  date: string;
+  rideType: 'commute' | 'airport' | 'event' | 'road-trip';
+}
+
 interface CarpoolRide {
   id: string;
   driver: {
+    id: string;
     name: string;
     avatar: string;
     rating: number;
     rides: number;
     isVerified: boolean;
+    memberSince: string;
+    reviews: DriverReview[];
   };
   from: string;
   fromCity: string;
@@ -62,11 +77,18 @@ const MOCK_RIDES: CarpoolRide[] = [
   {
     id: '1',
     driver: {
+      id: 'driver1',
       name: 'Michael Adeyemi',
       avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200',
       rating: 4.9,
       rides: 156,
       isVerified: true,
+      memberSince: 'March 2023',
+      reviews: [
+        { id: 'r1', reviewer: { name: 'Sarah K.', avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100' }, rating: 5, comment: 'Super punctual and friendly! Car was spotless and he helped with my luggage. Highly recommend!', date: '2 weeks ago', rideType: 'airport' },
+        { id: 'r2', reviewer: { name: 'James O.', avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100' }, rating: 5, comment: 'Great conversation and smooth ride to JFK. Will definitely book again.', date: '1 month ago', rideType: 'airport' },
+        { id: 'r3', reviewer: { name: 'Amina B.', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100' }, rating: 4, comment: 'Good driver, was a few minutes late but communicated well.', date: '2 months ago', rideType: 'airport' },
+      ],
     },
     from: 'Harlem, Manhattan',
     fromCity: 'New York, USA',
@@ -95,11 +117,17 @@ const MOCK_RIDES: CarpoolRide[] = [
   {
     id: '2',
     driver: {
+      id: 'driver2',
       name: 'Kwame Asante',
       avatar: 'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=200',
       rating: 4.8,
       rides: 89,
       isVerified: true,
+      memberSince: 'January 2024',
+      reviews: [
+        { id: 'r4', reviewer: { name: 'Kofi M.', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100' }, rating: 5, comment: 'Best airport driver in Accra! Always on time and very professional.', date: '1 week ago', rideType: 'airport' },
+        { id: 'r5', reviewer: { name: 'Esi A.', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100' }, rating: 5, comment: 'Medaase! Very reliable service, book him every time I fly.', date: '3 weeks ago', rideType: 'airport' },
+      ],
     },
     from: 'Accra Central',
     fromCity: 'Accra, Ghana',
@@ -126,11 +154,17 @@ const MOCK_RIDES: CarpoolRide[] = [
   {
     id: '3',
     driver: {
+      id: 'driver3',
       name: 'Fatima Okonkwo',
       avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200',
       rating: 4.7,
       rides: 45,
       isVerified: true,
+      memberSince: 'June 2024',
+      reviews: [
+        { id: 'r6', reviewer: { name: 'Chidi N.', avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=100' }, rating: 5, comment: 'Perfect commute buddy! Same route every day and very punctual.', date: '3 days ago', rideType: 'commute' },
+        { id: 'r7', reviewer: { name: 'Ngozi E.', avatar: 'https://images.unsplash.com/photo-1489424731084-a5d8b219a5bb?w=100' }, rating: 4, comment: 'Good vibes in the car, fair gas split. Would ride again.', date: '2 weeks ago', rideType: 'commute' },
+      ],
     },
     from: 'Victoria Island',
     fromCity: 'Lagos, Nigeria',
@@ -159,11 +193,18 @@ const MOCK_RIDES: CarpoolRide[] = [
   {
     id: '4',
     driver: {
+      id: 'driver4',
       name: 'Sophie Mensah',
       avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200',
       rating: 5.0,
       rides: 234,
       isVerified: true,
+      memberSince: 'November 2022',
+      reviews: [
+        { id: 'r8', reviewer: { name: 'David L.', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100' }, rating: 5, comment: 'Perfect 5 stars! Sophie is the best driver I\'ve ever had. Professional, clean car, and so friendly.', date: '5 days ago', rideType: 'airport' },
+        { id: 'r9', reviewer: { name: 'Emma T.', avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100' }, rating: 5, comment: 'Absolutely brilliant! She even had water bottles for us. Will always book with Sophie.', date: '1 week ago', rideType: 'airport' },
+        { id: 'r10', reviewer: { name: 'Marcus J.', avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100' }, rating: 5, comment: 'Top tier service. Helped with all my bags and got me to Heathrow with time to spare.', date: '2 weeks ago', rideType: 'airport' },
+      ],
     },
     from: 'Brixton',
     fromCity: 'London, UK',
@@ -191,11 +232,17 @@ const MOCK_RIDES: CarpoolRide[] = [
   {
     id: '5',
     driver: {
+      id: 'driver5',
       name: 'Jean-Pierre Diallo',
       avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=200',
       rating: 4.6,
       rides: 67,
       isVerified: false,
+      memberSince: 'August 2024',
+      reviews: [
+        { id: 'r11', reviewer: { name: 'Aissatou S.', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100' }, rating: 5, comment: 'Merci beaucoup! So kind to offer free rides. The community appreciates you!', date: '4 days ago', rideType: 'airport' },
+        { id: 'r12', reviewer: { name: 'Moussa D.', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100' }, rating: 4, comment: 'Good driver, car was a bit small for luggage but made it work.', date: '1 month ago', rideType: 'airport' },
+      ],
     },
     from: 'Dakar Centre',
     fromCity: 'Dakar, Senegal',
@@ -220,11 +267,18 @@ const MOCK_RIDES: CarpoolRide[] = [
   {
     id: '6',
     driver: {
+      id: 'driver6',
       name: 'Amara Keita',
       avatar: 'https://images.unsplash.com/photo-1489424731084-a5d8b219a5bb?w=200',
       rating: 4.9,
       rides: 112,
       isVerified: true,
+      memberSince: 'February 2023',
+      reviews: [
+        { id: 'r13', reviewer: { name: 'Peter W.', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100' }, rating: 5, comment: 'Amara is amazing! Had snacks ready and got me to JKIA super early. Asante sana!', date: '1 week ago', rideType: 'airport' },
+        { id: 'r14', reviewer: { name: 'Grace M.', avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100' }, rating: 5, comment: 'Best tip-based driver in Nairobi. Always give her a good tip because service is top notch.', date: '2 weeks ago', rideType: 'airport' },
+        { id: 'r15', reviewer: { name: 'John K.', avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100' }, rating: 5, comment: 'Very comfortable SUV and Amara knows all the shortcuts to avoid traffic.', date: '1 month ago', rideType: 'airport' },
+      ],
     },
     from: 'Nairobi CBD',
     fromCity: 'Nairobi, Kenya',
@@ -293,6 +347,32 @@ export default function CarpoolScreen() {
   const [showEmergencyOptions, setShowEmergencyOptions] = useState(false);
   const [emergencyContact, setEmergencyContact] = useState('');
   const [showVerificationInfo, setShowVerificationInfo] = useState(false);
+
+  // Driver profile & reviews state
+  const [showDriverProfile, setShowDriverProfile] = useState(false);
+  const [selectedDriver, setSelectedDriver] = useState<CarpoolRide['driver'] | null>(null);
+
+  const handleViewDriverProfile = (driver: CarpoolRide['driver']) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setSelectedDriver(driver);
+    setShowDriverProfile(true);
+  };
+
+  // Render star rating
+  const renderStars = (rating: number, size: number = 14) => {
+    const stars = [];
+    for (let i = 1; i <= 5; i++) {
+      stars.push(
+        <Star
+          key={i}
+          size={size}
+          color="#FBBF24"
+          fill={i <= rating ? '#FBBF24' : 'transparent'}
+        />
+      );
+    }
+    return stars;
+  };
 
   // Check if disclaimer was previously accepted
   useEffect(() => {
@@ -672,7 +752,10 @@ export default function CarpoolScreen() {
 
                 {/* Driver Info & Action */}
                 <View className="flex-row items-center justify-between px-4 py-3 bg-white/5 border-t border-white/10">
-                  <View className="flex-row items-center">
+                  <Pressable
+                    onPress={() => handleViewDriverProfile(ride.driver)}
+                    className="flex-row items-center flex-1"
+                  >
                     <Image
                       source={{ uri: ride.driver.avatar }}
                       style={{ width: 40, height: 40, borderRadius: 20 }}
@@ -683,7 +766,8 @@ export default function CarpoolScreen() {
                         <Text className="text-white font-semibold">{ride.driver.name}</Text>
                         {ride.driver.isVerified && (
                           <Pressable
-                            onPress={() => {
+                            onPress={(e) => {
+                              e.stopPropagation();
                               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                               setShowVerificationInfo(true);
                             }}
@@ -697,9 +781,10 @@ export default function CarpoolScreen() {
                         <Star size={12} color="#FBBF24" fill="#FBBF24" />
                         <Text className="text-yellow-400 text-xs ml-1">{ride.driver.rating}</Text>
                         <Text className="text-gray-500 text-xs ml-2">• {ride.driver.rides} rides</Text>
+                        <Text className="text-blue-400 text-xs ml-2">• View reviews</Text>
                       </View>
                     </View>
-                  </View>
+                  </Pressable>
                   <View className="flex-row items-center gap-2">
                     {/* Share Ride Button */}
                     <Pressable
@@ -1596,6 +1681,148 @@ export default function CarpoolScreen() {
               >
                 <Text className="text-white font-semibold">Got It</Text>
               </Pressable>
+            </Animated.View>
+          </View>
+        </Modal>
+
+        {/* Driver Profile & Reviews Modal */}
+        <Modal visible={showDriverProfile} animationType="slide" transparent>
+          <View className="flex-1 bg-black/80 justify-end">
+            <Animated.View
+              entering={ZoomIn.springify()}
+              className="bg-[#1A1A2E] rounded-t-3xl max-h-[90%]"
+            >
+              {selectedDriver && (
+                <>
+                  <View className="p-6 border-b border-white/10">
+                    <View className="flex-row items-center justify-between mb-4">
+                      <Text className="text-white text-xl font-bold">Driver Profile</Text>
+                      <Pressable
+                        onPress={() => setShowDriverProfile(false)}
+                        className="w-8 h-8 rounded-full bg-white/10 items-center justify-center"
+                      >
+                        <X size={18} color="#fff" />
+                      </Pressable>
+                    </View>
+
+                    {/* Driver Info Header */}
+                    <View className="flex-row items-center">
+                      <Image
+                        source={{ uri: selectedDriver.avatar }}
+                        style={{ width: 72, height: 72, borderRadius: 36 }}
+                        contentFit="cover"
+                      />
+                      <View className="ml-4 flex-1">
+                        <View className="flex-row items-center">
+                          <Text className="text-white text-xl font-bold">{selectedDriver.name}</Text>
+                          {selectedDriver.isVerified && (
+                            <View className="ml-2 w-5 h-5 rounded-full bg-blue-500 items-center justify-center">
+                              <Text className="text-white text-xs">✓</Text>
+                            </View>
+                          )}
+                        </View>
+                        <Text className="text-gray-400 text-sm">Member since {selectedDriver.memberSince}</Text>
+                      </View>
+                    </View>
+
+                    {/* Stats Row */}
+                    <View className="flex-row mt-4 bg-white/5 rounded-2xl p-4">
+                      <View className="flex-1 items-center border-r border-white/10">
+                        <View className="flex-row items-center">
+                          <Star size={20} color="#FBBF24" fill="#FBBF24" />
+                          <Text className="text-white text-2xl font-bold ml-1">{selectedDriver.rating}</Text>
+                        </View>
+                        <Text className="text-gray-400 text-xs mt-1">Rating</Text>
+                      </View>
+                      <View className="flex-1 items-center border-r border-white/10">
+                        <Text className="text-white text-2xl font-bold">{selectedDriver.rides}</Text>
+                        <Text className="text-gray-400 text-xs mt-1">Rides</Text>
+                      </View>
+                      <View className="flex-1 items-center">
+                        <Text className="text-white text-2xl font-bold">{selectedDriver.reviews.length}</Text>
+                        <Text className="text-gray-400 text-xs mt-1">Reviews</Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  {/* Reviews Section */}
+                  <ScrollView className="p-6" showsVerticalScrollIndicator={false}>
+                    <Text className="text-white font-bold text-lg mb-4">
+                      Reviews ({selectedDriver.reviews.length})
+                    </Text>
+
+                    {selectedDriver.reviews.length === 0 ? (
+                      <View className="bg-white/5 rounded-2xl p-6 items-center">
+                        <Star size={32} color="#6B7280" />
+                        <Text className="text-gray-400 text-center mt-3">No reviews yet</Text>
+                        <Text className="text-gray-500 text-sm text-center mt-1">
+                          Be the first to review this driver after your ride
+                        </Text>
+                      </View>
+                    ) : (
+                      selectedDriver.reviews.map((review, idx) => (
+                        <Animated.View
+                          key={review.id}
+                          entering={FadeInDown.delay(idx * 100).springify()}
+                          className="bg-white/5 rounded-2xl p-4 mb-3"
+                        >
+                          <View className="flex-row items-center mb-3">
+                            <Image
+                              source={{ uri: review.reviewer.avatar }}
+                              style={{ width: 36, height: 36, borderRadius: 18 }}
+                              contentFit="cover"
+                            />
+                            <View className="ml-3 flex-1">
+                              <Text className="text-white font-semibold">{review.reviewer.name}</Text>
+                              <Text className="text-gray-500 text-xs">{review.date}</Text>
+                            </View>
+                            <View className="flex-row items-center">
+                              {renderStars(review.rating, 12)}
+                            </View>
+                          </View>
+                          <Text className="text-gray-300 text-sm leading-5">{review.comment}</Text>
+                          <View className="mt-2 self-start">
+                            <View
+                              className="px-2 py-1 rounded-full"
+                              style={{ backgroundColor: TYPE_COLORS[review.rideType] + '30' }}
+                            >
+                              <Text style={{ color: TYPE_COLORS[review.rideType] }} className="text-xs">
+                                {review.rideType.replace('-', ' ')}
+                              </Text>
+                            </View>
+                          </View>
+                        </Animated.View>
+                      ))
+                    )}
+
+                    {/* Rating Distribution */}
+                    {selectedDriver.reviews.length > 0 && (
+                      <View className="bg-white/5 rounded-2xl p-4 mt-3">
+                        <Text className="text-white font-semibold mb-3">Rating Distribution</Text>
+                        {[5, 4, 3, 2, 1].map((star) => {
+                          const count = selectedDriver.reviews.filter(r => r.rating === star).length;
+                          const percentage = (count / selectedDriver.reviews.length) * 100;
+                          return (
+                            <View key={star} className="flex-row items-center mb-2">
+                              <Text className="text-gray-400 text-sm w-4">{star}</Text>
+                              <Star size={12} color="#FBBF24" fill="#FBBF24" className="mx-1" />
+                              <View className="flex-1 h-2 bg-white/10 rounded-full mx-2 overflow-hidden">
+                                <View
+                                  className="h-full bg-yellow-400 rounded-full"
+                                  style={{ width: `${percentage}%` }}
+                                />
+                              </View>
+                              <Text className="text-gray-500 text-xs w-8">{count}</Text>
+                            </View>
+                          );
+                        })}
+                      </View>
+                    )}
+
+                    <View className="h-8" />
+                  </ScrollView>
+                </>
+              )}
             </Animated.View>
           </View>
         </Modal>
