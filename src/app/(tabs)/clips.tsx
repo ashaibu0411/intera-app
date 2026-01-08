@@ -51,7 +51,7 @@ interface Clip {
   isSaved: boolean;
 }
 
-// Demo clips with sample video URLs (using public sample videos)
+// Demo clips with sample video URLs that have audio
 const MOCK_CLIPS: Clip[] = [
   {
     id: '1',
@@ -62,7 +62,7 @@ const MOCK_CLIPS: Clip[] = [
       avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop&crop=face',
       isVerified: true,
     },
-    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
     thumbnail: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&h=1400&fit=crop',
     description: 'Weekend road trip vibes! Who else loves spontaneous adventures? #roadtrip #adventure #travel',
     music: 'Original Audio - Sarah',
@@ -81,7 +81,7 @@ const MOCK_CLIPS: Clip[] = [
       avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop&crop=face',
       isVerified: false,
     },
-    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
+    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
     thumbnail: 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=800&h=1400&fit=crop',
     description: 'Found the perfect carpool crew for my daily commute. Life-changing! #carpool #commute #friends',
     music: 'Sunny Day - Acoustic',
@@ -100,7 +100,7 @@ const MOCK_CLIPS: Clip[] = [
       avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200&h=200&fit=crop&crop=face',
       isVerified: true,
     },
-    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4',
+    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4',
     thumbnail: 'https://images.unsplash.com/photo-1449824913935-59a10b8d2000?w=800&h=1400&fit=crop',
     description: 'City drives hit different at golden hour. Who wants to join? #goldenhour #citylife #carpool',
     music: 'Golden - Harry Styles',
@@ -119,7 +119,7 @@ const MOCK_CLIPS: Clip[] = [
       avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&h=200&fit=crop&crop=face',
       isVerified: false,
     },
-    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4',
+    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4',
     thumbnail: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=800&h=1400&fit=crop',
     description: 'Mountain road trip with the best crew. Nothing beats these views! #mountains #roadtrip',
     music: 'On The Road Again',
@@ -138,7 +138,7 @@ const MOCK_CLIPS: Clip[] = [
       avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop&crop=face',
       isVerified: true,
     },
-    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4',
+    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/SubaruOutbackOnStreetAndDirt.mp4',
     thumbnail: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&h=1400&fit=crop',
     description: 'Beach carpool anyone? The waves are calling! #beach #summer #roadtrip',
     music: 'Ocean Eyes - Billie Eilish',
