@@ -1334,3 +1334,79 @@ Two revolutionary features that make Diaspora the first app to truly support peo
   - Circle-exclusive events
   - Cross-city connections
   - Mentorship matching
+
+## Supporting Sub-Pages (NEW!)
+
+These sub-pages provide full functionality for the main features above:
+
+### Mission Contributions (`/log-contribution`)
+- **Log your community contributions** to earn points in missions
+- Select from 9 contribution types based on current mission
+- Add optional details and photos
+- Earn points ranging from 5-25 per contribution type
+- Success confirmation with points display
+
+### Time Capsule Details (`/capsule-detail`)
+- **Explore unlocked capsule contents**
+- Browse items: recipes, stories, audio recordings, photos
+- Filter by content type (All, Recipes, Stories, Audio, Photos)
+- Like and comment on contributions
+- Add your own content to the capsule
+- Contributor profiles and timestamps
+
+### Circle Feed (`/circle-feed`)
+- **Private discussion feed** for joined circles
+- Post updates visible only to circle members
+- Like posts and give "hugs" for support
+- Comment and reply to discussions
+- Share images and links
+- Member city locations displayed
+- Role badges (Welcomer, Mentor, Organizer)
+
+### Add Recipe (`/add-recipe`)
+- **Share traditional recipes** with the community
+- Upload recipe photo
+- Add ingredients with amounts (dynamic list)
+- Write cooking instructions
+- Set prep time, servings, difficulty
+- Share the story behind your recipe
+- Contributes to Heritage Hub and Time Capsules
+
+### Connect Setup (`/connect-setup`)
+- **Configure connection preferences** for meeting people
+- Select interests: Networking, Dating, Friendship, Mentorship, Roommate, Faith, Food, Culture
+- Write a connection bio
+- Set preferred age range
+- Privacy controls for your profile
+
+### Support Circle Details (`/support-circle`)
+- **Join private support groups** for life challenges
+- Anonymous posting within circles
+- Safe space guidelines displayed
+- Give "hugs" instead of likes (supportive language)
+- Access group sessions and resources
+- Categories: Grief & Loss, Anxiety, Immigration Stress
+
+### Project Contributions (`/contribute-project`)
+- **Support community crowdfunding projects**
+- View project details, progress, and goal
+- Select preset amounts ($10-$500) or enter custom
+- See contributor count and days remaining
+- Project updates from organizers
+- 100% goes to the project
+
+### Emergency Request (`/create-emergency`)
+- **Request community help** in emergencies
+- Select emergency type: Medical, Housing, Transport, Financial, Family
+- Add title and detailed description
+- Optional financial amount needed
+- Location input
+- Anonymous posting option
+- Immediate community notification
+
+### Community Questions (`/create-ask`)
+- **Ask the community** for help and advice
+- Select category: Housing, Jobs, Schools, Transport, Healthcare, Shopping, Community
+- Set urgency level: Whenever, This Week, Urgent
+- Add location for local questions
+- Community members get notified and can respond
