@@ -314,7 +314,7 @@ export default function ImmigrationAssistantScreen() {
                     style={{ maxWidth: '85%' }}
                   >
                     <Text
-                      className={`text-sm leading-5 ${
+                      className={`text-base leading-6 ${
                         message.role === 'user' ? 'text-white' : 'text-slate-200'
                       }`}
                     >
