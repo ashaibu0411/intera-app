@@ -10,6 +10,8 @@ import {
   Wind,
   Droplets,
   Eye,
+  CloudLightning,
+  CloudFog,
 } from 'lucide-react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -28,30 +30,66 @@ interface WeatherData {
   description: string;
 }
 
-// Mock weather data generator based on city
-const getMockWeather = (city: string, country: string): WeatherData => {
-  // Generate consistent but varied weather based on city name
-  const hash = city.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  const temp = 15 + (hash % 20); // 15-35°C
+// Fetch real weather from Open-Meteo API (free, no API key required)
+const fetchRealWeather = async (city: string, country: string): Promise<WeatherData | null> => {
+  try {
+    // First, geocode the city to get coordinates
+    const geoResponse = await fetch(
+      `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=en&format=json`
+    );
+    const geoData = await geoResponse.json();
 
-  const conditions = ['Clear', 'Partly Cloudy', 'Cloudy', 'Rainy', 'Drizzle'];
-  const condition = conditions[hash % conditions.length];
+    if (!geoData.results || geoData.results.length === 0) {
+      return null;
+    }
 
-  const descriptions = {
-    'Clear': 'Sunny skies ahead',
-    'Partly Cloudy': 'Mix of sun and clouds',
-    'Cloudy': 'Overcast skies',
-    'Rainy': 'Expect rainfall',
-    'Drizzle': 'Light rain expected',
-  };
+    const { latitude, longitude } = geoData.results[0];
 
-  return {
-    temp,
-    condition,
-    humidity: 40 + (hash % 40),
-    windSpeed: 5 + (hash % 20),
-    description: descriptions[condition as keyof typeof descriptions],
-  };
+    // Fetch weather data
+    const weatherResponse = await fetch(
+      `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m&temperature_unit=fahrenheit&wind_speed_unit=mph`
+    );
+    const weatherData = await weatherResponse.json();
+
+    if (!weatherData.current) {
+      return null;
+    }
+
+    const { temperature_2m, relative_humidity_2m, weather_code, wind_speed_10m } = weatherData.current;
+
+    // Map weather codes to conditions
+    // https://open-meteo.com/en/docs (WMO Weather interpretation codes)
+    const { condition, description } = mapWeatherCode(weather_code);
+
+    return {
+      temp: Math.round(temperature_2m),
+      condition,
+      humidity: relative_humidity_2m,
+      windSpeed: Math.round(wind_speed_10m),
+      description,
+    };
+  } catch (error) {
+    console.log('Weather fetch error:', error);
+    return null;
+  }
+};
+
+// Map WMO weather codes to our conditions
+const mapWeatherCode = (code: number): { condition: string; description: string } => {
+  if (code === 0) return { condition: 'Clear', description: 'Clear skies' };
+  if (code === 1) return { condition: 'Clear', description: 'Mainly clear' };
+  if (code === 2) return { condition: 'Partly Cloudy', description: 'Partly cloudy' };
+  if (code === 3) return { condition: 'Cloudy', description: 'Overcast' };
+  if (code === 45 || code === 48) return { condition: 'Fog', description: 'Foggy conditions' };
+  if (code >= 51 && code <= 55) return { condition: 'Drizzle', description: 'Light drizzle' };
+  if (code >= 56 && code <= 57) return { condition: 'Drizzle', description: 'Freezing drizzle' };
+  if (code >= 61 && code <= 65) return { condition: 'Rainy', description: 'Rainfall expected' };
+  if (code >= 66 && code <= 67) return { condition: 'Rainy', description: 'Freezing rain' };
+  if (code >= 71 && code <= 77) return { condition: 'Snow', description: 'Snowfall expected' };
+  if (code >= 80 && code <= 82) return { condition: 'Rainy', description: 'Rain showers' };
+  if (code >= 85 && code <= 86) return { condition: 'Snow', description: 'Snow showers' };
+  if (code >= 95 && code <= 99) return { condition: 'Thunderstorm', description: 'Thunderstorms' };
+  return { condition: 'Cloudy', description: 'Variable conditions' };
 };
 
 const getWeatherIcon = (condition: string) => {
@@ -65,9 +103,14 @@ const getWeatherIcon = (condition: string) => {
     case 'Drizzle':
       return <CloudDrizzle {...iconProps} />;
     case 'Cloudy':
+    case 'Partly Cloudy':
       return <Cloud {...iconProps} />;
     case 'Snow':
       return <CloudSnow {...iconProps} />;
+    case 'Thunderstorm':
+      return <CloudLightning {...iconProps} />;
+    case 'Fog':
+      return <CloudFog {...iconProps} />;
     default:
       return <Cloud {...iconProps} />;
   }
@@ -85,7 +128,11 @@ const getGradientColors = (condition: string): [string, string] => {
     case 'Partly Cloudy':
       return ['#8B9DC3', '#6B7FA3'];
     case 'Snow':
-      return ['#B8D4E8', '#9BB8D3'];
+      return ['#A8C8E8', '#7BA3C9'];
+    case 'Thunderstorm':
+      return ['#4A5568', '#2D3748'];
+    case 'Fog':
+      return ['#9CA3AF', '#6B7280'];
     default:
       return ['#7C9CB7', '#5B7FA3'];
   }
@@ -96,15 +143,16 @@ export function WeatherWidget({ city, country, onPress }: WeatherWidgetProps) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Simulate fetching weather data
+    // Fetch real weather data
     setLoading(true);
-    const timer = setTimeout(() => {
-      const mockWeather = getMockWeather(city, country);
-      setWeather(mockWeather);
-      setLoading(false);
-    }, 500);
 
-    return () => clearTimeout(timer);
+    const loadWeather = async () => {
+      const realWeather = await fetchRealWeather(city, country);
+      setWeather(realWeather);
+      setLoading(false);
+    };
+
+    loadWeather();
   }, [city, country]);
 
   const handlePress = () => {
