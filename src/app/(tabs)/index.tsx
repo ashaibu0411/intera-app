@@ -19,6 +19,9 @@ import {
   Briefcase,
   GraduationCap,
   Bot,
+  Target,
+  Clock,
+  CircleDot,
 } from 'lucide-react-native';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -448,6 +451,45 @@ export default function HomeScreen() {
             city={displayCommunity.city}
             country={displayCommunity.country}
           />
+
+          {/* Quick Feature Access */}
+          <View className="mx-4 mt-3">
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={{ marginHorizontal: -16 }}
+              contentContainerStyle={{ paddingHorizontal: 16 }}
+            >
+              <Pressable
+                onPress={() => navigateTo('/community-missions')}
+                className="bg-purple-100 rounded-xl p-3 mr-2 flex-row items-center"
+              >
+                <Target size={18} color="#7C3AED" />
+                <Text className="text-purple-700 font-medium text-sm ml-2">Missions</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => navigateTo('/time-capsules')}
+                className="bg-indigo-100 rounded-xl p-3 mr-2 flex-row items-center"
+              >
+                <Clock size={18} color="#4F46E5" />
+                <Text className="text-indigo-700 font-medium text-sm ml-2">Time Capsules</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => navigateTo('/diaspora-circles')}
+                className="bg-pink-100 rounded-xl p-3 mr-2 flex-row items-center"
+              >
+                <CircleDot size={18} color="#DB2777" />
+                <Text className="text-pink-700 font-medium text-sm ml-2">Circles</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => navigateTo('/find-helpers')}
+                className="bg-green-100 rounded-xl p-3 mr-2 flex-row items-center"
+              >
+                <Users size={18} color="#059669" />
+                <Text className="text-green-700 font-medium text-sm ml-2">Helpers</Text>
+              </Pressable>
+            </ScrollView>
+          </View>
 
           {/* Guest Sign Up Banner - Minimal */}
           {(isGuest || !currentUser) && (

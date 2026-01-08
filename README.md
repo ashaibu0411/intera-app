@@ -1257,3 +1257,80 @@ Two revolutionary features that make Diaspora the first app to truly support peo
 - **Community answers** - Get answers from experienced locals
 - **Tags** - Categorize questions by topic
 - **Upvoting** - Best answers rise to the top
+
+### 48. Seasonal Community Missions (`/community-missions`)
+- **Quarterly community goals** that turn spectators into collective actors
+- **5 Mission Types**:
+  - **Welcome Newcomers** - Help new arrivals settle in
+  - **Support Local Businesses** - Visit, review, promote diaspora businesses
+  - **Mentor Students** - Career advice, college apps, skill development
+  - **Help Families Find Housing** - Connect families with housing options
+  - **Host Community Events** - Organize gatherings, potlucks, celebrations
+- **Features**:
+  - Progress tracking with visual progress bars
+  - Join/leave missions freely
+  - Log contributions to earn points
+  - Mission rewards (badges, gems)
+  - Days remaining countdown
+- **3-Tab Interface**:
+  - **Missions** - Browse and join active missions
+  - **Activity** - See recent contributions from community
+  - **Leaderboard** - Top contributors with podium display
+- **Gamification**:
+  - Points for every contribution
+  - Your rank shown against community
+  - Badges for completing missions
+
+### 49. Cultural Time Capsules (`/time-capsules`)
+- **Preserve traditions, recipes, stories, and memories** for future generations
+- **6 Capsule Types**:
+  - **Stories** - Migration journeys, family histories
+  - **Recipes** - Traditional dishes passed through generations
+  - **Traditions** - Cultural customs, wedding ceremonies, celebrations
+  - **Prayers** - Audio recordings of blessings from elders
+  - **Music** - Traditional songs, lullabies, anthems
+  - **History** - Neighborhood and community histories
+- **Time-Lock Conditions**:
+  - **Date-based** - Unlock on Independence Day, Christmas, etc.
+  - **Milestone** - Unlock when community reaches 100 members
+  - **Community Age** - Unlock after 1 year in community
+- **Features**:
+  - Beautiful cover images for each capsule
+  - Contributor count and item count
+  - Locked/Unlocked visual indicators
+  - Filter by locked, unlocked, or all
+  - Create new capsules with unlock conditions
+- **Example Capsules**:
+  - "Ghanaian Migration Stories (1990-2010)" - Unlocks on Ghana Independence Day
+  - "Grandma's Recipes" - Unlocked when community hit 100 members
+  - "Wedding Traditions" - Unlocked after 1 year
+
+### 50. Diaspora Circles (`/diaspora-circles`)
+- **Identity-based groups that overlay cities** - Not Facebook Groups, but belonging
+- **Circle Categories**:
+  - **Generation** - First-Gen Africans, Second-Gen Diaspora
+  - **Professional** - Students, Professionals, Entrepreneurs
+  - **Faith** - Faith & Spirituality (cross-faith community)
+  - **Language** - French Speakers, Swahili Speakers, etc.
+  - **Family** - Diaspora Parents
+- **Features**:
+  - Join circles that match your identity
+  - See which cities are active in each circle
+  - Cross-city connections and solidarity
+  - Private discussion feeds per circle
+  - Circle-exclusive events
+  - Mentorship matching within circles
+- **8 Pre-built Circles**:
+  - First-Gen Africans (2,453 members)
+  - Second-Gen Diaspora (1,876 members)
+  - Diaspora Students (3,241 members)
+  - Faith & Spirituality (1,543 members)
+  - Diaspora Professionals (4,521 members)
+  - Diaspora Parents (987 members)
+  - French Speakers (1,234 members)
+  - Diaspora Entrepreneurs (2,156 members)
+- **Circle Benefits**:
+  - Private discussion feed
+  - Circle-exclusive events
+  - Cross-city connections
+  - Mentorship matching
