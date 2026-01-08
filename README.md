@@ -332,7 +332,7 @@ The app is fully connected to Supabase for data persistence and syncing across u
 
 ## Advanced Community Features (NEW!)
 
-These 10 major features make AfroConnect superior to Facebook, Nextdoor, and any other social networking app by leveraging cultural concepts from around the world and community-first design:
+These 10 major features make Diaspora superior to Facebook, Nextdoor, and any other social networking app by leveraging cultural concepts from around the world and community-first design:
 
 ### 1. Ubuntu Trust Score (`/trust-score`)
 - **Community reputation system** based on the Ubuntu philosophy ("I am because we are")
@@ -604,7 +604,7 @@ These 10 major features make AfroConnect superior to Facebook, Nextdoor, and any
 
 ## Game-Changing Features (NEW!)
 
-Three powerful features designed to make AfroConnect the go-to app for foreigners and expats worldwide:
+Three powerful features designed to make Diaspora the go-to app for foreigners and expats worldwide:
 
 ### 11. Remittance & Money Transfer (`/remittance`)
 - **Compare rates AND send money** through official provider apps
@@ -636,7 +636,7 @@ Three powerful features designed to make AfroConnect the go-to app for foreigner
   - "How It Works" guide explaining the 3-step process
 
 ### Refer & Earn Program (`/referrals`)
-- **Two-tier referral system** where users AND AfroConnect both earn
+- **Two-tier referral system** where users AND Diaspora both earn
 - **User Referral Rewards**:
   - **$1.00** when a friend signs up using your code
   - **$5.00** when they make their first money transfer
@@ -652,7 +652,7 @@ Three powerful features designed to make AfroConnect the go-to app for foreigner
   - Reward history with status tracking (pending, confirmed, paid)
   - Three tabs: Overview, History, How It Works
   - FAQ section explaining payout process
-- **AfroConnect Revenue**:
+- **Diaspora Revenue**:
   - Earns affiliate commissions from transfer providers
   - Shares portion with referring users (10%)
   - Sustainable revenue model benefiting everyone
@@ -983,7 +983,7 @@ Three powerful features designed to make AfroConnect the go-to app for foreigner
   - **Venmo** - US-based
   - **Zelle** - US-based
   - **Cash** - Pay driver in person
-  - **In-App Payment** - Secure payment through AfroConnect (5% platform fee)
+  - **In-App Payment** - Secure payment through Diaspora (5% platform fee)
 - Post your own rides with:
   - Flexible pricing type selection with visual icons
   - Local currency support
