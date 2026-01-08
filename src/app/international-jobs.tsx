@@ -36,6 +36,7 @@ import {
   Users,
   Heart,
   BookOpen,
+  MessageCircle,
 } from 'lucide-react-native';
 import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -485,9 +486,18 @@ export default function InternationalJobsScreen() {
             </View>
             <Pressable
               onPress={() => router.push('/immigration-career-guide')}
-              className="bg-forest-600 rounded-full px-3 py-2"
+              className="bg-forest-600 rounded-full px-3 py-2 mr-2"
             >
               <Text className="text-white text-sm font-medium">Career Guide</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push('/immigration-assistant');
+              }}
+              className="bg-emerald-500 rounded-full p-2"
+            >
+              <MessageCircle size={20} color="#fff" />
             </Pressable>
           </View>
 

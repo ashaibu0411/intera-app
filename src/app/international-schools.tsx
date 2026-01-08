@@ -31,6 +31,7 @@ import {
   Building,
   Plane,
   Briefcase,
+  MessageCircle,
 } from 'lucide-react-native';
 import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -375,6 +376,15 @@ export default function InternationalSchoolsScreen() {
               <Text className="text-2xl font-bold text-warmBrown">Study Abroad</Text>
               <Text className="text-sm text-gray-500">Schools Accepting International Students</Text>
             </View>
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push('/immigration-assistant');
+              }}
+              className="bg-emerald-500 rounded-full p-2.5 shadow-sm"
+            >
+              <MessageCircle size={22} color="#fff" />
+            </Pressable>
           </View>
 
           {/* Search */}

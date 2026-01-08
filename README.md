@@ -1183,3 +1183,19 @@ Three powerful features designed to make AfroConnect the go-to app for foreigner
 - **Filters**: Country, school type, and scholarship availability
 - **Search**: Find schools by name, location, or programs
 - **School Details Modal**: Full info with "Apply Now" button
+
+### 44. AI Immigration Assistant (`/immigration-assistant`)
+- **Real-time AI chat** for immigration questions
+- **Powered by GPT-5.2**: Answers specific questions about visas, licensing, jobs, schools
+- **Expert Knowledge Areas**:
+  - Work visa processes (H-1B, EB-3, Skilled Worker visas)
+  - Professional licensing (CGFNS, WES, NACES evaluations)
+  - Healthcare worker immigration (nurses, doctors, PTs)
+  - Tech worker immigration (software engineers)
+  - Student visas and scholarships
+  - Document requirements and timelines
+  - Cost estimates and financial planning
+- **Quick Questions**: Pre-written common questions to get started fast
+- **Context-Aware**: Remembers your conversation for follow-up questions
+- **Quick Links**: Direct access to Career Guides, Jobs, Schools from chat
+- **Accessible from**: Career Guide, International Jobs, and Schools pages (green chat button)

@@ -15,6 +15,7 @@ import {
   ChevronLeft,
   Search,
   Stethoscope,
+  MessageCircle,
   GraduationCap,
   Code,
   Briefcase,
@@ -671,6 +672,15 @@ export default function ImmigrationCareerGuideScreen() {
               <Text className="text-2xl font-bold text-warmBrown">Career Immigration Guide</Text>
               <Text className="text-sm text-gray-500">Step-by-step paths to work abroad</Text>
             </View>
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push('/immigration-assistant');
+              }}
+              className="bg-emerald-500 rounded-full p-2.5 shadow-sm"
+            >
+              <MessageCircle size={22} color="#fff" />
+            </Pressable>
           </View>
 
           {/* Country Selector */}
