@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { View, Text, ScrollView, Pressable, TextInput } from 'react-native';
+import { View, Text, ScrollView, Pressable, TextInput, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
@@ -12,7 +12,8 @@ import {
   ArrowRight,
   X,
   Zap,
-  Clock,
+  Navigation,
+  Plus,
 } from 'lucide-react-native';
 import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -26,6 +27,7 @@ import {
 } from '@/lib/store';
 import { getOrCreateCommunity, joinCommunity } from '@/lib/communities';
 import { getCurrentUser } from '@/lib/auth';
+import { detectCurrentLocation } from '@/lib/locationDetection';
 
 type Step = 'quick' | 'country' | 'state' | 'city';
 
@@ -72,10 +74,128 @@ export default function LocationSelectScreen() {
   const [selectedState, setSelectedState] = useState<string | null>(null);
   const [selectedCity, setSelectedCity] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isDetecting, setIsDetecting] = useState(false);
 
   const setSelectedLocation = useStore((s) => s.setSelectedLocation);
   const setCurrentCommunity = useStore((s) => s.setCurrentCommunity);
   const setIsGuest = useStore((s) => s.setIsGuest);
+
+  // Auto-detect location using GPS
+  const handleAutoDetect = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setIsDetecting(true);
+
+    try {
+      const detected = await detectCurrentLocation();
+
+      if (detected) {
+        // Use the detected location directly
+        setSelectedLocation({
+          country: detected.country,
+          state: detected.state || undefined,
+          city: detected.city,
+        });
+
+        // Try to get or create the community
+        const dbCommunity = await getOrCreateCommunity(
+          detected.city,
+          detected.state || null,
+          detected.country
+        );
+
+        if (dbCommunity) {
+          const user = await getCurrentUser();
+          if (user) {
+            await joinCommunity(user.id, dbCommunity.id);
+          }
+
+          setCurrentCommunity({
+            id: dbCommunity.id,
+            name: dbCommunity.name,
+            city: dbCommunity.city,
+            state: dbCommunity.state ?? undefined,
+            country: dbCommunity.country,
+            memberCount: dbCommunity.member_count,
+            image: dbCommunity.image_url || 'https://images.unsplash.com/photo-1489392191049-fc10c97e64b6?w=400&h=300&fit=crop',
+          });
+        } else {
+          setCurrentCommunity({
+            id: 'custom',
+            name: `${detected.city} Community`,
+            city: detected.city,
+            state: detected.state ?? undefined,
+            country: detected.country,
+            memberCount: 1,
+            image: 'https://images.unsplash.com/photo-1489392191049-fc10c97e64b6?w=400&h=300&fit=crop',
+          });
+        }
+
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setIsGuest(true);
+        router.replace('/(tabs)');
+      } else {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      }
+    } catch (error) {
+      console.log('[Location] Auto-detect error:', error);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      setIsDetecting(false);
+    }
+  };
+
+  // Handle custom city entry (when user types a city not in the list)
+  const handleCustomCitySelect = async (cityName: string) => {
+    if (!cityName.trim()) return;
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    // Default to "Unknown" for country if we don't know
+    const country = 'Unknown';
+
+    setSelectedLocation({
+      country,
+      state: undefined,
+      city: cityName.trim(),
+    });
+
+    // Try to create the community
+    const dbCommunity = await getOrCreateCommunity(
+      cityName.trim(),
+      null,
+      country
+    );
+
+    if (dbCommunity) {
+      const user = await getCurrentUser();
+      if (user) {
+        await joinCommunity(user.id, dbCommunity.id);
+      }
+
+      setCurrentCommunity({
+        id: dbCommunity.id,
+        name: dbCommunity.name,
+        city: dbCommunity.city,
+        state: dbCommunity.state ?? undefined,
+        country: dbCommunity.country,
+        memberCount: dbCommunity.member_count,
+        image: dbCommunity.image_url || 'https://images.unsplash.com/photo-1489392191049-fc10c97e64b6?w=400&h=300&fit=crop',
+      });
+    } else {
+      setCurrentCommunity({
+        id: 'custom',
+        name: `${cityName.trim()} Community`,
+        city: cityName.trim(),
+        state: undefined,
+        country,
+        memberCount: 1,
+        image: 'https://images.unsplash.com/photo-1489392191049-fc10c97e64b6?w=400&h=300&fit=crop',
+      });
+    }
+
+    setIsGuest(true);
+    router.replace('/(tabs)');
+  };
 
   const selectedCountryData = useMemo(
     () => COUNTRIES.find((c) => c.code === selectedCountry),
@@ -320,8 +440,32 @@ export default function LocationSelectScreen() {
       case 'quick':
         return (
           <>
-            {/* Option to use full flow */}
+            {/* Auto-Detect Location Button */}
             <Animated.View entering={FadeInUp.duration(300)}>
+              <Pressable
+                onPress={handleAutoDetect}
+                disabled={isDetecting}
+                className="flex-row items-center p-4 rounded-2xl mb-3 bg-blue-50 border border-blue-200"
+              >
+                <View className="w-10 h-10 rounded-full items-center justify-center mr-3 bg-blue-100">
+                  {isDetecting ? (
+                    <ActivityIndicator size="small" color="#2563EB" />
+                  ) : (
+                    <Navigation size={20} color="#2563EB" />
+                  )}
+                </View>
+                <View className="flex-1">
+                  <Text className="font-semibold text-blue-700">
+                    {isDetecting ? 'Detecting your location...' : 'Use My Current Location'}
+                  </Text>
+                  <Text className="text-blue-600 text-xs">Auto-detect via GPS (any city worldwide)</Text>
+                </View>
+                {!isDetecting && <ChevronRight size={20} color="#2563EB" />}
+              </Pressable>
+            </Animated.View>
+
+            {/* Option to use full flow */}
+            <Animated.View entering={FadeInUp.duration(300).delay(50)}>
               <Pressable
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -341,10 +485,53 @@ export default function LocationSelectScreen() {
               </Pressable>
             </Animated.View>
 
+            {/* Custom city option when searching */}
+            {searchQuery.length > 2 && quickSearchCities.length === 0 && (
+              <Animated.View entering={FadeInUp.duration(300)}>
+                <Pressable
+                  onPress={() => handleCustomCitySelect(searchQuery)}
+                  className="flex-row items-center p-4 rounded-2xl mb-3 bg-purple-50 border border-purple-200"
+                >
+                  <View className="w-10 h-10 rounded-full items-center justify-center mr-3 bg-purple-100">
+                    <Plus size={20} color="#7C3AED" />
+                  </View>
+                  <View className="flex-1">
+                    <Text className="font-semibold text-purple-700">
+                      Use "{searchQuery}"
+                    </Text>
+                    <Text className="text-purple-600 text-xs">City not in list? Add it anyway</Text>
+                  </View>
+                  <ArrowRight size={18} color="#7C3AED" />
+                </Pressable>
+              </Animated.View>
+            )}
+
             {/* All cities list */}
             <Text className="text-gray-500 text-xs font-medium mb-2 ml-1">
-              {searchQuery ? 'SEARCH RESULTS' : 'ALL AVAILABLE CITIES'}
+              {searchQuery ? 'SEARCH RESULTS' : 'POPULAR CITIES'}
             </Text>
+
+            {/* Show custom city option at top of results if searching */}
+            {searchQuery.length > 2 && quickSearchCities.length > 0 && (
+              <Animated.View entering={FadeInUp.duration(300)}>
+                <Pressable
+                  onPress={() => handleCustomCitySelect(searchQuery)}
+                  className="flex-row items-center p-4 rounded-2xl mb-2 bg-purple-50 border border-purple-200"
+                >
+                  <View className="w-10 h-10 rounded-full items-center justify-center mr-3 bg-purple-100">
+                    <Plus size={20} color="#7C3AED" />
+                  </View>
+                  <View className="flex-1">
+                    <Text className="font-semibold text-purple-700">
+                      Use "{searchQuery}" instead
+                    </Text>
+                    <Text className="text-purple-600 text-xs">Can't find your city? Add it</Text>
+                  </View>
+                  <ArrowRight size={18} color="#7C3AED" />
+                </Pressable>
+              </Animated.View>
+            )}
+
             {quickSearchCities.slice(0, 20).map((cityOption, index) => (
               <Animated.View
                 key={`${cityOption.city}-${cityOption.state}`}
@@ -373,42 +560,72 @@ export default function LocationSelectScreen() {
         );
 
       case 'country':
-        return filteredCountries.map((country, index) => (
-          <Animated.View
-            key={country.code}
-            entering={FadeInUp.duration(300).delay(index * 30)}
-          >
-            <Pressable
-              onPress={() => handleCountrySelect(country.code)}
-              className={`flex-row items-center p-4 rounded-2xl mb-2 ${
-                selectedCountry === country.code ? 'bg-terracotta-500' : 'bg-white'
-              }`}
-            >
-              <View
-                className={`w-10 h-10 rounded-full items-center justify-center mr-3 ${
-                  selectedCountry === country.code ? 'bg-white/20' : 'bg-terracotta-50'
-                }`}
+        return (
+          <>
+            {/* Auto-Detect Location Button for new users */}
+            <Animated.View entering={FadeInUp.duration(300)}>
+              <Pressable
+                onPress={handleAutoDetect}
+                disabled={isDetecting}
+                className="flex-row items-center p-4 rounded-2xl mb-4 bg-blue-50 border border-blue-200"
               >
-                <Globe
-                  size={20}
-                  color={selectedCountry === country.code ? '#FFFFFF' : '#D4673A'}
-                />
-              </View>
-              <Text
-                className={`flex-1 font-medium text-base ${
-                  selectedCountry === country.code ? 'text-white' : 'text-warmBrown'
-                }`}
+                <View className="w-10 h-10 rounded-full items-center justify-center mr-3 bg-blue-100">
+                  {isDetecting ? (
+                    <ActivityIndicator size="small" color="#2563EB" />
+                  ) : (
+                    <Navigation size={20} color="#2563EB" />
+                  )}
+                </View>
+                <View className="flex-1">
+                  <Text className="font-semibold text-blue-700">
+                    {isDetecting ? 'Detecting your location...' : 'Auto-Detect My Location'}
+                  </Text>
+                  <Text className="text-blue-600 text-xs">Use GPS to find your city automatically</Text>
+                </View>
+                {!isDetecting && <ChevronRight size={20} color="#2563EB" />}
+              </Pressable>
+            </Animated.View>
+
+            <Text className="text-gray-500 text-xs font-medium mb-2 ml-1">OR SELECT A COUNTRY</Text>
+
+            {filteredCountries.map((country, index) => (
+              <Animated.View
+                key={country.code}
+                entering={FadeInUp.duration(300).delay(index * 30)}
               >
-                {country.name}
-              </Text>
-              {selectedCountry === country.code ? (
-                <Check size={20} color="#FFFFFF" />
-              ) : (
-                <ChevronRight size={20} color="#9CA3AF" />
-              )}
-            </Pressable>
-          </Animated.View>
-        ));
+                <Pressable
+                  onPress={() => handleCountrySelect(country.code)}
+                  className={`flex-row items-center p-4 rounded-2xl mb-2 ${
+                    selectedCountry === country.code ? 'bg-terracotta-500' : 'bg-white'
+                  }`}
+                >
+                  <View
+                    className={`w-10 h-10 rounded-full items-center justify-center mr-3 ${
+                      selectedCountry === country.code ? 'bg-white/20' : 'bg-terracotta-50'
+                    }`}
+                  >
+                    <Globe
+                      size={20}
+                      color={selectedCountry === country.code ? '#FFFFFF' : '#D4673A'}
+                    />
+                  </View>
+                  <Text
+                    className={`flex-1 font-medium text-base ${
+                      selectedCountry === country.code ? 'text-white' : 'text-warmBrown'
+                    }`}
+                  >
+                    {country.name}
+                  </Text>
+                  {selectedCountry === country.code ? (
+                    <Check size={20} color="#FFFFFF" />
+                  ) : (
+                    <ChevronRight size={20} color="#9CA3AF" />
+                  )}
+                </Pressable>
+              </Animated.View>
+            ))}
+          </>
+        );
 
       case 'state':
         return filteredStates.map((state, index) => (
