@@ -4,6 +4,26 @@ A community-driven social platform connecting foreigners, expats, and global cit
 
 **Slogan:** *Connecting Foreigners Globally, Building Communities*
 
+## Bottom Navigation Tabs
+
+The app has 5 main tabs in the bottom navigation:
+1. **Home** - Community feed with posts, stories, and news
+2. **Events** - Discover local and global events
+3. **Clips** - Short-form video clips feed (TikTok-style vertical scrolling)
+4. **Connect** - Meet people nearby with profile discovery
+5. **Profile** - User profile and settings
+
+### Clips Tab (NEW!)
+- **Full-screen vertical video feed** like TikTok/Reels
+- **Swipe to browse**: Vertical paging through clips
+- **For You / Following**: Toggle between personalized and followed content
+- **Engagement actions**:
+  - Double-tap to like with heart animation
+  - Like, comment, save, and share buttons
+  - Follow creators directly from clips
+- **Creator info**: Username, description, and music attribution
+- **Haptic feedback** on all interactions
+
 ## Features
 
 ### Welcome & Onboarding
