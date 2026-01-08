@@ -500,7 +500,7 @@ export default function HomeScreen() {
 
         {/* Floating Create Button */}
         <Pressable
-          onPress={() => navigateTo('/create-post')}
+          onPress={() => navigateTo('/(tabs)/create')}
           className="absolute bottom-6 right-6"
           style={{
             shadowColor: '#7C3AED',
