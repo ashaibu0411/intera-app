@@ -1199,3 +1199,61 @@ Three powerful features designed to make Diaspora the go-to app for foreigners a
 - **Context-Aware**: Remembers your conversation for follow-up questions
 - **Quick Links**: Direct access to Career Guides, Jobs, Schools from chat
 - **Accessible from**: Career Guide, International Jobs, and Schools pages (green chat button)
+
+## Newcomer Support System (NEW!)
+
+Two revolutionary features that make Diaspora the first app to truly support people relocating to new cities:
+
+### 45. Arrival Mode (`/arrival-mode`)
+- **30-day onboarding experience** for newcomers who just moved to a new city
+- **What Arrival Mode provides**:
+  - Helpers automatically surface near you
+  - Ask anything without judgment
+  - Priority support from the community
+  - Local tips and essential info
+- **Customizable help needs**:
+  - Select what you need help with: Housing, Jobs, Schools, Healthcare, Transport, Shopping, Faith, Community
+  - Helpers with matching skills will see your profile
+- **Visual indicators**:
+  - Amber "Arrival Mode Active" banner on home feed
+  - "New Arrival" badge on your profile
+  - Days remaining countdown (30-day window)
+- **Quick actions**:
+  - Find Helpers button to connect with community helpers
+  - Ask Anything button to post judgment-free questions
+  - City Guide for essential local information
+
+### 46. Community Roles (`/become-helper`, `/find-helpers`)
+- **Replace followers with responsibility** - No likes, no follower counts, just earned roles
+- **7 Community Roles**:
+  - **Welcomer** (Pink) - Helps newcomers settle in
+  - **Connector** (Purple) - Introduces people to each other
+  - **Organizer** (Amber) - Hosts events and gatherings
+  - **Fixer** (Green) - Provides practical help (rides, repairs, advice)
+  - **Story Keeper** (Indigo) - Preserves community history and traditions
+  - **Mentor** (Blue) - Guides career and life decisions
+  - **Business Builder** (Red) - Supports local businesses
+- **Role features**:
+  - Roles are earned through helping, not purchased
+  - Roles can expire to keep them meaningful
+  - "Helped count" shows impact on community
+  - Multiple roles can be earned
+- **Become a Helper** (`/become-helper`):
+  - Select skills you can help with
+  - Get the Welcomer role automatically
+  - Track people you've helped
+  - Build your reputation and trust score
+- **Find Helpers** (`/find-helpers`):
+  - Search helpers by name, skill, or language
+  - Filter by skill category
+  - See helper ratings and reviews
+  - View languages spoken
+  - One-tap messaging to connect
+
+### 47. Ask Community (`/ask-community`)
+- **Judgment-free question posting** for newcomers
+- **Safe space** - Questions from new arrivals are protected
+- **Suggested questions** - Common questions to get started
+- **Community answers** - Get answers from experienced locals
+- **Tags** - Categorize questions by topic
+- **Upvoting** - Best answers rise to the top

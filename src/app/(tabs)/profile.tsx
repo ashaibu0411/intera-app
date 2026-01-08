@@ -3,7 +3,7 @@ import { View, Text, ScrollView, Pressable, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Settings, MapPin, Calendar, Edit3, Users, FileText, Bookmark, LogOut, Star, ChevronRight, Play, Briefcase, Plus, Store, Crown } from 'lucide-react-native';
+import { Settings, MapPin, Calendar, Edit3, Users, FileText, Bookmark, LogOut, Star, ChevronRight, Play, Briefcase, Plus, Store, Crown, Plane, Heart } from 'lucide-react-native';
 import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
@@ -11,6 +11,8 @@ import { useStore, MOCK_USERS, MOCK_POSTS } from '@/lib/store';
 import { signOut } from '@/lib/auth';
 import { usePremium } from '@/hooks/usePremium';
 import { StoryAvatar } from '@/components/StoryAvatar';
+import { RoleBadges, HelperBadge } from '@/components/RoleBadge';
+import { ArrivalModeCompactBadge } from '@/components/ArrivalModeBanner';
 
 export default function ProfileScreen() {
   const currentUser = useStore((s) => s.currentUser);
@@ -166,7 +168,7 @@ export default function ProfileScreen() {
                 </View>
 
                 <View className="flex-1 ml-4">
-                  <View className="flex-row items-center">
+                  <View className="flex-row items-center flex-wrap">
                     <Text className="text-white text-xl font-bold">{user.name}</Text>
                     {isPremium && (
                       <View className="bg-gold-500 rounded-full p-1 ml-2">
@@ -175,6 +177,13 @@ export default function ProfileScreen() {
                     )}
                   </View>
                   <Text className="text-white/70 text-sm">@{user.username}</Text>
+
+                  {/* Arrival Mode & Helper Badges */}
+                  <View className="flex-row flex-wrap gap-2 mt-2">
+                    <ArrivalModeCompactBadge />
+                    {currentUser?.isHelper && <HelperBadge size="small" />}
+                  </View>
+
                   <View className="flex-row items-center mt-2">
                     <MapPin size={14} color="#C9A227" />
                     <Text className="text-gold-400 text-sm ml-1">{user.location}</Text>
@@ -210,6 +219,14 @@ export default function ProfileScreen() {
                       <Text className="text-white text-sm">{interest}</Text>
                     </View>
                   ))}
+                </View>
+              )}
+
+              {/* Community Roles */}
+              {currentUser?.communityRoles && currentUser.communityRoles.length > 0 && (
+                <View className="mt-4 pt-4 border-t border-white/20">
+                  <Text className="text-white/70 text-sm mb-2">Community Roles</Text>
+                  <RoleBadges roles={currentUser.communityRoles} maxDisplay={4} size="small" />
                 </View>
               )}
             </LinearGradient>

@@ -30,6 +30,7 @@ import { DailyRewardsBanner } from '@/components/DailyRewardsBanner';
 import { DailyRewardsModal } from '@/components/DailyRewardsModal';
 import { StoryAvatar } from '@/components/StoryAvatar';
 import { WeatherWidget } from '@/components/WeatherWidget';
+import { ArrivalModeBanner } from '@/components/ArrivalModeBanner';
 import { useStore, MOCK_POSTS, MOCK_COMMUNITIES, type Post, type NewsArticle, getCommunityMemberCount, type UserStory } from '@/lib/store';
 import { getCommunityByLocation, subscribeToCommunityUpdates, getOrCreateCommunity, joinCommunity } from '@/lib/communities';
 import { DbCommunity } from '@/lib/supabase';
@@ -469,6 +470,9 @@ export default function HomeScreen() {
 
           {/* Daily Rewards - Compact */}
           <DailyRewardsBanner onPress={() => setShowDailyRewards(true)} />
+
+          {/* Arrival Mode Banner - for newcomers */}
+          <ArrivalModeBanner />
 
           {/* Posts */}
           <View className="mt-2">

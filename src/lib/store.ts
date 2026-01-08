@@ -2,6 +2,23 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+// Community Roles - replaces follower/like culture with responsibility
+export type CommunityRole =
+  | 'welcomer'      // Helps newcomers settle in
+  | 'connector'     // Introduces people to each other
+  | 'organizer'     // Hosts events and gatherings
+  | 'fixer'         // Provides practical help (rides, repairs, advice)
+  | 'story_keeper'  // Preserves community history and traditions
+  | 'mentor'        // Guides career/life decisions
+  | 'business_builder'; // Supports local businesses
+
+export interface CommunityRoleInfo {
+  role: CommunityRole;
+  earnedAt: string;
+  expiresAt?: string; // Roles can expire to keep them meaningful
+  helpedCount: number; // Number of people helped in this role
+}
+
 export interface User {
   id: string;
   name: string;
@@ -16,6 +33,15 @@ export interface User {
   gemBalance?: number;
   totalGemsEarned?: number;
   totalGemsSent?: number;
+  // Arrival Mode - for newcomers (7-30 day onboarding)
+  isNewArrival?: boolean;
+  arrivalDate?: string; // When they activated arrival mode
+  arrivalCity?: string; // The city they arrived in
+  lookingForHelp?: string[]; // What they need help with
+  // Community Roles - earned through actions, not followers
+  communityRoles?: CommunityRoleInfo[];
+  isHelper?: boolean; // Willing to help newcomers
+  helperSkills?: string[]; // What they can help with
 }
 
 export interface GiftTransaction {
