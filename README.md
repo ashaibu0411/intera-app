@@ -15,9 +15,16 @@ The app has 5 main tabs in the bottom navigation:
 
 ### Clips Tab (NEW!)
 - **Full-screen vertical video feed** like TikTok/Reels
+- **Real video playback** using expo-av with auto-play when visible
 - **Swipe to browse**: Vertical paging through clips
 - **For You / Following**: Toggle between personalized and followed content
+- **Create clips**: Tap the + button to record or upload your own video clips
+  - Record directly from camera (up to 60 seconds)
+  - Upload from photo library
+  - Add description and music tags
+  - Custom cover image selection
 - **Engagement actions**:
+  - Tap to play/pause video
   - Double-tap to like with heart animation
   - Like, comment, save, and share buttons
   - Follow creators directly from clips

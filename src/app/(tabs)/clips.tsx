@@ -1,10 +1,12 @@
-import React, { useState, useRef, useCallback } from 'react';
-import { View, Text, Pressable, Dimensions, FlatList, ViewToken } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
+import { View, Text, Pressable, Dimensions, FlatList, ViewToken, ActivityIndicator } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
+import { Video as ExpoVideo, ResizeMode, AVPlaybackStatus } from 'expo-av';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   Play,
+  Pause,
   Heart,
   MessageCircle,
   Share2,
@@ -12,6 +14,7 @@ import {
   Plus,
   Bookmark,
   MoreHorizontal,
+  Video,
 } from 'lucide-react-native';
 import Animated, {
   FadeIn,
@@ -37,6 +40,7 @@ interface Clip {
     avatar: string;
     isVerified: boolean;
   };
+  videoUrl?: string;
   thumbnail: string;
   description: string;
   music: string;
@@ -47,6 +51,7 @@ interface Clip {
   isSaved: boolean;
 }
 
+// Demo clips with sample video URLs (using public sample videos)
 const MOCK_CLIPS: Clip[] = [
   {
     id: '1',
@@ -57,6 +62,7 @@ const MOCK_CLIPS: Clip[] = [
       avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop&crop=face',
       isVerified: true,
     },
+    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
     thumbnail: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&h=1400&fit=crop',
     description: 'Weekend road trip vibes! Who else loves spontaneous adventures? #roadtrip #adventure #travel',
     music: 'Original Audio - Sarah',
@@ -75,6 +81,7 @@ const MOCK_CLIPS: Clip[] = [
       avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop&crop=face',
       isVerified: false,
     },
+    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
     thumbnail: 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=800&h=1400&fit=crop',
     description: 'Found the perfect carpool crew for my daily commute. Life-changing! #carpool #commute #friends',
     music: 'Sunny Day - Acoustic',
@@ -93,6 +100,7 @@ const MOCK_CLIPS: Clip[] = [
       avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200&h=200&fit=crop&crop=face',
       isVerified: true,
     },
+    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4',
     thumbnail: 'https://images.unsplash.com/photo-1449824913935-59a10b8d2000?w=800&h=1400&fit=crop',
     description: 'City drives hit different at golden hour. Who wants to join? #goldenhour #citylife #carpool',
     music: 'Golden - Harry Styles',
@@ -111,6 +119,7 @@ const MOCK_CLIPS: Clip[] = [
       avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&h=200&fit=crop&crop=face',
       isVerified: false,
     },
+    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4',
     thumbnail: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=800&h=1400&fit=crop',
     description: 'Mountain road trip with the best crew. Nothing beats these views! #mountains #roadtrip',
     music: 'On The Road Again',
@@ -129,6 +138,7 @@ const MOCK_CLIPS: Clip[] = [
       avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop&crop=face',
       isVerified: true,
     },
+    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4',
     thumbnail: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&h=1400&fit=crop',
     description: 'Beach carpool anyone? The waves are calling! #beach #summer #roadtrip',
     music: 'Ocean Eyes - Billie Eilish',
@@ -160,9 +170,21 @@ function ClipItem({ clip, isActive }: ClipItemProps) {
   const [liked, setLiked] = useState(clip.isLiked);
   const [saved, setSaved] = useState(clip.isSaved);
   const [likeCount, setLikeCount] = useState(clip.likes);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const videoRef = useRef<ExpoVideo>(null);
 
   const heartScale = useSharedValue(1);
   const doubleTapHeart = useSharedValue(0);
+
+  // Auto-play/pause based on visibility
+  useEffect(() => {
+    if (isActive && clip.videoUrl) {
+      videoRef.current?.playAsync();
+    } else {
+      videoRef.current?.pauseAsync();
+    }
+  }, [isActive, clip.videoUrl]);
 
   const heartAnimatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: heartScale.value }],
@@ -217,13 +239,33 @@ function ClipItem({ clip, isActive }: ClipItemProps) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   };
 
+  const togglePlayPause = async () => {
+    if (!videoRef.current) return;
+
+    if (isPlaying) {
+      await videoRef.current.pauseAsync();
+    } else {
+      await videoRef.current.playAsync();
+    }
+  };
+
   const lastTap = useRef<number>(0);
   const handleTap = () => {
     const now = Date.now();
     if (now - lastTap.current < 300) {
       handleDoubleTap();
+    } else {
+      // Single tap toggles play/pause
+      togglePlayPause();
     }
     lastTap.current = now;
+  };
+
+  const onPlaybackStatusUpdate = (status: AVPlaybackStatus) => {
+    if (status.isLoaded) {
+      setIsPlaying(status.isPlaying);
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -232,12 +274,35 @@ function ClipItem({ clip, isActive }: ClipItemProps) {
       style={{ height: SCREEN_HEIGHT, width: SCREEN_WIDTH }}
       className="relative"
     >
-      {/* Background Image */}
-      <Image
-        source={{ uri: clip.thumbnail }}
-        style={{ position: 'absolute', width: '100%', height: '100%' }}
-        contentFit="cover"
-      />
+      {/* Video or Thumbnail Background */}
+      {clip.videoUrl ? (
+        <>
+          <ExpoVideo
+            ref={videoRef}
+            source={{ uri: clip.videoUrl }}
+            style={{ position: 'absolute', width: '100%', height: '100%' }}
+            resizeMode={ResizeMode.COVER}
+            isLooping
+            shouldPlay={isActive}
+            isMuted={false}
+            onPlaybackStatusUpdate={onPlaybackStatusUpdate}
+          />
+          {/* Thumbnail while loading */}
+          {isLoading && (
+            <Image
+              source={{ uri: clip.thumbnail }}
+              style={{ position: 'absolute', width: '100%', height: '100%' }}
+              contentFit="cover"
+            />
+          )}
+        </>
+      ) : (
+        <Image
+          source={{ uri: clip.thumbnail }}
+          style={{ position: 'absolute', width: '100%', height: '100%' }}
+          contentFit="cover"
+        />
+      )}
 
       {/* Gradient Overlays */}
       <LinearGradient
@@ -253,12 +318,21 @@ function ClipItem({ clip, isActive }: ClipItemProps) {
         <Heart size={120} color="#fff" fill="#fff" />
       </Animated.View>
 
-      {/* Play Button Overlay */}
-      <View className="absolute inset-0 items-center justify-center">
-        <View className="bg-black/20 rounded-full p-4">
-          <Play size={48} color="#fff" fill="#fff" />
+      {/* Loading Indicator */}
+      {isLoading && clip.videoUrl && (
+        <View className="absolute inset-0 items-center justify-center">
+          <ActivityIndicator size="large" color="#fff" />
         </View>
-      </View>
+      )}
+
+      {/* Play/Pause Indicator (shows briefly when toggling) */}
+      {!isPlaying && !isLoading && (
+        <View className="absolute inset-0 items-center justify-center">
+          <View className="bg-black/30 rounded-full p-4">
+            <Play size={48} color="#fff" fill="#fff" />
+          </View>
+        </View>
+      )}
 
       {/* Right Side Actions */}
       <View
@@ -362,6 +436,7 @@ function ClipItem({ clip, isActive }: ClipItemProps) {
 export default function ClipsTabScreen() {
   const insets = useSafeAreaInsets();
   const [activeIndex, setActiveIndex] = useState(0);
+  const [activeTab, setActiveTab] = useState<'following' | 'foryou'>('foryou');
   const isGuest = useStore((s) => s.isGuest);
   const currentUser = useStore((s) => s.currentUser);
 
@@ -380,30 +455,60 @@ export default function ClipsTabScreen() {
 
   const handleCreateClip = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    if (isGuest || !currentUser) {
-      router.push('/signup');
-    } else {
-      // Navigate to create clip screen
-    }
+    router.push('/create-clip');
+  };
+
+  const handleTabChange = (tab: 'following' | 'foryou') => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setActiveTab(tab);
   };
 
   return (
     <View className="flex-1 bg-black">
       {/* Header */}
       <View
-        className="absolute z-10 left-0 right-0 flex-row items-center justify-center"
+        className="absolute z-10 left-0 right-0 flex-row items-center justify-between px-4"
         style={{ top: insets.top + 8 }}
       >
+        {/* Spacer for balance */}
+        <View style={{ width: 44 }} />
+
+        {/* Tab Switcher */}
         <Animated.View entering={FadeIn.duration(400)} className="flex-row items-center">
-          <Pressable className="px-4 py-2">
-            <Text className="text-white/60 font-semibold text-base">Following</Text>
+          <Pressable onPress={() => handleTabChange('following')} className="px-4 py-2">
+            <Text
+              className={`font-semibold text-base ${
+                activeTab === 'following' ? 'text-white' : 'text-white/60'
+              }`}
+            >
+              Following
+            </Text>
+            {activeTab === 'following' && (
+              <View className="absolute bottom-1 left-4 right-4 h-0.5 bg-white rounded-full" />
+            )}
           </Pressable>
           <View className="w-px h-4 bg-white/30 mx-1" />
-          <Pressable className="px-4 py-2">
-            <Text className="text-white font-bold text-base">For You</Text>
-            <View className="absolute bottom-1 left-4 right-4 h-0.5 bg-white rounded-full" />
+          <Pressable onPress={() => handleTabChange('foryou')} className="px-4 py-2">
+            <Text
+              className={`font-semibold text-base ${
+                activeTab === 'foryou' ? 'text-white' : 'text-white/60'
+              }`}
+            >
+              For You
+            </Text>
+            {activeTab === 'foryou' && (
+              <View className="absolute bottom-1 left-4 right-4 h-0.5 bg-white rounded-full" />
+            )}
           </Pressable>
         </Animated.View>
+
+        {/* Create Button */}
+        <Pressable
+          onPress={handleCreateClip}
+          className="bg-white rounded-lg w-11 h-7 items-center justify-center"
+        >
+          <Plus size={20} color="#000" strokeWidth={3} />
+        </Pressable>
       </View>
 
       {/* Clips Feed */}
