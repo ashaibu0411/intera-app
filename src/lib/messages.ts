@@ -169,26 +169,40 @@ export async function markMessagesAsRead(conversationId: string, userId: string)
 // Mark all messages as read for a user (all conversations)
 export async function markAllMessagesAsRead(userId: string) {
   try {
+    console.log('markAllMessagesAsRead called for user:', userId);
+
     // Get all conversation IDs the user is part of
-    const { data: participations } = await supabase
+    const { data: participations, error: partError } = await supabase
       .from('conversation_participants')
       .select('conversation_id')
       .eq('user_id', userId);
 
-    if (!participations || participations.length === 0) return;
+    if (partError) {
+      console.log('Error getting participations:', partError);
+      return;
+    }
+
+    if (!participations || participations.length === 0) {
+      console.log('No participations found');
+      return;
+    }
 
     const conversationIds = participations.map((p) => p.conversation_id);
+    console.log('Found conversation IDs:', conversationIds);
 
     // Mark all unread messages from others as read
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('messages')
       .update({ read: true })
       .in('conversation_id', conversationIds)
       .neq('sender_id', userId)
-      .eq('read', false);
+      .eq('read', false)
+      .select();
 
     if (error) {
-      console.error('Error marking all messages as read:', error);
+      console.log('Error marking all messages as read:', error);
+    } else {
+      console.log('Marked messages as read:', data?.length || 0);
     }
   } catch (err) {
     console.error('Failed to mark all messages as read:', err);

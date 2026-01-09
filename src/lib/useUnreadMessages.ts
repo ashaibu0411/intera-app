@@ -31,16 +31,50 @@ export function useUnreadMessages() {
       const conversationIds = participations.map((p) => p.conversation_id);
 
       // Count unread messages from other users
-      const { count } = await supabase
+      const { count, error } = await supabase
         .from('messages')
         .select('*', { count: 'exact', head: true })
         .in('conversation_id', conversationIds)
         .neq('sender_id', currentUser.id)
         .eq('read', false);
 
+      if (error) {
+        console.log('Error fetching unread count:', error);
+      }
+
       setUnreadCount(count || 0);
     } catch (error) {
       console.error('Error fetching unread count:', error);
+    }
+  }, [currentUser?.id]);
+
+  // Mark all messages as read and refresh count
+  const markAllAsRead = useCallback(async () => {
+    if (!currentUser?.id) return;
+
+    try {
+      // Get conversations the user is part of
+      const { data: participations } = await supabase
+        .from('conversation_participants')
+        .select('conversation_id')
+        .eq('user_id', currentUser.id);
+
+      if (!participations || participations.length === 0) return;
+
+      const conversationIds = participations.map((p) => p.conversation_id);
+
+      // Mark all unread messages from others as read
+      await supabase
+        .from('messages')
+        .update({ read: true })
+        .in('conversation_id', conversationIds)
+        .neq('sender_id', currentUser.id)
+        .eq('read', false);
+
+      // Immediately set count to 0
+      setUnreadCount(0);
+    } catch (error) {
+      console.error('Error marking all as read:', error);
     }
   }, [currentUser?.id]);
 
@@ -60,5 +94,5 @@ export function useUnreadMessages() {
     }, [fetchUnreadCount])
   );
 
-  return { unreadCount, refetch: fetchUnreadCount };
+  return { unreadCount, refetch: fetchUnreadCount, markAllAsRead };
 }

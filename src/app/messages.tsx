@@ -13,7 +13,8 @@ import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { formatDistanceToNow } from 'date-fns';
 import { useStore } from '@/lib/store';
-import { getConversations, markAllMessagesAsRead } from '@/lib/messages';
+import { getConversations } from '@/lib/messages';
+import { useUnreadMessages } from '@/lib/useUnreadMessages';
 import { DbUser } from '@/lib/supabase';
 
 interface ConversationPreview {
@@ -35,6 +36,9 @@ export default function MessagesScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const isGuest = useStore((s) => s.isGuest);
   const currentUser = useStore((s) => s.currentUser);
+
+  // Get the markAllAsRead function from the hook
+  const { markAllAsRead } = useUnreadMessages();
 
   // Load conversations
   const loadConversations = useCallback(async (showRefresh = false) => {
@@ -58,20 +62,20 @@ export default function MessagesScreen() {
     }
   }, [currentUser?.id]);
 
-  // Load on mount
+  // Load on mount and mark messages as read
   useEffect(() => {
     loadConversations();
-  }, [loadConversations]);
+    // Mark all messages as read when entering messages screen
+    markAllAsRead();
+  }, [loadConversations, markAllAsRead]);
 
   // Reload when screen is focused and mark all messages as read
   useFocusEffect(
     useCallback(() => {
-      if (currentUser?.id) {
-        loadConversations();
-        // Mark all messages as read when user opens messages
-        markAllMessagesAsRead(currentUser.id);
-      }
-    }, [currentUser?.id, loadConversations])
+      loadConversations();
+      // Mark all messages as read when screen gains focus
+      markAllAsRead();
+    }, [loadConversations, markAllAsRead])
   );
 
   // If a business was passed in, open a chat with that business directly
