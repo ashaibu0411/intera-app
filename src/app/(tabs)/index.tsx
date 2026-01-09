@@ -41,6 +41,7 @@ import { getPosts } from '@/lib/posts';
 import { getLocalNews } from '@/lib/news';
 import { detectCurrentLocation, isLocationDifferent, type DetectedLocation } from '@/lib/locationDetection';
 import { getCurrentUser } from '@/lib/auth';
+import { useUnreadMessages } from '@/lib/useUnreadMessages';
 
 // Additional mock posts for global feed from different locations
 const GLOBAL_MOCK_POSTS = [
@@ -123,6 +124,9 @@ export default function HomeScreen() {
   const feedFilter = useStore((s) => s.feedFilter);
   const setFeedFilter = useStore((s) => s.setFeedFilter);
   const [currentUser, setCurrentUser] = useState<any>(null);
+
+  // Get unread message count
+  const { unreadCount } = useUnreadMessages();
 
   useEffect(() => {
     getCurrentUser().then(setCurrentUser);
@@ -318,6 +322,13 @@ export default function HomeScreen() {
                 className="w-10 h-10 items-center justify-center"
               >
                 <MessageCircle size={24} color="#374151" />
+                {unreadCount > 0 && (
+                  <View className="absolute -top-0.5 -right-0.5 bg-red-500 rounded-full min-w-[18px] h-[18px] items-center justify-center px-1">
+                    <Text className="text-white text-xs font-bold">
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </Text>
+                  </View>
+                )}
               </Pressable>
             </View>
           </View>
