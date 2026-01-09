@@ -1,17 +1,32 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { useStore } from './store';
 import { supabase } from './supabase';
 
 /**
  * Hook that returns the count of unread messages
  */
 export function useUnreadMessages() {
-  const currentUser = useStore((s) => s.currentUser);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
 
+  // Get current user from Supabase auth directly
+  useEffect(() => {
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setCurrentUserId(user?.id || null);
+    };
+    getUser();
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
+      setCurrentUserId(session?.user?.id || null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
   const fetchUnreadCount = useCallback(async () => {
-    if (!currentUser?.id) {
+    if (!currentUserId) {
       setUnreadCount(0);
       return;
     }
@@ -21,7 +36,7 @@ export function useUnreadMessages() {
       const { data: participations } = await supabase
         .from('conversation_participants')
         .select('conversation_id')
-        .eq('user_id', currentUser.id);
+        .eq('user_id', currentUserId);
 
       if (!participations || participations.length === 0) {
         setUnreadCount(0);
@@ -35,7 +50,7 @@ export function useUnreadMessages() {
         .from('messages')
         .select('*', { count: 'exact', head: true })
         .in('conversation_id', conversationIds)
-        .neq('sender_id', currentUser.id)
+        .neq('sender_id', currentUserId)
         .eq('read', false);
 
       if (error) {
@@ -46,52 +61,65 @@ export function useUnreadMessages() {
     } catch (error) {
       console.error('Error fetching unread count:', error);
     }
-  }, [currentUser?.id]);
+  }, [currentUserId]);
 
   // Mark all messages as read and refresh count
   const markAllAsRead = useCallback(async () => {
-    if (!currentUser?.id) return;
+    if (!currentUserId) return;
 
     try {
       // Get conversations the user is part of
       const { data: participations } = await supabase
         .from('conversation_participants')
         .select('conversation_id')
-        .eq('user_id', currentUser.id);
+        .eq('user_id', currentUserId);
 
       if (!participations || participations.length === 0) return;
 
       const conversationIds = participations.map((p) => p.conversation_id);
 
       // Mark all unread messages from others as read
-      await supabase
+      const { error } = await supabase
         .from('messages')
         .update({ read: true })
         .in('conversation_id', conversationIds)
-        .neq('sender_id', currentUser.id)
+        .neq('sender_id', currentUserId)
         .eq('read', false);
+
+      if (error) {
+        console.log('Error marking messages as read:', error);
+        return;
+      }
 
       // Immediately set count to 0
       setUnreadCount(0);
     } catch (error) {
       console.error('Error marking all as read:', error);
     }
-  }, [currentUser?.id]);
+  }, [currentUserId]);
 
   // Fetch on mount and poll every 5 seconds
   useEffect(() => {
-    fetchUnreadCount();
+    if (currentUserId) {
+      fetchUnreadCount();
+    }
 
-    const interval = setInterval(fetchUnreadCount, 5000);
+    const interval = setInterval(() => {
+      if (currentUserId) {
+        fetchUnreadCount();
+      }
+    }, 5000);
 
     return () => clearInterval(interval);
-  }, [fetchUnreadCount]);
+  }, [currentUserId, fetchUnreadCount]);
 
-  // Also refetch when screen gains focus (e.g., returning from messages)
+  // Also refetch when screen gains focus
   useFocusEffect(
     useCallback(() => {
-      fetchUnreadCount();
-    }, [fetchUnreadCount])
+      if (currentUserId) {
+        fetchUnreadCount();
+      }
+    }, [currentUserId, fetchUnreadCount])
   );
 
   return { unreadCount, refetch: fetchUnreadCount, markAllAsRead };

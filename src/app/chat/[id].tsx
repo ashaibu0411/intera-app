@@ -14,7 +14,6 @@ import { Image } from 'expo-image';
 import {
   ChevronLeft,
   Send,
-  Phone,
   MoreVertical,
 } from 'lucide-react-native';
 import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
@@ -245,9 +244,6 @@ export default function ChatScreen() {
             </Text>
             <Text className="text-gray-500 text-xs">Active now</Text>
           </View>
-          <Pressable className="p-2">
-            <Phone size={22} color="#1B4D3E" />
-          </Pressable>
           <Pressable className="p-2">
             <MoreVertical size={22} color="#8B7355" />
           </Pressable>
