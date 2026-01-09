@@ -22,7 +22,7 @@ import * as DropdownMenu from 'zeego/dropdown-menu';
 import { useStore, MOCK_COMMENTS, type Post } from '@/lib/store';
 import { getCommentsCount, getLikesCount, likePost, unlikePost, checkIfLiked } from '@/lib/posts';
 import { StoryAvatar } from '@/components/StoryAvatar';
-import { Ban } from 'lucide-react-native';
+import { reportPost } from '@/lib/reports';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -423,7 +423,18 @@ export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
         {
           text: 'Report',
           style: 'destructive',
-          onPress: () => {
+          onPress: async () => {
+            // Send report to database
+            if (currentUser?.id) {
+              await reportPost(
+                currentUser.id,
+                post.author.id,
+                post.author.name,
+                post.id,
+                'other',
+                'Reported via post menu'
+              );
+            }
             Alert.alert('Reported', 'Thank you for your report. We will review this post.');
           },
         },

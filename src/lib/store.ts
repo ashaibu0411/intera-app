@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { reportBlockedUser } from './reports';
 
 // Community Roles - replaces follower/like culture with responsibility
 export type CommunityRole =
@@ -767,9 +768,12 @@ export const useStore = create<AppState>()(
         });
 
         // App Store Guideline 1.2: Notify developer when user is blocked
-        // This sends a report automatically when blocking a user
+        // Send report to database for moderation review
+        const currentUser = state.currentUser;
+        if (currentUser?.id) {
+          reportBlockedUser(currentUser.id, userId, userName);
+        }
         console.log(`[Block & Report] User ${userId} (${userName}) has been blocked and reported to moderation team`);
-        // In production, this would send to a backend API for review
       },
       unblockUser: (userId: string) => set((state) => ({
         blockedUserIds: state.blockedUserIds.filter((id) => id !== userId),
