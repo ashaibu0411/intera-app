@@ -7,6 +7,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { useEffect } from 'react';
 import { requestNotificationPermissions } from '@/lib/notifications';
+import { useMessageNotifications } from '@/lib/useMessageNotifications';
 
 export const unstable_settings = {
   initialRouteName: '(tabs)',
@@ -35,6 +36,9 @@ function RootLayoutNav() {
   useEffect(() => {
     requestNotificationPermissions();
   }, []);
+
+  // Listen for new messages and send notifications
+  useMessageNotifications();
 
   return (
     <ThemeProvider value={DiasporaTheme}>

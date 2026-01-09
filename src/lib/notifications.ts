@@ -605,3 +605,47 @@ export async function setBadgeCount(count: number): Promise<void> {
     // Badge count not supported on all platforms
   }
 }
+
+/**
+ * Send new message notification
+ */
+export async function sendNewMessageNotification(
+  senderName: string,
+  messageContent: string,
+  conversationId: string,
+  senderId: string
+): Promise<void> {
+  const store = useStore.getState();
+  if (!store.notificationsEnabled) return;
+
+  const prefs = await loadNotificationPreferences();
+  if (!prefs.messages) return;
+
+  const hasPermission = await areNotificationsEnabled();
+  if (!hasPermission) return;
+
+  // Truncate content if too long
+  const truncatedContent = messageContent.length > 80
+    ? messageContent.substring(0, 80) + '...'
+    : messageContent;
+
+  await saveNotificationToHistory({
+    id: `notif_${Date.now()}`,
+    type: 'new_message',
+    title: `New message from ${senderName}`,
+    body: truncatedContent,
+    data: { conversationId, senderId },
+    read: false,
+    timestamp: new Date().toISOString(),
+  });
+
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: `New message from ${senderName}`,
+      body: truncatedContent,
+      data: { conversationId, senderId, type: 'new_message' },
+      sound: true,
+    },
+    trigger: null,
+  });
+}
