@@ -57,6 +57,9 @@ export default function ChatScreen() {
 
   // Load or create conversation and messages
   useEffect(() => {
+    let pollInterval: NodeJS.Timeout | null = null;
+    let isSubscribed = true;
+
     const initializeChat = async () => {
       if (!currentUser?.id || !recipientId) {
         setIsLoading(false);
@@ -69,20 +72,35 @@ export default function ChatScreen() {
         setConversationId(convId);
 
         // Load existing messages
-        const existingMessages = await getMessages(convId);
-        const formattedMessages: ChatMessage[] = (existingMessages || []).map((msg: DbMessage) => ({
-          id: msg.id,
-          senderId: msg.sender_id,
-          content: msg.content,
-          timestamp: msg.created_at,
-        }));
-        setMessages(formattedMessages);
+        const loadMessages = async () => {
+          const existingMessages = await getMessages(convId);
+          if (!isSubscribed) return;
+
+          const formattedMessages: ChatMessage[] = (existingMessages || []).map((msg: DbMessage) => ({
+            id: msg.id,
+            senderId: msg.sender_id,
+            content: msg.content,
+            timestamp: msg.created_at,
+          }));
+
+          setMessages((prev) => {
+            // Only update if messages changed
+            if (JSON.stringify(prev.map(m => m.id)) !== JSON.stringify(formattedMessages.map(m => m.id))) {
+              return formattedMessages;
+            }
+            return prev;
+          });
+        };
+
+        await loadMessages();
 
         // Mark messages as read
         await markMessagesAsRead(convId, currentUser.id);
 
-        // Subscribe to new messages
+        // Subscribe to new messages (real-time)
         subscribeToMessages(convId, async (newMessage) => {
+          if (!isSubscribed) return;
+
           // Fetch the full message with sender info
           const { data: fullMessage } = await supabase
             .from('messages')
@@ -90,7 +108,7 @@ export default function ChatScreen() {
             .eq('id', newMessage.id)
             .single();
 
-          if (fullMessage) {
+          if (fullMessage && isSubscribed) {
             const formattedMsg: ChatMessage = {
               id: fullMessage.id,
               senderId: fullMessage.sender_id,
@@ -112,16 +130,30 @@ export default function ChatScreen() {
             }
           }
         });
+
+        // Poll for new messages every 2 seconds as fallback
+        pollInterval = setInterval(async () => {
+          if (!isSubscribed) return;
+          await loadMessages();
+          await markMessagesAsRead(convId, currentUser.id);
+        }, 2000);
+
       } catch (error) {
         console.error('Error initializing chat:', error);
       } finally {
-        setIsLoading(false);
+        if (isSubscribed) {
+          setIsLoading(false);
+        }
       }
     };
 
     initializeChat();
 
     return () => {
+      isSubscribed = false;
+      if (pollInterval) {
+        clearInterval(pollInterval);
+      }
       if (conversationId) {
         unsubscribeFromMessages(conversationId);
       }
