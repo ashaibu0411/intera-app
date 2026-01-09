@@ -26,10 +26,10 @@ import {
   getOrCreateConversation,
   getMessages,
   sendMessage,
-  markMessagesAsRead,
   subscribeToMessages,
   unsubscribeFromMessages,
 } from '@/lib/messages';
+import { markConversationAsRead } from '@/lib/useUnreadMessages';
 
 interface ChatMessage {
   id: string;
@@ -93,8 +93,8 @@ export default function ChatScreen() {
 
         await loadMessages();
 
-        // Mark messages as read
-        await markMessagesAsRead(convId, currentUser.id);
+        // Mark messages as read and update global badge count
+        await markConversationAsRead(convId, currentUser.id);
 
         // Subscribe to new messages (real-time)
         subscribeToMessages(convId, async (newMessage) => {
@@ -123,9 +123,9 @@ export default function ChatScreen() {
               return [...prev, formattedMsg];
             });
 
-            // Mark as read if not from current user
+            // Mark as read if not from current user and update global badge
             if (fullMessage.sender_id !== currentUser.id) {
-              markMessagesAsRead(convId, currentUser.id);
+              markConversationAsRead(convId, currentUser.id);
             }
           }
         });
@@ -134,7 +134,7 @@ export default function ChatScreen() {
         pollInterval = setInterval(async () => {
           if (!isSubscribed) return;
           await loadMessages();
-          await markMessagesAsRead(convId, currentUser.id);
+          await markConversationAsRead(convId, currentUser.id);
         }, 2000);
 
       } catch (error) {

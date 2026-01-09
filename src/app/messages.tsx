@@ -16,7 +16,7 @@ import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { formatDistanceToNow } from 'date-fns';
 import { useStore } from '@/lib/store';
 import { getConversations, deleteConversation } from '@/lib/messages';
-import { useUnreadStore, markAllMessagesAsReadForUser } from '@/lib/useUnreadMessages';
+import { markAllMessagesAsReadAndRefresh } from '@/lib/useUnreadMessages';
 import { supabase, DbUser } from '@/lib/supabase';
 
 interface ConversationPreview {
@@ -159,25 +159,19 @@ export default function MessagesScreen() {
   const isGuest = useStore((s) => s.isGuest);
   const currentUser = useStore((s) => s.currentUser);
 
-  // Get the setUnreadCount from the store to update badge directly
-  const setUnreadCount = useUnreadStore((s) => s.setUnreadCount);
-
-  // Mark all messages as read directly and update badge
+  // Mark all messages as read when screen is viewed
   const markMessagesAsRead = useCallback(async () => {
     try {
-      // Get the current user from supabase auth
       const { data: { user } } = await supabase.auth.getUser();
       if (!user?.id) return;
 
-      // Mark messages as read using the exported function
-      await markAllMessagesAsReadForUser(user.id);
-
-      // Directly set unread count to 0 in the global store
-      setUnreadCount(0);
+      // This function marks messages as read in DB AND updates the global store count
+      await markAllMessagesAsReadAndRefresh(user.id);
+      console.log('[Messages] Called markAllMessagesAsReadAndRefresh');
     } catch (error) {
-      console.error('Error marking messages as read:', error);
+      console.error('[Messages] Error marking messages as read:', error);
     }
-  }, [setUnreadCount]);
+  }, []);
 
   // Load conversations
   const loadConversations = useCallback(async (showRefresh = false) => {
