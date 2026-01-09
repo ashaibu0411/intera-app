@@ -14,7 +14,7 @@ import Animated, { FadeInDown, ZoomIn, FadeIn } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-type PaymentMethod = 'cash' | 'cashapp' | 'venmo' | 'zelle' | 'paypal' | 'wise' | 'mpesa' | 'bank' | 'inapp';
+type PaymentMethod = 'cash' | 'cashapp' | 'venmo' | 'zelle' | 'paypal' | 'wise' | 'mpesa' | 'bank';
 type PricingType = 'fixed' | 'gas-split' | 'free' | 'donation';
 
 interface PaymentInfo {
@@ -26,7 +26,6 @@ interface PaymentInfo {
   mpesa?: string;
   bankDetails?: string;
   acceptsCash: boolean;
-  acceptsInApp: boolean;
 }
 
 interface DriverReview {
@@ -111,7 +110,6 @@ const MOCK_RIDES: CarpoolRide[] = [
       zelle: 'mike@email.com',
       paypal: 'mike.adeyemi@email.com',
       acceptsCash: true,
-      acceptsInApp: true,
     },
   },
   {
@@ -148,7 +146,6 @@ const MOCK_RIDES: CarpoolRide[] = [
       mpesa: '+233 24 123 4567',
       bankDetails: 'Access Bank - 1234567890',
       acceptsCash: true,
-      acceptsInApp: true,
     },
   },
   {
@@ -187,7 +184,6 @@ const MOCK_RIDES: CarpoolRide[] = [
       bankDetails: 'GTBank - 0123456789 (Fatima Okonkwo)',
       mpesa: '+234 803 123 4567',
       acceptsCash: true,
-      acceptsInApp: false,
     },
   },
   {
@@ -226,7 +222,6 @@ const MOCK_RIDES: CarpoolRide[] = [
       wise: 'sophie.mensah@email.com',
       bankDetails: 'Monzo - Sort: 04-00-04 Acc: 12345678',
       acceptsCash: true,
-      acceptsInApp: true,
     },
   },
   {
@@ -261,7 +256,6 @@ const MOCK_RIDES: CarpoolRide[] = [
     isRecurring: false,
     paymentInfo: {
       acceptsCash: false,
-      acceptsInApp: false,
     },
   },
   {
@@ -301,7 +295,6 @@ const MOCK_RIDES: CarpoolRide[] = [
       mpesa: '+254 712 345 678',
       bankDetails: 'Equity Bank - 0987654321',
       acceptsCash: true,
-      acceptsInApp: false,
     },
   },
 ];
@@ -328,7 +321,6 @@ const PRICING_COLORS: Record<PricingType, { bg: string; text: string; label: str
   donation: { bg: '#F59E0B20', text: '#F59E0B', label: 'Tip Welcome' },
 };
 
-const PLATFORM_FEE_PERCENT = 5; // 5% platform fee for in-app payments
 const DISCLAIMER_STORAGE_KEY = 'carpool_disclaimer_accepted';
 
 export default function CarpoolScreen() {
@@ -338,7 +330,6 @@ export default function CarpoolScreen() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedRide, setSelectedRide] = useState<CarpoolRide | null>(null);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod | null>(null);
-  const [coverFee, setCoverFee] = useState(false);
 
   // Safety & Legal state
   const [showDisclaimerModal, setShowDisclaimerModal] = useState(false);
@@ -447,7 +438,6 @@ export default function CarpoolScreen() {
     mpesa: '',
     bankDetails: '',
     acceptsCash: true,
-    acceptsInApp: true,
   });
 
   // Calculate gas split per person
@@ -470,27 +460,7 @@ export default function CarpoolScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setSelectedRide(ride);
     setSelectedPaymentMethod(null);
-    setCoverFee(false);
     setShowPaymentModal(true);
-  };
-
-  const calculateTotal = (price: number, method: PaymentMethod | null) => {
-    if (method === 'inapp' && !coverFee) {
-      return price; // Driver receives price - 5%
-    } else if (method === 'inapp' && coverFee) {
-      return Math.ceil(price * (1 + PLATFORM_FEE_PERCENT / 100)); // Passenger pays extra
-    }
-    return price;
-  };
-
-  const getDriverPayout = (price: number, method: PaymentMethod | null) => {
-    if (method === 'inapp') {
-      if (coverFee) {
-        return price; // Driver gets full amount when passenger covers fee
-      }
-      return Math.floor(price * (1 - PLATFORM_FEE_PERCENT / 100)); // Driver gets 95%
-    }
-    return price; // Full amount for external payments
   };
 
   const confirmPayment = () => {
@@ -502,9 +472,6 @@ export default function CarpoolScreen() {
   const getPaymentMethodAvailable = (ride: CarpoolRide) => {
     const methods: { method: PaymentMethod; label: string; icon: any; handle?: string }[] = [];
 
-    if (ride.paymentInfo.acceptsInApp) {
-      methods.push({ method: 'inapp', label: 'Pay in App', icon: Gem });
-    }
     if (ride.paymentInfo.mpesa) {
       methods.push({ method: 'mpesa', label: 'M-Pesa / Mobile Money', icon: Smartphone, handle: ride.paymentInfo.mpesa });
     }
@@ -653,11 +620,6 @@ export default function CarpoolScreen() {
                   </View>
                   {/* Payment Methods Available */}
                   <View className="flex-row items-center gap-1">
-                    {ride.paymentInfo.acceptsInApp && (
-                      <View className="bg-purple-500/30 px-2 py-1 rounded-full flex-row items-center">
-                        <Gem size={12} color="#A855F7" />
-                      </View>
-                    )}
                     {(ride.paymentInfo.cashApp || ride.paymentInfo.venmo || ride.paymentInfo.zelle || ride.paymentInfo.mpesa) && (
                       <View className="bg-green-500/30 px-2 py-1 rounded-full">
                         <DollarSign size={12} color="#22C55E" />
@@ -862,7 +824,6 @@ export default function CarpoolScreen() {
                         }`}
                       >
                         <View className={`w-10 h-10 rounded-full items-center justify-center ${
-                          method.method === 'inapp' ? 'bg-purple-500/30' :
                           method.method === 'cashapp' ? 'bg-green-500/30' :
                           method.method === 'venmo' ? 'bg-blue-500/30' :
                           method.method === 'zelle' ? 'bg-purple-500/30' :
@@ -872,7 +833,6 @@ export default function CarpoolScreen() {
                           method.method === 'bank' ? 'bg-slate-500/30' : 'bg-amber-500/30'
                         }`}>
                           <method.icon size={20} color={
-                            method.method === 'inapp' ? '#A855F7' :
                             method.method === 'cashapp' ? '#00D632' :
                             method.method === 'venmo' ? '#008CFF' :
                             method.method === 'zelle' ? '#6D1ED4' :
@@ -887,9 +847,6 @@ export default function CarpoolScreen() {
                           {method.handle && (
                             <Text className="text-gray-400 text-sm">{method.handle}</Text>
                           )}
-                          {method.method === 'inapp' && (
-                            <Text className="text-purple-400 text-xs">5% platform fee applies</Text>
-                          )}
                           {method.method === 'cash' && (
                             <Text className="text-gray-500 text-xs">Pay driver directly</Text>
                           )}
@@ -902,55 +859,8 @@ export default function CarpoolScreen() {
                       </Pressable>
                     ))}
 
-                    {/* Cover Fee Option (only for in-app) */}
-                    {selectedPaymentMethod === 'inapp' && (
-                      <Animated.View entering={FadeInDown.duration(300)} className="bg-purple-500/10 rounded-2xl p-4 mt-2 mb-4">
-                        <View className="flex-row items-center justify-between">
-                          <View className="flex-1 mr-3">
-                            <Text className="text-white font-semibold">Support the driver</Text>
-                            <Text className="text-gray-400 text-sm">Cover the 5% fee so driver gets full amount</Text>
-                          </View>
-                          <Switch
-                            value={coverFee}
-                            onValueChange={(value) => {
-                              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                              setCoverFee(value);
-                            }}
-                            trackColor={{ false: '#374151', true: '#7C3AED' }}
-                            thumbColor="#fff"
-                          />
-                        </View>
-
-                        {/* Price Breakdown */}
-                        <View className="mt-3 pt-3 border-t border-purple-500/30">
-                          <View className="flex-row justify-between mb-1">
-                            <Text className="text-gray-400 text-sm">Ride price</Text>
-                            <Text className="text-white">${selectedRide.price.toFixed(2)}</Text>
-                          </View>
-                          {coverFee && (
-                            <View className="flex-row justify-between mb-1">
-                              <Text className="text-gray-400 text-sm">Platform fee (5%)</Text>
-                              <Text className="text-white">+${(selectedRide.price * 0.05).toFixed(2)}</Text>
-                            </View>
-                          )}
-                          <View className="flex-row justify-between mt-2 pt-2 border-t border-purple-500/20">
-                            <Text className="text-white font-semibold">You pay</Text>
-                            <Text className="text-purple-400 font-bold text-lg">
-                              ${calculateTotal(selectedRide.price, 'inapp').toFixed(2)}
-                            </Text>
-                          </View>
-                          <View className="flex-row justify-between mt-1">
-                            <Text className="text-gray-500 text-sm">Driver receives</Text>
-                            <Text className="text-green-400 text-sm">
-                              ${getDriverPayout(selectedRide.price, 'inapp').toFixed(2)}
-                            </Text>
-                          </View>
-                        </View>
-                      </Animated.View>
-                    )}
-
                     {/* Info Banner */}
-                    {selectedPaymentMethod && selectedPaymentMethod !== 'inapp' && selectedPaymentMethod !== 'cash' && (
+                    {selectedPaymentMethod && selectedPaymentMethod !== 'cash' && (
                       <View className="flex-row items-start bg-blue-500/10 rounded-2xl p-4 mt-2 mb-4">
                         <Info size={18} color="#3B82F6" style={{ marginTop: 2 }} />
                         <Text className="text-blue-300 text-sm ml-2 flex-1">
@@ -963,6 +873,14 @@ export default function CarpoolScreen() {
                       </View>
                     )}
 
+                    {/* External Payment Disclaimer */}
+                    <View className="flex-row items-start bg-amber-500/10 rounded-2xl p-4 mt-2 mb-4">
+                      <AlertTriangle size={18} color="#F59E0B" style={{ marginTop: 2 }} />
+                      <Text className="text-amber-300 text-sm ml-2 flex-1">
+                        This app does not process payments. All payments are made directly between you and the driver using external payment methods.
+                      </Text>
+                    </View>
+
                     {/* Confirm Button */}
                     <Pressable
                       onPress={confirmPayment}
@@ -974,11 +892,9 @@ export default function CarpoolScreen() {
                         style={{ borderRadius: 16, paddingVertical: 16, alignItems: 'center' }}
                       >
                         <Text className="text-white font-bold text-lg">
-                          {selectedPaymentMethod === 'inapp'
-                            ? `Pay $${calculateTotal(selectedRide.price, 'inapp').toFixed(2)}`
-                            : selectedPaymentMethod
-                              ? 'Confirm Booking'
-                              : 'Select Payment Method'
+                          {selectedPaymentMethod
+                            ? 'Confirm Booking'
+                            : 'Select Payment Method'
                           }
                         </Text>
                       </LinearGradient>
@@ -1382,19 +1298,6 @@ export default function CarpoolScreen() {
                         value={postForm.acceptsCash}
                         onValueChange={(value) => setPostForm({ ...postForm, acceptsCash: value })}
                         trackColor={{ false: '#374151', true: '#3B82F6' }}
-                        thumbColor="#fff"
-                      />
-                    </View>
-
-                    <View className="flex-row items-center justify-between">
-                      <View className="flex-1 mr-3">
-                        <Text className="text-white font-medium">Accept In-App Payment</Text>
-                        <Text className="text-gray-500 text-xs">5% fee • Secure payment via Diaspora</Text>
-                      </View>
-                      <Switch
-                        value={postForm.acceptsInApp}
-                        onValueChange={(value) => setPostForm({ ...postForm, acceptsInApp: value })}
-                        trackColor={{ false: '#374151', true: '#7C3AED' }}
                         thumbColor="#fff"
                       />
                     </View>
