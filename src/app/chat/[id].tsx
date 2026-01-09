@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
@@ -20,7 +21,16 @@ import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams } from 'expo-router';
 import { formatDistanceToNow } from 'date-fns';
-import { useStore, MOCK_USERS } from '@/lib/store';
+import { useStore } from '@/lib/store';
+import { supabase, DbMessage } from '@/lib/supabase';
+import {
+  getOrCreateConversation,
+  getMessages,
+  sendMessage,
+  markMessagesAsRead,
+  subscribeToMessages,
+  unsubscribeFromMessages,
+} from '@/lib/messages';
 
 interface ChatMessage {
   id: string;
@@ -29,127 +39,153 @@ interface ChatMessage {
   timestamp: string;
 }
 
-const MOCK_CHAT_MESSAGES: Record<string, ChatMessage[]> = {
-  '1': [
-    {
-      id: '1',
-      senderId: MOCK_USERS[0].id,
-      content: 'Hi! I saw your post about needing a Ghanaian tailor.',
-      timestamp: '2024-12-30T10:00:00Z',
-    },
-    {
-      id: '2',
-      senderId: 'current',
-      content: 'Yes! Do you know anyone good in the Denver area?',
-      timestamp: '2024-12-30T10:05:00Z',
-    },
-    {
-      id: '3',
-      senderId: MOCK_USERS[0].id,
-      content: 'Absolutely! Auntie Grace in Aurora is amazing. She does traditional kente work.',
-      timestamp: '2024-12-30T10:10:00Z',
-    },
-    {
-      id: '4',
-      senderId: 'current',
-      content: 'That sounds perfect! How can I reach her?',
-      timestamp: '2024-12-30T10:15:00Z',
-    },
-    {
-      id: '5',
-      senderId: MOCK_USERS[0].id,
-      content: 'I\'ll send you her contact info. She\'s on Colfax Ave, open Tuesday through Saturday.',
-      timestamp: '2024-12-30T11:00:00Z',
-    },
-    {
-      id: '6',
-      senderId: 'current',
-      content: 'Thank you for the tailor recommendation!',
-      timestamp: '2024-12-30T11:30:00Z',
-    },
-  ],
-  '2': [
-    {
-      id: '1',
-      senderId: MOCK_USERS[1].id,
-      content: 'Thanks for your interest in my restaurant!',
-      timestamp: '2024-12-29T18:00:00Z',
-    },
-    {
-      id: '2',
-      senderId: 'current',
-      content: 'I\'m so excited to try authentic Senegalese food! What time do you open?',
-      timestamp: '2024-12-29T18:30:00Z',
-    },
-    {
-      id: '3',
-      senderId: MOCK_USERS[1].id,
-      content: 'The restaurant opens at 11am! Looking forward to seeing you.',
-      timestamp: '2024-12-29T19:45:00Z',
-    },
-  ],
-  '3': [
-    {
-      id: '1',
-      senderId: 'current',
-      content: 'Hi! I\'d love to join the tech professionals meetup.',
-      timestamp: '2024-12-28T14:00:00Z',
-    },
-    {
-      id: '2',
-      senderId: MOCK_USERS[2].id,
-      content: 'Great! We\'d love to have you. It\'s next Thursday at WeWork downtown.',
-      timestamp: '2024-12-28T14:30:00Z',
-    },
-    {
-      id: '3',
-      senderId: MOCK_USERS[2].id,
-      content: 'I\'ll send you the meetup details soon.',
-      timestamp: '2024-12-28T15:20:00Z',
-    },
-  ],
-};
-
 export default function ChatScreen() {
-  const { id, name, avatar } = useLocalSearchParams<{
+  const { id, name, avatar, recipientId } = useLocalSearchParams<{
     id: string;
     name: string;
     avatar: string;
+    recipientId: string;
   }>();
   const scrollViewRef = useRef<ScrollView>(null);
   const [messageText, setMessageText] = useState('');
-  const [localMessages, setLocalMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSending, setIsSending] = useState(false);
+  const [conversationId, setConversationId] = useState<string | null>(null);
 
   const currentUser = useStore((s) => s.currentUser);
 
-  const chatMessages = [...(MOCK_CHAT_MESSAGES[id || '1'] || []), ...localMessages];
+  // Load or create conversation and messages
+  useEffect(() => {
+    const initializeChat = async () => {
+      if (!currentUser?.id || !recipientId) {
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        // Get or create conversation
+        const convId = await getOrCreateConversation(currentUser.id, recipientId);
+        setConversationId(convId);
+
+        // Load existing messages
+        const existingMessages = await getMessages(convId);
+        const formattedMessages: ChatMessage[] = (existingMessages || []).map((msg: DbMessage) => ({
+          id: msg.id,
+          senderId: msg.sender_id,
+          content: msg.content,
+          timestamp: msg.created_at,
+        }));
+        setMessages(formattedMessages);
+
+        // Mark messages as read
+        await markMessagesAsRead(convId, currentUser.id);
+
+        // Subscribe to new messages
+        subscribeToMessages(convId, async (newMessage) => {
+          // Fetch the full message with sender info
+          const { data: fullMessage } = await supabase
+            .from('messages')
+            .select('*')
+            .eq('id', newMessage.id)
+            .single();
+
+          if (fullMessage) {
+            const formattedMsg: ChatMessage = {
+              id: fullMessage.id,
+              senderId: fullMessage.sender_id,
+              content: fullMessage.content,
+              timestamp: fullMessage.created_at,
+            };
+
+            setMessages((prev) => {
+              // Avoid duplicates
+              if (prev.some((m) => m.id === formattedMsg.id)) {
+                return prev;
+              }
+              return [...prev, formattedMsg];
+            });
+
+            // Mark as read if not from current user
+            if (fullMessage.sender_id !== currentUser.id) {
+              markMessagesAsRead(convId, currentUser.id);
+            }
+          }
+        });
+      } catch (error) {
+        console.error('Error initializing chat:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    initializeChat();
+
+    return () => {
+      if (conversationId) {
+        unsubscribeFromMessages(conversationId);
+      }
+    };
+  }, [currentUser?.id, recipientId]);
+
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    setTimeout(() => {
+      scrollViewRef.current?.scrollToEnd({ animated: true });
+    }, 100);
+  }, [messages]);
 
   const handleBack = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.back();
   };
 
-  const handleSendMessage = () => {
-    if (!messageText.trim()) return;
+  const handleSendMessage = async () => {
+    if (!messageText.trim() || !conversationId || !currentUser?.id || isSending) return;
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setIsSending(true);
 
-    const newMessage: ChatMessage = {
-      id: `local-${Date.now()}`,
-      senderId: 'current',
-      content: messageText.trim(),
-      timestamp: new Date().toISOString(),
-    };
-
-    setLocalMessages((prev) => [...prev, newMessage]);
+    const messageContent = messageText.trim();
     setMessageText('');
 
-    setTimeout(() => {
-      scrollViewRef.current?.scrollToEnd({ animated: true });
-    }, 100);
+    // Optimistically add message
+    const tempId = `temp-${Date.now()}`;
+    const optimisticMessage: ChatMessage = {
+      id: tempId,
+      senderId: currentUser.id,
+      content: messageContent,
+      timestamp: new Date().toISOString(),
+    };
+    setMessages((prev) => [...prev, optimisticMessage]);
+
+    try {
+      const sentMessage = await sendMessage(conversationId, currentUser.id, messageContent);
+
+      // Replace optimistic message with real one
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === tempId
+            ? {
+                id: sentMessage.id,
+                senderId: sentMessage.sender_id,
+                content: sentMessage.content,
+                timestamp: sentMessage.created_at,
+              }
+            : m
+        )
+      );
+    } catch (error) {
+      console.error('Error sending message:', error);
+      // Remove optimistic message on error
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      setIsSending(false);
+    }
   };
 
-  const decodedAvatar = avatar ? decodeURIComponent(avatar) : MOCK_USERS[0].avatar;
+  const decodedAvatar = avatar ? decodeURIComponent(avatar) : 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop';
   const decodedName = name ? decodeURIComponent(name) : 'User';
 
   return (
@@ -191,60 +227,77 @@ export default function ChatScreen() {
           keyboardVerticalOffset={0}
         >
           {/* Messages */}
-          <ScrollView
-            ref={scrollViewRef}
-            className="flex-1 px-4"
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ paddingVertical: 16 }}
-            onContentSizeChange={() =>
-              scrollViewRef.current?.scrollToEnd({ animated: false })
-            }
-          >
-            {chatMessages.map((message, index) => {
-              const isCurrentUser = message.senderId === 'current';
-              const showTimestamp =
-                index === 0 ||
-                new Date(message.timestamp).getTime() -
-                  new Date(chatMessages[index - 1].timestamp).getTime() >
-                  300000; // 5 minutes
+          {isLoading ? (
+            <View className="flex-1 items-center justify-center">
+              <ActivityIndicator size="large" color="#C87941" />
+            </View>
+          ) : (
+            <ScrollView
+              ref={scrollViewRef}
+              className="flex-1 px-4"
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingVertical: 16, flexGrow: 1 }}
+              onContentSizeChange={() =>
+                scrollViewRef.current?.scrollToEnd({ animated: false })
+              }
+            >
+              {messages.length === 0 ? (
+                <View className="flex-1 items-center justify-center">
+                  <Text className="text-gray-400 text-center">
+                    No messages yet
+                  </Text>
+                  <Text className="text-gray-400 text-sm text-center mt-1">
+                    Send a message to start the conversation
+                  </Text>
+                </View>
+              ) : (
+                messages.map((message, index) => {
+                  const isCurrentUser = message.senderId === currentUser?.id;
+                  const showTimestamp =
+                    index === 0 ||
+                    new Date(message.timestamp).getTime() -
+                      new Date(messages[index - 1].timestamp).getTime() >
+                      300000; // 5 minutes
 
-              return (
-                <Animated.View
-                  key={message.id}
-                  entering={FadeInUp.duration(300).delay(index * 30)}
-                >
-                  {showTimestamp && (
-                    <Text className="text-center text-xs text-gray-400 mb-3 mt-2">
-                      {formatDistanceToNow(new Date(message.timestamp), {
-                        addSuffix: true,
-                      })}
-                    </Text>
-                  )}
-                  <View
-                    className={`mb-2 max-w-[80%] ${
-                      isCurrentUser ? 'self-end' : 'self-start'
-                    }`}
-                  >
-                    <View
-                      className={`rounded-2xl px-4 py-3 ${
-                        isCurrentUser
-                          ? 'bg-terracotta-500 rounded-br-sm'
-                          : 'bg-white rounded-bl-sm shadow-sm'
-                      }`}
+                  return (
+                    <Animated.View
+                      key={message.id}
+                      entering={FadeInUp.duration(300).delay(Math.min(index * 30, 300))}
                     >
-                      <Text
-                        className={`text-base ${
-                          isCurrentUser ? 'text-white' : 'text-warmBrown'
+                      {showTimestamp && (
+                        <Text className="text-center text-xs text-gray-400 mb-3 mt-2">
+                          {formatDistanceToNow(new Date(message.timestamp), {
+                            addSuffix: true,
+                          })}
+                        </Text>
+                      )}
+                      <View
+                        className={`mb-2 max-w-[80%] ${
+                          isCurrentUser ? 'self-end' : 'self-start'
                         }`}
                       >
-                        {message.content}
-                      </Text>
-                    </View>
-                  </View>
-                </Animated.View>
-              );
-            })}
-          </ScrollView>
+                        <View
+                          className={`rounded-2xl px-4 py-3 ${
+                            isCurrentUser
+                              ? 'bg-terracotta-500 rounded-br-sm'
+                              : 'bg-white rounded-bl-sm shadow-sm'
+                          }`}
+                        >
+                          <Text
+                            className={`text-base ${
+                              isCurrentUser ? 'text-white' : 'text-warmBrown'
+                            }`}
+                          >
+                            {message.content}
+                          </Text>
+                        </View>
+                      </View>
+                    </Animated.View>
+                  );
+                })
+              )}
+            </ScrollView>
+          )}
 
           {/* Message Input */}
           <View className="bg-white border-t border-gray-100 px-4 py-3">
@@ -263,15 +316,19 @@ export default function ChatScreen() {
                 </View>
                 <Pressable
                   onPress={handleSendMessage}
-                  disabled={!messageText.trim()}
+                  disabled={!messageText.trim() || isSending}
                   className={`ml-2 p-3 rounded-full ${
-                    messageText.trim() ? 'bg-terracotta-500' : 'bg-gray-200'
+                    messageText.trim() && !isSending ? 'bg-terracotta-500' : 'bg-gray-200'
                   }`}
                 >
-                  <Send
-                    size={20}
-                    color={messageText.trim() ? '#FFFFFF' : '#9CA3AF'}
-                  />
+                  {isSending ? (
+                    <ActivityIndicator size={20} color="#9CA3AF" />
+                  ) : (
+                    <Send
+                      size={20}
+                      color={messageText.trim() ? '#FFFFFF' : '#9CA3AF'}
+                    />
+                  )}
                 </Pressable>
               </View>
             </SafeAreaView>

@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, Pressable, TextInput } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, ScrollView, Pressable, TextInput, ActivityIndicator, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import {
@@ -7,51 +7,70 @@ import {
   Search,
   MessageSquarePlus,
   Circle,
-  Store,
 } from 'lucide-react-native';
 import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { formatDistanceToNow } from 'date-fns';
-import { useStore, MOCK_USERS, type User } from '@/lib/store';
+import { useStore } from '@/lib/store';
+import { getConversations } from '@/lib/messages';
+import { DbUser } from '@/lib/supabase';
 
 interface ConversationPreview {
   id: string;
-  user: User;
-  lastMessage: string;
-  timestamp: string;
-  unread: boolean;
+  otherUser: DbUser | null;
+  lastMessage: {
+    content: string;
+    created_at: string;
+    sender_id: string;
+  } | null;
+  unreadCount: number;
 }
-
-const MOCK_CONVERSATIONS: ConversationPreview[] = [
-  {
-    id: '1',
-    user: MOCK_USERS[0],
-    lastMessage: 'Thank you for the tailor recommendation!',
-    timestamp: '2024-12-30T11:30:00Z',
-    unread: true,
-  },
-  {
-    id: '2',
-    user: MOCK_USERS[1],
-    lastMessage: 'The restaurant opens at 11am! Looking forward to seeing you.',
-    timestamp: '2024-12-29T19:45:00Z',
-    unread: false,
-  },
-  {
-    id: '3',
-    user: MOCK_USERS[2],
-    lastMessage: 'I\'ll send you the meetup details soon.',
-    timestamp: '2024-12-28T15:20:00Z',
-    unread: true,
-  },
-];
 
 export default function MessagesScreen() {
   const { businessId, businessName } = useLocalSearchParams<{ businessId?: string; businessName?: string }>();
   const [searchQuery, setSearchQuery] = useState('');
+  const [conversations, setConversations] = useState<ConversationPreview[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const isGuest = useStore((s) => s.isGuest);
   const currentUser = useStore((s) => s.currentUser);
+
+  // Load conversations
+  const loadConversations = useCallback(async (showRefresh = false) => {
+    if (!currentUser?.id) {
+      setIsLoading(false);
+      return;
+    }
+
+    if (showRefresh) {
+      setIsRefreshing(true);
+    }
+
+    try {
+      const data = await getConversations(currentUser.id);
+      setConversations(data as ConversationPreview[]);
+    } catch (error) {
+      console.error('Error loading conversations:', error);
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  }, [currentUser?.id]);
+
+  // Load on mount
+  useEffect(() => {
+    loadConversations();
+  }, [loadConversations]);
+
+  // Reload when screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      if (currentUser?.id) {
+        loadConversations();
+      }
+    }, [currentUser?.id, loadConversations])
+  );
 
   // If a business was passed in, open a chat with that business directly
   useEffect(() => {
@@ -70,14 +89,16 @@ export default function MessagesScreen() {
     router.back();
   };
 
-  const handleOpenChat = (conversationId: string, user: User) => {
+  const handleOpenChat = (conversationId: string, otherUser: DbUser) => {
     if (isGuest || !currentUser) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       router.push('/signup');
       return;
     }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    router.push(`/chat/${conversationId}?name=${encodeURIComponent(user.name)}&avatar=${encodeURIComponent(user.avatar)}`);
+    router.push(
+      `/chat/${conversationId}?name=${encodeURIComponent(otherUser.name)}&avatar=${encodeURIComponent(otherUser.avatar_url || '')}&recipientId=${otherUser.id}`
+    );
   };
 
   const handleNewMessage = () => {
@@ -91,10 +112,10 @@ export default function MessagesScreen() {
   };
 
   const filteredConversations = searchQuery
-    ? MOCK_CONVERSATIONS.filter((c) =>
-        c.user.name.toLowerCase().includes(searchQuery.toLowerCase())
+    ? conversations.filter((c) =>
+        c.otherUser?.name.toLowerCase().includes(searchQuery.toLowerCase())
       )
-    : MOCK_CONVERSATIONS;
+    : conversations;
 
   return (
     <View className="flex-1 bg-cream">
@@ -157,8 +178,19 @@ export default function MessagesScreen() {
           className="flex-1 px-4"
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: 20 }}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={() => loadConversations(true)}
+              tintColor="#C87941"
+            />
+          }
         >
-          {filteredConversations.length === 0 ? (
+          {isLoading ? (
+            <View className="items-center pt-12">
+              <ActivityIndicator size="large" color="#C87941" />
+            </View>
+          ) : filteredConversations.length === 0 ? (
             <Animated.View
               entering={FadeInUp.duration(400).delay(200)}
               className="items-center pt-12"
@@ -172,60 +204,75 @@ export default function MessagesScreen() {
               <Text className="text-gray-400 text-sm text-center mt-1">
                 Start messaging community members
               </Text>
+              <Pressable
+                onPress={handleNewMessage}
+                className="mt-4 bg-terracotta-500 rounded-full px-6 py-3"
+              >
+                <Text className="text-white font-medium">Start a conversation</Text>
+              </Pressable>
             </Animated.View>
           ) : (
-            filteredConversations.map((conversation, index) => (
-              <Animated.View
-                key={conversation.id}
-                entering={FadeInUp.duration(300).delay(100 + index * 50)}
-              >
-                <Pressable
-                  onPress={() => handleOpenChat(conversation.id, conversation.user)}
-                  className="bg-white rounded-2xl p-4 mb-3 shadow-sm"
+            filteredConversations.map((conversation, index) => {
+              if (!conversation.otherUser) return null;
+
+              return (
+                <Animated.View
+                  key={conversation.id}
+                  entering={FadeInUp.duration(300).delay(100 + index * 50)}
                 >
-                  <View className="flex-row items-center">
-                    <View className="relative">
-                      <Image
-                        source={{ uri: conversation.user.avatar }}
-                        style={{ width: 52, height: 52, borderRadius: 26 }}
-                        contentFit="cover"
-                      />
-                      {conversation.unread && (
-                        <View className="absolute -top-0.5 -right-0.5 bg-terracotta-500 rounded-full p-1">
-                          <Circle size={8} color="#FFFFFF" fill="#FFFFFF" />
-                        </View>
-                      )}
-                    </View>
-                    <View className="flex-1 ml-3">
-                      <View className="flex-row items-center justify-between">
-                        <Text
-                          className={`font-semibold text-base ${
-                            conversation.unread ? 'text-warmBrown' : 'text-gray-700'
-                          }`}
-                        >
-                          {conversation.user.name}
-                        </Text>
-                        <Text className="text-xs text-gray-400">
-                          {formatDistanceToNow(new Date(conversation.timestamp), {
-                            addSuffix: false,
-                          })}
-                        </Text>
+                  <Pressable
+                    onPress={() => handleOpenChat(conversation.id, conversation.otherUser!)}
+                    className="bg-white rounded-2xl p-4 mb-3 shadow-sm"
+                  >
+                    <View className="flex-row items-center">
+                      <View className="relative">
+                        <Image
+                          source={{ uri: conversation.otherUser.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop' }}
+                          style={{ width: 52, height: 52, borderRadius: 26 }}
+                          contentFit="cover"
+                        />
+                        {conversation.unreadCount > 0 && (
+                          <View className="absolute -top-0.5 -right-0.5 bg-terracotta-500 rounded-full p-1">
+                            <Circle size={8} color="#FFFFFF" fill="#FFFFFF" />
+                          </View>
+                        )}
                       </View>
-                      <Text
-                        className={`mt-1 ${
-                          conversation.unread
-                            ? 'text-warmBrown font-medium'
-                            : 'text-gray-500'
-                        }`}
-                        numberOfLines={1}
-                      >
-                        {conversation.lastMessage}
-                      </Text>
+                      <View className="flex-1 ml-3">
+                        <View className="flex-row items-center justify-between">
+                          <Text
+                            className={`font-semibold text-base ${
+                              conversation.unreadCount > 0 ? 'text-warmBrown' : 'text-gray-700'
+                            }`}
+                          >
+                            {conversation.otherUser.name}
+                          </Text>
+                          {conversation.lastMessage && (
+                            <Text className="text-xs text-gray-400">
+                              {formatDistanceToNow(new Date(conversation.lastMessage.created_at), {
+                                addSuffix: false,
+                              })}
+                            </Text>
+                          )}
+                        </View>
+                        {conversation.lastMessage && (
+                          <Text
+                            className={`mt-1 ${
+                              conversation.unreadCount > 0
+                                ? 'text-warmBrown font-medium'
+                                : 'text-gray-500'
+                            }`}
+                            numberOfLines={1}
+                          >
+                            {conversation.lastMessage.sender_id === currentUser?.id ? 'You: ' : ''}
+                            {conversation.lastMessage.content}
+                          </Text>
+                        )}
+                      </View>
                     </View>
-                  </View>
-                </Pressable>
-              </Animated.View>
-            ))
+                  </Pressable>
+                </Animated.View>
+              );
+            })
           )}
         </ScrollView>
       </SafeAreaView>
