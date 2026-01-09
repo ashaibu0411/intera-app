@@ -205,9 +205,18 @@ export default function MessagesScreen() {
   // Reload when screen is focused and mark all messages as read
   useFocusEffect(
     useCallback(() => {
+      // Reload conversations first to get fresh unread counts
       loadConversations();
-      // Mark all messages as read when screen gains focus
+      // Then mark all messages as read (this updates the global badge count)
       markMessagesAsRead();
+
+      // After marking as read, update local conversation state to clear unread badges
+      // Small delay to ensure markMessagesAsRead completes
+      const timer = setTimeout(() => {
+        setConversations(prev => prev.map(conv => ({ ...conv, unreadCount: 0 })));
+      }, 200);
+
+      return () => clearTimeout(timer);
     }, [loadConversations, markMessagesAsRead])
   );
 
