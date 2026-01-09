@@ -16,7 +16,7 @@ import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { formatDistanceToNow } from 'date-fns';
 import { useStore } from '@/lib/store';
 import { getConversations, deleteConversation } from '@/lib/messages';
-import { markAllMessagesAsReadAndRefresh } from '@/lib/useUnreadMessages';
+import { markAllMessagesAsReadAndRefresh, refreshUnreadCount } from '@/lib/useUnreadMessages';
 import { supabase, DbUser } from '@/lib/supabase';
 
 interface ConversationPreview {
@@ -274,6 +274,8 @@ export default function MessagesScreen() {
               await deleteConversation(conversationId, currentUser.id);
               // Remove from local state
               setConversations((prev) => prev.filter((c) => c.id !== conversationId));
+              // Refresh the global unread count after deletion
+              await refreshUnreadCount(currentUser.id);
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             } catch (error) {
               console.error('Error deleting conversation:', error);

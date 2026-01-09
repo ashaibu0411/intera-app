@@ -239,6 +239,15 @@ export function unsubscribeFromMessages(conversationId: string) {
 // Delete a conversation (removes user from conversation, deletes if empty)
 export async function deleteConversation(conversationId: string, userId: string) {
   try {
+    // First, mark all messages in this conversation as read for this user
+    // This ensures the unread count is updated correctly
+    await supabase
+      .from('messages')
+      .update({ read: true })
+      .eq('conversation_id', conversationId)
+      .neq('sender_id', userId)
+      .eq('read', false);
+
     // Remove the user from conversation participants
     const { error: removeError } = await supabase
       .from('conversation_participants')
