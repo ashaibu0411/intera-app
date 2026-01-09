@@ -123,6 +123,7 @@ export default function HomeScreen() {
   const storeJoinCommunity = useStore((s) => s.joinCommunity);
   const feedFilter = useStore((s) => s.feedFilter);
   const setFeedFilter = useStore((s) => s.setFeedFilter);
+  const blockedUserIds = useStore((s) => s.blockedUserIds);
   const [currentUser, setCurrentUser] = useState<any>(null);
 
   // Get unread message count
@@ -238,9 +239,14 @@ export default function HomeScreen() {
       (post, index, self) => index === self.findIndex((p) => p.id === post.id)
     );
 
+    // Filter out posts from blocked users (App Store Guideline 1.2 compliance)
+    const nonBlockedPosts = uniquePosts.filter(
+      (post) => !blockedUserIds.includes(post.author.id)
+    );
+
     if (feedFilter === 'local') {
       const userCity = selectedLocation?.city || displayCommunity.city;
-      const localPosts = uniquePosts.filter(post => {
+      const localPosts = nonBlockedPosts.filter(post => {
         const isDbPost = dbPosts.some(dbPost => dbPost.id === post.id);
         if (isDbPost) return true;
         const isUserPost = userPosts.some(userPost => userPost.id === post.id);
@@ -252,11 +258,15 @@ export default function HomeScreen() {
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       );
     } else {
-      return [...uniquePosts, ...GLOBAL_MOCK_POSTS].sort((a, b) =>
+      // Also filter global posts from blocked users
+      const filteredGlobalPosts = GLOBAL_MOCK_POSTS.filter(
+        (post) => !blockedUserIds.includes(post.author.id)
+      );
+      return [...nonBlockedPosts, ...filteredGlobalPosts].sort((a, b) =>
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       );
     }
-  }, [userPosts, dbPosts, feedFilter, selectedLocation, displayCommunity.city]);
+  }, [userPosts, dbPosts, feedFilter, selectedLocation, displayCommunity.city, blockedUserIds]);
 
   const onRefresh = async () => {
     setRefreshing(true);
