@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { useStore } from './store';
 import { supabase } from './supabase';
 
@@ -43,14 +44,21 @@ export function useUnreadMessages() {
     }
   }, [currentUser?.id]);
 
+  // Fetch on mount and poll every 5 seconds
   useEffect(() => {
     fetchUnreadCount();
 
-    // Poll every 5 seconds
     const interval = setInterval(fetchUnreadCount, 5000);
 
     return () => clearInterval(interval);
   }, [fetchUnreadCount]);
+
+  // Also refetch when screen gains focus (e.g., returning from messages)
+  useFocusEffect(
+    useCallback(() => {
+      fetchUnreadCount();
+    }, [fetchUnreadCount])
+  );
 
   return { unreadCount, refetch: fetchUnreadCount };
 }
