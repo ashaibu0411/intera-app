@@ -22,6 +22,7 @@ import * as DropdownMenu from 'zeego/dropdown-menu';
 import { useStore, MOCK_COMMENTS, type Post } from '@/lib/store';
 import { getCommentsCount, getLikesCount, likePost, unlikePost, checkIfLiked } from '@/lib/posts';
 import { StoryAvatar } from '@/components/StoryAvatar';
+import { Ban } from 'lucide-react-native';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -117,6 +118,7 @@ export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
   const toggleSavePost = useStore((s) => s.toggleSavePost);
   const currentUser = useStore((s) => s.currentUser);
   const deletePost = useStore((s) => s.deletePost);
+  const blockUser = useStore((s) => s.blockUser);
   const userComments = useStore((s) => s.userComments);
   const postReactions = useStore((s) => s.postReactions);
   const setPostReaction = useStore((s) => s.setPostReaction);
@@ -448,6 +450,29 @@ export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
     );
   };
 
+  const handleBlockUser = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Alert.alert(
+      'Block User',
+      `Are you sure you want to block ${post.author.name}? You won't see their posts or comments anymore.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Block',
+          style: 'destructive',
+          onPress: () => {
+            blockUser(post.author.id, post.author.name, post.author.avatar);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            Alert.alert(
+              'User Blocked',
+              `${post.author.name} has been blocked. You can unblock them in Settings.`
+            );
+          },
+        },
+      ]
+    );
+  };
+
   const handleViewProfile = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push(`/profile/${post.author.id}` as any);
@@ -537,6 +562,11 @@ export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
             {!isOwnPost && (
               <DropdownMenu.Item key="profile" onSelect={handleViewProfile}>
                 <DropdownMenu.ItemTitle>View Profile</DropdownMenu.ItemTitle>
+              </DropdownMenu.Item>
+            )}
+            {!isOwnPost && (
+              <DropdownMenu.Item key="block" onSelect={handleBlockUser} destructive>
+                <DropdownMenu.ItemTitle>Block User</DropdownMenu.ItemTitle>
               </DropdownMenu.Item>
             )}
             {!isOwnPost && (
