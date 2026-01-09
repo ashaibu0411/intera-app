@@ -299,16 +299,6 @@ const APP_FEATURES: AppFeature[] = [
     keywords: ['gems', 'buy', 'purchase', 'coins', 'credits', 'store'],
     gradient: ['#8B5CF6', '#7C3AED'],
   },
-  {
-    id: 'referral-hub',
-    name: 'Referral Hub',
-    description: 'Earn from partner apps',
-    route: '/referral-hub',
-    icon: <TrendingUp size={ICON_SIZE} color={ICON_COLOR} />,
-    category: 'Finance',
-    keywords: ['referral', 'earn', 'money', 'partner', 'bonus', 'reward'],
-    gradient: ['#F59E0B', '#D97706'],
-  },
 
   // Immigration & Legal
   {

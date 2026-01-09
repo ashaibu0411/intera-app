@@ -103,6 +103,17 @@ export default function SusuCirclesScreen() {
       />
 
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+        {/* App Store Compliance Disclaimer */}
+        <Animated.View entering={FadeInDown.delay(50)} className="mx-4 mt-4 bg-amber-50 border border-amber-200 rounded-2xl p-4">
+          <View className="flex-row items-center mb-2">
+            <AlertTriangle size={20} color="#D97706" />
+            <Text className="text-amber-800 font-semibold ml-2">Tracking Tool Only</Text>
+          </View>
+          <Text className="text-amber-700 text-sm">
+            This feature helps you organize and track your savings circle. All actual money transfers and payments happen outside this app through your preferred payment methods (cash, bank transfer, mobile money, etc.). This app does not process any payments.
+          </Text>
+        </Animated.View>
+
         {/* Info Banner */}
         <Animated.View entering={FadeInDown.delay(100)} className="mx-4 mt-4 bg-emerald-800 rounded-2xl p-4">
           <View className="flex-row items-center mb-2">
@@ -1083,14 +1094,15 @@ function PaymentModal({ circle, onClose, onSubmit }: {
           numberOfLines={3}
         />
 
-        {selectedMethod === 'cash' && (
-          <View className="bg-amber-50 rounded-xl p-4 mt-4 flex-row items-start">
-            <AlertCircle size={20} color="#D4673A" />
-            <Text className="text-amber-700 text-sm ml-3 flex-1">
-              For cash payments, please hand the money directly to the circle organizer. They will confirm your payment once received.
-            </Text>
-          </View>
-        )}
+        {/* External Payment Disclaimer */}
+        <View className="bg-amber-50 rounded-xl p-4 mt-4 flex-row items-start">
+          <AlertTriangle size={20} color="#D97706" />
+          <Text className="text-amber-700 text-sm ml-3 flex-1">
+            {selectedMethod === 'cash'
+              ? 'For cash payments, please hand the money directly to the circle organizer. They will confirm your payment once received.'
+              : 'This app does not process payments. Please complete your payment outside the app using your selected method, then mark it here for tracking purposes.'}
+          </Text>
+        </View>
       </ScrollView>
 
       <View className="p-4 bg-white border-t border-gray-100">
