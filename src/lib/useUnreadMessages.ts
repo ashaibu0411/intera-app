@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from './supabase';
 
@@ -8,6 +8,7 @@ import { supabase } from './supabase';
 export function useUnreadMessages() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
+  const isMarkingAsRead = useRef(false);
 
   // Get current user from Supabase auth directly
   useEffect(() => {
@@ -26,8 +27,7 @@ export function useUnreadMessages() {
   }, []);
 
   const fetchUnreadCount = useCallback(async () => {
-    if (!currentUserId) {
-      setUnreadCount(0);
+    if (!currentUserId || isMarkingAsRead.current) {
       return;
     }
 
@@ -54,18 +54,21 @@ export function useUnreadMessages() {
         .eq('read', false);
 
       if (error) {
-        console.log('Error fetching unread count:', error);
+        console.log('[Messages] Error fetching unread count:', error);
+        return;
       }
 
       setUnreadCount(count || 0);
     } catch (error) {
-      console.error('Error fetching unread count:', error);
+      console.error('[Messages] Error fetching unread count:', error);
     }
   }, [currentUserId]);
 
   // Mark all messages as read and refresh count
   const markAllAsRead = useCallback(async () => {
-    if (!currentUserId) return;
+    if (!currentUserId || isMarkingAsRead.current) return;
+
+    isMarkingAsRead.current = true;
 
     try {
       // Get conversations the user is part of
@@ -74,27 +77,27 @@ export function useUnreadMessages() {
         .select('conversation_id')
         .eq('user_id', currentUserId);
 
-      if (!participations || participations.length === 0) return;
-
-      const conversationIds = participations.map((p) => p.conversation_id);
-
-      // Mark all unread messages from others as read
-      const { error } = await supabase
-        .from('messages')
-        .update({ read: true })
-        .in('conversation_id', conversationIds)
-        .neq('sender_id', currentUserId)
-        .eq('read', false);
-
-      if (error) {
-        console.log('Error marking messages as read:', error);
+      if (!participations || participations.length === 0) {
+        isMarkingAsRead.current = false;
         return;
+      }
+
+      // Mark messages as read for each conversation individually
+      for (const participation of participations) {
+        await supabase
+          .from('messages')
+          .update({ read: true })
+          .eq('conversation_id', participation.conversation_id)
+          .neq('sender_id', currentUserId)
+          .eq('read', false);
       }
 
       // Immediately set count to 0
       setUnreadCount(0);
     } catch (error) {
-      console.error('Error marking all as read:', error);
+      console.error('[Messages] Error marking all as read:', error);
+    } finally {
+      isMarkingAsRead.current = false;
     }
   }, [currentUserId]);
 

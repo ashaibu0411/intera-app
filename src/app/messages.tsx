@@ -9,7 +9,7 @@ import {
   Circle,
   Trash2,
 } from 'lucide-react-native';
-import Animated, { FadeIn, FadeInUp, useAnimatedStyle, useSharedValue, withSpring, runOnJS } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInUp, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
@@ -17,7 +17,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { useStore } from '@/lib/store';
 import { getConversations, deleteConversation } from '@/lib/messages';
 import { useUnreadMessages } from '@/lib/useUnreadMessages';
-import { DbUser } from '@/lib/supabase';
+import { supabase, DbUser } from '@/lib/supabase';
 
 interface ConversationPreview {
   id: string;
@@ -159,8 +159,40 @@ export default function MessagesScreen() {
   const isGuest = useStore((s) => s.isGuest);
   const currentUser = useStore((s) => s.currentUser);
 
-  // Get the markAllAsRead function from the hook
-  const { markAllAsRead } = useUnreadMessages();
+  // Get the refetch function from the hook to update badge after marking as read
+  const { refetch: refetchUnreadCount } = useUnreadMessages();
+
+  // Mark all messages as read directly
+  const markMessagesAsRead = useCallback(async () => {
+    try {
+      // Get the current user from supabase auth
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user?.id) return;
+
+      // Get conversations the user is part of
+      const { data: participations } = await supabase
+        .from('conversation_participants')
+        .select('conversation_id')
+        .eq('user_id', user.id);
+
+      if (!participations || participations.length === 0) return;
+
+      // Mark messages as read for each conversation
+      for (const p of participations) {
+        await supabase
+          .from('messages')
+          .update({ read: true })
+          .eq('conversation_id', p.conversation_id)
+          .neq('sender_id', user.id)
+          .eq('read', false);
+      }
+
+      // Refresh the badge count
+      refetchUnreadCount();
+    } catch (error) {
+      console.error('Error marking messages as read:', error);
+    }
+  }, [refetchUnreadCount]);
 
   // Load conversations
   const loadConversations = useCallback(async (showRefresh = false) => {
@@ -188,16 +220,16 @@ export default function MessagesScreen() {
   useEffect(() => {
     loadConversations();
     // Mark all messages as read when entering messages screen
-    markAllAsRead();
-  }, [loadConversations, markAllAsRead]);
+    markMessagesAsRead();
+  }, [loadConversations, markMessagesAsRead]);
 
   // Reload when screen is focused and mark all messages as read
   useFocusEffect(
     useCallback(() => {
       loadConversations();
       // Mark all messages as read when screen gains focus
-      markAllAsRead();
-    }, [loadConversations, markAllAsRead])
+      markMessagesAsRead();
+    }, [loadConversations, markMessagesAsRead])
   );
 
   // If a business was passed in, open a chat with that business directly
