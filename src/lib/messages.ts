@@ -235,3 +235,46 @@ export function subscribeToMessages(
 export function unsubscribeFromMessages(conversationId: string) {
   supabase.channel(`messages:${conversationId}`).unsubscribe();
 }
+
+// Delete a conversation (removes user from conversation, deletes if empty)
+export async function deleteConversation(conversationId: string, userId: string) {
+  try {
+    // Remove the user from conversation participants
+    const { error: removeError } = await supabase
+      .from('conversation_participants')
+      .delete()
+      .eq('conversation_id', conversationId)
+      .eq('user_id', userId);
+
+    if (removeError) {
+      console.error('Error removing from conversation:', removeError);
+      throw removeError;
+    }
+
+    // Check if any participants remain
+    const { data: remainingParticipants } = await supabase
+      .from('conversation_participants')
+      .select('id')
+      .eq('conversation_id', conversationId);
+
+    // If no participants remain, delete the conversation and messages
+    if (!remainingParticipants || remainingParticipants.length === 0) {
+      // Delete all messages in the conversation
+      await supabase
+        .from('messages')
+        .delete()
+        .eq('conversation_id', conversationId);
+
+      // Delete the conversation
+      await supabase
+        .from('conversations')
+        .delete()
+        .eq('id', conversationId);
+    }
+
+    return true;
+  } catch (err) {
+    console.error('Failed to delete conversation:', err);
+    throw err;
+  }
+}

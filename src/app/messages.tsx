@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, ScrollView, Pressable, TextInput, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, ScrollView, Pressable, TextInput, ActivityIndicator, RefreshControl, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import {
@@ -7,13 +7,15 @@ import {
   Search,
   MessageSquarePlus,
   Circle,
+  Trash2,
 } from 'lucide-react-native';
-import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInUp, useAnimatedStyle, useSharedValue, withSpring, runOnJS } from 'react-native-reanimated';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { formatDistanceToNow } from 'date-fns';
 import { useStore } from '@/lib/store';
-import { getConversations } from '@/lib/messages';
+import { getConversations, deleteConversation } from '@/lib/messages';
 import { useUnreadMessages } from '@/lib/useUnreadMessages';
 import { DbUser } from '@/lib/supabase';
 
@@ -26,6 +28,126 @@ interface ConversationPreview {
     sender_id: string;
   } | null;
   unreadCount: number;
+}
+
+// Swipeable conversation item component
+function SwipeableConversation({
+  conversation,
+  currentUserId,
+  onPress,
+  onDelete,
+  index,
+}: {
+  conversation: ConversationPreview;
+  currentUserId: string | undefined;
+  onPress: () => void;
+  onDelete: () => void;
+  index: number;
+}) {
+  const translateX = useSharedValue(0);
+  const DELETE_THRESHOLD = -80;
+
+  const panGesture = Gesture.Pan()
+    .activeOffsetX([-10, 10])
+    .onUpdate((event) => {
+      // Only allow swiping left
+      if (event.translationX < 0) {
+        translateX.value = Math.max(event.translationX, -100);
+      }
+    })
+    .onEnd((event) => {
+      if (event.translationX < DELETE_THRESHOLD) {
+        // Show delete button
+        translateX.value = withSpring(-80);
+      } else {
+        // Reset position
+        translateX.value = withSpring(0);
+      }
+    });
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: translateX.value }],
+  }));
+
+  const handleDelete = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    translateX.value = withSpring(0);
+    onDelete();
+  };
+
+  if (!conversation.otherUser) return null;
+
+  return (
+    <Animated.View
+      entering={FadeInUp.duration(300).delay(100 + index * 50)}
+      className="mb-3"
+    >
+      <View className="relative">
+        {/* Delete button behind */}
+        <View className="absolute right-0 top-0 bottom-0 w-20 bg-red-500 rounded-2xl items-center justify-center">
+          <Pressable onPress={handleDelete} className="items-center justify-center p-4">
+            <Trash2 size={24} color="#FFFFFF" />
+          </Pressable>
+        </View>
+
+        {/* Conversation card */}
+        <GestureDetector gesture={panGesture}>
+          <Animated.View style={animatedStyle}>
+            <Pressable
+              onPress={onPress}
+              className="bg-white rounded-2xl p-4 shadow-sm"
+            >
+              <View className="flex-row items-center">
+                <View className="relative">
+                  <Image
+                    source={{ uri: conversation.otherUser.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop' }}
+                    style={{ width: 52, height: 52, borderRadius: 26 }}
+                    contentFit="cover"
+                  />
+                  {conversation.unreadCount > 0 && (
+                    <View className="absolute -top-0.5 -right-0.5 bg-terracotta-500 rounded-full p-1">
+                      <Circle size={8} color="#FFFFFF" fill="#FFFFFF" />
+                    </View>
+                  )}
+                </View>
+                <View className="flex-1 ml-3">
+                  <View className="flex-row items-center justify-between">
+                    <Text
+                      className={`font-semibold text-base ${
+                        conversation.unreadCount > 0 ? 'text-warmBrown' : 'text-gray-700'
+                      }`}
+                    >
+                      {conversation.otherUser.name}
+                    </Text>
+                    {conversation.lastMessage && (
+                      <Text className="text-xs text-gray-400">
+                        {formatDistanceToNow(new Date(conversation.lastMessage.created_at), {
+                          addSuffix: false,
+                        })}
+                      </Text>
+                    )}
+                  </View>
+                  {conversation.lastMessage && (
+                    <Text
+                      className={`mt-1 ${
+                        conversation.unreadCount > 0
+                          ? 'text-warmBrown font-medium'
+                          : 'text-gray-500'
+                      }`}
+                      numberOfLines={1}
+                    >
+                      {conversation.lastMessage.sender_id === currentUserId ? 'You: ' : ''}
+                      {conversation.lastMessage.content}
+                    </Text>
+                  )}
+                </View>
+              </View>
+            </Pressable>
+          </Animated.View>
+        </GestureDetector>
+      </View>
+    </Animated.View>
+  );
 }
 
 export default function MessagesScreen() {
@@ -115,6 +237,32 @@ export default function MessagesScreen() {
     }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     router.push('/new-message');
+  };
+
+  const handleDeleteConversation = async (conversationId: string, userName: string) => {
+    Alert.alert(
+      'Delete Conversation',
+      `Are you sure you want to delete your conversation with ${userName}? This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            if (!currentUser?.id) return;
+            try {
+              await deleteConversation(conversationId, currentUser.id);
+              // Remove from local state
+              setConversations((prev) => prev.filter((c) => c.id !== conversationId));
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            } catch (error) {
+              console.error('Error deleting conversation:', error);
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const filteredConversations = searchQuery
@@ -218,67 +366,16 @@ export default function MessagesScreen() {
               </Pressable>
             </Animated.View>
           ) : (
-            filteredConversations.map((conversation, index) => {
-              if (!conversation.otherUser) return null;
-
-              return (
-                <Animated.View
-                  key={conversation.id}
-                  entering={FadeInUp.duration(300).delay(100 + index * 50)}
-                >
-                  <Pressable
-                    onPress={() => handleOpenChat(conversation.id, conversation.otherUser!)}
-                    className="bg-white rounded-2xl p-4 mb-3 shadow-sm"
-                  >
-                    <View className="flex-row items-center">
-                      <View className="relative">
-                        <Image
-                          source={{ uri: conversation.otherUser.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop' }}
-                          style={{ width: 52, height: 52, borderRadius: 26 }}
-                          contentFit="cover"
-                        />
-                        {conversation.unreadCount > 0 && (
-                          <View className="absolute -top-0.5 -right-0.5 bg-terracotta-500 rounded-full p-1">
-                            <Circle size={8} color="#FFFFFF" fill="#FFFFFF" />
-                          </View>
-                        )}
-                      </View>
-                      <View className="flex-1 ml-3">
-                        <View className="flex-row items-center justify-between">
-                          <Text
-                            className={`font-semibold text-base ${
-                              conversation.unreadCount > 0 ? 'text-warmBrown' : 'text-gray-700'
-                            }`}
-                          >
-                            {conversation.otherUser.name}
-                          </Text>
-                          {conversation.lastMessage && (
-                            <Text className="text-xs text-gray-400">
-                              {formatDistanceToNow(new Date(conversation.lastMessage.created_at), {
-                                addSuffix: false,
-                              })}
-                            </Text>
-                          )}
-                        </View>
-                        {conversation.lastMessage && (
-                          <Text
-                            className={`mt-1 ${
-                              conversation.unreadCount > 0
-                                ? 'text-warmBrown font-medium'
-                                : 'text-gray-500'
-                            }`}
-                            numberOfLines={1}
-                          >
-                            {conversation.lastMessage.sender_id === currentUser?.id ? 'You: ' : ''}
-                            {conversation.lastMessage.content}
-                          </Text>
-                        )}
-                      </View>
-                    </View>
-                  </Pressable>
-                </Animated.View>
-              );
-            })
+            filteredConversations.map((conversation, index) => (
+              <SwipeableConversation
+                key={conversation.id}
+                conversation={conversation}
+                currentUserId={currentUser?.id}
+                onPress={() => conversation.otherUser && handleOpenChat(conversation.id, conversation.otherUser)}
+                onDelete={() => conversation.otherUser && handleDeleteConversation(conversation.id, conversation.otherUser.name)}
+                index={index}
+              />
+            ))
           )}
         </ScrollView>
       </SafeAreaView>
