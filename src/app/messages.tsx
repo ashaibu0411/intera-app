@@ -13,7 +13,7 @@ import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { formatDistanceToNow } from 'date-fns';
 import { useStore } from '@/lib/store';
-import { getConversations } from '@/lib/messages';
+import { getConversations, markAllMessagesAsRead } from '@/lib/messages';
 import { DbUser } from '@/lib/supabase';
 
 interface ConversationPreview {
@@ -63,11 +63,13 @@ export default function MessagesScreen() {
     loadConversations();
   }, [loadConversations]);
 
-  // Reload when screen is focused
+  // Reload when screen is focused and mark all messages as read
   useFocusEffect(
     useCallback(() => {
       if (currentUser?.id) {
         loadConversations();
+        // Mark all messages as read when user opens messages
+        markAllMessagesAsRead(currentUser.id);
       }
     }, [currentUser?.id, loadConversations])
   );

@@ -150,13 +150,49 @@ export async function sendMessage(conversationId: string, senderId: string, cont
 
 // Mark messages as read
 export async function markMessagesAsRead(conversationId: string, userId: string) {
-  const { error } = await supabase
-    .from('messages')
-    .update({ read: true })
-    .eq('conversation_id', conversationId)
-    .neq('sender_id', userId);
+  try {
+    const { error } = await supabase
+      .from('messages')
+      .update({ read: true })
+      .eq('conversation_id', conversationId)
+      .neq('sender_id', userId)
+      .eq('read', false);
 
-  if (error) throw error;
+    if (error) {
+      console.error('Error marking messages as read:', error);
+    }
+  } catch (err) {
+    console.error('Failed to mark messages as read:', err);
+  }
+}
+
+// Mark all messages as read for a user (all conversations)
+export async function markAllMessagesAsRead(userId: string) {
+  try {
+    // Get all conversation IDs the user is part of
+    const { data: participations } = await supabase
+      .from('conversation_participants')
+      .select('conversation_id')
+      .eq('user_id', userId);
+
+    if (!participations || participations.length === 0) return;
+
+    const conversationIds = participations.map((p) => p.conversation_id);
+
+    // Mark all unread messages from others as read
+    const { error } = await supabase
+      .from('messages')
+      .update({ read: true })
+      .in('conversation_id', conversationIds)
+      .neq('sender_id', userId)
+      .eq('read', false);
+
+    if (error) {
+      console.error('Error marking all messages as read:', error);
+    }
+  } catch (err) {
+    console.error('Failed to mark all messages as read:', err);
+  }
 }
 
 // Subscribe to new messages in a conversation
