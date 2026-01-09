@@ -386,16 +386,6 @@ const APP_FEATURES: AppFeature[] = [
     gradient: ['#7C3AED', '#6D28D9'],
   },
   {
-    id: 'sports-betting',
-    name: 'Sports Betting',
-    description: 'Bet on sports with gems',
-    route: '/sports-betting',
-    icon: <Gamepad2 size={ICON_SIZE} color={ICON_COLOR} />,
-    category: 'Entertainment',
-    keywords: ['sports', 'betting', 'bet', 'football', 'soccer', 'nfl', 'nba', 'games'],
-    gradient: ['#10B981', '#059669'],
-  },
-  {
     id: 'photo-booth',
     name: 'Photo Booth',
     description: 'Cultural filters for photos',

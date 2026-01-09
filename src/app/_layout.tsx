@@ -100,8 +100,7 @@ function RootLayoutNav() {
         <Stack.Screen name="seller-pro-paywall" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
         {/* Global Translator */}
         <Stack.Screen name="translator" options={{ animation: 'slide_from_right' }} />
-        {/* Sports Betting & Live Radio */}
-        <Stack.Screen name="sports-betting" options={{ animation: 'slide_from_right' }} />
+        {/* Live Radio */}
         <Stack.Screen name="live-radio" options={{ animation: 'slide_from_right' }} />
         {/* Stories & Clips */}
         <Stack.Screen name="stories" options={{ headerShown: true, animation: 'slide_from_right' }} />
@@ -112,7 +111,6 @@ function RootLayoutNav() {
         <Stack.Screen name="duets" options={{ headerShown: true, animation: 'slide_from_right' }} />
         <Stack.Screen name="gem-store" options={{ headerShown: true, animation: 'slide_from_right' }} />
         <Stack.Screen name="immigration-help" options={{ headerShown: true, animation: 'slide_from_right' }} />
-        <Stack.Screen name="referrals" options={{ headerShown: true, animation: 'slide_from_right' }} />
         <Stack.Screen name="remittance" options={{ headerShown: true, animation: 'slide_from_right' }} />
         <Stack.Screen name="stream-polls" options={{ headerShown: true, animation: 'slide_from_right' }} />
         {/* New Community Features */}
