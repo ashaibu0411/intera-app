@@ -11,20 +11,16 @@ import Animated, {
   withSpring,
   withSequence,
   withTiming,
-  withDelay,
-  runOnJS,
-  FadeIn,
   FadeOut,
   ZoomIn,
   SlideInDown,
-  SlideInUp,
   FadeInUp,
 } from 'react-native-reanimated';
 import { formatDistanceToNow } from 'date-fns';
 import { router } from 'expo-router';
 import * as DropdownMenu from 'zeego/dropdown-menu';
 import { useStore, MOCK_COMMENTS, type Post } from '@/lib/store';
-import { getCommentsCount } from '@/lib/posts';
+import { getCommentsCount, getLikesCount, likePost, unlikePost, checkIfLiked } from '@/lib/posts';
 import { StoryAvatar } from '@/components/StoryAvatar';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -125,25 +121,42 @@ export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
   const postReactions = useStore((s) => s.postReactions);
   const setPostReaction = useStore((s) => s.setPostReaction);
   const [dbCommentCount, setDbCommentCount] = useState<number>(0);
+  const [dbLikeCount, setDbLikeCount] = useState<number>(0);
+  const [isLikedInDb, setIsLikedInDb] = useState<boolean>(false);
   const [showReactionPicker, setShowReactionPicker] = useState(false);
   const [floatingEmojis, setFloatingEmojis] = useState<Array<{ id: number; emoji: string }>>([]);
   const [burstEmojis, setBurstEmojis] = useState<BurstEmoji[]>([]);
   const [showBigHeart, setShowBigHeart] = useState(false);
   const lastTapRef = useRef<number>(0);
 
-  const isLiked = likedPostIds.includes(post.id);
+  // Use database like status if available, otherwise fall back to local state
+  const isLiked = isLikedInDb || likedPostIds.includes(post.id);
   const isSaved = savedPostIds.includes(post.id);
   const isOwnPost = currentUser?.id === post.author.id;
   const currentReaction = postReactions[post.id];
 
-  // Safely extract likes count - handle object or number
-  const baseLikes = typeof post.likes === 'object' && post.likes !== null
+  // Use database like count if available
+  const likeCount = dbLikeCount > 0 ? dbLikeCount : (typeof post.likes === 'object' && post.likes !== null
     ? (post.likes as any).count ?? 0
-    : (post.likes ?? 0);
-  // If the post was originally liked but we unliked it, subtract 1. If it wasn't liked but we liked it, add 1.
-  const likeCount = post.isLiked
-    ? (isLiked ? baseLikes : baseLikes - 1)
-    : (isLiked ? baseLikes + 1 : baseLikes);
+    : (post.likes ?? 0));
+
+  // Fetch like count and liked status from database
+  useEffect(() => {
+    const fetchLikeData = async () => {
+      try {
+        const count = await getLikesCount(post.id);
+        setDbLikeCount(count);
+
+        if (currentUser?.id) {
+          const liked = await checkIfLiked(currentUser.id, post.id);
+          setIsLikedInDb(liked);
+        }
+      } catch (error) {
+        // Silently fail, use local state
+      }
+    };
+    fetchLikeData();
+  }, [post.id, currentUser?.id]);
 
   // Fetch comment count from database
   useEffect(() => {
@@ -173,22 +186,42 @@ export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
   const videoRef = useRef<Video>(null);
   const likeScale = useSharedValue(1);
 
-  const handleQuickLike = () => {
+  const handleQuickLike = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     likeScale.value = withSequence(
       withSpring(1.3, { damping: 2, stiffness: 200 }),
       withSpring(1, { damping: 6, stiffness: 200 })
     );
 
+    // Update local state immediately for responsiveness
     toggleLikePost(post.id);
 
-    // If we just liked, set default reaction to heart
-    if (!isLiked) {
-      setPostReaction(post.id, '❤️');
-      // Add floating emoji
-      addFloatingEmoji('❤️');
+    // Sync with database
+    if (currentUser?.id) {
+      try {
+        if (!isLiked) {
+          await likePost(currentUser.id, post.id);
+          setIsLikedInDb(true);
+          setDbLikeCount((prev) => prev + 1);
+          setPostReaction(post.id, '❤️');
+          addFloatingEmoji('❤️');
+        } else {
+          await unlikePost(currentUser.id, post.id);
+          setIsLikedInDb(false);
+          setDbLikeCount((prev) => Math.max(0, prev - 1));
+          setPostReaction(post.id, null);
+        }
+      } catch (error) {
+        console.log('Error syncing like:', error);
+      }
     } else {
-      setPostReaction(post.id, null);
+      // For guests, just update local state
+      if (!isLiked) {
+        setPostReaction(post.id, '❤️');
+        addFloatingEmoji('❤️');
+      } else {
+        setPostReaction(post.id, null);
+      }
     }
 
     onLike?.(post.id);
@@ -199,17 +232,39 @@ export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
     setShowReactionPicker(true);
   };
 
-  const handleSelectReaction = (emoji: string) => {
+  const handleSelectReaction = async (emoji: string) => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setShowReactionPicker(false);
 
     // If same reaction, remove it
     if (currentReaction === emoji) {
       setPostReaction(post.id, null);
-      if (isLiked) toggleLikePost(post.id);
+      if (isLiked) {
+        toggleLikePost(post.id);
+        if (currentUser?.id) {
+          try {
+            await unlikePost(currentUser.id, post.id);
+            setIsLikedInDb(false);
+            setDbLikeCount((prev) => Math.max(0, prev - 1));
+          } catch (error) {
+            console.log('Error removing like:', error);
+          }
+        }
+      }
     } else {
       setPostReaction(post.id, emoji);
-      if (!isLiked) toggleLikePost(post.id);
+      if (!isLiked) {
+        toggleLikePost(post.id);
+        if (currentUser?.id) {
+          try {
+            await likePost(currentUser.id, post.id);
+            setIsLikedInDb(true);
+            setDbLikeCount((prev) => prev + 1);
+          } catch (error) {
+            console.log('Error adding like:', error);
+          }
+        }
+      }
       // Add floating emoji animation
       addFloatingEmoji(emoji);
     }
@@ -229,7 +284,7 @@ export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
   };
 
   // Double-tap handler for images - Instagram style
-  const handleImageDoubleTap = useCallback(() => {
+  const handleImageDoubleTap = useCallback(async () => {
     const now = Date.now();
     const DOUBLE_TAP_DELAY = 300;
 
@@ -262,6 +317,17 @@ export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
         toggleLikePost(post.id);
         setPostReaction(post.id, '❤️');
 
+        // Sync with database
+        if (currentUser?.id) {
+          try {
+            await likePost(currentUser.id, post.id);
+            setIsLikedInDb(true);
+            setDbLikeCount((prev) => prev + 1);
+          } catch (error) {
+            console.log('Error adding like:', error);
+          }
+        }
+
         likeScale.value = withSequence(
           withSpring(1.4, { damping: 2, stiffness: 200 }),
           withSpring(1, { damping: 6, stiffness: 200 })
@@ -269,7 +335,7 @@ export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
       }
     }
     lastTapRef.current = now;
-  }, [isLiked, post.id, toggleLikePost, setPostReaction, likeScale]);
+  }, [isLiked, post.id, toggleLikePost, setPostReaction, likeScale, currentUser?.id]);
 
   const likeAnimatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: likeScale.value }],
