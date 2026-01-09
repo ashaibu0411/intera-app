@@ -9,6 +9,8 @@ import {
   Platform,
   Share,
   ActivityIndicator,
+  Modal,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
@@ -24,6 +26,9 @@ import {
   Play,
   Volume2,
   VolumeX,
+  Ban,
+  Flag,
+  X,
 } from 'lucide-react-native';
 import Animated, { FadeIn, FadeInUp, useSharedValue, useAnimatedStyle, withSpring, withSequence } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -48,6 +53,9 @@ export default function PostDetailScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [likedCommentIds, setLikedCommentIds] = useState<Set<string>>(new Set());
   const [replyingTo, setReplyingTo] = useState<{ id: string; name: string } | null>(null);
+  const [showOptionsModal, setShowOptionsModal] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportReason, setReportReason] = useState('');
 
   const isGuest = useStore((s) => s.isGuest);
   const currentUser = useStore((s) => s.currentUser);
@@ -56,6 +64,9 @@ export default function PostDetailScreen() {
   const toggleLikePost = useStore((s) => s.toggleLikePost);
   const userComments = useStore((s) => s.userComments);
   const addComment = useStore((s) => s.addComment);
+  const blockUser = useStore((s) => s.blockUser);
+  const reportUser = useStore((s) => s.reportUser);
+  const blockedUserIds = useStore((s) => s.blockedUserIds);
 
   // Fetch post and comments from database
   useEffect(() => {
@@ -395,7 +406,13 @@ export default function PostDetailScreen() {
           <Text className="flex-1 text-center text-lg font-semibold text-warmBrown">
             Post
           </Text>
-          <Pressable className="p-2">
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setShowOptionsModal(true);
+            }}
+            className="p-2"
+          >
             <MoreHorizontal size={24} color="#2D1F1A" />
           </Pressable>
         </Animated.View>
@@ -679,6 +696,194 @@ export default function PostDetailScreen() {
           </View>
         </KeyboardAvoidingView>
       </SafeAreaView>
+
+      {/* Options Modal (Block/Report) */}
+      <Modal
+        visible={showOptionsModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowOptionsModal(false)}
+      >
+        <Pressable
+          className="flex-1 bg-black/50 justify-end"
+          onPress={() => setShowOptionsModal(false)}
+        >
+          <Pressable
+            className="bg-white rounded-t-3xl"
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View className="w-12 h-1 bg-gray-300 rounded-full self-center my-3" />
+
+            {/* Only show block/report if not own post */}
+            {post && currentUser?.id !== post.author.id && (
+              <>
+                {/* Block User */}
+                <Pressable
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                    setShowOptionsModal(false);
+                    Alert.alert(
+                      'Block User',
+                      `Are you sure you want to block ${post.author.name}? You won't see their posts or comments anymore.`,
+                      [
+                        { text: 'Cancel', style: 'cancel' },
+                        {
+                          text: 'Block',
+                          style: 'destructive',
+                          onPress: () => {
+                            blockUser(post.author.id, post.author.name, post.author.avatar);
+                            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                            Alert.alert(
+                              'User Blocked',
+                              `${post.author.name} has been blocked. You can unblock them in Settings.`,
+                              [{ text: 'OK', onPress: () => router.back() }]
+                            );
+                          },
+                        },
+                      ]
+                    );
+                  }}
+                  className="flex-row items-center px-6 py-4 border-b border-gray-100"
+                >
+                  <View className="bg-red-50 rounded-full p-2.5 mr-4">
+                    <Ban size={22} color="#EF4444" />
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-red-500 font-semibold text-base">Block {post.author.name}</Text>
+                    <Text className="text-gray-500 text-sm mt-0.5">You won't see their content anymore</Text>
+                  </View>
+                </Pressable>
+
+                {/* Report User */}
+                <Pressable
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setShowOptionsModal(false);
+                    setShowReportModal(true);
+                  }}
+                  className="flex-row items-center px-6 py-4 border-b border-gray-100"
+                >
+                  <View className="bg-orange-50 rounded-full p-2.5 mr-4">
+                    <Flag size={22} color="#F97316" />
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-warmBrown font-semibold text-base">Report Content</Text>
+                    <Text className="text-gray-500 text-sm mt-0.5">Report inappropriate content</Text>
+                  </View>
+                </Pressable>
+              </>
+            )}
+
+            {/* Share */}
+            <Pressable
+              onPress={() => {
+                setShowOptionsModal(false);
+                handleShare();
+              }}
+              className="flex-row items-center px-6 py-4 border-b border-gray-100"
+            >
+              <View className="bg-terracotta-50 rounded-full p-2.5 mr-4">
+                <Share2 size={22} color="#D4673A" />
+              </View>
+              <View className="flex-1">
+                <Text className="text-warmBrown font-semibold text-base">Share Post</Text>
+                <Text className="text-gray-500 text-sm mt-0.5">Share this post with others</Text>
+              </View>
+            </Pressable>
+
+            {/* Cancel */}
+            <Pressable
+              onPress={() => setShowOptionsModal(false)}
+              className="py-4 mb-6"
+            >
+              <Text className="text-gray-500 text-center font-medium">Cancel</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Report Modal */}
+      <Modal
+        visible={showReportModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowReportModal(false)}
+      >
+        <Pressable
+          className="flex-1 bg-black/50 justify-center px-6"
+          onPress={() => setShowReportModal(false)}
+        >
+          <Pressable
+            className="bg-white rounded-3xl overflow-hidden"
+            onPress={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <View className="flex-row items-center justify-between px-5 py-4 border-b border-gray-100">
+              <Text className="text-lg font-bold text-warmBrown">Report Content</Text>
+              <Pressable onPress={() => setShowReportModal(false)}>
+                <X size={24} color="#6B7280" />
+              </Pressable>
+            </View>
+
+            {/* Report Reasons */}
+            <View className="px-5 py-4">
+              <Text className="text-gray-600 mb-4">Why are you reporting this content?</Text>
+              {[
+                'Spam or misleading',
+                'Harassment or bullying',
+                'Hate speech',
+                'Violence or dangerous content',
+                'Inappropriate content',
+                'Other',
+              ].map((reason) => (
+                <Pressable
+                  key={reason}
+                  onPress={() => setReportReason(reason)}
+                  className={`flex-row items-center py-3 px-4 rounded-xl mb-2 ${
+                    reportReason === reason ? 'bg-terracotta-50 border border-terracotta-200' : 'bg-gray-50'
+                  }`}
+                >
+                  <View
+                    className={`w-5 h-5 rounded-full border-2 mr-3 items-center justify-center ${
+                      reportReason === reason ? 'border-terracotta-500 bg-terracotta-500' : 'border-gray-300'
+                    }`}
+                  >
+                    {reportReason === reason && <View className="w-2 h-2 rounded-full bg-white" />}
+                  </View>
+                  <Text className={reportReason === reason ? 'text-terracotta-700 font-medium' : 'text-gray-700'}>
+                    {reason}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            {/* Submit Button */}
+            <View className="px-5 pb-6">
+              <Pressable
+                onPress={() => {
+                  if (reportReason && post) {
+                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                    reportUser(post.author.id, reportReason);
+                    setShowReportModal(false);
+                    setReportReason('');
+                    Alert.alert(
+                      'Report Submitted',
+                      'Thank you for reporting. Our team will review this content.',
+                      [{ text: 'OK' }]
+                    );
+                  }
+                }}
+                disabled={!reportReason}
+                className={`py-4 rounded-2xl ${reportReason ? 'bg-terracotta-500' : 'bg-gray-200'}`}
+              >
+                <Text className={`text-center font-bold text-base ${reportReason ? 'text-white' : 'text-gray-400'}`}>
+                  Submit Report
+                </Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }

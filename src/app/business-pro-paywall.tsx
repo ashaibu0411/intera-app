@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, Pressable, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, ScrollView, Pressable, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
@@ -19,7 +19,8 @@ import {
 import Animated, { FadeIn, FadeInUp, FadeInDown, ZoomIn } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
-import { isRevenueCatEnabled, hasEntitlement, getPackage } from '@/lib/revenuecatClient';
+import type { PurchasesPackage } from 'react-native-purchases';
+import { isRevenueCatEnabled, getOfferings, purchasePackage, restorePurchases } from '@/lib/revenuecatClient';
 
 const FEATURES = [
   {
@@ -55,39 +56,96 @@ const FEATURES = [
 ];
 
 export default function BusinessProPaywallScreen() {
-  const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'annual'>('annual');
-  const [isLoading, setIsLoading] = useState(false);
+  const [packages, setPackages] = useState<PurchasesPackage[]>([]);
+  const [selectedPackage, setSelectedPackage] = useState<PurchasesPackage | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isPurchasing, setIsPurchasing] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
 
-  const handleSubscribe = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setIsLoading(true);
+  useEffect(() => {
+    loadOfferings();
+  }, []);
 
-    // Check if RevenueCat is configured
+  const loadOfferings = async () => {
     if (!isRevenueCatEnabled()) {
-      // Show message that payments need to be set up
       setIsLoading(false);
-      alert('Payments are not set up yet. Please contact support.');
       return;
     }
 
-    try {
-      // Get the package and purchase
-      const packageId = selectedPlan === 'monthly' ? '$rc_monthly' : '$rc_annual';
-      const pkg = await getPackage(packageId);
+    const result = await getOfferings();
+    if (result.ok) {
+      // Try to get seller_pro offering, fall back to default
+      const sellerProOffering = result.data.all?.['seller_pro'];
+      const offering = sellerProOffering || result.data.current;
 
-      if (pkg) {
-        // Would call Purchases.purchasePackage(pkg) here
-        // For now, simulate success
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        router.back();
+      if (offering) {
+        const availablePackages = offering.availablePackages;
+        setPackages(availablePackages);
+        // Select annual by default
+        const annual = availablePackages.find(p => p.identifier === '$rc_annual');
+        setSelectedPackage(annual || availablePackages[0] || null);
       }
-    } catch (error) {
-      console.error('Purchase error:', error);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-    } finally {
-      setIsLoading(false);
     }
+    setIsLoading(false);
   };
+
+  const handleSubscribe = async () => {
+    if (!selectedPackage) return;
+
+    setIsPurchasing(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    const result = await purchasePackage(selectedPackage);
+
+    if (result.ok) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert(
+        'Welcome to Business Pro!',
+        'Thank you for subscribing. Enjoy unlimited bookings and all premium features!',
+        [{ text: 'Awesome!', onPress: () => router.back() }]
+      );
+    } else if (result.reason === 'sdk_error') {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    }
+
+    setIsPurchasing(false);
+  };
+
+  const handleRestore = async () => {
+    setIsRestoring(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    const result = await restorePurchases();
+
+    if (result.ok) {
+      const hasActive = Object.keys(result.data.entitlements.active || {}).length > 0;
+      if (hasActive) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        Alert.alert(
+          'Purchases Restored',
+          'Your Business Pro subscription has been restored!',
+          [{ text: 'Great!', onPress: () => router.back() }]
+        );
+      } else {
+        Alert.alert('No Purchases Found', 'We couldn\'t find any previous purchases to restore.');
+      }
+    } else {
+      Alert.alert('Restore Failed', 'Unable to restore purchases. Please try again.');
+    }
+
+    setIsRestoring(false);
+  };
+
+  const getPackagePrice = (pkg: PurchasesPackage) => pkg.product.priceString;
+
+  const getPackagePeriod = (pkg: PurchasesPackage) => {
+    if (pkg.identifier === '$rc_annual') return '/year';
+    if (pkg.identifier === '$rc_monthly') return '/month';
+    return '';
+  };
+
+  const monthlyPackage = packages.find(p => p.identifier === '$rc_monthly');
+  const annualPackage = packages.find(p => p.identifier === '$rc_annual');
 
   return (
     <View className="flex-1 bg-warmBrown">
@@ -175,76 +233,95 @@ export default function BusinessProPaywallScreen() {
             <Animated.View entering={FadeInUp.duration(500).delay(400)} className="px-5 mt-6">
               <Text className="text-white/80 text-sm font-medium mb-3">CHOOSE YOUR PLAN</Text>
 
-              {/* Annual Plan */}
-              <Pressable
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  setSelectedPlan('annual');
-                }}
-                className={`rounded-2xl p-4 mb-3 border-2 ${
-                  selectedPlan === 'annual'
-                    ? 'bg-amber-500/20 border-amber-500'
-                    : 'bg-white/5 border-white/10'
-                }`}
-              >
-                <View className="flex-row items-center justify-between">
-                  <View>
-                    <View className="flex-row items-center">
-                      <Text className="text-white font-bold text-lg">Annual</Text>
-                      <View className="bg-emerald-500 rounded-full px-2 py-0.5 ml-2">
-                        <Text className="text-white text-xs font-bold">SAVE 33%</Text>
+              {isLoading ? (
+                <View className="items-center py-8">
+                  <ActivityIndicator color="#F59E0B" size="large" />
+                  <Text className="text-white/60 mt-2">Loading plans...</Text>
+                </View>
+              ) : packages.length === 0 ? (
+                <View className="bg-white/10 rounded-2xl p-4 border border-white/20">
+                  <Text className="text-white/80 text-center">
+                    Subscription plans are being configured. Please try again later.
+                  </Text>
+                </View>
+              ) : (
+                <>
+                  {/* Annual Plan */}
+                  {annualPackage && (
+                    <Pressable
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        setSelectedPackage(annualPackage);
+                      }}
+                      className={`rounded-2xl p-4 mb-3 border-2 ${
+                        selectedPackage?.identifier === '$rc_annual'
+                          ? 'bg-amber-500/20 border-amber-500'
+                          : 'bg-white/5 border-white/10'
+                      }`}
+                    >
+                      <View className="flex-row items-center justify-between">
+                        <View>
+                          <View className="flex-row items-center">
+                            <Text className="text-white font-bold text-lg">Annual</Text>
+                            <View className="bg-emerald-500 rounded-full px-2 py-0.5 ml-2">
+                              <Text className="text-white text-xs font-bold">BEST VALUE</Text>
+                            </View>
+                          </View>
+                          <Text className="text-white/60 text-sm mt-0.5">
+                            Billed annually
+                          </Text>
+                        </View>
+                        <View className="items-end">
+                          <Text className="text-white font-bold text-2xl">{getPackagePrice(annualPackage)}</Text>
+                          <Text className="text-white/50 text-xs">/year</Text>
+                        </View>
                       </View>
-                    </View>
-                    <Text className="text-white/60 text-sm mt-0.5">
-                      $19.99/month billed annually
-                    </Text>
-                  </View>
-                  <View className="items-end">
-                    <Text className="text-white font-bold text-2xl">$239.99</Text>
-                    <Text className="text-white/50 text-xs">/year</Text>
-                  </View>
-                </View>
-                {selectedPlan === 'annual' && (
-                  <View className="absolute top-4 right-4">
-                    <View className="bg-amber-500 rounded-full p-1">
-                      <Check size={14} color="#FFFFFF" />
-                    </View>
-                  </View>
-                )}
-              </Pressable>
+                      {selectedPackage?.identifier === '$rc_annual' && (
+                        <View className="absolute top-4 right-4">
+                          <View className="bg-amber-500 rounded-full p-1">
+                            <Check size={14} color="#FFFFFF" />
+                          </View>
+                        </View>
+                      )}
+                    </Pressable>
+                  )}
 
-              {/* Monthly Plan */}
-              <Pressable
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  setSelectedPlan('monthly');
-                }}
-                className={`rounded-2xl p-4 border-2 ${
-                  selectedPlan === 'monthly'
-                    ? 'bg-amber-500/20 border-amber-500'
-                    : 'bg-white/5 border-white/10'
-                }`}
-              >
-                <View className="flex-row items-center justify-between">
-                  <View>
-                    <Text className="text-white font-bold text-lg">Monthly</Text>
-                    <Text className="text-white/60 text-sm mt-0.5">
-                      Flexible, cancel anytime
-                    </Text>
-                  </View>
-                  <View className="items-end">
-                    <Text className="text-white font-bold text-2xl">$29.99</Text>
-                    <Text className="text-white/50 text-xs">/month</Text>
-                  </View>
-                </View>
-                {selectedPlan === 'monthly' && (
-                  <View className="absolute top-4 right-4">
-                    <View className="bg-amber-500 rounded-full p-1">
-                      <Check size={14} color="#FFFFFF" />
-                    </View>
-                  </View>
-                )}
-              </Pressable>
+                  {/* Monthly Plan */}
+                  {monthlyPackage && (
+                    <Pressable
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        setSelectedPackage(monthlyPackage);
+                      }}
+                      className={`rounded-2xl p-4 border-2 ${
+                        selectedPackage?.identifier === '$rc_monthly'
+                          ? 'bg-amber-500/20 border-amber-500'
+                          : 'bg-white/5 border-white/10'
+                      }`}
+                    >
+                      <View className="flex-row items-center justify-between">
+                        <View>
+                          <Text className="text-white font-bold text-lg">Monthly</Text>
+                          <Text className="text-white/60 text-sm mt-0.5">
+                            Flexible, cancel anytime
+                          </Text>
+                        </View>
+                        <View className="items-end">
+                          <Text className="text-white font-bold text-2xl">{getPackagePrice(monthlyPackage)}</Text>
+                          <Text className="text-white/50 text-xs">/month</Text>
+                        </View>
+                      </View>
+                      {selectedPackage?.identifier === '$rc_monthly' && (
+                        <View className="absolute top-4 right-4">
+                          <View className="bg-amber-500 rounded-full p-1">
+                            <Check size={14} color="#FFFFFF" />
+                          </View>
+                        </View>
+                      )}
+                    </Pressable>
+                  )}
+                </>
+              )}
             </Animated.View>
 
             {/* Testimonial */}
@@ -270,28 +347,40 @@ export default function BusinessProPaywallScreen() {
           <Animated.View entering={FadeInDown.duration(500).delay(600)} className="px-5 pb-4">
             <Pressable
               onPress={handleSubscribe}
-              disabled={isLoading}
+              disabled={isPurchasing || !selectedPackage}
               className="overflow-hidden rounded-2xl"
             >
               <LinearGradient
-                colors={['#F59E0B', '#D97706']}
+                colors={selectedPackage ? ['#F59E0B', '#D97706'] : ['#6B7280', '#4B5563']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
                 style={{ paddingVertical: 16, paddingHorizontal: 24, alignItems: 'center' }}
               >
-                {isLoading ? (
+                {isPurchasing ? (
                   <ActivityIndicator color="#FFFFFF" />
                 ) : (
                   <View className="flex-row items-center">
                     <Crown size={20} color="#FFFFFF" />
                     <Text className="text-white font-bold text-lg ml-2">
-                      Start Business Pro - {selectedPlan === 'annual' ? '$239.99/year' : '$29.99/month'}
+                      {selectedPackage ? `Subscribe - ${getPackagePrice(selectedPackage)}${getPackagePeriod(selectedPackage)}` : 'Loading...'}
                     </Text>
                   </View>
                 )}
               </LinearGradient>
             </Pressable>
-            <Text className="text-white/40 text-xs text-center mt-3">
+
+            {/* Restore Purchases */}
+            <Pressable
+              onPress={handleRestore}
+              disabled={isRestoring}
+              className="mt-3 py-2"
+            >
+              <Text className="text-white/60 text-sm text-center">
+                {isRestoring ? 'Restoring...' : 'Restore Purchases'}
+              </Text>
+            </Pressable>
+
+            <Text className="text-white/40 text-xs text-center mt-2">
               Cancel anytime. Terms apply.
             </Text>
           </Animated.View>

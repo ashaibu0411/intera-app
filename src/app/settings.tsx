@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, Pressable, Switch, Linking, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Bell, BellOff, ChevronRight, Shield, CircleHelp, LogOut, Trash2, AlertTriangle } from 'lucide-react-native';
+import { ArrowLeft, Bell, BellOff, ChevronRight, Shield, CircleHelp, LogOut, Trash2, AlertTriangle, Ban, X } from 'lucide-react-native';
+import { Image } from 'expo-image';
 import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
@@ -13,9 +14,12 @@ export default function SettingsScreen() {
   const notificationsEnabled = useStore((s) => s.notificationsEnabled);
   const setNotificationsEnabled = useStore((s) => s.setNotificationsEnabled);
   const currentUser = useStore((s) => s.currentUser);
+  const blockedUserDetails = useStore((s) => s.blockedUserDetails);
+  const unblockUser = useStore((s) => s.unblockUser);
   const [systemNotificationsEnabled, setSystemNotificationsEnabled] = useState(true);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showBlockedUsersModal, setShowBlockedUsersModal] = useState(false);
 
   // Check system notification permissions on mount
   useEffect(() => {
@@ -167,6 +171,36 @@ export default function SettingsScreen() {
             </View>
           </Animated.View>
 
+          {/* Privacy & Safety Section */}
+          <Animated.View entering={FadeInUp.duration(300).delay(250)}>
+            <Text className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 mt-6">
+              Privacy & Safety
+            </Text>
+
+            <View className="bg-white rounded-2xl overflow-hidden shadow-sm">
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setShowBlockedUsersModal(true);
+                }}
+                className="flex-row items-center p-4"
+              >
+                <View className="bg-red-50 rounded-full p-2.5 mr-3">
+                  <Ban size={20} color="#EF4444" />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-warmBrown font-medium">Blocked Users</Text>
+                  <Text className="text-gray-500 text-sm mt-0.5">
+                    {blockedUserDetails.length === 0
+                      ? 'No blocked users'
+                      : `${blockedUserDetails.length} blocked user${blockedUserDetails.length > 1 ? 's' : ''}`}
+                  </Text>
+                </View>
+                <ChevronRight size={18} color="#9CA3AF" />
+              </Pressable>
+            </View>
+          </Animated.View>
+
           {/* Account Section */}
           {currentUser && (
             <Animated.View entering={FadeInUp.duration(300).delay(300)}>
@@ -258,6 +292,80 @@ export default function SettingsScreen() {
             </View>
           </Pressable>
         </Pressable>
+      </Modal>
+
+      {/* Blocked Users Modal */}
+      <Modal
+        visible={showBlockedUsersModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowBlockedUsersModal(false)}
+      >
+        <View className="flex-1 bg-black/50">
+          <Pressable
+            className="flex-1"
+            onPress={() => setShowBlockedUsersModal(false)}
+          />
+          <View className="bg-white rounded-t-3xl max-h-[70%]">
+            {/* Modal Header */}
+            <View className="flex-row items-center justify-between px-5 pt-5 pb-3 border-b border-gray-100">
+              <Text className="text-lg font-bold text-warmBrown">Blocked Users</Text>
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setShowBlockedUsersModal(false);
+                }}
+                className="p-1"
+                hitSlop={8}
+              >
+                <X size={24} color="#6B7280" />
+              </Pressable>
+            </View>
+
+            {/* Blocked Users List */}
+            <ScrollView className="px-5 py-4" showsVerticalScrollIndicator={false}>
+              {blockedUserDetails.length === 0 ? (
+                <View className="items-center py-8">
+                  <View className="bg-gray-100 rounded-full p-4 mb-3">
+                    <Ban size={32} color="#9CA3AF" />
+                  </View>
+                  <Text className="text-gray-500 text-center">No blocked users</Text>
+                  <Text className="text-gray-400 text-sm text-center mt-1">
+                    Users you block will appear here
+                  </Text>
+                </View>
+              ) : (
+                blockedUserDetails.map((user) => (
+                  <View
+                    key={user.id}
+                    className="flex-row items-center py-3 border-b border-gray-100"
+                  >
+                    <Image
+                      source={{ uri: user.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop' }}
+                      style={{ width: 48, height: 48, borderRadius: 24 }}
+                      contentFit="cover"
+                    />
+                    <View className="flex-1 ml-3">
+                      <Text className="text-warmBrown font-medium">{user.name}</Text>
+                      <Text className="text-gray-400 text-xs mt-0.5">
+                        Blocked on {new Date(user.blockedAt).toLocaleDateString()}
+                      </Text>
+                    </View>
+                    <Pressable
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                        unblockUser(user.id);
+                      }}
+                      className="bg-gray-100 rounded-full px-4 py-2"
+                    >
+                      <Text className="text-warmBrown font-medium text-sm">Unblock</Text>
+                    </Pressable>
+                  </View>
+                ))
+              )}
+            </ScrollView>
+          </View>
+        </View>
       </Modal>
     </View>
   );

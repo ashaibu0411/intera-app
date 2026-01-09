@@ -572,6 +572,14 @@ interface AppState {
   blockUserFromStories: (userId: string) => void;
   unblockUserFromStories: (userId: string) => void;
 
+  // Blocked users state - for App Store compliance (Guideline 1.2)
+  blockedUserIds: string[]; // Users blocked from all content
+  blockedUserDetails: { id: string; name: string; avatar: string; blockedAt: string }[];
+  blockUser: (userId: string, userName: string, userAvatar: string) => void;
+  unblockUser: (userId: string) => void;
+  isUserBlocked: (userId: string) => boolean;
+  reportUser: (userId: string, reason: string) => void;
+
   // Actions
   setCurrentUser: (user: User | null) => void;
   setIsOnboarded: (value: boolean) => void;
@@ -741,6 +749,33 @@ export const useStore = create<AppState>()(
       unblockUserFromStories: (userId) => set((state) => ({
         storyBlockedUserIds: state.storyBlockedUserIds.filter((id) => id !== userId),
       })),
+
+      // Blocked users - App Store Guideline 1.2 compliance
+      blockedUserIds: [],
+      blockedUserDetails: [],
+      blockUser: (userId, userName, userAvatar) => set((state) => {
+        if (state.blockedUserIds.includes(userId)) return state;
+        return {
+          blockedUserIds: [...state.blockedUserIds, userId],
+          blockedUserDetails: [
+            ...state.blockedUserDetails,
+            { id: userId, name: userName, avatar: userAvatar, blockedAt: new Date().toISOString() },
+          ],
+        };
+      }),
+      unblockUser: (userId) => set((state) => ({
+        blockedUserIds: state.blockedUserIds.filter((id) => id !== userId),
+        blockedUserDetails: state.blockedUserDetails.filter((u) => u.id !== userId),
+      })),
+      isUserBlocked: (userId) => {
+        const state = useStore.getState();
+        return state.blockedUserIds.includes(userId);
+      },
+      reportUser: (userId, reason) => {
+        // In production, this would send to a backend API
+        console.log(`[Report] User ${userId} reported for: ${reason}`);
+        // For now, we just log. In production, send to moderation team.
+      },
 
       setCurrentUser: (user) => set({ currentUser: user }),
       setIsOnboarded: (value) => set({ isOnboarded: value }),
