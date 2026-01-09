@@ -16,7 +16,7 @@ import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { formatDistanceToNow } from 'date-fns';
 import { useStore } from '@/lib/store';
 import { getConversations, deleteConversation } from '@/lib/messages';
-import { useUnreadMessages } from '@/lib/useUnreadMessages';
+import { useUnreadStore, markAllMessagesAsReadForUser } from '@/lib/useUnreadMessages';
 import { supabase, DbUser } from '@/lib/supabase';
 
 interface ConversationPreview {
@@ -159,40 +159,25 @@ export default function MessagesScreen() {
   const isGuest = useStore((s) => s.isGuest);
   const currentUser = useStore((s) => s.currentUser);
 
-  // Get the refetch function from the hook to update badge after marking as read
-  const { refetch: refetchUnreadCount } = useUnreadMessages();
+  // Get the setUnreadCount from the store to update badge directly
+  const setUnreadCount = useUnreadStore((s) => s.setUnreadCount);
 
-  // Mark all messages as read directly
+  // Mark all messages as read directly and update badge
   const markMessagesAsRead = useCallback(async () => {
     try {
       // Get the current user from supabase auth
       const { data: { user } } = await supabase.auth.getUser();
       if (!user?.id) return;
 
-      // Get conversations the user is part of
-      const { data: participations } = await supabase
-        .from('conversation_participants')
-        .select('conversation_id')
-        .eq('user_id', user.id);
+      // Mark messages as read using the exported function
+      await markAllMessagesAsReadForUser(user.id);
 
-      if (!participations || participations.length === 0) return;
-
-      // Mark messages as read for each conversation
-      for (const p of participations) {
-        await supabase
-          .from('messages')
-          .update({ read: true })
-          .eq('conversation_id', p.conversation_id)
-          .neq('sender_id', user.id)
-          .eq('read', false);
-      }
-
-      // Refresh the badge count
-      refetchUnreadCount();
+      // Directly set unread count to 0 in the global store
+      setUnreadCount(0);
     } catch (error) {
       console.error('Error marking messages as read:', error);
     }
-  }, [refetchUnreadCount]);
+  }, [setUnreadCount]);
 
   // Load conversations
   const loadConversations = useCallback(async (showRefresh = false) => {
