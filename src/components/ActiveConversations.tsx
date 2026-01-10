@@ -156,7 +156,7 @@ export function ActiveConversations({ city, isGlobal = false }: ActiveConversati
 
   const handleSeeAll = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push('/app-search');
+    router.push('/all-conversations');
   };
 
   const getTypeIcon = (type: string) => {
