@@ -246,6 +246,25 @@ The app is fully connected to Supabase for data persistence and syncing across u
 - **Connected Status**: Once connected, message button appears for direct chat
 - **Stats Dashboard**: See how many people are nearby, connected, and liked
 
+### Detailed Weather Experience
+- **Weather Widget**: Beautiful weather card on home feed showing current conditions
+- **Tap for Full Forecast**: Tap the weather widget to open detailed weather screen
+- **Detailed Weather Screen** (`/weather-details`):
+  - Current temperature with feels-like
+  - Dynamic gradient backgrounds based on weather and time of day
+  - **24-hour Hourly Forecast**: Scrollable hourly temperatures
+  - **7-Day Forecast**: Daily high/low temps with weather icons
+  - **Weather Details Grid**:
+    - Feels Like temperature
+    - UV Index with risk level (Low/Moderate/High/Very High/Extreme)
+    - Wind speed and direction
+    - Humidity percentage
+    - Atmospheric pressure
+    - Visibility distance
+  - **Sunrise & Sunset Times**: Beautiful sun icons with exact times
+  - Pull-to-refresh for latest data
+  - Powered by Open-Meteo API (free, no API key required)
+
 ### Local News Feed
 - **Regional News**: News adapts to your location - if you're in Aurora, you'll see Colorado-wide news
 - **Real News API**: Integrates with GNews API for real, current news (requires API key in ENV tab)

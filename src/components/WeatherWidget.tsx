@@ -15,6 +15,7 @@ import {
 } from 'lucide-react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
+import { router } from 'expo-router';
 
 interface WeatherWidgetProps {
   city: string;
@@ -157,6 +158,10 @@ export function WeatherWidget({ city, country, onPress }: WeatherWidgetProps) {
 
   const handlePress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push({
+      pathname: '/weather-details',
+      params: { city, country },
+    });
     onPress?.();
   };
 
