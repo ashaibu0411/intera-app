@@ -343,6 +343,41 @@ export default function FaithCommunityScreen() {
             </Pressable>
           </Animated.View>
 
+          {/* Prayer & Testimony Wall Banner */}
+          <Animated.View
+            entering={FadeInUp.duration(400).delay(75)}
+            className="mb-4"
+          >
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                router.push('/faith-walls');
+              }}
+            >
+              <LinearGradient
+                colors={['#8B4513', '#A0522D']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={{ borderRadius: 16, padding: 16 }}
+              >
+                <View className="flex-row items-center">
+                  <View className="bg-white/20 rounded-full p-3 mr-4">
+                    <Heart size={24} color="#FFFFFF" />
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-white font-bold text-base">
+                      Prayer & Testimony Wall
+                    </Text>
+                    <Text className="text-white/80 text-sm mt-1">
+                      Share prayer requests, testimonies, and encourage one another.
+                    </Text>
+                  </View>
+                  <ChevronRight size={24} color="#FFFFFF" />
+                </View>
+              </LinearGradient>
+            </Pressable>
+          </Animated.View>
+
               {/* Info Banner */}
           <Animated.View
             entering={FadeInUp.duration(400).delay(100)}
