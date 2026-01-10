@@ -44,13 +44,13 @@ export default function SearchScreen() {
   const loadRecentUsers = async () => {
     try {
       const { data, error } = await supabase
-        .from('users')
+        .from('profiles')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(10);
 
       if (error) {
-        console.log('Error loading recent users:', error);
+        console.log('[People Search] Error:', JSON.stringify(error));
         return;
       }
 
@@ -58,7 +58,7 @@ export default function SearchScreen() {
         setRecentUsers(data);
       }
     } catch (err) {
-      console.log('Error loading recent users:', err);
+      console.log('[People Search] Error:', err);
     }
   };
 
@@ -83,21 +83,21 @@ export default function SearchScreen() {
     try {
       // Search by name or username using ilike for case-insensitive partial match
       const { data, error } = await supabase
-        .from('users')
+        .from('profiles')
         .select('*')
         .or(`name.ilike.%${searchQuery}%,username.ilike.%${searchQuery}%`)
         .limit(20);
 
       if (error) {
-        console.log('Search error:', error);
+        console.log('[People Search] Error:', JSON.stringify(error));
         setSearchResults([]);
         return;
       }
 
-      console.log(`Found ${data?.length || 0} users matching "${searchQuery}"`);
+      console.log(`[People Search] Found ${data?.length || 0} users matching "${searchQuery}"`);
       setSearchResults(data || []);
     } catch (err) {
-      console.log('Search error:', err);
+      console.log('[People Search] Error:', err);
       setSearchResults([]);
     } finally {
       setIsSearching(false);
