@@ -124,11 +124,18 @@ export default function HomeScreen() {
   const setFeedFilter = useStore((s) => s.setFeedFilter);
   const blockedUserIds = useStore((s) => s.blockedUserIds);
 
-  const { unreadCount } = useUnreadMessages();
+  const { unreadCount, refetch: refetchUnread } = useUnreadMessages();
 
   useEffect(() => {
     getCurrentUser().then(setCurrentUser);
   }, []);
+
+  // Refetch unread count when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      refetchUnread();
+    }, [refetchUnread])
+  );
 
   const displayCommunity = useMemo(() => {
     if (selectedLocation) {

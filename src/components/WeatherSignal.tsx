@@ -126,7 +126,7 @@ const getWeatherIcon = (condition: string, size: number = 16, color: string = '#
 
 // Generate community-relevant context based on weather
 const getCommunityContext = (weather: WeatherData): CommunityContext => {
-  const { condition, windSpeed, weatherCode } = weather;
+  const { condition, windSpeed, weatherCode, temp } = weather;
 
   // Thunderstorm - high alert
   if (weatherCode >= 95) {
@@ -135,6 +135,24 @@ const getCommunityContext = (weather: WeatherData): CommunityContext => {
       type: 'alert',
       affectedCount: 5,
       icon: <AlertTriangle size={14} color="#DC2626" />,
+    };
+  }
+
+  // Extreme cold (below 32°F / freezing)
+  if (temp <= 32) {
+    return {
+      message: 'Freezing temperatures - bundle up & limit outdoor time',
+      type: 'caution',
+      icon: <AlertTriangle size={14} color="#3B82F6" />,
+    };
+  }
+
+  // Very cold (33-40°F)
+  if (temp <= 40) {
+    return {
+      message: 'Cold weather - dress warmly for outdoor activities',
+      type: 'caution',
+      icon: <CloudSnow size={14} color="#6B7280" />,
     };
   }
 
@@ -185,7 +203,34 @@ const getCommunityContext = (weather: WeatherData): CommunityContext => {
     };
   }
 
-  // Good weather
+  // Extreme heat (above 95°F)
+  if (temp >= 95) {
+    return {
+      message: 'Extreme heat - stay hydrated & limit sun exposure',
+      type: 'caution',
+      icon: <AlertTriangle size={14} color="#DC2626" />,
+    };
+  }
+
+  // Hot weather (85-94°F)
+  if (temp >= 85) {
+    return {
+      message: 'Hot day - stay hydrated during outdoor activities',
+      type: 'caution',
+      icon: <Sun size={14} color="#F59E0B" />,
+    };
+  }
+
+  // Cool but nice (41-55°F)
+  if (temp <= 55) {
+    return {
+      message: 'Cool weather - bring a jacket for outdoor plans',
+      type: 'good',
+      icon: <Calendar size={14} color="#6B7280" />,
+    };
+  }
+
+  // Good weather (56-84°F and clear/partly cloudy)
   if (condition === 'Clear' || condition === 'Partly Cloudy') {
     return {
       message: 'Great weather for outdoor activities',
