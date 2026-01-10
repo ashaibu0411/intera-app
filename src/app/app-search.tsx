@@ -601,6 +601,10 @@ export default function AppSearchScreen() {
       }
 
       console.log('[People Search] Raw data count:', data?.length || 0);
+      // Log the first few users to see what's in the database
+      if (data && data.length > 0) {
+        console.log('[People Search] Sample users:', JSON.stringify(data.slice(0, 3).map(u => ({ name: u.name, username: u.username }))));
+      }
 
       // Filter by search query client-side
       const searchLower = query.trim().toLowerCase();
