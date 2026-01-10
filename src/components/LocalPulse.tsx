@@ -72,7 +72,7 @@ const generateLocalPulseItems = (city: string): PulseItem[] => [
     icon: <Car size={18} color="#10B981" />,
     color: '#10B981',
     bgColor: '#D1FAE5',
-    route: '/app-search',
+    route: '/carpool',
   },
   {
     id: '4',
