@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, ScrollView, Pressable } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, TextInput, ScrollView, Pressable, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
-import { Search as SearchIcon, X, Users, Calendar, Briefcase, Hash } from 'lucide-react-native';
+import { Search as SearchIcon, X, Users, Calendar, Briefcase, Hash, UserCircle } from 'lucide-react-native';
 import Animated, { FadeIn, FadeInUp, FadeInRight } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
-import { MOCK_USERS, MOCK_POSTS, MOCK_COMMUNITIES } from '@/lib/store';
+import { MOCK_POSTS, MOCK_COMMUNITIES } from '@/lib/store';
+import { supabase, DbUser } from '@/lib/supabase';
+import { useRouter } from 'expo-router';
 
 type SearchCategory = 'all' | 'people' | 'posts' | 'events' | 'businesses';
 
@@ -23,9 +25,84 @@ const CATEGORIES: CategoryItem[] = [
   { id: 'businesses', label: 'Businesses', IconComponent: Briefcase },
 ];
 
+const DEFAULT_AVATAR = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&h=200&fit=crop&crop=face';
+
 export default function SearchScreen() {
+  const router = useRouter();
   const [query, setQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<SearchCategory>('all');
+  const [searchResults, setSearchResults] = useState<DbUser[]>([]);
+  const [recentUsers, setRecentUsers] = useState<DbUser[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
+
+  // Load recent/popular users on mount
+  useEffect(() => {
+    loadRecentUsers();
+  }, []);
+
+  const loadRecentUsers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (error) {
+        console.log('Error loading recent users:', error);
+        return;
+      }
+
+      if (data) {
+        setRecentUsers(data);
+      }
+    } catch (err) {
+      console.log('Error loading recent users:', err);
+    }
+  };
+
+  // Search users in real-time as they type
+  useEffect(() => {
+    const searchTimeout = setTimeout(() => {
+      if (query.trim().length >= 1) {
+        searchUsers(query.trim());
+      } else {
+        setSearchResults([]);
+        setHasSearched(false);
+      }
+    }, 300); // Debounce search by 300ms
+
+    return () => clearTimeout(searchTimeout);
+  }, [query]);
+
+  const searchUsers = async (searchQuery: string) => {
+    setIsSearching(true);
+    setHasSearched(true);
+
+    try {
+      // Search by name or username using ilike for case-insensitive partial match
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .or(`name.ilike.%${searchQuery}%,username.ilike.%${searchQuery}%`)
+        .limit(20);
+
+      if (error) {
+        console.log('Search error:', error);
+        setSearchResults([]);
+        return;
+      }
+
+      console.log(`Found ${data?.length || 0} users matching "${searchQuery}"`);
+      setSearchResults(data || []);
+    } catch (err) {
+      console.log('Search error:', err);
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  };
 
   const handleCategoryChange = (category: SearchCategory) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -35,16 +112,49 @@ export default function SearchScreen() {
   const clearSearch = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setQuery('');
+    setSearchResults([]);
+    setHasSearched(false);
   };
 
-  const filteredUsers = MOCK_USERS.filter(
-    (user) =>
-      user.name.toLowerCase().includes(query.toLowerCase()) ||
-      user.username.toLowerCase().includes(query.toLowerCase())
-  );
+  const handleUserPress = (user: DbUser) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    // Navigate to user profile if you have a profile screen
+    // router.push(`/profile/${user.id}`);
+  };
 
   const filteredPosts = MOCK_POSTS.filter((post) =>
     post.content.toLowerCase().includes(query.toLowerCase())
+  );
+
+  const renderUserCard = (user: DbUser, index: number) => (
+    <Animated.View
+      key={user.id}
+      entering={FadeInUp.duration(300).delay(index * 50)}
+    >
+      <Pressable
+        className="flex-row items-center bg-white rounded-2xl p-4 mb-3 shadow-sm"
+        onPress={() => handleUserPress(user)}
+      >
+        {user.avatar_url ? (
+          <Image
+            source={{ uri: user.avatar_url }}
+            style={{ width: 50, height: 50, borderRadius: 25 }}
+            contentFit="cover"
+          />
+        ) : (
+          <View className="w-[50px] h-[50px] rounded-full bg-terracotta-100 items-center justify-center">
+            <UserCircle size={30} color="#C45C26" />
+          </View>
+        )}
+        <View className="flex-1 ml-3">
+          <Text className="text-warmBrown font-semibold">{user.name}</Text>
+          <Text className="text-gray-500 text-sm">@{user.username}</Text>
+          {user.location && (
+            <Text className="text-gray-400 text-sm mt-0.5">{user.location}</Text>
+          )}
+        </View>
+      </Pressable>
+    </Animated.View>
   );
 
   return (
@@ -58,17 +168,21 @@ export default function SearchScreen() {
           <View className="flex-row items-center bg-white rounded-2xl px-4 py-3 shadow-sm">
             <SearchIcon size={20} color="#8B7355" />
             <TextInput
-              placeholder="Search people, posts, events..."
+              placeholder="Search people by name or username..."
               placeholderTextColor="#9CA3AF"
               value={query}
               onChangeText={setQuery}
               className="flex-1 ml-3 text-warmBrown text-base"
+              autoCapitalize="none"
+              autoCorrect={false}
             />
-            {query.length > 0 && (
+            {isSearching ? (
+              <ActivityIndicator size="small" color="#C45C26" />
+            ) : query.length > 0 ? (
               <Pressable onPress={clearSearch}>
                 <X size={20} color="#8B7355" />
               </Pressable>
-            )}
+            ) : null}
           </View>
 
           {/* Category Tabs */}
@@ -109,32 +223,32 @@ export default function SearchScreen() {
         </Animated.View>
 
         <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-          {/* Results */}
+          {/* Search Results */}
           {query.length > 0 ? (
             <View className="px-5 pb-6">
               {/* People Results */}
-              {(activeCategory === 'all' || activeCategory === 'people') && filteredUsers.length > 0 && (
+              {(activeCategory === 'all' || activeCategory === 'people') && (
                 <Animated.View entering={FadeInUp.duration(400)}>
                   <Text className="text-lg font-semibold text-warmBrown mb-3 mt-2">People</Text>
-                  {filteredUsers.map((user, index) => (
-                    <Animated.View
-                      key={user.id}
-                      entering={FadeInUp.duration(300).delay(index * 50)}
-                    >
-                      <Pressable className="flex-row items-center bg-white rounded-2xl p-4 mb-3 shadow-sm">
-                        <Image
-                          source={{ uri: user.avatar }}
-                          style={{ width: 50, height: 50, borderRadius: 25 }}
-                          contentFit="cover"
-                        />
-                        <View className="flex-1 ml-3">
-                          <Text className="text-warmBrown font-semibold">{user.name}</Text>
-                          <Text className="text-gray-500 text-sm">@{user.username}</Text>
-                          <Text className="text-gray-400 text-sm mt-0.5">{user.location}</Text>
-                        </View>
-                      </Pressable>
-                    </Animated.View>
-                  ))}
+
+                  {isSearching ? (
+                    <View className="items-center py-8">
+                      <ActivityIndicator size="large" color="#C45C26" />
+                      <Text className="text-gray-500 mt-3">Searching...</Text>
+                    </View>
+                  ) : searchResults.length > 0 ? (
+                    searchResults.map((user, index) => renderUserCard(user, index))
+                  ) : hasSearched ? (
+                    <View className="items-center py-8 bg-white rounded-2xl">
+                      <UserCircle size={48} color="#9CA3AF" />
+                      <Text className="text-gray-500 mt-3 text-center">
+                        No users found for "{query}"
+                      </Text>
+                      <Text className="text-gray-400 text-sm mt-1 text-center px-4">
+                        Try searching with a different name or username
+                      </Text>
+                    </View>
+                  ) : null}
                 </Animated.View>
               )}
 
@@ -197,28 +311,18 @@ export default function SearchScreen() {
                 ))}
               </Animated.View>
 
+              {/* Recent Users from Database */}
               <Animated.View entering={FadeInUp.duration(400).delay(200)}>
                 <Text className="text-lg font-semibold text-warmBrown mb-3 mt-4">
-                  Popular People
+                  New Members
                 </Text>
-                {MOCK_USERS.map((user, index) => (
-                  <Animated.View
-                    key={user.id}
-                    entering={FadeInUp.duration(300).delay(200 + index * 100)}
-                  >
-                    <Pressable className="flex-row items-center bg-white rounded-2xl p-4 mb-3 shadow-sm">
-                      <Image
-                        source={{ uri: user.avatar }}
-                        style={{ width: 50, height: 50, borderRadius: 25 }}
-                        contentFit="cover"
-                      />
-                      <View className="flex-1 ml-3">
-                        <Text className="text-warmBrown font-semibold">{user.name}</Text>
-                        <Text className="text-gray-500 text-sm">{user.bio}</Text>
-                      </View>
-                    </Pressable>
-                  </Animated.View>
-                ))}
+                {recentUsers.length > 0 ? (
+                  recentUsers.map((user, index) => renderUserCard(user, index))
+                ) : (
+                  <View className="items-center py-6 bg-white rounded-2xl">
+                    <Text className="text-gray-500">Loading members...</Text>
+                  </View>
+                )}
               </Animated.View>
             </View>
           )}
