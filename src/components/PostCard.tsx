@@ -43,6 +43,85 @@ const REACTIONS = [
   { emoji: '😂', label: 'Haha', color: '#F59E0B' },
 ];
 
+// Post type detection for impact metrics
+type PostType = 'question' | 'request' | 'offer' | 'invitation' | 'checkin' | 'general';
+
+const detectPostType = (content: string): PostType => {
+  const lowerContent = content.toLowerCase();
+  if (lowerContent.includes('?') || lowerContent.includes('anyone know') || lowerContent.includes('can someone') || lowerContent.includes('does anyone')) {
+    return 'question';
+  }
+  if (lowerContent.includes('looking for') || lowerContent.includes('need help') || lowerContent.includes('searching for') || lowerContent.includes('new here')) {
+    return 'request';
+  }
+  if (lowerContent.includes('offering') || lowerContent.includes('i can help') || lowerContent.includes('free') || lowerContent.includes('available')) {
+    return 'offer';
+  }
+  if (lowerContent.includes('join') || lowerContent.includes('come') || lowerContent.includes('hosting') || lowerContent.includes('event') || lowerContent.includes('meetup')) {
+    return 'invitation';
+  }
+  if (lowerContent.includes('anyone else') || lowerContent.includes('is it just me') || lowerContent.includes('experiencing')) {
+    return 'checkin';
+  }
+  return 'general';
+};
+
+// Generate impact text based on post type and engagement
+const getImpactText = (postType: PostType, likes: number, comments: number): string => {
+  if (likes === 0 && comments === 0) return '';
+
+  switch (postType) {
+    case 'question':
+      if (comments > 0) {
+        return `Got ${comments} answer${comments > 1 ? 's' : ''} from the community`;
+      }
+      return `${likes} people want to help`;
+    case 'request':
+      if (comments > 0) {
+        return `${comments} people responded to help`;
+      }
+      return `${likes} people saw this`;
+    case 'offer':
+      return `Helped ${Math.max(1, Math.floor(comments / 2))} people`;
+    case 'invitation':
+      return `${likes + comments} interested`;
+    case 'checkin':
+      if (comments > 0) {
+        return `${comments} people relate`;
+      }
+      return `${likes} feel the same`;
+    default:
+      return `${likes} people connected`;
+  }
+};
+
+// Get community identity headline
+const getCommunityIdentity = (user: { location: string; bio?: string; communityRoles?: Array<{ role: string }> }): string => {
+  // Extract city from location (format: "City, Country" or "City, State, Country")
+  const locationParts = user.location.split(',').map(s => s.trim());
+  const city = locationParts[0] || 'Community';
+
+  // Check for roles
+  if (user.communityRoles && user.communityRoles.length > 0) {
+    const primaryRole = user.communityRoles[0].role;
+    return `${primaryRole} · ${city}`;
+  }
+
+  // Check bio for identity hints
+  const bio = user.bio?.toLowerCase() || '';
+  if (bio.includes('student')) return `Student · ${city}`;
+  if (bio.includes('business') || bio.includes('entrepreneur') || bio.includes('owner')) return `Business Owner · ${city}`;
+  if (bio.includes('teacher') || bio.includes('professor') || bio.includes('educator')) return `Educator · ${city}`;
+  if (bio.includes('doctor') || bio.includes('nurse') || bio.includes('medical')) return `Healthcare · ${city}`;
+  if (bio.includes('engineer') || bio.includes('developer') || bio.includes('tech')) return `Tech · ${city}`;
+  if (bio.includes('artist') || bio.includes('creative') || bio.includes('designer')) return `Creative · ${city}`;
+  if (bio.includes('chef') || bio.includes('cook') || bio.includes('food')) return `Food · ${city}`;
+  if (bio.includes('pastor') || bio.includes('imam') || bio.includes('faith')) return `Faith Leader · ${city}`;
+
+  // Default: Member of city
+  return `Member · ${city}`;
+};
+
 // Country flag mapping
 const COUNTRY_FLAGS: Record<string, string> = {
   'United States': '🇺🇸',
@@ -510,6 +589,17 @@ export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
   // Get country flag from location
   const countryFlag = getCountryFlag(post.location);
 
+  // Get community identity headline
+  const communityIdentity = getCommunityIdentity({
+    location: post.location,
+    bio: post.author.bio,
+    communityRoles: (post.author as any).communityRoles,
+  });
+
+  // Detect post type and get impact text
+  const postType = detectPostType(post.content);
+  const impactText = getImpactText(postType, likeCount, commentCount);
+
   return (
     <AnimatedPressable
       style={cardAnimatedStyle}
@@ -548,9 +638,9 @@ export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
             <Text className="text-warmBrown font-semibold text-base">{post.author.name}</Text>
             <Text className="ml-1.5" style={{ fontSize: 14 }}>{countryFlag}</Text>
           </View>
+          {/* Community-First Identity Headline */}
           <View className="flex-row items-center mt-0.5">
-            <MapPin size={12} color="#8B7355" />
-            <Text className="text-sm text-gray-500 ml-1">{post.location}</Text>
+            <Text className="text-sm text-gray-600 font-medium">{communityIdentity}</Text>
             <Text className="text-sm text-gray-400 mx-1">·</Text>
             <Text className="text-sm text-gray-400">{timeAgo}</Text>
           </View>
@@ -688,13 +778,13 @@ export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
 
       {/* Actions */}
       <View className="px-4 py-3 border-t border-gray-100">
-        {/* Reaction Summary Bar - shows which emojis were used */}
-        {likeCount > 0 && (
+        {/* Impact Metrics - Community-first language instead of vanity metrics */}
+        {(likeCount > 0 || commentCount > 0) && impactText && (
           <Pressable onPress={handleQuickLike} className="flex-row items-center mb-2">
             <View className="flex-row items-center">
               {/* Show mix of reaction emojis */}
               <View className="flex-row -space-x-1">
-                {[currentReaction || '❤️', '🔥', '👏🏿'].slice(0, Math.min(3, likeCount)).map((emoji, i) => (
+                {[currentReaction || '❤️', '🔥', '👏🏿'].slice(0, Math.min(3, Math.max(likeCount, 1))).map((emoji, i) => (
                   <View
                     key={i}
                     className="bg-white rounded-full"
@@ -707,12 +797,9 @@ export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
                   </View>
                 ))}
               </View>
-              <Text className="text-xs text-gray-500 ml-2">
-                {likeCount === 1
-                  ? 'You and no others'
-                  : likeCount < 5
-                    ? `Liked by ${likeCount} people`
-                    : `Liked by ${likeCount} people`}
+              {/* Impact text instead of "Liked by X people" */}
+              <Text className="text-xs text-gray-600 ml-2 font-medium">
+                {impactText}
               </Text>
             </View>
           </Pressable>
