@@ -588,25 +588,15 @@ export default function AppSearchScreen() {
 
     setIsLoadingPeople(true);
     try {
-      let queryBuilder = supabase
+      // Build the query - search by name or username using ilike
+      const searchTerm = query.trim() ? `%${query.trim().toLowerCase()}%` : '%';
+
+      const { data, error } = await supabase
         .from('profiles')
         .select('id, name, username, avatar_url, bio, location, interests')
+        .or(`name.ilike.${searchTerm},username.ilike.${searchTerm}`)
+        .neq('id', currentUser?.id || '')
         .limit(50);
-
-      // If there's a search query, filter by it
-      if (query.trim()) {
-        const searchTerm = `%${query.trim()}%`;
-        queryBuilder = queryBuilder.or(
-          `name.ilike.${searchTerm},username.ilike.${searchTerm},bio.ilike.${searchTerm},location.ilike.${searchTerm}`
-        );
-      }
-
-      // Exclude current user from results
-      if (currentUser?.id) {
-        queryBuilder = queryBuilder.neq('id', currentUser.id);
-      }
-
-      const { data, error } = await queryBuilder;
 
       if (error) {
         console.log('[People Search] Error:', error);
