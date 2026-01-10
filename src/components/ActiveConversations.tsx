@@ -150,8 +150,8 @@ export function ActiveConversations({ city, isGlobal = false }: ActiveConversati
 
   const handleConversationPress = (conversation: Conversation) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    // Navigate to the conversation/post
-    router.push('/app-search');
+    // Navigate to the conversation/post detail with comments
+    router.push(`/post/${conversation.id}`);
   };
 
   const handleSeeAll = () => {
