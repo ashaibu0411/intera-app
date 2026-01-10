@@ -588,52 +588,69 @@ export default function AppSearchScreen() {
 
     setIsLoadingPeople(true);
     try {
-      // Build the query - search by name or username using ilike
-      const searchTerm = query.trim() ? `%${query.trim().toLowerCase()}%` : '%';
-
+      // Fetch all users first, then filter client-side for more reliable search
       const { data, error } = await supabase
         .from('profiles')
         .select('id, name, username, avatar_url, bio, location, interests')
-        .or(`name.ilike.${searchTerm},username.ilike.${searchTerm}`)
-        .neq('id', currentUser?.id || '')
-        .limit(50);
+        .limit(200);
 
       if (error) {
-        console.log('[People Search] Error:', error);
+        console.log('[People Search] Error:', JSON.stringify(error));
         setDbUsers([]);
         return;
       }
 
+      console.log('[People Search] Raw data count:', data?.length || 0);
+
+      // Filter by search query client-side
+      const searchLower = query.trim().toLowerCase();
+      const filteredData = (data || []).filter((user) => {
+        // Exclude current user
+        if (currentUser?.id && user.id === currentUser.id) return false;
+
+        // If no search query, show all users
+        if (!searchLower) return true;
+
+        // Search in name and username
+        const nameMatch = (user.name || '').toLowerCase().includes(searchLower);
+        const usernameMatch = (user.username || '').toLowerCase().includes(searchLower);
+        const locationMatch = (user.location || '').toLowerCase().includes(searchLower);
+
+        return nameMatch || usernameMatch || locationMatch;
+      });
+
       // Transform database users to SearchablePerson format
-      const transformedUsers: SearchablePerson[] = (data || []).map((user) => {
+      const transformedUsers: SearchablePerson[] = filteredData.map((user) => {
         // Determine if user is local based on their location matching selected location
         const userLocationLower = (user.location || '').toLowerCase();
         const selectedLocationLower = (selectedLocation || '').toLowerCase();
-        const isLocal = userLocationLower.includes(selectedLocationLower) ||
-                        selectedLocationLower.includes(userLocationLower);
+        const isLocal = selectedLocationLower ?
+          (userLocationLower.includes(selectedLocationLower) || selectedLocationLower.includes(userLocationLower)) :
+          false;
 
-        // Parse interests - could be JSON array or string
+        // Parse interests safely
         let interests: string[] = [];
-        if (user.interests) {
-          if (Array.isArray(user.interests)) {
-            interests = user.interests;
-          } else if (typeof user.interests === 'string') {
-            try {
-              interests = JSON.parse(user.interests);
-            } catch {
-              interests = user.interests.split(',').map((s: string) => s.trim());
+        try {
+          if (user.interests) {
+            if (Array.isArray(user.interests)) {
+              interests = user.interests.filter((i): i is string => typeof i === 'string');
+            } else if (typeof user.interests === 'string') {
+              const parsed = JSON.parse(user.interests);
+              interests = Array.isArray(parsed) ? parsed : [];
             }
           }
+        } catch {
+          interests = [];
         }
 
         return {
           id: user.id,
           name: user.name || 'Anonymous User',
-          username: user.username || user.id.substring(0, 8),
+          username: user.username || user.id?.substring(0, 8) || 'user',
           avatar: user.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name || 'U')}&background=random`,
           bio: user.bio || '',
           location: user.location || 'Unknown',
-          country: '', // Could be parsed from location if formatted as "City, Country"
+          country: '',
           interests: interests.slice(0, 5),
           isVerified: false,
           isLocal: isLocal,
@@ -642,9 +659,9 @@ export default function AppSearchScreen() {
       });
 
       setDbUsers(transformedUsers);
-      console.log('[People Search] Found', transformedUsers.length, 'users');
+      console.log('[People Search] Found', transformedUsers.length, 'users for query:', searchLower || '(all)');
     } catch (error) {
-      console.log('[People Search] Exception:', error);
+      console.log('[People Search] Exception:', String(error));
       setDbUsers([]);
     } finally {
       setIsLoadingPeople(false);
