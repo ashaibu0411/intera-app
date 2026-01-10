@@ -327,11 +327,7 @@ export default function HomeScreen() {
               >
                 <MessageCircle size={24} color="#374151" />
                 {unreadCount > 0 && (
-                  <View className="absolute -top-0.5 -right-0.5 bg-red-500 rounded-full min-w-[18px] h-[18px] items-center justify-center px-1">
-                    <Text className="text-white text-xs font-bold">
-                      {unreadCount > 99 ? '99+' : unreadCount}
-                    </Text>
-                  </View>
+                  <View className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white" />
                 )}
               </Pressable>
             </View>
