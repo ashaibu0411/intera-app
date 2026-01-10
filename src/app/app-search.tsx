@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { View, Text, ScrollView, Pressable, TextInput } from 'react-native';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { View, Text, ScrollView, Pressable, TextInput, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
@@ -17,6 +17,7 @@ import * as Haptics from 'expo-haptics';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useStore } from '@/lib/store';
+import { supabase, DbUser } from '@/lib/supabase';
 
 type SearchTab = 'features' | 'people';
 type PeopleFilter = 'all' | 'local' | 'global';
@@ -552,145 +553,10 @@ const APP_FEATURES: AppFeature[] = [
 ];
 
 // Mock people data - Local users
-const LOCAL_PEOPLE: SearchablePerson[] = [
-  {
-    id: 'l1',
-    name: 'Amara Johnson',
-    username: 'amaraj',
-    avatar: 'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=200&h=200&fit=crop&crop=face',
-    bio: 'Community organizer & foodie',
-    location: 'Downtown',
-    country: 'USA',
-    interests: ['Food', 'Events', 'Networking'],
-    isVerified: true,
-    isLocal: true,
-    mutualConnections: 12,
-  },
-  {
-    id: 'l2',
-    name: 'Kofi Mensah',
-    username: 'kofim',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop&crop=face',
-    bio: 'Software engineer | New arrival from Ghana',
-    location: 'Midtown',
-    country: 'USA',
-    interests: ['Tech', 'Soccer', 'Music'],
-    isLocal: true,
-    mutualConnections: 5,
-  },
-  {
-    id: 'l3',
-    name: 'Fatou Diallo',
-    username: 'fatoud',
-    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop&crop=face',
-    bio: 'Fashion designer & entrepreneur',
-    location: 'Arts District',
-    country: 'USA',
-    interests: ['Fashion', 'Art', 'Business'],
-    isVerified: true,
-    isLocal: true,
-    mutualConnections: 8,
-  },
-  {
-    id: 'l4',
-    name: 'David Okonkwo',
-    username: 'davido',
-    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&h=200&fit=crop&crop=face',
-    bio: 'Medical student | Helping new arrivals',
-    location: 'University Area',
-    country: 'USA',
-    interests: ['Healthcare', 'Volunteering', 'Education'],
-    isLocal: true,
-    mutualConnections: 15,
-  },
-  {
-    id: 'l5',
-    name: 'Grace Adeyemi',
-    username: 'graceful',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop&crop=face',
-    bio: 'Real estate agent | Know the best neighborhoods',
-    location: 'Suburbs',
-    country: 'USA',
-    interests: ['Real Estate', 'Community', 'Family'],
-    isVerified: true,
-    isLocal: true,
-    mutualConnections: 22,
-  },
-];
+const LOCAL_PEOPLE: SearchablePerson[] = [];
 
 // Mock people data - Global users
-const GLOBAL_PEOPLE: SearchablePerson[] = [
-  {
-    id: 'g1',
-    name: 'Yemi Alade',
-    username: 'yemialade',
-    avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=200&h=200&fit=crop&crop=face',
-    bio: 'Tech entrepreneur building African solutions',
-    location: 'Lagos',
-    country: 'Nigeria',
-    interests: ['Tech', 'Startups', 'Innovation'],
-    isVerified: true,
-    isLocal: false,
-  },
-  {
-    id: 'g2',
-    name: 'Aisha Mohammed',
-    username: 'aisham',
-    avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=200&h=200&fit=crop&crop=face',
-    bio: 'Immigration lawyer | Helping diaspora families',
-    location: 'London',
-    country: 'UK',
-    interests: ['Law', 'Immigration', 'Advocacy'],
-    isVerified: true,
-    isLocal: false,
-  },
-  {
-    id: 'g3',
-    name: 'Kwame Asante',
-    username: 'kwamea',
-    avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=200&h=200&fit=crop&crop=face',
-    bio: 'Music producer | Afrobeats worldwide',
-    location: 'Accra',
-    country: 'Ghana',
-    interests: ['Music', 'Culture', 'Entertainment'],
-    isLocal: false,
-  },
-  {
-    id: 'g4',
-    name: 'Blessing Okoro',
-    username: 'blessingok',
-    avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=200&h=200&fit=crop&crop=face',
-    bio: 'Chef | Sharing African cuisine with the world',
-    location: 'Toronto',
-    country: 'Canada',
-    interests: ['Food', 'Cooking', 'Culture'],
-    isVerified: true,
-    isLocal: false,
-  },
-  {
-    id: 'g5',
-    name: 'Emmanuel Dubois',
-    username: 'emmanueld',
-    avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&h=200&fit=crop&crop=face',
-    bio: 'Financial advisor | Diaspora wealth building',
-    location: 'Paris',
-    country: 'France',
-    interests: ['Finance', 'Investment', 'Business'],
-    isLocal: false,
-  },
-  {
-    id: 'g6',
-    name: 'Nalini Patel',
-    username: 'nalinip',
-    avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200&h=200&fit=crop&crop=face',
-    bio: 'Community builder | Connecting South Asian diaspora',
-    location: 'Dubai',
-    country: 'UAE',
-    interests: ['Community', 'Events', 'Networking'],
-    isVerified: true,
-    isLocal: false,
-  },
-];
+const GLOBAL_PEOPLE: SearchablePerson[] = [];
 
 const CATEGORIES = [
   'All',
@@ -710,8 +576,100 @@ export default function AppSearchScreen() {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [activeTab, setActiveTab] = useState<SearchTab>('features');
   const [peopleFilter, setPeopleFilter] = useState<PeopleFilter>('all');
+  const [dbUsers, setDbUsers] = useState<SearchablePerson[]>([]);
+  const [isLoadingPeople, setIsLoadingPeople] = useState(false);
 
   const selectedLocation = useStore((s) => s.selectedLocation);
+  const currentUser = useStore((s) => s.currentUser);
+
+  // Fetch users from database
+  const searchUsers = useCallback(async (query: string) => {
+    if (activeTab !== 'people') return;
+
+    setIsLoadingPeople(true);
+    try {
+      let queryBuilder = supabase
+        .from('profiles')
+        .select('id, name, username, avatar_url, bio, location, interests')
+        .limit(50);
+
+      // If there's a search query, filter by it
+      if (query.trim()) {
+        const searchTerm = `%${query.trim()}%`;
+        queryBuilder = queryBuilder.or(
+          `name.ilike.${searchTerm},username.ilike.${searchTerm},bio.ilike.${searchTerm},location.ilike.${searchTerm}`
+        );
+      }
+
+      // Exclude current user from results
+      if (currentUser?.id) {
+        queryBuilder = queryBuilder.neq('id', currentUser.id);
+      }
+
+      const { data, error } = await queryBuilder;
+
+      if (error) {
+        console.log('[People Search] Error:', error);
+        setDbUsers([]);
+        return;
+      }
+
+      // Transform database users to SearchablePerson format
+      const transformedUsers: SearchablePerson[] = (data || []).map((user) => {
+        // Determine if user is local based on their location matching selected location
+        const userLocationLower = (user.location || '').toLowerCase();
+        const selectedLocationLower = (selectedLocation || '').toLowerCase();
+        const isLocal = userLocationLower.includes(selectedLocationLower) ||
+                        selectedLocationLower.includes(userLocationLower);
+
+        // Parse interests - could be JSON array or string
+        let interests: string[] = [];
+        if (user.interests) {
+          if (Array.isArray(user.interests)) {
+            interests = user.interests;
+          } else if (typeof user.interests === 'string') {
+            try {
+              interests = JSON.parse(user.interests);
+            } catch {
+              interests = user.interests.split(',').map((s: string) => s.trim());
+            }
+          }
+        }
+
+        return {
+          id: user.id,
+          name: user.name || 'Anonymous User',
+          username: user.username || user.id.substring(0, 8),
+          avatar: user.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name || 'U')}&background=random`,
+          bio: user.bio || '',
+          location: user.location || 'Unknown',
+          country: '', // Could be parsed from location if formatted as "City, Country"
+          interests: interests.slice(0, 5),
+          isVerified: false,
+          isLocal: isLocal,
+          mutualConnections: 0,
+        };
+      });
+
+      setDbUsers(transformedUsers);
+      console.log('[People Search] Found', transformedUsers.length, 'users');
+    } catch (error) {
+      console.log('[People Search] Exception:', error);
+      setDbUsers([]);
+    } finally {
+      setIsLoadingPeople(false);
+    }
+  }, [activeTab, currentUser?.id, selectedLocation]);
+
+  // Search users when tab changes to people or when search query changes
+  useEffect(() => {
+    if (activeTab === 'people') {
+      const debounceTimer = setTimeout(() => {
+        searchUsers(searchQuery);
+      }, 300);
+      return () => clearTimeout(debounceTimer);
+    }
+  }, [activeTab, searchQuery, searchUsers]);
 
   const filteredFeatures = useMemo(() => {
     let results = APP_FEATURES;
@@ -737,33 +695,14 @@ export default function AppSearchScreen() {
   }, [searchQuery, selectedCategory]);
 
   const filteredPeople = useMemo(() => {
-    let results: SearchablePerson[] = [];
-
-    // Filter by local/global
+    // Filter database users by local/global
     if (peopleFilter === 'local') {
-      results = LOCAL_PEOPLE;
+      return dbUsers.filter(person => person.isLocal);
     } else if (peopleFilter === 'global') {
-      results = GLOBAL_PEOPLE;
-    } else {
-      results = [...LOCAL_PEOPLE, ...GLOBAL_PEOPLE];
+      return dbUsers.filter(person => !person.isLocal);
     }
-
-    // Filter by search query
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase().trim();
-      results = results.filter(person => {
-        const nameMatch = person.name.toLowerCase().includes(query);
-        const usernameMatch = person.username.toLowerCase().includes(query);
-        const bioMatch = person.bio.toLowerCase().includes(query);
-        const locationMatch = person.location.toLowerCase().includes(query);
-        const countryMatch = person.country.toLowerCase().includes(query);
-        const interestMatch = person.interests.some(i => i.toLowerCase().includes(query));
-        return nameMatch || usernameMatch || bioMatch || locationMatch || countryMatch || interestMatch;
-      });
-    }
-
-    return results;
-  }, [searchQuery, peopleFilter]);
+    return dbUsers;
+  }, [dbUsers, peopleFilter]);
 
   const handleFeaturePress = (route: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -996,11 +935,18 @@ export default function AppSearchScreen() {
           ) : (
             <>
               {/* People Search Results */}
-              <Text className="text-gray-500 text-sm mb-3">
-                {filteredPeople.length} {filteredPeople.length === 1 ? 'person' : 'people'} found
-              </Text>
+              {isLoadingPeople ? (
+                <View className="items-center py-12">
+                  <ActivityIndicator size="large" color="#D4673A" />
+                  <Text className="text-gray-500 text-sm mt-4">Searching for people...</Text>
+                </View>
+              ) : (
+                <>
+                  <Text className="text-gray-500 text-sm mb-3">
+                    {filteredPeople.length} {filteredPeople.length === 1 ? 'person' : 'people'} found
+                  </Text>
 
-              {filteredPeople.map((person, index) => (
+                  {filteredPeople.map((person, index) => (
                 <Animated.View
                   key={person.id}
                   entering={FadeInDown.delay(index * 40).springify()}
@@ -1080,15 +1026,17 @@ export default function AppSearchScreen() {
                 </Animated.View>
               ))}
 
-              {/* No Results */}
-              {filteredPeople.length === 0 && (
-                <View className="items-center py-12">
-                  <Users size={48} color="#374151" />
-                  <Text className="text-gray-500 text-lg mt-4">No people found</Text>
-                  <Text className="text-gray-600 text-sm mt-1 text-center px-8">
-                    Try searching by name, location, or interests
-                  </Text>
-                </View>
+                  {/* No Results */}
+                  {filteredPeople.length === 0 && (
+                    <View className="items-center py-12">
+                      <Users size={48} color="#374151" />
+                      <Text className="text-gray-500 text-lg mt-4">No people found</Text>
+                      <Text className="text-gray-600 text-sm mt-1 text-center px-8">
+                        Try searching by name, location, or interests
+                      </Text>
+                    </View>
+                  )}
+                </>
               )}
             </>
           )}
