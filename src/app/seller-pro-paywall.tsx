@@ -351,7 +351,7 @@ export default function SellerProPaywallScreen() {
               >
                 <View className="bg-white/10 rounded-2xl p-4">
                   <Text className="text-white/70 text-center">
-                    Seller Pro subscriptions are coming soon! Check back later.
+                    Seller Pro is not available yet. Please check back later.
                   </Text>
                 </View>
               </Animated.View>

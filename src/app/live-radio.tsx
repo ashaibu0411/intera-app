@@ -577,8 +577,8 @@ export default function LiveRadioScreen() {
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                 Alert.alert(
-                  'Coming Soon!',
-                  'Live radio broadcasting is coming soon! You\'ll be able to create your own station and broadcast to the community.',
+                  'Create Your Station',
+                  'Radio broadcasting lets you share music and connect with the community. This feature is being prepared for you.',
                   [{ text: 'OK', style: 'default' }]
                 );
               }}

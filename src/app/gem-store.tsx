@@ -354,7 +354,7 @@ export default function GemStoreScreen() {
             <View className="bg-green-500/10 rounded-2xl p-4 mt-4 border border-green-500/20">
               <Text className="text-green-400 font-medium">Are you a seller?</Text>
               <Text className="text-gray-400 text-sm mt-1">
-                Gems you earn from sales can be cashed out or used in the app. You keep 90% of each sale!
+                Gems you earn from sales can be cashed out or used in the app. You keep 95% of each sale!
               </Text>
             </View>
           </View>

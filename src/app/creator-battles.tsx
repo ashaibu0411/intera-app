@@ -681,8 +681,8 @@ export default function CreatorBattlesScreen() {
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
               Alert.alert(
-                'Coming Soon!',
-                'Live creator battles are coming soon! You\'ll be able to start battles and compete for gems with other creators.',
+                'Start a Battle',
+                'Creator battles let you compete with other creators for gems. This feature is being prepared for you.',
                 [{ text: 'OK', style: 'default' }]
               );
             }}

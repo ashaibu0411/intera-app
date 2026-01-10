@@ -8,7 +8,14 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "This app uses your camera to take photos and videos for your profile and posts.",
+        "NSPhotoLibraryUsageDescription": "This app accesses your photo library to let you select and share photos.",
+        "NSLocationWhenInUseUsageDescription": "This app uses your location to show nearby events, services, and carpool options.",
+        "NSContactsUsageDescription": "This app accesses your contacts to help you connect with friends and share content.",
+        "NSMicrophoneUsageDescription": "This app uses your microphone for voice messages and live audio features."
+      }
     },
     "android": {
       "edgeToEdgeEnabled": true

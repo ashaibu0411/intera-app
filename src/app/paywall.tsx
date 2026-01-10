@@ -300,7 +300,7 @@ export default function PaywallScreen() {
               >
                 <View className="bg-white/10 rounded-2xl p-4">
                   <Text className="text-white/70 text-center">
-                    Subscriptions are coming soon! Check back later.
+                    Premium features are not available yet. Please check back later.
                   </Text>
                 </View>
               </Animated.View>
