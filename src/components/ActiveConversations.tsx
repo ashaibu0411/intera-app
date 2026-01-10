@@ -12,6 +12,7 @@ import {
   ChevronRight,
   TrendingUp,
   Flame,
+  Globe,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
@@ -24,13 +25,15 @@ interface Conversation {
     name: string;
     avatar: string;
     role?: string;
+    city?: string;
   };
   replyCount: number;
   lastActivity: string;
   isHot?: boolean;
 }
 
-const MOCK_CONVERSATIONS: Conversation[] = [
+// LOCAL conversations (from the user's city)
+const LOCAL_CONVERSATIONS: Conversation[] = [
   {
     id: '1',
     type: 'question',
@@ -81,11 +84,70 @@ const MOCK_CONVERSATIONS: Conversation[] = [
   },
 ];
 
+// GLOBAL conversations (from around the world)
+const GLOBAL_CONVERSATIONS: Conversation[] = [
+  {
+    id: 'g1',
+    type: 'question',
+    title: 'Best cities for African tech professionals in Europe?',
+    author: {
+      name: 'Yemi',
+      avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=100&h=100&fit=crop&crop=face',
+      city: 'Berlin',
+    },
+    replyCount: 47,
+    lastActivity: '10m',
+    isHot: true,
+  },
+  {
+    id: 'g2',
+    type: 'discussion',
+    title: 'How are you maintaining your native language with kids abroad?',
+    author: {
+      name: 'Grace',
+      avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=100&h=100&fit=crop&crop=face',
+      city: 'Toronto',
+    },
+    replyCount: 89,
+    lastActivity: '30m',
+    isHot: true,
+  },
+  {
+    id: 'g3',
+    type: 'request',
+    title: 'Looking for African grocery suppliers that ship internationally',
+    author: {
+      name: 'Kwame',
+      avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop&crop=face',
+      city: 'New York',
+    },
+    replyCount: 34,
+    lastActivity: '1h',
+  },
+  {
+    id: 'g4',
+    type: 'offer',
+    title: 'Free immigration consultation for first-gen immigrants',
+    author: {
+      name: 'Aisha',
+      avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&h=100&fit=crop&crop=face',
+      role: 'Immigration Lawyer',
+      city: 'London',
+    },
+    replyCount: 156,
+    lastActivity: '2h',
+    isHot: true,
+  },
+];
+
 interface ActiveConversationsProps {
   city: string;
+  isGlobal?: boolean;
 }
 
-export function ActiveConversations({ city }: ActiveConversationsProps) {
+export function ActiveConversations({ city, isGlobal = false }: ActiveConversationsProps) {
+  const conversations = isGlobal ? GLOBAL_CONVERSATIONS : LOCAL_CONVERSATIONS;
+
   const handleConversationPress = (conversation: Conversation) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     // Navigate to the conversation/post
@@ -145,11 +207,15 @@ export function ActiveConversations({ city }: ActiveConversationsProps) {
       <View className="flex-row items-center justify-between px-4 mb-3">
         <View className="flex-row items-center">
           <View className="w-8 h-8 rounded-full bg-blue-100 items-center justify-center mr-2">
-            <MessageCircle size={18} color="#3B82F6" />
+            {isGlobal ? <Globe size={18} color="#3B82F6" /> : <MessageCircle size={18} color="#3B82F6" />}
           </View>
           <View>
-            <Text className="text-base font-bold text-gray-900">Active Conversations</Text>
-            <Text className="text-xs text-gray-500">Join the discussion</Text>
+            <Text className="text-base font-bold text-gray-900">
+              {isGlobal ? 'Global Conversations' : 'Active Conversations'}
+            </Text>
+            <Text className="text-xs text-gray-500">
+              {isGlobal ? 'Trending worldwide' : 'Join the discussion'}
+            </Text>
           </View>
         </View>
         <Pressable
@@ -168,7 +234,7 @@ export function ActiveConversations({ city }: ActiveConversationsProps) {
         contentContainerStyle={{ paddingHorizontal: 16 }}
         style={{ flexGrow: 0 }}
       >
-        {MOCK_CONVERSATIONS.map((conversation, index) => {
+        {conversations.map((conversation, index) => {
           const colors = getTypeColor(conversation.type);
           return (
             <Animated.View
@@ -221,9 +287,9 @@ export function ActiveConversations({ city }: ActiveConversationsProps) {
                       <Text className="text-xs font-medium text-gray-700">
                         {conversation.author.name}
                       </Text>
-                      {conversation.author.role && (
+                      {(conversation.author.role || conversation.author.city) && (
                         <Text className="text-xs text-gray-400">
-                          {conversation.author.role}
+                          {conversation.author.role || conversation.author.city}
                         </Text>
                       )}
                     </View>

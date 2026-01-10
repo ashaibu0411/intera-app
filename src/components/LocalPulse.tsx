@@ -1,24 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, Pressable } from 'react-native';
-import { Image } from 'expo-image';
 import Animated, {
   FadeIn,
-  FadeInUp,
   SlideInRight,
 } from 'react-native-reanimated';
 import {
   Zap,
-  AlertTriangle,
   Utensils,
   Briefcase,
   Car,
-  Calendar,
   HelpCircle,
   Home,
   Heart,
-  Clock,
   ChevronRight,
   MapPin,
+  Globe,
+  Users,
+  Calendar,
+  Plane,
+  Building2,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
@@ -34,9 +34,11 @@ interface PulseItem {
   icon: React.ReactNode;
   color: string;
   bgColor: string;
+  route: string;
 }
 
-const generatePulseItems = (city: string): PulseItem[] => [
+// LOCAL pulse items (city-specific)
+const generateLocalPulseItems = (city: string): PulseItem[] => [
   {
     id: '1',
     type: 'event',
@@ -47,6 +49,7 @@ const generatePulseItems = (city: string): PulseItem[] => [
     color: '#F59E0B',
     bgColor: '#FEF3C7',
     responseCount: 23,
+    route: '/(tabs)/events',
   },
   {
     id: '2',
@@ -58,6 +61,7 @@ const generatePulseItems = (city: string): PulseItem[] => [
     color: '#3B82F6',
     bgColor: '#DBEAFE',
     responseCount: 8,
+    route: '/jobs',
   },
   {
     id: '3',
@@ -68,6 +72,7 @@ const generatePulseItems = (city: string): PulseItem[] => [
     icon: <Car size={18} color="#10B981" />,
     color: '#10B981',
     bgColor: '#D1FAE5',
+    route: '/app-search',
   },
   {
     id: '4',
@@ -79,6 +84,7 @@ const generatePulseItems = (city: string): PulseItem[] => [
     color: '#8B5CF6',
     bgColor: '#EDE9FE',
     urgent: true,
+    route: '/find-helpers',
   },
   {
     id: '5',
@@ -89,6 +95,7 @@ const generatePulseItems = (city: string): PulseItem[] => [
     icon: <Home size={18} color="#EC4899" />,
     color: '#EC4899',
     bgColor: '#FCE7F3',
+    route: '/housing',
   },
   {
     id: '6',
@@ -100,40 +107,106 @@ const generatePulseItems = (city: string): PulseItem[] => [
     color: '#EF4444',
     bgColor: '#FEE2E2',
     responseCount: 15,
+    route: '/(tabs)/events',
+  },
+];
+
+// GLOBAL pulse items (worldwide happenings)
+const generateGlobalPulseItems = (): PulseItem[] => [
+  {
+    id: 'g1',
+    type: 'event',
+    title: 'African Tech Summit in London',
+    subtitle: '2,500+ attending · Next week',
+    timeAgo: '1h',
+    icon: <Building2 size={18} color="#3B82F6" />,
+    color: '#3B82F6',
+    bgColor: '#DBEAFE',
+    responseCount: 342,
+    route: '/(tabs)/events',
+  },
+  {
+    id: 'g2',
+    type: 'job',
+    title: '47 remote jobs posted today',
+    subtitle: 'Tech, Finance, Healthcare',
+    timeAgo: '2h',
+    icon: <Briefcase size={18} color="#10B981" />,
+    color: '#10B981',
+    bgColor: '#D1FAE5',
+    responseCount: 89,
+    route: '/jobs',
+  },
+  {
+    id: 'g3',
+    type: 'housing',
+    title: 'Housing guide: Moving to Toronto',
+    subtitle: 'New arrival resources',
+    timeAgo: '4h',
+    icon: <Plane size={18} color="#8B5CF6" />,
+    color: '#8B5CF6',
+    bgColor: '#EDE9FE',
+    route: '/housing',
+  },
+  {
+    id: 'g4',
+    type: 'event',
+    title: 'Cultural festival in New York',
+    subtitle: 'This weekend · Free entry',
+    timeAgo: '5h',
+    icon: <Calendar size={18} color="#F59E0B" />,
+    color: '#F59E0B',
+    bgColor: '#FEF3C7',
+    responseCount: 156,
+    route: '/(tabs)/events',
+  },
+  {
+    id: 'g5',
+    type: 'offer',
+    title: '12 diaspora circles active now',
+    subtitle: 'Join conversations worldwide',
+    timeAgo: '6h',
+    icon: <Users size={18} color="#EC4899" />,
+    color: '#EC4899',
+    bgColor: '#FCE7F3',
+    responseCount: 78,
+    route: '/diaspora-circles',
+  },
+  {
+    id: 'g6',
+    type: 'food',
+    title: 'Home cooks in 15 cities',
+    subtitle: 'Order authentic diaspora cuisine',
+    timeAgo: '8h',
+    icon: <Utensils size={18} color="#EF4444" />,
+    color: '#EF4444',
+    bgColor: '#FEE2E2',
+    route: '/global-food-network',
   },
 ];
 
 interface LocalPulseProps {
   city: string;
+  isGlobal?: boolean;
 }
 
-export function LocalPulse({ city }: LocalPulseProps) {
+export function LocalPulse({ city, isGlobal = false }: LocalPulseProps) {
   const [pulseItems, setPulseItems] = useState<PulseItem[]>([]);
   const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
-    setPulseItems(generatePulseItems(city));
-  }, [city]);
+    if (isGlobal) {
+      setPulseItems(generateGlobalPulseItems());
+    } else {
+      setPulseItems(generateLocalPulseItems(city));
+    }
+  }, [city, isGlobal]);
 
   const displayItems = expanded ? pulseItems : pulseItems.slice(0, 4);
 
   const handleItemPress = (item: PulseItem) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    // Navigate based on type
-    switch (item.type) {
-      case 'event':
-      case 'food':
-        router.push('/(tabs)/events');
-        break;
-      case 'job':
-        router.push('/jobs');
-        break;
-      case 'housing':
-        router.push('/housing');
-        break;
-      default:
-        router.push('/app-search');
-    }
+    router.push(item.route as any);
   };
 
   return (
@@ -145,17 +218,23 @@ export function LocalPulse({ city }: LocalPulseProps) {
       <View className="flex-row items-center justify-between mb-3">
         <View className="flex-row items-center">
           <View className="w-8 h-8 rounded-full bg-amber-100 items-center justify-center mr-2">
-            <Zap size={18} color="#F59E0B" />
+            {isGlobal ? <Globe size={18} color="#F59E0B" /> : <Zap size={18} color="#F59E0B" />}
           </View>
           <View>
-            <Text className="text-base font-bold text-gray-900">What's Happening</Text>
-            <Text className="text-xs text-gray-500">Near you right now</Text>
+            <Text className="text-base font-bold text-gray-900">
+              {isGlobal ? 'Happening Worldwide' : "What's Happening"}
+            </Text>
+            <Text className="text-xs text-gray-500">
+              {isGlobal ? 'Across the diaspora' : 'Near you right now'}
+            </Text>
           </View>
         </View>
-        <View className="flex-row items-center">
-          <MapPin size={14} color="#9CA3AF" />
-          <Text className="text-xs text-gray-400 ml-1">{city}</Text>
-        </View>
+        {!isGlobal && (
+          <View className="flex-row items-center">
+            <MapPin size={14} color="#9CA3AF" />
+            <Text className="text-xs text-gray-400 ml-1">{city}</Text>
+          </View>
+        )}
       </View>
 
       {/* Pulse Items */}
@@ -210,6 +289,8 @@ export function LocalPulse({ city }: LocalPulseProps) {
                   </Text>
                 )}
               </View>
+
+              <ChevronRight size={16} color="#D1D5DB" style={{ marginLeft: 4 }} />
             </Pressable>
           </Animated.View>
         ))}

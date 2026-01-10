@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Pressable, ScrollView } from 'react-native';
+import { View, Text, Pressable } from 'react-native';
 import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
   FadeIn,
   FadeInRight,
@@ -16,15 +15,15 @@ import {
   MapPin,
   Home,
   Briefcase,
-  GraduationCap,
-  Church,
   Sparkles,
   ChevronRight,
   Radio,
+  Globe,
+  MessageCircle,
+  Calendar,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
-import { useStore } from '@/lib/store';
 
 interface ActiveMember {
   id: string;
@@ -32,6 +31,7 @@ interface ActiveMember {
   avatar: string;
   role: string;
   country: string;
+  city?: string;
   isOnline: boolean;
   lastActivity?: string;
 }
@@ -42,10 +42,12 @@ interface PresenceEvent {
   user?: ActiveMember;
   text: string;
   timestamp: Date;
+  route?: string; // Where to navigate
+  routeParams?: Record<string, string>;
 }
 
-// Mock active members - in production this would come from real-time presence
-const MOCK_ACTIVE_MEMBERS: ActiveMember[] = [
+// Mock active members - LOCAL (city-specific)
+const LOCAL_ACTIVE_MEMBERS: ActiveMember[] = [
   { id: '1', name: 'Ama Asante', avatar: 'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=100&h=100&fit=crop&crop=face', role: 'Welcomer', country: 'Ghana', isOnline: true },
   { id: '2', name: 'Kofi Mensah', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face', role: 'Mentor', country: 'Ghana', isOnline: true },
   { id: '3', name: 'Fatou Diallo', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop&crop=face', role: 'Business Builder', country: 'Senegal', isOnline: true },
@@ -53,29 +55,120 @@ const MOCK_ACTIVE_MEMBERS: ActiveMember[] = [
   { id: '5', name: 'Amara Johnson', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100&fit=crop&crop=face', role: 'Organizer', country: 'USA', isOnline: true, lastActivity: '2m ago' },
 ];
 
-// Generate presence events
-const generatePresenceEvents = (city: string): PresenceEvent[] => [
-  { id: '1', type: 'arrived', text: `A new family arrived in ${city}`, timestamp: new Date(Date.now() - 1000 * 60 * 5) },
-  { id: '2', type: 'helping', user: MOCK_ACTIVE_MEMBERS[0], text: 'Ama is helping a newcomer find housing', timestamp: new Date(Date.now() - 1000 * 60 * 12) },
-  { id: '3', type: 'event', text: 'Community dinner starting in 2 hours', timestamp: new Date(Date.now() - 1000 * 60 * 30) },
-  { id: '4', type: 'joined', user: MOCK_ACTIVE_MEMBERS[3], text: 'Chidi just joined the community', timestamp: new Date(Date.now() - 1000 * 60 * 45) },
-  { id: '5', type: 'posting', user: MOCK_ACTIVE_MEMBERS[2], text: 'Fatou shared a job opportunity', timestamp: new Date(Date.now() - 1000 * 60 * 60) },
+// Mock active members - GLOBAL (from different cities)
+const GLOBAL_ACTIVE_MEMBERS: ActiveMember[] = [
+  { id: 'g1', name: 'Yemi Adeyemi', avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=100&h=100&fit=crop&crop=face', role: 'Mentor', country: 'Nigeria', city: 'London', isOnline: true },
+  { id: 'g2', name: 'Grace Obi', avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=100&h=100&fit=crop&crop=face', role: 'Welcomer', country: 'Kenya', city: 'Toronto', isOnline: true },
+  { id: 'g3', name: 'Kwame Asante', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop&crop=face', role: 'Business Builder', country: 'Ghana', city: 'New York', isOnline: true },
+  { id: 'g4', name: 'Aisha Mohammed', avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&h=100&fit=crop&crop=face', role: 'Organizer', country: 'Egypt', city: 'Dubai', isOnline: true },
+  { id: 'g5', name: 'Samuel Eze', avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop&crop=face', role: 'Connector', country: 'Nigeria', city: 'Berlin', isOnline: true },
+];
+
+// Generate LOCAL presence events
+const generateLocalPresenceEvents = (city: string): PresenceEvent[] => [
+  {
+    id: '1',
+    type: 'arrived',
+    text: `A new family arrived in ${city}`,
+    timestamp: new Date(Date.now() - 1000 * 60 * 5),
+    route: '/find-helpers',
+  },
+  {
+    id: '2',
+    type: 'helping',
+    user: LOCAL_ACTIVE_MEMBERS[0],
+    text: 'Ama is helping a newcomer find housing',
+    timestamp: new Date(Date.now() - 1000 * 60 * 12),
+    route: '/housing',
+  },
+  {
+    id: '3',
+    type: 'event',
+    text: 'Community dinner starting in 2 hours',
+    timestamp: new Date(Date.now() - 1000 * 60 * 30),
+    route: '/(tabs)/events',
+  },
+  {
+    id: '4',
+    type: 'joined',
+    user: LOCAL_ACTIVE_MEMBERS[3],
+    text: 'Chidi just joined the community',
+    timestamp: new Date(Date.now() - 1000 * 60 * 45),
+    route: '/profile/4',
+  },
+  {
+    id: '5',
+    type: 'posting',
+    user: LOCAL_ACTIVE_MEMBERS[2],
+    text: 'Fatou shared a job opportunity',
+    timestamp: new Date(Date.now() - 1000 * 60 * 60),
+    route: '/jobs',
+  },
+];
+
+// Generate GLOBAL presence events
+const generateGlobalPresenceEvents = (): PresenceEvent[] => [
+  {
+    id: 'g1',
+    type: 'event',
+    text: 'Cultural festival happening in London',
+    timestamp: new Date(Date.now() - 1000 * 60 * 10),
+    route: '/(tabs)/events',
+  },
+  {
+    id: 'g2',
+    type: 'helping',
+    user: GLOBAL_ACTIVE_MEMBERS[1],
+    text: 'Grace helped 5 newcomers in Toronto this week',
+    timestamp: new Date(Date.now() - 1000 * 60 * 25),
+    route: '/find-helpers',
+  },
+  {
+    id: 'g3',
+    type: 'posting',
+    user: GLOBAL_ACTIVE_MEMBERS[2],
+    text: 'Kwame started a business circle in New York',
+    timestamp: new Date(Date.now() - 1000 * 60 * 40),
+    route: '/diaspora-circles',
+  },
+  {
+    id: 'g4',
+    type: 'arrived',
+    text: '127 people joined Diaspora this week globally',
+    timestamp: new Date(Date.now() - 1000 * 60 * 55),
+    route: '/find-helpers',
+  },
+  {
+    id: 'g5',
+    type: 'event',
+    text: 'African Business Summit in Dubai - 500+ attending',
+    timestamp: new Date(Date.now() - 1000 * 60 * 70),
+    route: '/(tabs)/events',
+  },
 ];
 
 interface CommunityPresenceProps {
   city: string;
   memberCount: number;
+  isGlobal?: boolean;
 }
 
-export function CommunityPresence({ city, memberCount }: CommunityPresenceProps) {
+export function CommunityPresence({ city, memberCount, isGlobal = false }: CommunityPresenceProps) {
   const [activeCount, setActiveCount] = useState(47);
   const [presenceEvents, setPresenceEvents] = useState<PresenceEvent[]>([]);
+  const [activeMembers, setActiveMembers] = useState<ActiveMember[]>([]);
   const pulseScale = useSharedValue(1);
 
   useEffect(() => {
-    // Simulate real-time presence updates
-    setPresenceEvents(generatePresenceEvents(city));
-    setActiveCount(Math.floor(Math.random() * 30) + 30);
+    if (isGlobal) {
+      setPresenceEvents(generateGlobalPresenceEvents());
+      setActiveMembers(GLOBAL_ACTIVE_MEMBERS);
+      setActiveCount(Math.floor(Math.random() * 500) + 1200); // Global: more people online
+    } else {
+      setPresenceEvents(generateLocalPresenceEvents(city));
+      setActiveMembers(LOCAL_ACTIVE_MEMBERS);
+      setActiveCount(Math.floor(Math.random() * 30) + 30);
+    }
 
     // Pulse animation for "live" indicator
     pulseScale.value = withRepeat(
@@ -86,7 +179,7 @@ export function CommunityPresence({ city, memberCount }: CommunityPresenceProps)
       -1,
       true
     );
-  }, [city]);
+  }, [city, isGlobal]);
 
   const pulseStyle = useAnimatedStyle(() => ({
     transform: [{ scale: pulseScale.value }],
@@ -95,6 +188,13 @@ export function CommunityPresence({ city, memberCount }: CommunityPresenceProps)
   const handleViewMembers = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push('/find-helpers');
+  };
+
+  const handleEventPress = (event: PresenceEvent) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (event.route) {
+      router.push(event.route as any);
+    }
   };
 
   const getRoleColor = (role: string) => {
@@ -106,6 +206,17 @@ export function CommunityPresence({ city, memberCount }: CommunityPresenceProps)
       case 'Mentor': return '#3B82F6';
       case 'Business Builder': return '#EF4444';
       default: return '#6B7280';
+    }
+  };
+
+  const getEventIcon = (type: string) => {
+    switch (type) {
+      case 'arrived': return <Home size={16} color="#10B981" />;
+      case 'helping': return <Users size={16} color="#EC4899" />;
+      case 'event': return <Calendar size={16} color="#F59E0B" />;
+      case 'joined': return <MapPin size={16} color="#8B5CF6" />;
+      case 'posting': return <Briefcase size={16} color="#3B82F6" />;
+      default: return <MessageCircle size={16} color="#6B7280" />;
     }
   };
 
@@ -124,12 +235,13 @@ export function CommunityPresence({ city, memberCount }: CommunityPresenceProps)
                 <View className="w-2.5 h-2.5 rounded-full bg-green-500 mr-2" />
               </Animated.View>
               <Text className="text-lg font-bold text-gray-900">
-                {activeCount} people here now
+                {activeCount.toLocaleString()} {isGlobal ? 'online worldwide' : 'people here now'}
               </Text>
             </View>
-            <View className="bg-gray-200 px-2.5 py-1 rounded-full">
+            <View className="bg-gray-200 px-2.5 py-1 rounded-full flex-row items-center">
+              {isGlobal && <Globe size={12} color="#6B7280" style={{ marginRight: 4 }} />}
               <Text className="text-xs font-medium text-gray-600">
-                {memberCount.toLocaleString()} total
+                {isGlobal ? '50K+ members' : `${memberCount.toLocaleString()} total`}
               </Text>
             </View>
           </View>
@@ -138,7 +250,7 @@ export function CommunityPresence({ city, memberCount }: CommunityPresenceProps)
           <Pressable onPress={handleViewMembers}>
             <View className="flex-row items-center">
               <View className="flex-row">
-                {MOCK_ACTIVE_MEMBERS.slice(0, 5).map((member, index) => (
+                {activeMembers.slice(0, 5).map((member, index) => (
                   <Animated.View
                     key={member.id}
                     entering={FadeInRight.duration(300).delay(index * 50)}
@@ -168,9 +280,11 @@ export function CommunityPresence({ city, memberCount }: CommunityPresenceProps)
               </View>
               <View className="ml-3 flex-1">
                 <Text className="text-sm text-gray-600">
-                  <Text className="font-semibold text-gray-900">Ama</Text>, <Text className="font-semibold text-gray-900">Kofi</Text> and {activeCount - 2} others
+                  <Text className="font-semibold text-gray-900">{activeMembers[0]?.name.split(' ')[0]}</Text>, <Text className="font-semibold text-gray-900">{activeMembers[1]?.name.split(' ')[0]}</Text> and {activeCount - 2} others
                 </Text>
-                <Text className="text-xs text-gray-400 mt-0.5">Tap to see who's here</Text>
+                <Text className="text-xs text-gray-400 mt-0.5">
+                  {isGlobal ? 'From 50+ countries' : 'Tap to see who\'s here'}
+                </Text>
               </View>
               <ChevronRight size={18} color="#9CA3AF" />
             </View>
@@ -181,7 +295,9 @@ export function CommunityPresence({ city, memberCount }: CommunityPresenceProps)
         <View className="border-t border-gray-200 bg-white">
           <View className="px-4 py-2 flex-row items-center border-b border-gray-100">
             <Radio size={14} color="#EF4444" />
-            <Text className="text-xs font-semibold text-gray-500 ml-1.5 uppercase tracking-wide">Live Activity</Text>
+            <Text className="text-xs font-semibold text-gray-500 ml-1.5 uppercase tracking-wide">
+              {isGlobal ? 'Global Activity' : 'Live Activity'}
+            </Text>
           </View>
 
           <View className="py-2">
@@ -191,22 +307,21 @@ export function CommunityPresence({ city, memberCount }: CommunityPresenceProps)
                 entering={FadeInRight.duration(300).delay(index * 100)}
               >
                 <Pressable
-                  className="flex-row items-center px-4 py-2"
-                  onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
+                  className="flex-row items-center px-4 py-2 active:bg-gray-50"
+                  onPress={() => handleEventPress(event)}
                 >
                   <View className="w-8 h-8 rounded-full bg-gray-100 items-center justify-center">
-                    {event.type === 'arrived' && <Home size={16} color="#10B981" />}
-                    {event.type === 'helping' && <Users size={16} color="#EC4899" />}
-                    {event.type === 'event' && <Sparkles size={16} color="#F59E0B" />}
-                    {event.type === 'joined' && <MapPin size={16} color="#8B5CF6" />}
-                    {event.type === 'posting' && <Briefcase size={16} color="#3B82F6" />}
+                    {getEventIcon(event.type)}
                   </View>
                   <Text className="flex-1 text-sm text-gray-700 ml-3" numberOfLines={1}>
                     {event.text}
                   </Text>
-                  <Text className="text-xs text-gray-400 ml-2">
-                    {getTimeAgo(event.timestamp)}
-                  </Text>
+                  <View className="flex-row items-center">
+                    <Text className="text-xs text-gray-400 mr-1">
+                      {getTimeAgo(event.timestamp)}
+                    </Text>
+                    <ChevronRight size={14} color="#D1D5DB" />
+                  </View>
                 </Pressable>
               </Animated.View>
             ))}

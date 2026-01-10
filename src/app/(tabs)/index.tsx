@@ -442,10 +442,10 @@ export default function HomeScreen() {
           </View>
 
           {/* === SECTION 1: COMMUNITY PRESENCE === */}
-          <CommunityPresence city={displayCommunity.city} memberCount={memberCount} />
+          <CommunityPresence city={displayCommunity.city} memberCount={memberCount} isGlobal={feedFilter === 'global'} />
 
           {/* === SECTION 2: LOCAL PULSE (What's Happening) === */}
-          <LocalPulse city={displayCommunity.city} />
+          <LocalPulse city={displayCommunity.city} isGlobal={feedFilter === 'global'} />
 
           {/* === SECTION 3: QUICK POST PROMPTS === */}
           <View className="mt-4 px-4">
@@ -454,10 +454,10 @@ export default function HomeScreen() {
           <QuickPostPrompts />
 
           {/* === SECTION 4: ACTIVE CONVERSATIONS === */}
-          <ActiveConversations city={displayCommunity.city} />
+          <ActiveConversations city={displayCommunity.city} isGlobal={feedFilter === 'global'} />
 
-          {/* === SECTION 5: MEMORY LAYER === */}
-          <MemoryLayer city={displayCommunity.city} />
+          {/* === SECTION 5: MEMORY LAYER - Only show on local feed */}
+          {feedFilter === 'local' && <MemoryLayer city={displayCommunity.city} />}
 
           {/* Guest Sign Up Banner */}
           {(isGuest || !currentUser) && (
