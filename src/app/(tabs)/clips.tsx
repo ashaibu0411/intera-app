@@ -15,6 +15,8 @@ import {
   Bookmark,
   MoreHorizontal,
   Video,
+  Volume2,
+  VolumeX,
 } from 'lucide-react-native';
 import Animated, {
   FadeIn,
@@ -163,9 +165,11 @@ function formatNumber(num: number): string {
 interface ClipItemProps {
   clip: Clip;
   isActive: boolean;
+  isMuted: boolean;
+  onToggleMute: () => void;
 }
 
-function ClipItem({ clip, isActive }: ClipItemProps) {
+function ClipItem({ clip, isActive, isMuted, onToggleMute }: ClipItemProps) {
   const insets = useSafeAreaInsets();
   const [liked, setLiked] = useState(clip.isLiked);
   const [saved, setSaved] = useState(clip.isSaved);
@@ -284,7 +288,7 @@ function ClipItem({ clip, isActive }: ClipItemProps) {
             resizeMode={ResizeMode.COVER}
             isLooping
             shouldPlay={isActive}
-            isMuted={false}
+            isMuted={isMuted}
             volume={1.0}
             onPlaybackStatusUpdate={onPlaybackStatusUpdate}
           />
@@ -334,6 +338,22 @@ function ClipItem({ clip, isActive }: ClipItemProps) {
           </View>
         </View>
       )}
+
+      {/* Mute/Unmute Button */}
+      <Pressable
+        onPress={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          onToggleMute();
+        }}
+        className="absolute bg-black/40 rounded-full p-2"
+        style={{ top: insets.top + 60, right: 16 }}
+      >
+        {isMuted ? (
+          <VolumeX size={22} color="#fff" />
+        ) : (
+          <Volume2 size={22} color="#fff" />
+        )}
+      </Pressable>
 
       {/* Right Side Actions */}
       <View
@@ -438,8 +458,13 @@ export default function ClipsTabScreen() {
   const insets = useSafeAreaInsets();
   const [activeIndex, setActiveIndex] = useState(0);
   const [activeTab, setActiveTab] = useState<'following' | 'foryou'>('foryou');
+  const [isMuted, setIsMuted] = useState(false);
   const isGuest = useStore((s) => s.isGuest);
   const currentUser = useStore((s) => s.currentUser);
+
+  const toggleMute = useCallback(() => {
+    setIsMuted(prev => !prev);
+  }, []);
 
   // Configure audio mode to play sound even when phone is on silent
   useEffect(() => {
@@ -533,7 +558,12 @@ export default function ClipsTabScreen() {
         data={MOCK_CLIPS}
         keyExtractor={(item) => item.id}
         renderItem={({ item, index }) => (
-          <ClipItem clip={item} isActive={index === activeIndex} />
+          <ClipItem
+            clip={item}
+            isActive={index === activeIndex}
+            isMuted={isMuted}
+            onToggleMute={toggleMute}
+          />
         )}
         pagingEnabled
         showsVerticalScrollIndicator={false}
