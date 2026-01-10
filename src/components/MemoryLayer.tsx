@@ -85,13 +85,19 @@ interface MemoryLayerProps {
   joinDate?: Date;
 }
 
-export function MemoryLayer({ city, joinDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000) }: MemoryLayerProps) {
+// Default join date (90 days ago) - defined outside component to prevent re-creation
+const DEFAULT_JOIN_DATE = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+
+export function MemoryLayer({ city, joinDate }: MemoryLayerProps) {
   const [memories, setMemories] = useState<Memory[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
 
+  // Use the provided joinDate or fallback to default
+  const effectiveJoinDate = joinDate || DEFAULT_JOIN_DATE;
+
   useEffect(() => {
-    setMemories(generateMemories(city, joinDate));
-  }, [city, joinDate]);
+    setMemories(generateMemories(city, effectiveJoinDate));
+  }, [city, effectiveJoinDate]);
 
   const currentMemory = memories[currentIndex];
 
