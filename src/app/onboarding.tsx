@@ -93,10 +93,10 @@ export default function OnboardingScreen() {
                 <Globe size={48} color="#D4673A" />
               </View>
               <Text className="text-4xl font-bold text-warmBrown text-center">
-                Welcome to{'\n'}Diaspora
+                Welcome to{'\n'}Intera
               </Text>
               <Text className="text-terracotta-500 text-center mt-3 text-base font-medium italic">
-                Connecting Foreigners Globally, Building Communities
+                Where the world connects
               </Text>
               <Text className="text-gray-500 text-center mt-4 text-lg leading-7">
                 Find your people, locally and globally.

@@ -817,7 +817,7 @@ function InviteTab({ circle, canInvite }: { circle: SusuCircle; canInvite: boole
   const handleShareLink = async () => {
     try {
       await Share.share({
-        message: `Join my Susu savings circle "${circle.name}" on Diaspora!\n\nContribution: $${circle.contributionAmount} ${circle.frequency}\nMembers: ${circle.members.length}/${maxMembers}\n\nUse invite code: ${inviteCode}\n\nOr tap this link: ${inviteLink}`,
+        message: `Join my Susu savings circle "${circle.name}" on Intera!\n\nContribution: $${circle.contributionAmount} ${circle.frequency}\nMembers: ${circle.members.length}/${maxMembers}\n\nUse invite code: ${inviteCode}\n\nOr tap this link: ${inviteLink}`,
         title: `Join ${circle.name} Susu Circle`,
       });
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -1284,7 +1284,7 @@ function CreateSusuModal({ onClose, onSubmit }: { onClose: () => void; onSubmit:
             <Text className="text-amber-800 font-medium ml-2">Important</Text>
           </View>
           <Text className="text-amber-700 text-sm">
-            Only invite people you trust. All members should have a good Ubuntu Trust Score. The payout order will be determined once all members join.
+            Only invite people you trust. All members should have a good Intera Trust Score. The payout order will be determined once all members join.
           </Text>
         </View>
       </ScrollView>

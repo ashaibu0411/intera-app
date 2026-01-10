@@ -240,7 +240,7 @@ export default function SettingsScreen() {
             entering={FadeInUp.duration(300).delay(400)}
             className="items-center mt-8 mb-8"
           >
-            <Text className="text-gray-400 text-sm">Diaspora v1.0.0</Text>
+            <Text className="text-gray-400 text-sm">Intera v1.0.0</Text>
           </Animated.View>
         </ScrollView>
       </SafeAreaView>

@@ -591,7 +591,7 @@ export default function AppSearchScreen() {
       // Fetch all users first, then filter client-side for more reliable search
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, name, username, avatar_url, bio, location, interests')
+        .select('id, name, username, avatar_url, bio, location')
         .limit(200);
 
       if (error) {
@@ -604,23 +604,39 @@ export default function AppSearchScreen() {
 
       // Filter by search query client-side
       const searchLower = query.trim().toLowerCase();
-      const filteredData = (data || []).filter((user) => {
+      const filteredData: Array<{
+        id: string;
+        name: string | null;
+        username: string | null;
+        avatar_url: string | null;
+        bio: string | null;
+        location: string | null;
+      }> = [];
+
+      for (const user of (data || [])) {
         // Exclude current user
-        if (currentUser?.id && user.id === currentUser.id) return false;
+        if (currentUser?.id && user.id === currentUser.id) continue;
 
         // If no search query, show all users
-        if (!searchLower) return true;
+        if (!searchLower) {
+          filteredData.push(user);
+          continue;
+        }
 
         // Search in name and username
         const nameMatch = (user.name || '').toLowerCase().includes(searchLower);
         const usernameMatch = (user.username || '').toLowerCase().includes(searchLower);
         const locationMatch = (user.location || '').toLowerCase().includes(searchLower);
 
-        return nameMatch || usernameMatch || locationMatch;
-      });
+        if (nameMatch || usernameMatch || locationMatch) {
+          filteredData.push(user);
+        }
+      }
 
       // Transform database users to SearchablePerson format
-      const transformedUsers: SearchablePerson[] = filteredData.map((user) => {
+      const transformedUsers: SearchablePerson[] = [];
+
+      for (const user of filteredData) {
         // Determine if user is local based on their location matching selected location
         const userLocationLower = (user.location || '').toLowerCase();
         const selectedLocationLower = (selectedLocation || '').toLowerCase();
@@ -628,35 +644,20 @@ export default function AppSearchScreen() {
           (userLocationLower.includes(selectedLocationLower) || selectedLocationLower.includes(userLocationLower)) :
           false;
 
-        // Parse interests safely
-        let interests: string[] = [];
-        try {
-          if (user.interests) {
-            if (Array.isArray(user.interests)) {
-              interests = user.interests.filter((i): i is string => typeof i === 'string');
-            } else if (typeof user.interests === 'string') {
-              const parsed = JSON.parse(user.interests);
-              interests = Array.isArray(parsed) ? parsed : [];
-            }
-          }
-        } catch {
-          interests = [];
-        }
-
-        return {
+        transformedUsers.push({
           id: user.id,
           name: user.name || 'Anonymous User',
-          username: user.username || user.id?.substring(0, 8) || 'user',
+          username: user.username || (user.id ? user.id.substring(0, 8) : 'user'),
           avatar: user.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name || 'U')}&background=random`,
           bio: user.bio || '',
           location: user.location || 'Unknown',
           country: '',
-          interests: interests.slice(0, 5),
+          interests: [],
           isVerified: false,
           isLocal: isLocal,
           mutualConnections: 0,
-        };
-      });
+        });
+      }
 
       setDbUsers(transformedUsers);
       console.log('[People Search] Found', transformedUsers.length, 'users for query:', searchLower || '(all)');

@@ -134,7 +134,7 @@ const generateGlobalPresenceEvents = (): PresenceEvent[] => [
   {
     id: 'g4',
     type: 'arrived',
-    text: '127 people joined Diaspora this week globally',
+    text: '127 people joined Intera this week globally',
     timestamp: new Date(Date.now() - 1000 * 60 * 55),
     route: '/find-helpers',
   },

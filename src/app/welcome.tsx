@@ -239,12 +239,12 @@ export default function WelcomeScreen() {
                 className="mt-6"
               >
                 <Text className="text-5xl font-bold text-white text-center tracking-tight">
-                  Diaspora
+                  Intera
                 </Text>
                 <View className="flex-row items-center justify-center mt-2">
                   <View className="h-[1px] w-8 bg-[#C9A227]/50" />
                   <Text className="text-[#C9A227] text-center mx-3 text-sm font-medium">
-                    Global Community Platform
+                    Where the world connects
                   </Text>
                   <View className="h-[1px] w-8 bg-[#C9A227]/50" />
                 </View>
