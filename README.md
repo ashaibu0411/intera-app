@@ -326,6 +326,26 @@ The app is fully connected to Supabase for data persistence and syncing across u
 - **Connected Status**: Once connected, message button appears for direct chat
 - **Stats Dashboard**: See how many people are nearby, connected, and liked
 
+### Contextual Weather Signal (NEW!)
+- **Smart Weather Header**: Compact, contextual weather bar at the top of the feed
+- **Community-Relevant Context**: Weather tied to community activity, not just forecasts
+  - "Great weather for outdoor activities" with event suggestions
+  - "Heavy rain - outdoor events may be affected" with affected event count
+  - "Snow conditions - check for schedule updates" with school alerts
+  - "High winds - outdoor activities may be affected"
+  - "Foggy conditions - drive safely" for commuter awareness
+- **Visual Indicators**:
+  - Green bar for good weather conditions
+  - Amber bar for caution (rain, fog, wind)
+  - Red bar for severe weather alerts
+- **Affected Events Badge**: Shows number of outdoor events that may be impacted
+- **Tap for Details**: Opens a bottom sheet with:
+  - Current temperature and conditions
+  - Humidity and wind speed
+  - Community impact summary
+  - Weather tips relevant to community activities
+- **Real-time Data**: Powered by Open-Meteo API (free, no API key needed)
+
 ### Detailed Weather Experience
 - **Weather Widget**: Beautiful weather card on home feed showing current conditions
 - **Tap for Full Forecast**: Tap the weather widget to open detailed weather screen

@@ -32,6 +32,7 @@ import { LocalPulse } from '@/components/LocalPulse';
 import { MemoryLayer } from '@/components/MemoryLayer';
 import { ActiveConversations } from '@/components/ActiveConversations';
 import { QuickPostPrompts } from '@/components/QuickPostPrompts';
+import { WeatherSignal } from '@/components/WeatherSignal';
 
 // Store & Utils
 import { useStore, MOCK_POSTS, MOCK_COMMUNITIES, type Post, type UserStory, getCommunityMemberCount } from '@/lib/store';
@@ -409,6 +410,9 @@ export default function HomeScreen() {
                 ))}
             </ScrollView>
           </View>
+
+          {/* Weather Signal - Contextual community weather */}
+          <WeatherSignal city={displayCommunity.city} country={displayCommunity.country} />
 
           {/* Feed Filter Toggle */}
           <View className="flex-row px-4 py-3 gap-2 bg-white border-b border-gray-100">
