@@ -61,7 +61,7 @@ const generateLocalPulseItems = (city: string): PulseItem[] => [
     color: '#3B82F6',
     bgColor: '#DBEAFE',
     responseCount: 8,
-    route: '/jobs',
+    route: '/job-board',
   },
   {
     id: '3',
@@ -95,7 +95,7 @@ const generateLocalPulseItems = (city: string): PulseItem[] => [
     icon: <Home size={18} color="#EC4899" />,
     color: '#EC4899',
     bgColor: '#FCE7F3',
-    route: '/housing',
+    route: '/housing-board',
   },
   {
     id: '6',
@@ -135,7 +135,7 @@ const generateGlobalPulseItems = (): PulseItem[] => [
     color: '#10B981',
     bgColor: '#D1FAE5',
     responseCount: 89,
-    route: '/jobs',
+    route: '/job-board',
   },
   {
     id: 'g3',
@@ -146,7 +146,7 @@ const generateGlobalPulseItems = (): PulseItem[] => [
     icon: <Plane size={18} color="#8B5CF6" />,
     color: '#8B5CF6',
     bgColor: '#EDE9FE',
-    route: '/housing',
+    route: '/housing-board',
   },
   {
     id: 'g4',
@@ -181,7 +181,7 @@ const generateGlobalPulseItems = (): PulseItem[] => [
     icon: <Utensils size={18} color="#EF4444" />,
     color: '#EF4444',
     bgColor: '#FEE2E2',
-    route: '/global-food-network',
+    route: '/african-food',
   },
 ];
 

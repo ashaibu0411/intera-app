@@ -79,7 +79,7 @@ const generateLocalPresenceEvents = (city: string): PresenceEvent[] => [
     user: LOCAL_ACTIVE_MEMBERS[0],
     text: 'Ama is helping a newcomer find housing',
     timestamp: new Date(Date.now() - 1000 * 60 * 12),
-    route: '/housing',
+    route: '/housing-board',
   },
   {
     id: '3',
@@ -102,7 +102,7 @@ const generateLocalPresenceEvents = (city: string): PresenceEvent[] => [
     user: LOCAL_ACTIVE_MEMBERS[2],
     text: 'Fatou shared a job opportunity',
     timestamp: new Date(Date.now() - 1000 * 60 * 60),
-    route: '/jobs',
+    route: '/job-board',
   },
 ];
 
