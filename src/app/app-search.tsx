@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { View, Text, ScrollView, Pressable, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import {
   Search, X, ArrowLeft, ShoppingBag, Store, GraduationCap, Church, Users,
@@ -9,11 +10,16 @@ import {
   Swords, BarChart3, Music2, Radio, Gamepad2, HandCoins, CalendarDays,
   Repeat, Car, Dog, Clock, Home, SearchX, Award, BookOpen, Dumbbell,
   Brain, Phone, Languages, Leaf, Sparkles, ShoppingCart, Shirt, TrendingUp,
-  MapPin, Wallet, CreditCard, HelpCircle, Settings, Bell, User, Star
+  MapPin, Wallet, CreditCard, HelpCircle, Settings, Bell, User, Star,
+  UserPlus, CheckCircle, BadgeCheck,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useStore } from '@/lib/store';
+
+type SearchTab = 'features' | 'people';
+type PeopleFilter = 'all' | 'local' | 'global';
 
 interface AppFeature {
   id: string;
@@ -24,6 +30,20 @@ interface AppFeature {
   category: string;
   keywords: string[];
   gradient: [string, string];
+}
+
+interface SearchablePerson {
+  id: string;
+  name: string;
+  username: string;
+  avatar: string;
+  bio: string;
+  location: string;
+  country: string;
+  interests: string[];
+  isVerified?: boolean;
+  isLocal?: boolean;
+  mutualConnections?: number;
 }
 
 const ICON_SIZE = 22;
@@ -531,6 +551,147 @@ const APP_FEATURES: AppFeature[] = [
   },
 ];
 
+// Mock people data - Local users
+const LOCAL_PEOPLE: SearchablePerson[] = [
+  {
+    id: 'l1',
+    name: 'Amara Johnson',
+    username: 'amaraj',
+    avatar: 'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=200&h=200&fit=crop&crop=face',
+    bio: 'Community organizer & foodie',
+    location: 'Downtown',
+    country: 'USA',
+    interests: ['Food', 'Events', 'Networking'],
+    isVerified: true,
+    isLocal: true,
+    mutualConnections: 12,
+  },
+  {
+    id: 'l2',
+    name: 'Kofi Mensah',
+    username: 'kofim',
+    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop&crop=face',
+    bio: 'Software engineer | New arrival from Ghana',
+    location: 'Midtown',
+    country: 'USA',
+    interests: ['Tech', 'Soccer', 'Music'],
+    isLocal: true,
+    mutualConnections: 5,
+  },
+  {
+    id: 'l3',
+    name: 'Fatou Diallo',
+    username: 'fatoud',
+    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop&crop=face',
+    bio: 'Fashion designer & entrepreneur',
+    location: 'Arts District',
+    country: 'USA',
+    interests: ['Fashion', 'Art', 'Business'],
+    isVerified: true,
+    isLocal: true,
+    mutualConnections: 8,
+  },
+  {
+    id: 'l4',
+    name: 'David Okonkwo',
+    username: 'davido',
+    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&h=200&fit=crop&crop=face',
+    bio: 'Medical student | Helping new arrivals',
+    location: 'University Area',
+    country: 'USA',
+    interests: ['Healthcare', 'Volunteering', 'Education'],
+    isLocal: true,
+    mutualConnections: 15,
+  },
+  {
+    id: 'l5',
+    name: 'Grace Adeyemi',
+    username: 'graceful',
+    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop&crop=face',
+    bio: 'Real estate agent | Know the best neighborhoods',
+    location: 'Suburbs',
+    country: 'USA',
+    interests: ['Real Estate', 'Community', 'Family'],
+    isVerified: true,
+    isLocal: true,
+    mutualConnections: 22,
+  },
+];
+
+// Mock people data - Global users
+const GLOBAL_PEOPLE: SearchablePerson[] = [
+  {
+    id: 'g1',
+    name: 'Yemi Alade',
+    username: 'yemialade',
+    avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=200&h=200&fit=crop&crop=face',
+    bio: 'Tech entrepreneur building African solutions',
+    location: 'Lagos',
+    country: 'Nigeria',
+    interests: ['Tech', 'Startups', 'Innovation'],
+    isVerified: true,
+    isLocal: false,
+  },
+  {
+    id: 'g2',
+    name: 'Aisha Mohammed',
+    username: 'aisham',
+    avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=200&h=200&fit=crop&crop=face',
+    bio: 'Immigration lawyer | Helping diaspora families',
+    location: 'London',
+    country: 'UK',
+    interests: ['Law', 'Immigration', 'Advocacy'],
+    isVerified: true,
+    isLocal: false,
+  },
+  {
+    id: 'g3',
+    name: 'Kwame Asante',
+    username: 'kwamea',
+    avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=200&h=200&fit=crop&crop=face',
+    bio: 'Music producer | Afrobeats worldwide',
+    location: 'Accra',
+    country: 'Ghana',
+    interests: ['Music', 'Culture', 'Entertainment'],
+    isLocal: false,
+  },
+  {
+    id: 'g4',
+    name: 'Blessing Okoro',
+    username: 'blessingok',
+    avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=200&h=200&fit=crop&crop=face',
+    bio: 'Chef | Sharing African cuisine with the world',
+    location: 'Toronto',
+    country: 'Canada',
+    interests: ['Food', 'Cooking', 'Culture'],
+    isVerified: true,
+    isLocal: false,
+  },
+  {
+    id: 'g5',
+    name: 'Emmanuel Dubois',
+    username: 'emmanueld',
+    avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&h=200&fit=crop&crop=face',
+    bio: 'Financial advisor | Diaspora wealth building',
+    location: 'Paris',
+    country: 'France',
+    interests: ['Finance', 'Investment', 'Business'],
+    isLocal: false,
+  },
+  {
+    id: 'g6',
+    name: 'Nalini Patel',
+    username: 'nalinip',
+    avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200&h=200&fit=crop&crop=face',
+    bio: 'Community builder | Connecting South Asian diaspora',
+    location: 'Dubai',
+    country: 'UAE',
+    interests: ['Community', 'Events', 'Networking'],
+    isVerified: true,
+    isLocal: false,
+  },
+];
+
 const CATEGORIES = [
   'All',
   'Social',
@@ -547,6 +708,10 @@ const CATEGORIES = [
 export default function AppSearchScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [activeTab, setActiveTab] = useState<SearchTab>('features');
+  const [peopleFilter, setPeopleFilter] = useState<PeopleFilter>('all');
+
+  const selectedLocation = useStore((s) => s.selectedLocation);
 
   const filteredFeatures = useMemo(() => {
     let results = APP_FEATURES;
@@ -571,9 +736,48 @@ export default function AppSearchScreen() {
     return results;
   }, [searchQuery, selectedCategory]);
 
+  const filteredPeople = useMemo(() => {
+    let results: SearchablePerson[] = [];
+
+    // Filter by local/global
+    if (peopleFilter === 'local') {
+      results = LOCAL_PEOPLE;
+    } else if (peopleFilter === 'global') {
+      results = GLOBAL_PEOPLE;
+    } else {
+      results = [...LOCAL_PEOPLE, ...GLOBAL_PEOPLE];
+    }
+
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim();
+      results = results.filter(person => {
+        const nameMatch = person.name.toLowerCase().includes(query);
+        const usernameMatch = person.username.toLowerCase().includes(query);
+        const bioMatch = person.bio.toLowerCase().includes(query);
+        const locationMatch = person.location.toLowerCase().includes(query);
+        const countryMatch = person.country.toLowerCase().includes(query);
+        const interestMatch = person.interests.some(i => i.toLowerCase().includes(query));
+        return nameMatch || usernameMatch || bioMatch || locationMatch || countryMatch || interestMatch;
+      });
+    }
+
+    return results;
+  }, [searchQuery, peopleFilter]);
+
   const handleFeaturePress = (route: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     router.push(route as any);
+  };
+
+  const handlePersonPress = (person: SearchablePerson) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    router.push(`/user/${person.id}`);
+  };
+
+  const handleConnectPress = (personId: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    // Handle connect logic
   };
 
   return (
@@ -591,14 +795,14 @@ export default function AppSearchScreen() {
             >
               <ArrowLeft size={20} color="#fff" />
             </Pressable>
-            <Text className="text-white text-xl font-bold flex-1">Find Features</Text>
+            <Text className="text-white text-xl font-bold flex-1">Search</Text>
           </View>
 
           {/* Search Bar */}
           <View className="flex-row items-center bg-white/10 rounded-2xl px-4 py-3 mb-4">
             <Search size={20} color="#9CA3AF" />
             <TextInput
-              placeholder="Search features, tabs, tools..."
+              placeholder={activeTab === 'features' ? "Search features, tabs, tools..." : "Search people by name, location..."}
               placeholderTextColor="#9CA3AF"
               value={searchQuery}
               onChangeText={setSearchQuery}
@@ -612,113 +816,281 @@ export default function AppSearchScreen() {
             )}
           </View>
 
-          {/* Category Pills */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }}>
+          {/* Main Tabs - Features vs People */}
+          <View className="flex-row bg-white/10 rounded-xl p-1 mb-4">
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setActiveTab('features');
+              }}
+              className={`flex-1 flex-row items-center justify-center py-2.5 rounded-lg ${
+                activeTab === 'features' ? 'bg-white' : ''
+              }`}
+            >
+              <Search size={16} color={activeTab === 'features' ? '#0A0A0A' : '#9CA3AF'} />
+              <Text className={`ml-2 font-semibold ${
+                activeTab === 'features' ? 'text-gray-900' : 'text-gray-400'
+              }`}>
+                Features
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setActiveTab('people');
+              }}
+              className={`flex-1 flex-row items-center justify-center py-2.5 rounded-lg ${
+                activeTab === 'people' ? 'bg-white' : ''
+              }`}
+            >
+              <Users size={16} color={activeTab === 'people' ? '#0A0A0A' : '#9CA3AF'} />
+              <Text className={`ml-2 font-semibold ${
+                activeTab === 'people' ? 'text-gray-900' : 'text-gray-400'
+              }`}>
+                People
+              </Text>
+            </Pressable>
+          </View>
+
+          {/* Category/Filter Pills */}
+          {activeTab === 'features' ? (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }}>
+              <View className="flex-row gap-2">
+                {CATEGORIES.map((category) => (
+                  <Pressable
+                    key={category}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setSelectedCategory(category);
+                    }}
+                    className={`px-4 py-2 rounded-full ${
+                      selectedCategory === category
+                        ? 'bg-[#D4673A]'
+                        : 'bg-white/10'
+                    }`}
+                  >
+                    <Text className={`font-medium ${
+                      selectedCategory === category ? 'text-white' : 'text-gray-300'
+                    }`}>
+                      {category}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </ScrollView>
+          ) : (
             <View className="flex-row gap-2">
-              {CATEGORIES.map((category) => (
+              {[
+                { key: 'all', label: 'All', icon: Users },
+                { key: 'local', label: `Local`, icon: MapPin },
+                { key: 'global', label: 'Global', icon: Globe },
+              ].map((filter) => (
                 <Pressable
-                  key={category}
+                  key={filter.key}
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    setSelectedCategory(category);
+                    setPeopleFilter(filter.key as PeopleFilter);
                   }}
-                  className={`px-4 py-2 rounded-full ${
-                    selectedCategory === category
+                  className={`flex-row items-center px-4 py-2 rounded-full ${
+                    peopleFilter === filter.key
                       ? 'bg-[#D4673A]'
                       : 'bg-white/10'
                   }`}
                 >
-                  <Text className={`font-medium ${
-                    selectedCategory === category ? 'text-white' : 'text-gray-300'
+                  <filter.icon size={14} color={peopleFilter === filter.key ? '#FFFFFF' : '#9CA3AF'} />
+                  <Text className={`ml-1.5 font-medium ${
+                    peopleFilter === filter.key ? 'text-white' : 'text-gray-300'
                   }`}>
-                    {category}
+                    {filter.label}
                   </Text>
                 </Pressable>
               ))}
             </View>
-          </ScrollView>
+          )}
         </View>
 
         {/* Results */}
         <ScrollView className="flex-1 px-5" showsVerticalScrollIndicator={false}>
-          {/* Quick Access - Popular Features */}
-          {!searchQuery && selectedCategory === 'All' && (
-            <View className="mb-6">
-              <Text className="text-gray-400 text-sm mb-3">POPULAR</Text>
-              <View className="flex-row flex-wrap gap-2">
-                {['Pet Connect', 'Cultural Music', 'Carpool', 'Marketplace', 'Voice Rooms', 'Money Transfer'].map((name) => {
-                  const feature = APP_FEATURES.find(f => f.name === name);
-                  if (!feature) return null;
-                  return (
-                    <Pressable
-                      key={feature.id}
-                      onPress={() => handleFeaturePress(feature.route)}
-                      className="bg-white/5 border border-white/10 px-4 py-2 rounded-full"
-                    >
-                      <Text className="text-white">{feature.name}</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </View>
-          )}
-
-          {/* Results Count */}
-          <Text className="text-gray-500 text-sm mb-3">
-            {filteredFeatures.length} feature{filteredFeatures.length !== 1 ? 's' : ''} found
-          </Text>
-
-          {/* Feature Cards */}
-          {filteredFeatures.map((feature, index) => (
-            <Animated.View
-              key={feature.id}
-              entering={FadeInDown.delay(index * 30).springify()}
-            >
-              <Pressable
-                onPress={() => handleFeaturePress(feature.route)}
-                className="mb-3"
-              >
-                <View className="flex-row items-center p-4 bg-white/5 rounded-2xl border border-white/10">
-                  {/* Icon */}
-                  <LinearGradient
-                    colors={feature.gradient}
-                    style={{
-                      width: 48,
-                      height: 48,
-                      borderRadius: 14,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    {feature.icon}
-                  </LinearGradient>
-
-                  {/* Info */}
-                  <View className="flex-1 ml-4">
-                    <Text className="text-white font-semibold text-base">{feature.name}</Text>
-                    <Text className="text-gray-400 text-sm mt-0.5" numberOfLines={1}>
-                      {feature.description}
-                    </Text>
-                  </View>
-
-                  {/* Category Badge */}
-                  <View className="bg-white/10 px-2.5 py-1 rounded-full">
-                    <Text className="text-gray-400 text-xs">{feature.category}</Text>
+          {activeTab === 'features' ? (
+            <>
+              {/* Quick Access - Popular Features */}
+              {!searchQuery && selectedCategory === 'All' && (
+                <View className="mb-6">
+                  <Text className="text-gray-400 text-sm mb-3">POPULAR</Text>
+                  <View className="flex-row flex-wrap gap-2">
+                    {['Pet Connect', 'Cultural Music', 'Carpool', 'Marketplace', 'Voice Rooms', 'Money Transfer'].map((name) => {
+                      const feature = APP_FEATURES.find(f => f.name === name);
+                      if (!feature) return null;
+                      return (
+                        <Pressable
+                          key={feature.id}
+                          onPress={() => handleFeaturePress(feature.route)}
+                          className="bg-white/5 border border-white/10 px-4 py-2 rounded-full"
+                        >
+                          <Text className="text-white">{feature.name}</Text>
+                        </Pressable>
+                      );
+                    })}
                   </View>
                 </View>
-              </Pressable>
-            </Animated.View>
-          ))}
+              )}
 
-          {/* No Results */}
-          {filteredFeatures.length === 0 && (
-            <View className="items-center py-12">
-              <Search size={48} color="#374151" />
-              <Text className="text-gray-500 text-lg mt-4">No features found</Text>
-              <Text className="text-gray-600 text-sm mt-1 text-center px-8">
-                Try searching for something else like "pet", "music", or "money"
+              {/* Results Count */}
+              <Text className="text-gray-500 text-sm mb-3">
+                {filteredFeatures.length} feature{filteredFeatures.length !== 1 ? 's' : ''} found
               </Text>
-            </View>
+
+              {/* Feature Cards */}
+              {filteredFeatures.map((feature, index) => (
+                <Animated.View
+                  key={feature.id}
+                  entering={FadeInDown.delay(index * 30).springify()}
+                >
+                  <Pressable
+                    onPress={() => handleFeaturePress(feature.route)}
+                    className="mb-3"
+                  >
+                    <View className="flex-row items-center p-4 bg-white/5 rounded-2xl border border-white/10">
+                      {/* Icon */}
+                      <LinearGradient
+                        colors={feature.gradient}
+                        style={{
+                          width: 48,
+                          height: 48,
+                          borderRadius: 14,
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        {feature.icon}
+                      </LinearGradient>
+
+                      {/* Info */}
+                      <View className="flex-1 ml-4">
+                        <Text className="text-white font-semibold text-base">{feature.name}</Text>
+                        <Text className="text-gray-400 text-sm mt-0.5" numberOfLines={1}>
+                          {feature.description}
+                        </Text>
+                      </View>
+
+                      {/* Category Badge */}
+                      <View className="bg-white/10 px-2.5 py-1 rounded-full">
+                        <Text className="text-gray-400 text-xs">{feature.category}</Text>
+                      </View>
+                    </View>
+                  </Pressable>
+                </Animated.View>
+              ))}
+
+              {/* No Results */}
+              {filteredFeatures.length === 0 && (
+                <View className="items-center py-12">
+                  <Search size={48} color="#374151" />
+                  <Text className="text-gray-500 text-lg mt-4">No features found</Text>
+                  <Text className="text-gray-600 text-sm mt-1 text-center px-8">
+                    Try searching for something else like "pet", "music", or "money"
+                  </Text>
+                </View>
+              )}
+            </>
+          ) : (
+            <>
+              {/* People Search Results */}
+              <Text className="text-gray-500 text-sm mb-3">
+                {filteredPeople.length} {filteredPeople.length === 1 ? 'person' : 'people'} found
+              </Text>
+
+              {filteredPeople.map((person, index) => (
+                <Animated.View
+                  key={person.id}
+                  entering={FadeInDown.delay(index * 40).springify()}
+                >
+                  <Pressable
+                    onPress={() => handlePersonPress(person)}
+                    className="mb-3"
+                  >
+                    <View className="p-4 bg-white/5 rounded-2xl border border-white/10">
+                      <View className="flex-row items-start">
+                        {/* Avatar */}
+                        <View className="relative">
+                          <Image
+                            source={{ uri: person.avatar }}
+                            style={{ width: 56, height: 56, borderRadius: 28 }}
+                          />
+                          {person.isVerified && (
+                            <View className="absolute -bottom-1 -right-1 bg-blue-500 rounded-full p-0.5">
+                              <BadgeCheck size={14} color="#FFFFFF" />
+                            </View>
+                          )}
+                        </View>
+
+                        {/* Info */}
+                        <View className="flex-1 ml-3">
+                          <View className="flex-row items-center">
+                            <Text className="text-white font-semibold text-base">{person.name}</Text>
+                          </View>
+                          <Text className="text-gray-500 text-sm">@{person.username}</Text>
+                          <Text className="text-gray-400 text-sm mt-1" numberOfLines={1}>
+                            {person.bio}
+                          </Text>
+
+                          {/* Location */}
+                          <View className="flex-row items-center mt-2">
+                            {person.isLocal ? (
+                              <MapPin size={12} color="#10B981" />
+                            ) : (
+                              <Globe size={12} color="#3B82F6" />
+                            )}
+                            <Text className={`text-xs ml-1 ${person.isLocal ? 'text-emerald-400' : 'text-blue-400'}`}>
+                              {person.location}, {person.country}
+                            </Text>
+                            {person.mutualConnections && person.mutualConnections > 0 && (
+                              <View className="flex-row items-center ml-3">
+                                <Users size={12} color="#9CA3AF" />
+                                <Text className="text-gray-500 text-xs ml-1">
+                                  {person.mutualConnections} mutual
+                                </Text>
+                              </View>
+                            )}
+                          </View>
+
+                          {/* Interests */}
+                          <View className="flex-row flex-wrap gap-1.5 mt-2">
+                            {person.interests.slice(0, 3).map((interest) => (
+                              <View key={interest} className="bg-white/10 px-2 py-0.5 rounded-full">
+                                <Text className="text-gray-400 text-xs">{interest}</Text>
+                              </View>
+                            ))}
+                          </View>
+                        </View>
+
+                        {/* Connect Button */}
+                        <Pressable
+                          onPress={() => handleConnectPress(person.id)}
+                          className="bg-[#D4673A] px-3 py-2 rounded-full"
+                        >
+                          <View className="flex-row items-center">
+                            <UserPlus size={14} color="#FFFFFF" />
+                            <Text className="text-white text-xs font-semibold ml-1">Connect</Text>
+                          </View>
+                        </Pressable>
+                      </View>
+                    </View>
+                  </Pressable>
+                </Animated.View>
+              ))}
+
+              {/* No Results */}
+              {filteredPeople.length === 0 && (
+                <View className="items-center py-12">
+                  <Users size={48} color="#374151" />
+                  <Text className="text-gray-500 text-lg mt-4">No people found</Text>
+                  <Text className="text-gray-600 text-sm mt-1 text-center px-8">
+                    Try searching by name, location, or interests
+                  </Text>
+                </View>
+              )}
+            </>
           )}
 
           <View className="h-8" />
