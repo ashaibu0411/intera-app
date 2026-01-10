@@ -4,14 +4,94 @@ A community-driven social platform connecting foreigners, expats, and global cit
 
 **Slogan:** *Connecting Foreigners Globally, Building Communities*
 
+## Core Philosophy
+
+**"Not a social network — a living community."**
+
+Diaspora doesn't compete with Facebook, TikTok, or Instagram. It replaces them in moments they cannot own:
+- Moving to a new city
+- Immigration & diaspora transitions
+- College life abroad
+- Faith & cultural communities
+- Local survival & growth
+
 ## Bottom Navigation Tabs
 
 The app has 5 main tabs in the bottom navigation:
-1. **Home** - Community feed with posts, stories, and news
+1. **Home** - Community Presence Feed (not just posts - presence, pulse, conversations)
 2. **Events** - Discover local and global events
 3. **Clips** - Short-form video clips feed (TikTok-style vertical scrolling)
 4. **Connect** - Meet people nearby with profile discovery
 5. **Profile** - User profile and settings
+
+### Community Presence Feed (HOME TAB - REDESIGNED!)
+
+The home feed has been completely redesigned from a content feed to a **Community Presence Feed**. This is the big differentiator - when you open the app, it feels like walking into your neighborhood.
+
+**Philosophy: Presence Over Posts**
+
+Instead of showing posts first, your home feed now shows:
+1. **Who is here?** - See active community members
+2. **Is this alive?** - Live activity signals
+3. **Do I belong?** - Community context before content
+
+**6-Section Layout:**
+
+1. **Community Presence** (Top Section)
+   - "47 people here now" with live pulse indicator
+   - Active member avatars with role colors (Welcomer=pink, Mentor=blue, etc.)
+   - Live Activity Feed showing real-time community actions:
+     - "A new family arrived in [City]"
+     - "Ama is helping a newcomer find housing"
+     - "Community dinner starting in 2 hours"
+     - "Kofi just joined the community"
+
+2. **Local Pulse** (What's Happening Near You)
+   - Real-world events FIRST, not posts
+   - Examples:
+     - "Community dinner tonight" - 7:00 PM
+     - "Job opportunity posted" - 3h ago
+     - "3 people offering rides to airport"
+     - "Someone needs help moving" - Urgent
+     - "Room available for newcomer"
+   - Expandable list with "See more"
+
+3. **Quick Post Prompts** (Start a Conversation)
+   - Posts default to conversations, not broadcasts
+   - 5 prompt types:
+     - **Ask** - "Can someone help me..."
+     - **Looking for** - "New here, looking for..."
+     - **Offer** - "I can help with..."
+     - **Invite** - "Who wants to join..."
+     - **Check-in** - "Anyone else experiencing..."
+
+4. **Active Conversations** (Join the Discussion)
+   - Horizontal scroll of active community discussions
+   - Shows question/request type badges
+   - "Hot" indicator for trending conversations
+   - Reply counts and last activity time
+   - Author info with role badges
+
+5. **Community Remembers** (Memory Layer)
+   - Your app remembers you and your journey
+   - Examples:
+     - "3 months in [City]!" - Anniversary
+     - "Last year this week" - Throwback
+     - "You've helped 12 people" - Impact
+     - "Your first post here" - Milestone
+   - Carousel of memories with beautiful gradient cards
+
+6. **Recent Posts** (Traditional Feed - Last)
+   - Posts moved to bottom, not the focus
+   - "From your community" subtitle
+   - Limited to 10 posts to avoid infinite scroll
+
+**Why This Matters:**
+- Facebook, TikTok, Instagram = passive consumption
+- Diaspora = active community participation
+- No infinite scroll
+- No viral junk
+- Human pacing with calm, sectioned UI
 
 ### Clips Tab (NEW!)
 - **Full-screen vertical video feed** like TikTok/Reels

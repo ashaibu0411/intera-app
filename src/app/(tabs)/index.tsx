@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { View, Text, ScrollView, Pressable, RefreshControl, Dimensions } from 'react-native';
+import { View, Text, ScrollView, Pressable, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Image } from 'expo-image';
@@ -14,36 +14,35 @@ import {
   Bell,
   Search,
   Plus,
-  Compass,
-  Plane,
-  Briefcase,
-  GraduationCap,
-  Bot,
-  Target,
-  Clock,
-  CircleDot,
 } from 'lucide-react-native';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
+
+// Components
 import { PostCard } from '@/components/PostCard';
 import { LocationChangeModal } from '@/components/LocationChangeModal';
 import { DailyRewardsBanner } from '@/components/DailyRewardsBanner';
 import { DailyRewardsModal } from '@/components/DailyRewardsModal';
 import { StoryAvatar } from '@/components/StoryAvatar';
-import { WeatherWidget } from '@/components/WeatherWidget';
 import { ArrivalModeBanner } from '@/components/ArrivalModeBanner';
-import { useStore, MOCK_POSTS, MOCK_COMMUNITIES, type Post, type NewsArticle, getCommunityMemberCount, type UserStory } from '@/lib/store';
+import { CommunityPresence } from '@/components/CommunityPresence';
+import { LocalPulse } from '@/components/LocalPulse';
+import { MemoryLayer } from '@/components/MemoryLayer';
+import { ActiveConversations } from '@/components/ActiveConversations';
+import { QuickPostPrompts } from '@/components/QuickPostPrompts';
+
+// Store & Utils
+import { useStore, MOCK_POSTS, MOCK_COMMUNITIES, type Post, type UserStory, getCommunityMemberCount } from '@/lib/store';
 import { getCommunityByLocation, subscribeToCommunityUpdates, getOrCreateCommunity, joinCommunity } from '@/lib/communities';
 import { DbCommunity } from '@/lib/supabase';
 import { getPosts } from '@/lib/posts';
-import { getLocalNews } from '@/lib/news';
 import { detectCurrentLocation, isLocationDifferent, type DetectedLocation } from '@/lib/locationDetection';
 import { getCurrentUser } from '@/lib/auth';
 import { useUnreadMessages } from '@/lib/useUnreadMessages';
 
-// Additional mock posts for global feed from different locations
+// Global posts for worldwide feed
 const GLOBAL_MOCK_POSTS = [
   {
     id: 'global_1',
@@ -111,22 +110,19 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [realCommunity, setRealCommunity] = useState<DbCommunity | null>(null);
   const [dbPosts, setDbPosts] = useState<Post[]>([]);
-  const [localNews, setLocalNews] = useState<NewsArticle[]>([]);
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [detectedLocation, setDetectedLocation] = useState<DetectedLocation | null>(null);
   const [showDailyRewards, setShowDailyRewards] = useState(false);
+  const [currentUser, setCurrentUser] = useState<{id: string; avatar?: string} | null>(null);
 
   const selectedLocation = useStore((s) => s.selectedLocation);
   const userPosts = useStore((s) => s.userPosts);
   const isGuest = useStore((s) => s.isGuest);
   const userStories = useStore((s) => s.userStories);
-  const storeJoinCommunity = useStore((s) => s.joinCommunity);
   const feedFilter = useStore((s) => s.feedFilter);
   const setFeedFilter = useStore((s) => s.setFeedFilter);
   const blockedUserIds = useStore((s) => s.blockedUserIds);
-  const [currentUser, setCurrentUser] = useState<any>(null);
 
-  // Get unread message count
   const { unreadCount } = useUnreadMessages();
 
   useEffect(() => {
@@ -171,18 +167,10 @@ export default function HomeScreen() {
     }
   };
 
-  const fetchNews = async () => {
-    const city = displayCommunity.city;
-    const state = displayCommunity.state || '';
-    const articles = await getLocalNews(city, 4, state, displayCommunity.country);
-    setLocalNews(articles);
-  };
-
   useFocusEffect(
     useCallback(() => {
       fetchCommunity();
       fetchDbPosts();
-      fetchNews();
 
       const unsubscribe = subscribeToCommunityUpdates(
         displayCommunity.city,
@@ -239,7 +227,6 @@ export default function HomeScreen() {
       (post, index, self) => index === self.findIndex((p) => p.id === post.id)
     );
 
-    // Filter out posts from blocked users (App Store Guideline 1.2 compliance)
     const nonBlockedPosts = uniquePosts.filter(
       (post) => !blockedUserIds.includes(post.author.id)
     );
@@ -258,7 +245,6 @@ export default function HomeScreen() {
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       );
     } else {
-      // Also filter global posts from blocked users
       const filteredGlobalPosts = GLOBAL_MOCK_POSTS.filter(
         (post) => !blockedUserIds.includes(post.author.id)
       );
@@ -271,7 +257,7 @@ export default function HomeScreen() {
   const onRefresh = async () => {
     setRefreshing(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    await Promise.all([fetchDbPosts(), fetchCommunity(), fetchNews()]);
+    await Promise.all([fetchDbPosts(), fetchCommunity()]);
     setRefreshing(false);
   };
 
@@ -282,16 +268,16 @@ export default function HomeScreen() {
 
   const navigateTo = (route: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    router.push(route as any);
+    router.push(route as never);
   };
 
   const LOGO_IMAGE = require('../../../assets/icon.png');
 
   return (
-    <View className="flex-1 bg-white">
+    <View className="flex-1 bg-gray-50">
       <SafeAreaView edges={['top']} className="flex-1">
-        {/* Clean Header - Instagram Style */}
-        <View className="px-4 py-2 border-b border-gray-100">
+        {/* Clean Header */}
+        <View className="px-4 py-2 bg-white border-b border-gray-100">
           <View className="flex-row items-center justify-between">
             {/* Logo & Location */}
             <Pressable
@@ -344,31 +330,29 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* Feed */}
+        {/* Community Presence Feed */}
         <ScrollView
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              tintColor="#7C3AED"
-              colors={['#7C3AED']}
+              tintColor="#D4673A"
+              colors={['#D4673A']}
             />
           }
         >
-          {/* Stories Row - Instagram Style */}
-          <View className="border-b border-gray-100 py-3">
+          {/* Stories Row */}
+          <View className="bg-white border-b border-gray-100 py-3">
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={{ paddingHorizontal: 12 }}
             >
-              {/* Current User Story */}
               {currentUser && (
                 <Pressable
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    // Check if user has stories - if yes, auto-play them, otherwise go to create
                     const myStories = userStories.find((s: UserStory) => s.userId === currentUser.id);
                     if (myStories && myStories.stories.length > 0) {
                       router.push({
@@ -393,7 +377,6 @@ export default function HomeScreen() {
                 </Pressable>
               )}
 
-              {/* Other Stories */}
               {userStories
                 .filter((story: UserStory) => story.userId !== currentUser?.id && story.stories.length > 0)
                 .slice(0, 8)
@@ -427,8 +410,8 @@ export default function HomeScreen() {
             </ScrollView>
           </View>
 
-          {/* Feed Filter - Nextdoor Style */}
-          <View className="flex-row px-4 py-3 gap-2 border-b border-gray-100">
+          {/* Feed Filter Toggle */}
+          <View className="flex-row px-4 py-3 gap-2 bg-white border-b border-gray-100">
             <Pressable
               onPress={() => handleToggleFilter('local')}
               className={`flex-row items-center px-4 py-2 rounded-full ${
@@ -456,91 +439,60 @@ export default function HomeScreen() {
                 Global
               </Text>
             </Pressable>
-
-            {/* Explore Button */}
-            <Pressable
-              onPress={() => navigateTo('/app-search')}
-              className="flex-row items-center px-4 py-2 rounded-full bg-gray-100 ml-auto"
-            >
-              <Compass size={16} color="#6B7280" />
-              <Text className="ml-2 font-medium text-sm text-gray-600">Explore</Text>
-            </Pressable>
           </View>
 
-          {/* Weather Widget */}
-          <WeatherWidget
-            city={displayCommunity.city}
-            country={displayCommunity.country}
-          />
+          {/* === SECTION 1: COMMUNITY PRESENCE === */}
+          <CommunityPresence city={displayCommunity.city} memberCount={memberCount} />
 
-          {/* Quick Feature Access */}
-          <View className="mx-4 mt-3">
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={{ marginHorizontal: -16 }}
-              contentContainerStyle={{ paddingHorizontal: 16 }}
-            >
-              <Pressable
-                onPress={() => navigateTo('/community-missions')}
-                className="bg-purple-100 rounded-xl p-3 mr-2 flex-row items-center"
-              >
-                <Target size={18} color="#7C3AED" />
-                <Text className="text-purple-700 font-medium text-sm ml-2">Missions</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => navigateTo('/time-capsules')}
-                className="bg-indigo-100 rounded-xl p-3 mr-2 flex-row items-center"
-              >
-                <Clock size={18} color="#4F46E5" />
-                <Text className="text-indigo-700 font-medium text-sm ml-2">Time Capsules</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => navigateTo('/diaspora-circles')}
-                className="bg-pink-100 rounded-xl p-3 mr-2 flex-row items-center"
-              >
-                <CircleDot size={18} color="#DB2777" />
-                <Text className="text-pink-700 font-medium text-sm ml-2">Circles</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => navigateTo('/find-helpers')}
-                className="bg-green-100 rounded-xl p-3 mr-2 flex-row items-center"
-              >
-                <Users size={18} color="#059669" />
-                <Text className="text-green-700 font-medium text-sm ml-2">Helpers</Text>
-              </Pressable>
-            </ScrollView>
+          {/* === SECTION 2: LOCAL PULSE (What's Happening) === */}
+          <LocalPulse city={displayCommunity.city} />
+
+          {/* === SECTION 3: QUICK POST PROMPTS === */}
+          <View className="mt-4 px-4">
+            <Text className="text-sm font-semibold text-gray-500 mb-2">Start a conversation</Text>
           </View>
+          <QuickPostPrompts />
 
-          {/* Guest Sign Up Banner - Minimal */}
+          {/* === SECTION 4: ACTIVE CONVERSATIONS === */}
+          <ActiveConversations city={displayCommunity.city} />
+
+          {/* === SECTION 5: MEMORY LAYER === */}
+          <MemoryLayer city={displayCommunity.city} />
+
+          {/* Guest Sign Up Banner */}
           {(isGuest || !currentUser) && (
             <Pressable
               onPress={() => navigateTo('/signup')}
-              className="mx-4 mt-3 p-4 bg-violet-50 rounded-xl border border-violet-100"
+              className="mx-4 mt-4 p-4 bg-amber-50 rounded-xl border border-amber-100"
             >
               <View className="flex-row items-center">
-                <View className="w-10 h-10 rounded-full bg-violet-500 items-center justify-center">
+                <View className="w-10 h-10 rounded-full bg-amber-500 items-center justify-center">
                   <UserPlus size={20} color="#fff" />
                 </View>
                 <View className="flex-1 ml-3">
                   <Text className="text-gray-900 font-semibold">Join the community</Text>
-                  <Text className="text-gray-500 text-sm">{memberCount.toLocaleString()} members nearby</Text>
+                  <Text className="text-gray-500 text-sm">{memberCount.toLocaleString()} members in {displayCommunity.city}</Text>
                 </View>
-                <ChevronRight size={20} color="#7C3AED" />
+                <ChevronRight size={20} color="#D97706" />
               </View>
             </Pressable>
           )}
 
-          {/* Daily Rewards - Compact */}
+          {/* Daily Rewards */}
           <DailyRewardsBanner onPress={() => setShowDailyRewards(true)} />
 
-          {/* Arrival Mode Banner - for newcomers */}
+          {/* Arrival Mode Banner */}
           <ArrivalModeBanner />
 
-          {/* Posts */}
-          <View className="mt-2">
+          {/* === SECTION 6: RECENT POSTS === */}
+          <View className="mt-6 px-4 mb-2">
+            <Text className="text-base font-bold text-gray-900">Recent Posts</Text>
+            <Text className="text-xs text-gray-500">From your community</Text>
+          </View>
+
+          <View>
             {allPosts.length > 0 ? (
-              allPosts.map((post, index) => (
+              allPosts.slice(0, 10).map((post, index) => (
                 <Animated.View
                   key={post.id}
                   entering={FadeInUp.duration(300).delay(index * 30)}
@@ -567,7 +519,7 @@ export default function HomeScreen() {
             )}
           </View>
 
-          <View className="h-20" />
+          <View className="h-24" />
         </ScrollView>
 
         {/* Floating Create Button */}
@@ -575,7 +527,7 @@ export default function HomeScreen() {
           onPress={() => navigateTo('/(tabs)/create')}
           className="absolute bottom-6 right-6"
           style={{
-            shadowColor: '#7C3AED',
+            shadowColor: '#D4673A',
             shadowOffset: { width: 0, height: 4 },
             shadowOpacity: 0.3,
             shadowRadius: 8,
@@ -583,7 +535,7 @@ export default function HomeScreen() {
           }}
         >
           <LinearGradient
-            colors={['#7C3AED', '#6D28D9']}
+            colors={['#D4673A', '#B85530']}
             style={{
               width: 56,
               height: 56,
