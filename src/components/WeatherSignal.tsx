@@ -410,38 +410,77 @@ export function WeatherSignal({ city, country }: WeatherSignalProps) {
                 </View>
               </View>
 
-              {/* Tips based on weather */}
+              {/* Tips based on weather - temperature aware */}
               <View className="px-5 pb-6">
                 <Text className="text-sm font-semibold text-gray-900 mb-3">Weather Tips</Text>
                 <View className="space-y-2">
-                  {weather.condition === 'Clear' && (
+                  {/* Freezing temperatures */}
+                  {weather.temp <= 32 && (
+                    <>
+                      <WeatherTip text="Dress in warm layers and cover exposed skin" />
+                      <WeatherTip text="Check on elderly neighbors who may need help" />
+                      <WeatherTip text="Keep outdoor activities brief to avoid frostbite" />
+                    </>
+                  )}
+                  {/* Very cold (33-40°F) */}
+                  {weather.temp > 32 && weather.temp <= 40 && (
+                    <>
+                      <WeatherTip text="Wear a warm coat, hat, and gloves outdoors" />
+                      <WeatherTip text="Indoor community events are preferable today" />
+                      <WeatherTip text="Great weather for a warm coffee meetup" />
+                    </>
+                  )}
+                  {/* Cool (41-55°F) */}
+                  {weather.temp > 40 && weather.temp <= 55 && (
+                    <>
+                      <WeatherTip text="Bring a jacket for outdoor activities" />
+                      <WeatherTip text="Good weather for brisk walks or light exercise" />
+                      <WeatherTip text="Perfect for outdoor markets and festivals" />
+                    </>
+                  )}
+                  {/* Nice weather (56-84°F) */}
+                  {weather.temp > 55 && weather.temp < 85 && (
                     <>
                       <WeatherTip text="Perfect day for community outdoor events" />
                       <WeatherTip text="Great weather for carpooling or walking" />
+                      <WeatherTip text="Ideal conditions for park gatherings" />
                     </>
                   )}
+                  {/* Hot weather (85-94°F) */}
+                  {weather.temp >= 85 && weather.temp < 95 && (
+                    <>
+                      <WeatherTip text="Stay hydrated - bring water to outdoor events" />
+                      <WeatherTip text="Seek shade during peak sun hours (11am-3pm)" />
+                      <WeatherTip text="Consider morning or evening outdoor activities" />
+                    </>
+                  )}
+                  {/* Extreme heat (95°F+) */}
+                  {weather.temp >= 95 && (
+                    <>
+                      <WeatherTip text="Limit outdoor activities during peak heat" />
+                      <WeatherTip text="Check on neighbors, especially elderly" />
+                      <WeatherTip text="Indoor community events recommended today" />
+                    </>
+                  )}
+                  {/* Rain-specific tips (in addition to temp) */}
                   {(weather.condition === 'Rainy' || weather.condition === 'Drizzle') && (
                     <>
                       <WeatherTip text="Check event venues for indoor alternatives" />
                       <WeatherTip text="Consider ride-sharing to stay dry" />
                     </>
                   )}
+                  {/* Snow-specific tips */}
                   {weather.condition === 'Snow' && (
                     <>
                       <WeatherTip text="Check local school and business updates" />
                       <WeatherTip text="Help neighbors with snow removal" />
                     </>
                   )}
+                  {/* Thunderstorm-specific tips */}
                   {weather.condition === 'Thunderstorm' && (
                     <>
                       <WeatherTip text="Stay indoors and check on neighbors" />
                       <WeatherTip text="Monitor community alerts for updates" />
-                    </>
-                  )}
-                  {(weather.condition === 'Cloudy' || weather.condition === 'Partly Cloudy') && (
-                    <>
-                      <WeatherTip text="Good day for indoor community events" />
-                      <WeatherTip text="Check weather updates before outdoor plans" />
                     </>
                   )}
                 </View>
