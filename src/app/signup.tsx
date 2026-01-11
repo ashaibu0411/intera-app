@@ -273,6 +273,15 @@ export default function SignUpScreen() {
         </Text>
       </View>
 
+      {/* Error Message */}
+      {error && (
+        <Animated.View entering={FadeIn.duration(300)} className="mb-4">
+          <View className="bg-red-50 border border-red-200 rounded-xl p-3">
+            <Text className="text-red-600 text-sm text-center">{error}</Text>
+          </View>
+        </Animated.View>
+      )}
+
       {/* Auth Mode Toggle */}
       <Animated.View entering={FadeInUp.duration(400).delay(50)} className="mb-6">
         <View className="flex-row bg-white rounded-2xl p-1 shadow-sm">
@@ -308,7 +317,7 @@ export default function SignUpScreen() {
             onPress={handleAppleSignIn}
             disabled={isLoading}
             style={{
-              backgroundColor: '#000000',
+              backgroundColor: isLoading ? '#4B5563' : '#000000',
               borderRadius: 16,
               paddingVertical: 16,
               paddingHorizontal: 20,
@@ -316,12 +325,19 @@ export default function SignUpScreen() {
               alignItems: 'center',
               justifyContent: 'center',
               height: 56,
+              opacity: isLoading ? 0.7 : 1,
             }}
           >
-            <Text style={{ color: '#FFFFFF', fontSize: 20, marginRight: 10 }}></Text>
-            <Text style={{ color: '#FFFFFF', fontSize: 17, fontWeight: '600' }}>
-              {authMode === 'signup' ? 'Sign up with Apple' : 'Sign in with Apple'}
-            </Text>
+            {isLoading ? (
+              <Loader2 size={24} color="#FFFFFF" />
+            ) : (
+              <>
+                <Text style={{ color: '#FFFFFF', fontSize: 20, marginRight: 10 }}></Text>
+                <Text style={{ color: '#FFFFFF', fontSize: 17, fontWeight: '600' }}>
+                  {authMode === 'signup' ? 'Sign up with Apple' : 'Sign in with Apple'}
+                </Text>
+              </>
+            )}
           </Pressable>
         </Animated.View>
       )}

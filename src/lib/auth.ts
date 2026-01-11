@@ -17,19 +17,57 @@ export async function isAppleAuthAvailable(): Promise<boolean> {
 }
 
 export async function signInWithApple() {
+  console.log('[Apple Auth] Starting Apple Sign-In...');
+
+  // Check if Apple authentication is available on this device
+  let isAvailable = false;
+  try {
+    isAvailable = await AppleAuthentication.isAvailableAsync();
+    console.log('[Apple Auth] isAvailableAsync:', isAvailable);
+  } catch (availError) {
+    console.log('[Apple Auth] Could not check availability:', availError);
+    // On production iOS builds, assume it's available if check fails
+    isAvailable = Platform.OS === 'ios';
+  }
+
+  if (!isAvailable) {
+    throw new Error('Apple Sign-In is not available on this device. Please try another sign-in method.');
+  }
+
   console.log('[Apple Auth] Requesting Apple credentials...');
 
-  const credential = await AppleAuthentication.signInAsync({
-    requestedScopes: [
-      AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
-      AppleAuthentication.AppleAuthenticationScope.EMAIL,
-    ],
-  });
+  let credential;
+  try {
+    credential = await AppleAuthentication.signInAsync({
+      requestedScopes: [
+        AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+        AppleAuthentication.AppleAuthenticationScope.EMAIL,
+      ],
+    });
+  } catch (signInError: unknown) {
+    const errorCode = (signInError as { code?: string })?.code;
+    const errorMessage = signInError instanceof Error ? signInError.message : 'Unknown error';
+
+    console.log('[Apple Auth] signInAsync error:', errorCode, errorMessage);
+
+    // Handle specific Apple auth errors
+    if (errorCode === 'ERR_REQUEST_CANCELED' || errorMessage.includes('canceled') || errorMessage.includes('cancelled')) {
+      throw new Error('Sign in was cancelled');
+    }
+    if (errorCode === 'ERR_REQUEST_FAILED') {
+      throw new Error('Apple Sign-In failed. Please check your Apple ID settings and try again.');
+    }
+    if (errorCode === 'ERR_REQUEST_NOT_HANDLED') {
+      throw new Error('Apple Sign-In is not configured properly. Please try another sign-in method.');
+    }
+
+    throw new Error(`Apple Sign-In failed: ${errorMessage}`);
+  }
 
   console.log('[Apple Auth] Received credential, has identity token:', !!credential.identityToken);
 
   if (!credential.identityToken) {
-    throw new Error('No identity token received from Apple');
+    throw new Error('No identity token received from Apple. Please try again.');
   }
 
   console.log('[Apple Auth] Signing in with Supabase...');
@@ -42,7 +80,12 @@ export async function signInWithApple() {
 
   if (error) {
     console.log('[Apple Auth] Supabase error:', error.message);
-    throw error;
+
+    // Provide clearer error messages for common Supabase errors
+    if (error.message.includes('provider is not enabled')) {
+      throw new Error('Apple Sign-In is not enabled. Please contact support.');
+    }
+    throw new Error(`Sign in failed: ${error.message}`);
   }
 
   console.log('[Apple Auth] Supabase sign in successful');
