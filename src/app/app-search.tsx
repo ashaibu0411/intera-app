@@ -600,63 +600,57 @@ export default function AppSearchScreen() {
         return;
       }
 
-      console.log('[People Search] Raw data count:', data?.length || 0);
-      // Log the first few users to see what's in the database
-      if (data && data.length > 0) {
-        console.log('[People Search] Sample users:', JSON.stringify(data.slice(0, 3).map(u => ({ name: u.name, username: u.username }))));
-      }
+      const usersArray = data || [];
+      console.log('[People Search] Raw data count:', usersArray.length);
 
-      // Filter by search query client-side
+      // Filter and transform in one pass
       const searchLower = query.trim().toLowerCase();
-      const filteredData: Array<{
-        id: string;
-        name: string | null;
-        username: string | null;
-        avatar_url: string | null;
-        bio: string | null;
-        location: string | null;
-      }> = [];
+      const transformedUsers: SearchablePerson[] = [];
+      const selectedLocationLower = (selectedLocation || '').toLowerCase();
 
-      if (data && Array.isArray(data)) {
-        for (let i = 0; i < data.length; i++) {
-          const user = data[i];
-          // Exclude current user
-          if (currentUser?.id && user.id === currentUser.id) continue;
+      let i = 0;
+      while (i < usersArray.length) {
+        const user = usersArray[i];
+        i++;
 
-          // If no search query, show all users
-          if (!searchLower) {
-            filteredData.push(user);
+        // Exclude current user
+        if (currentUser?.id && user.id === currentUser.id) continue;
+
+        // If there's a search query, filter by it
+        if (searchLower) {
+          const userName = user.name || '';
+          const userUsername = user.username || '';
+          const userLocation = user.location || '';
+
+          const nameMatch = userName.toLowerCase().indexOf(searchLower) >= 0;
+          const usernameMatch = userUsername.toLowerCase().indexOf(searchLower) >= 0;
+          const locationMatch = userLocation.toLowerCase().indexOf(searchLower) >= 0;
+
+          if (!nameMatch && !usernameMatch && !locationMatch) {
             continue;
           }
-
-          // Search in name and username
-          const nameMatch = (user.name || '').toLowerCase().indexOf(searchLower) !== -1;
-          const usernameMatch = (user.username || '').toLowerCase().indexOf(searchLower) !== -1;
-          const locationMatch = (user.location || '').toLowerCase().indexOf(searchLower) !== -1;
-
-          if (nameMatch || usernameMatch || locationMatch) {
-            filteredData.push(user);
-          }
         }
-      }
 
-      // Transform database users to SearchablePerson format
-      const transformedUsers: SearchablePerson[] = [];
-
-      for (let i = 0; i < filteredData.length; i++) {
-        const user = filteredData[i];
-        // Determine if user is local based on their location matching selected location
+        // Determine if user is local
         const userLocationLower = (user.location || '').toLowerCase();
-        const selectedLocationLower = (selectedLocation || '').toLowerCase();
-        const isLocal = selectedLocationLower ?
-          (userLocationLower.indexOf(selectedLocationLower) !== -1 || selectedLocationLower.indexOf(userLocationLower) !== -1) :
-          false;
+        let isLocal = false;
+        if (selectedLocationLower && userLocationLower) {
+          isLocal = userLocationLower.indexOf(selectedLocationLower) >= 0 ||
+                    selectedLocationLower.indexOf(userLocationLower) >= 0;
+        }
+
+        // Build avatar URL
+        const userName = user.name || 'U';
+        let avatarUrl = user.avatar_url;
+        if (!avatarUrl) {
+          avatarUrl = 'https://ui-avatars.com/api/?name=' + encodeURIComponent(userName) + '&background=random';
+        }
 
         transformedUsers.push({
           id: user.id,
           name: user.name || 'Anonymous User',
-          username: user.username || (user.id ? user.id.substring(0, 8) : 'user'),
-          avatar: user.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name || 'U')}&background=random`,
+          username: user.username || user.id.substring(0, 8),
+          avatar: avatarUrl,
           bio: user.bio || '',
           location: user.location || 'Unknown',
           country: '',
@@ -667,8 +661,8 @@ export default function AppSearchScreen() {
         });
       }
 
+      console.log('[People Search] Found', transformedUsers.length, 'users');
       setDbUsers(transformedUsers);
-      console.log('[People Search] Found', transformedUsers.length, 'users for query:', searchLower || '(all)');
     } catch (error) {
       console.log('[People Search] Exception:', String(error));
       setDbUsers([]);
