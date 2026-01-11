@@ -617,35 +617,39 @@ export default function AppSearchScreen() {
         location: string | null;
       }> = [];
 
-      for (const user of (data || [])) {
-        // Exclude current user
-        if (currentUser?.id && user.id === currentUser.id) continue;
+      if (data && Array.isArray(data)) {
+        for (let i = 0; i < data.length; i++) {
+          const user = data[i];
+          // Exclude current user
+          if (currentUser?.id && user.id === currentUser.id) continue;
 
-        // If no search query, show all users
-        if (!searchLower) {
-          filteredData.push(user);
-          continue;
-        }
+          // If no search query, show all users
+          if (!searchLower) {
+            filteredData.push(user);
+            continue;
+          }
 
-        // Search in name and username
-        const nameMatch = (user.name || '').toLowerCase().includes(searchLower);
-        const usernameMatch = (user.username || '').toLowerCase().includes(searchLower);
-        const locationMatch = (user.location || '').toLowerCase().includes(searchLower);
+          // Search in name and username
+          const nameMatch = (user.name || '').toLowerCase().indexOf(searchLower) !== -1;
+          const usernameMatch = (user.username || '').toLowerCase().indexOf(searchLower) !== -1;
+          const locationMatch = (user.location || '').toLowerCase().indexOf(searchLower) !== -1;
 
-        if (nameMatch || usernameMatch || locationMatch) {
-          filteredData.push(user);
+          if (nameMatch || usernameMatch || locationMatch) {
+            filteredData.push(user);
+          }
         }
       }
 
       // Transform database users to SearchablePerson format
       const transformedUsers: SearchablePerson[] = [];
 
-      for (const user of filteredData) {
+      for (let i = 0; i < filteredData.length; i++) {
+        const user = filteredData[i];
         // Determine if user is local based on their location matching selected location
         const userLocationLower = (user.location || '').toLowerCase();
         const selectedLocationLower = (selectedLocation || '').toLowerCase();
         const isLocal = selectedLocationLower ?
-          (userLocationLower.includes(selectedLocationLower) || selectedLocationLower.includes(userLocationLower)) :
+          (userLocationLower.indexOf(selectedLocationLower) !== -1 || selectedLocationLower.indexOf(userLocationLower) !== -1) :
           false;
 
         transformedUsers.push({
