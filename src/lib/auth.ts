@@ -5,7 +5,15 @@ import { Platform } from 'react-native';
 
 export async function isAppleAuthAvailable(): Promise<boolean> {
   if (Platform.OS !== 'ios') return false;
-  return await AppleAuthentication.isAvailableAsync();
+
+  try {
+    return await AppleAuthentication.isAvailableAsync();
+  } catch (error) {
+    // In development/Expo Go, the check might fail but Apple Sign In
+    // will work in production builds. Return true on iOS to show the button.
+    console.log('[Apple Auth] Availability check failed, defaulting to true on iOS');
+    return true;
+  }
 }
 
 export async function signInWithApple() {
