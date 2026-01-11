@@ -590,7 +590,7 @@ export default function AppSearchScreen() {
     try {
       // Fetch all users first, then filter client-side for more reliable search
       const { data, error } = await supabase
-        .from('users')
+        .from('profiles')
         .select('id, name, username, avatar_url, bio, location')
         .limit(200);
 
