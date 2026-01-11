@@ -207,6 +207,24 @@ Instead of showing posts first, your home feed now shows:
 - Email authentication option
 - **Account Deletion** - Users can delete their account from Settings (Guideline 5.1.1)
 
+### User Safety & Moderation (App Store Guideline 1.2 Compliance)
+- **Block Users**: Block abusive users from posts, profile pages, and the feed menu
+  - Blocking immediately removes all content from the blocked user from your feed
+  - Blocked user cannot message you or see your content
+  - Block action automatically reports the user to our moderation team
+  - View and unblock users in Settings > Privacy & Safety > Blocked Users
+- **Report Users**: Report users for violations via profile page or post menu
+  - Report reasons: Harassment, Hate Speech, Sexual Content, Violence, Scam, Spam, Other
+  - All reports are sent to moderation team for review
+  - False reports warning to prevent abuse
+- **User Profile Page** (`/profile/[id]`): View other users' profiles with safety actions
+  - Block and Report buttons prominently displayed
+  - Safety notice explaining blocking behavior
+  - Blocked users see a "User Blocked" state when viewing blocked profiles
+- **Content Moderation**: Automated text filtering and community reporting system
+  - Zero tolerance for sexual and violent content
+  - Progressive discipline: Warning > 24hr restriction > 7-day suspension > Permanent ban
+
 ### Notifications
 - Activity notifications (likes, comments)
 - Neighborhood updates
