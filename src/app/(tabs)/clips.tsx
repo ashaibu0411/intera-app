@@ -1,5 +1,5 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { View, Text, Pressable, Dimensions, FlatList, ViewToken, ActivityIndicator } from 'react-native';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import { View, Text, Pressable, Dimensions, FlatList, ViewToken, ActivityIndicator, Alert, Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { Video as ExpoVideo, ResizeMode, AVPlaybackStatus, Audio } from 'expo-av';
@@ -17,10 +17,16 @@ import {
   Video,
   Volume2,
   VolumeX,
+  Ban,
+  Flag,
+  X,
+  Shield,
+  AlertTriangle,
 } from 'lucide-react-native';
 import Animated, {
   FadeIn,
   FadeInUp,
+  SlideInUp,
   useSharedValue,
   useAnimatedStyle,
   withSpring,
@@ -29,7 +35,21 @@ import Animated, {
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
+import * as DropdownMenu from 'zeego/dropdown-menu';
 import { useStore } from '@/lib/store';
+import { reportBlockedUser } from '@/lib/reports';
+import type { ViolationType } from '@/lib/contentModeration';
+
+// Report reasons for App Store Guideline 1.2 compliance
+const REPORT_REASONS: { id: ViolationType | 'other'; label: string; description: string }[] = [
+  { id: 'harassment', label: 'Harassment or Bullying', description: 'Targeting, intimidating, or threatening behavior' },
+  { id: 'hate_speech', label: 'Hate Speech', description: 'Content promoting discrimination or hatred' },
+  { id: 'sexual', label: 'Sexual Content', description: 'Inappropriate sexual content' },
+  { id: 'violence', label: 'Violence or Threats', description: 'Threatening violence or glorifying harm' },
+  { id: 'scam', label: 'Scam or Fraud', description: 'Deceptive behavior or fraudulent activity' },
+  { id: 'spam', label: 'Spam', description: 'Repetitive, unwanted content' },
+  { id: 'other', label: 'Other', description: 'Other violation of community guidelines' },
+];
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -167,9 +187,11 @@ interface ClipItemProps {
   isActive: boolean;
   isMuted: boolean;
   onToggleMute: () => void;
+  onBlockUser: () => void;
+  onReportUser: () => void;
 }
 
-function ClipItem({ clip, isActive, isMuted, onToggleMute }: ClipItemProps) {
+function ClipItem({ clip, isActive, isMuted, onToggleMute, onBlockUser, onReportUser }: ClipItemProps) {
   const insets = useSafeAreaInsets();
   const [liked, setLiked] = useState(clip.isLiked);
   const [saved, setSaved] = useState(clip.isSaved);
@@ -417,9 +439,27 @@ function ClipItem({ clip, isActive, isMuted, onToggleMute }: ClipItemProps) {
         </Pressable>
 
         {/* More */}
-        <Pressable className="items-center">
-          <MoreHorizontal size={26} color="#fff" />
-        </Pressable>
+        <DropdownMenu.Root>
+          <DropdownMenu.Trigger>
+            <Pressable className="items-center">
+              <MoreHorizontal size={26} color="#fff" />
+            </Pressable>
+          </DropdownMenu.Trigger>
+          <DropdownMenu.Content>
+            <DropdownMenu.Item key="report" onSelect={onReportUser}>
+              <DropdownMenu.ItemIcon ios={{ name: 'flag' }}>
+                <Flag size={18} color="#EF4444" />
+              </DropdownMenu.ItemIcon>
+              <DropdownMenu.ItemTitle>Report</DropdownMenu.ItemTitle>
+            </DropdownMenu.Item>
+            <DropdownMenu.Item key="block" onSelect={onBlockUser} destructive>
+              <DropdownMenu.ItemIcon ios={{ name: 'hand.raised' }}>
+                <Ban size={18} color="#EF4444" />
+              </DropdownMenu.ItemIcon>
+              <DropdownMenu.ItemTitle>Block User</DropdownMenu.ItemTitle>
+            </DropdownMenu.Item>
+          </DropdownMenu.Content>
+        </DropdownMenu.Root>
       </View>
 
       {/* Bottom Info */}
@@ -459,8 +499,61 @@ export default function ClipsTabScreen() {
   const [activeIndex, setActiveIndex] = useState(0);
   const [activeTab, setActiveTab] = useState<'following' | 'foryou'>('foryou');
   const [isMuted, setIsMuted] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportStep, setReportStep] = useState<'reason' | 'confirm' | 'done'>('reason');
+  const [selectedReason, setSelectedReason] = useState<ViolationType | 'other' | null>(null);
+  const [showBlockConfirmModal, setShowBlockConfirmModal] = useState(false);
+  const [selectedClipUser, setSelectedClipUser] = useState<{ id: string; name: string; avatar: string } | null>(null);
+
   const isGuest = useStore((s) => s.isGuest);
   const currentUser = useStore((s) => s.currentUser);
+  const blockUser = useStore((s) => s.blockUser);
+  const blockedUserIds = useStore((s) => s.blockedUserIds);
+
+  // Filter out clips from blocked users
+  const filteredClips = useMemo(() => {
+    return MOCK_CLIPS.filter((clip) => !blockedUserIds.includes(clip.user.id));
+  }, [blockedUserIds]);
+
+  const handleBlockUser = (user: { id: string; name: string; avatar: string }) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setSelectedClipUser(user);
+    setShowBlockConfirmModal(true);
+  };
+
+  const confirmBlockUser = () => {
+    if (!selectedClipUser) return;
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    blockUser(selectedClipUser.id, selectedClipUser.name, selectedClipUser.avatar);
+    setShowBlockConfirmModal(false);
+    Alert.alert(
+      'User Blocked',
+      `${selectedClipUser.name} has been blocked and reported to our moderation team.`,
+      [{ text: 'OK' }]
+    );
+    setSelectedClipUser(null);
+  };
+
+  const handleReportUser = (user: { id: string; name: string; avatar: string }) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setSelectedClipUser(user);
+    setReportStep('reason');
+    setSelectedReason(null);
+    setShowReportModal(true);
+  };
+
+  const submitReport = async () => {
+    if (!selectedReason || !currentUser?.id || !selectedClipUser) return;
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    await reportBlockedUser(currentUser.id, selectedClipUser.id, selectedClipUser.name);
+    setReportStep('done');
+    setTimeout(() => {
+      setShowReportModal(false);
+      setReportStep('reason');
+      setSelectedReason(null);
+      setSelectedClipUser(null);
+    }, 2000);
+  };
 
   const toggleMute = useCallback(() => {
     setIsMuted(prev => !prev);
@@ -555,7 +648,7 @@ export default function ClipsTabScreen() {
 
       {/* Clips Feed */}
       <FlatList
-        data={MOCK_CLIPS}
+        data={filteredClips}
         keyExtractor={(item) => item.id}
         renderItem={({ item, index }) => (
           <ClipItem
@@ -563,6 +656,8 @@ export default function ClipsTabScreen() {
             isActive={index === activeIndex}
             isMuted={isMuted}
             onToggleMute={toggleMute}
+            onBlockUser={() => handleBlockUser({ id: item.user.id, name: item.user.name, avatar: item.user.avatar })}
+            onReportUser={() => handleReportUser({ id: item.user.id, name: item.user.name, avatar: item.user.avatar })}
           />
         )}
         pagingEnabled
@@ -572,6 +667,149 @@ export default function ClipsTabScreen() {
         viewabilityConfig={viewabilityConfig}
         onViewableItemsChanged={onViewableItemsChanged}
       />
+
+      {/* Block Confirmation Modal */}
+      <Modal
+        visible={showBlockConfirmModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowBlockConfirmModal(false)}
+      >
+        <Pressable
+          className="flex-1 bg-black/70 justify-center items-center px-6"
+          onPress={() => setShowBlockConfirmModal(false)}
+        >
+          <Animated.View
+            entering={SlideInUp.duration(300)}
+            className="bg-white rounded-3xl w-full max-w-sm overflow-hidden"
+          >
+            <Pressable onPress={(e) => e.stopPropagation()}>
+              <View className="items-center pt-6 pb-4 px-6">
+                <View className="bg-red-100 rounded-full p-4 mb-4">
+                  <Ban size={32} color="#DC2626" />
+                </View>
+                <Text className="text-xl font-bold text-warmBrown text-center">
+                  Block {selectedClipUser?.name}?
+                </Text>
+                <Text className="text-gray-500 text-center mt-2 leading-5">
+                  You won't see their clips anymore and our team will be notified.
+                </Text>
+              </View>
+
+              <View className="border-t border-gray-100 flex-row">
+                <Pressable
+                  onPress={() => setShowBlockConfirmModal(false)}
+                  className="flex-1 py-4 border-r border-gray-100"
+                >
+                  <Text className="text-center font-semibold text-gray-600">Cancel</Text>
+                </Pressable>
+                <Pressable onPress={confirmBlockUser} className="flex-1 py-4">
+                  <Text className="text-center font-semibold text-red-600">Block</Text>
+                </Pressable>
+              </View>
+            </Pressable>
+          </Animated.View>
+        </Pressable>
+      </Modal>
+
+      {/* Report Modal */}
+      <Modal
+        visible={showReportModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowReportModal(false)}
+      >
+        <View className="flex-1 bg-black/70">
+          <Pressable className="flex-1" onPress={() => setShowReportModal(false)} />
+          <Animated.View
+            entering={SlideInUp.duration(300)}
+            className="bg-white rounded-t-3xl max-h-[80%]"
+          >
+            <View className="flex-row items-center justify-between px-5 pt-5 pb-3 border-b border-gray-100">
+              <Text className="text-lg font-bold text-warmBrown">
+                {reportStep === 'done' ? 'Report Submitted' : 'Report User'}
+              </Text>
+              <Pressable
+                onPress={() => setShowReportModal(false)}
+                className="p-1"
+                hitSlop={8}
+              >
+                <X size={24} color="#6B7280" />
+              </Pressable>
+            </View>
+
+            <View className="px-5 py-4">
+              {reportStep === 'reason' && (
+                <>
+                  <Text className="text-gray-600 mb-4">
+                    Why are you reporting {selectedClipUser?.name}?
+                  </Text>
+                  {REPORT_REASONS.map((reason) => (
+                    <Pressable
+                      key={reason.id}
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        setSelectedReason(reason.id);
+                        setReportStep('confirm');
+                      }}
+                      className="py-4 border-b border-gray-100"
+                    >
+                      <Text className="text-warmBrown font-medium">{reason.label}</Text>
+                      <Text className="text-gray-500 text-sm mt-0.5">{reason.description}</Text>
+                    </Pressable>
+                  ))}
+                  <View className="flex-row items-start bg-amber-50 rounded-xl p-3 mt-4">
+                    <AlertTriangle size={16} color="#D97706" />
+                    <Text className="flex-1 text-amber-700 text-xs ml-2">
+                      False reports may result in account restrictions.
+                    </Text>
+                  </View>
+                </>
+              )}
+
+              {reportStep === 'confirm' && (
+                <View className="items-center py-4">
+                  <View className="bg-amber-100 rounded-full p-4 mb-4">
+                    <Flag size={32} color="#D97706" />
+                  </View>
+                  <Text className="text-lg font-bold text-warmBrown text-center">Confirm Report</Text>
+                  <Text className="text-gray-500 text-center mt-2">
+                    Reporting {selectedClipUser?.name} for:
+                  </Text>
+                  <View className="bg-gray-100 rounded-xl px-4 py-2 mt-3">
+                    <Text className="text-warmBrown font-medium">
+                      {REPORT_REASONS.find((r) => r.id === selectedReason)?.label}
+                    </Text>
+                  </View>
+                  <View className="flex-row mt-6 w-full">
+                    <Pressable
+                      onPress={() => setReportStep('reason')}
+                      className="flex-1 bg-gray-100 rounded-xl py-3 mr-2"
+                    >
+                      <Text className="text-gray-600 font-medium text-center">Back</Text>
+                    </Pressable>
+                    <Pressable onPress={submitReport} className="flex-1 bg-amber-500 rounded-xl py-3 ml-2">
+                      <Text className="text-white font-medium text-center">Submit</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              )}
+
+              {reportStep === 'done' && (
+                <View className="items-center py-8">
+                  <View className="bg-green-100 rounded-full p-4 mb-4">
+                    <Shield size={32} color="#22C55E" />
+                  </View>
+                  <Text className="text-lg font-bold text-warmBrown text-center">Thank You</Text>
+                  <Text className="text-gray-500 text-center mt-2">
+                    Your report has been submitted.
+                  </Text>
+                </View>
+              )}
+            </View>
+          </Animated.View>
+        </View>
+      </Modal>
     </View>
   );
 }

@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { reportBlockedUser } from './reports';
+import { saveBlockedUser, removeBlockedUser, loadBlockedUsers } from './blockedUsers';
 
 // Community Roles - replaces follower/like culture with responsibility
 export type CommunityRole =
@@ -578,6 +579,7 @@ interface AppState {
   blockedUserDetails: { id: string; name: string; avatar: string; blockedAt: string }[];
   blockUser: (userId: string, userName: string, userAvatar: string) => void;
   unblockUser: (userId: string) => void;
+  loadBlockedUsersFromDB: () => Promise<void>;
   isUserBlocked: (userId: string) => boolean;
   reportUser: (userId: string, reason: string) => void;
 
@@ -758,7 +760,7 @@ export const useStore = create<AppState>()(
         const state = useStore.getState();
         if (state.blockedUserIds.includes(userId)) return;
 
-        // Update state
+        // Update local state immediately for instant UI feedback
         set({
           blockedUserIds: [...state.blockedUserIds, userId],
           blockedUserDetails: [
@@ -772,13 +774,36 @@ export const useStore = create<AppState>()(
         const currentUser = state.currentUser;
         if (currentUser?.id) {
           reportBlockedUser(currentUser.id, userId, userName);
+          // Persist block to Supabase so it survives app reinstalls
+          saveBlockedUser(currentUser.id, userId, userName, userAvatar);
         }
         console.log(`[Block & Report] User ${userId} (${userName}) has been blocked and reported to moderation team`);
       },
-      unblockUser: (userId: string) => set((state) => ({
-        blockedUserIds: state.blockedUserIds.filter((id) => id !== userId),
-        blockedUserDetails: state.blockedUserDetails.filter((u) => u.id !== userId),
-      })),
+      unblockUser: (userId: string) => {
+        const state = useStore.getState();
+        // Update local state immediately
+        set({
+          blockedUserIds: state.blockedUserIds.filter((id) => id !== userId),
+          blockedUserDetails: state.blockedUserDetails.filter((u) => u.id !== userId),
+        });
+        // Remove from Supabase
+        const currentUser = state.currentUser;
+        if (currentUser?.id) {
+          removeBlockedUser(currentUser.id, userId);
+        }
+      },
+      loadBlockedUsersFromDB: async () => {
+        const state = useStore.getState();
+        const currentUser = state.currentUser;
+        if (!currentUser?.id) return;
+
+        const blockedUsers = await loadBlockedUsers(currentUser.id);
+        set({
+          blockedUserIds: blockedUsers.map((u) => u.id),
+          blockedUserDetails: blockedUsers,
+        });
+        console.log(`[BlockedUsers] Loaded ${blockedUsers.length} blocked users from database`);
+      },
       isUserBlocked: (userId) => {
         const state = useStore.getState();
         return state.blockedUserIds.includes(userId);

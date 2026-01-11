@@ -8,6 +8,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Alert,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
@@ -15,11 +17,17 @@ import {
   ChevronLeft,
   Send,
   MoreVertical,
+  Ban,
+  Flag,
+  X,
+  Shield,
+  AlertTriangle,
 } from 'lucide-react-native';
-import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInUp, SlideInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams } from 'expo-router';
 import { formatDistanceToNow } from 'date-fns';
+import * as DropdownMenu from 'zeego/dropdown-menu';
 import { useStore } from '@/lib/store';
 import { supabase, DbMessage } from '@/lib/supabase';
 import {
@@ -30,6 +38,19 @@ import {
   unsubscribeFromMessages,
 } from '@/lib/messages';
 import { markConversationAsRead } from '@/lib/useUnreadMessages';
+import { reportBlockedUser } from '@/lib/reports';
+import type { ViolationType } from '@/lib/contentModeration';
+
+// Report reasons for App Store Guideline 1.2 compliance
+const REPORT_REASONS: { id: ViolationType | 'other'; label: string; description: string }[] = [
+  { id: 'harassment', label: 'Harassment or Bullying', description: 'Targeting, intimidating, or threatening behavior' },
+  { id: 'hate_speech', label: 'Hate Speech', description: 'Content promoting discrimination or hatred' },
+  { id: 'sexual', label: 'Sexual Content', description: 'Inappropriate sexual content or solicitation' },
+  { id: 'violence', label: 'Violence or Threats', description: 'Threatening violence or glorifying harm' },
+  { id: 'scam', label: 'Scam or Fraud', description: 'Deceptive behavior or fraudulent activity' },
+  { id: 'spam', label: 'Spam', description: 'Repetitive, unwanted, or misleading content' },
+  { id: 'other', label: 'Other', description: 'Other violation of community guidelines' },
+];
 
 interface ChatMessage {
   id: string;
@@ -51,8 +72,20 @@ export default function ChatScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportStep, setReportStep] = useState<'reason' | 'confirm' | 'done'>('reason');
+  const [selectedReason, setSelectedReason] = useState<ViolationType | 'other' | null>(null);
+  const [showBlockConfirmModal, setShowBlockConfirmModal] = useState(false);
 
   const currentUser = useStore((s) => s.currentUser);
+  const blockUser = useStore((s) => s.blockUser);
+  const blockedUserIds = useStore((s) => s.blockedUserIds);
+
+  const decodedAvatar = avatar ? decodeURIComponent(avatar) : 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop';
+  const decodedName = name ? decodeURIComponent(name) : 'User';
+
+  // Check if user is blocked
+  const isBlocked = recipientId ? blockedUserIds.includes(recipientId) : false;
 
   // Load or create conversation and messages
   useEffect(() => {
@@ -216,8 +249,92 @@ export default function ChatScreen() {
     }
   };
 
-  const decodedAvatar = avatar ? decodeURIComponent(avatar) : 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop';
-  const decodedName = name ? decodeURIComponent(name) : 'User';
+  const handleBlockUser = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setShowBlockConfirmModal(true);
+  };
+
+  const confirmBlockUser = () => {
+    if (!recipientId) return;
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    // Block the user - this automatically reports to moderation (App Store Guideline 1.2)
+    blockUser(recipientId, decodedName, decodedAvatar);
+
+    setShowBlockConfirmModal(false);
+
+    // Show confirmation and navigate back
+    Alert.alert(
+      'User Blocked',
+      `${decodedName} has been blocked and reported to our moderation team. You won't see their messages anymore.`,
+      [
+        {
+          text: 'OK',
+          onPress: () => router.back(),
+        },
+      ]
+    );
+  };
+
+  const handleReportUser = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setReportStep('reason');
+    setSelectedReason(null);
+    setShowReportModal(true);
+  };
+
+  const submitReport = async () => {
+    if (!selectedReason || !currentUser?.id || !recipientId) return;
+
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    // Report the user to moderation
+    await reportBlockedUser(currentUser.id, recipientId, decodedName);
+
+    setReportStep('done');
+
+    // Auto-close after 2 seconds
+    setTimeout(() => {
+      setShowReportModal(false);
+      setReportStep('reason');
+      setSelectedReason(null);
+    }, 2000);
+  };
+
+  // If user is blocked, show blocked state
+  if (isBlocked) {
+    return (
+      <View className="flex-1 bg-cream">
+        <SafeAreaView edges={['top']} className="flex-1">
+          <Animated.View
+            entering={FadeIn.duration(300)}
+            className="flex-row items-center px-4 py-3 bg-white border-b border-gray-100"
+          >
+            <Pressable onPress={handleBack} className="p-1">
+              <ChevronLeft size={28} color="#2D1F1A" />
+            </Pressable>
+            <Text className="text-xl font-bold text-warmBrown flex-1 ml-3">Chat</Text>
+          </Animated.View>
+
+          <View className="flex-1 items-center justify-center px-8">
+            <View className="bg-red-100 rounded-full p-6 mb-4">
+              <Ban size={48} color="#EF4444" />
+            </View>
+            <Text className="text-xl font-bold text-warmBrown text-center">User Blocked</Text>
+            <Text className="text-gray-500 text-center mt-2">
+              You have blocked this user. You cannot send or receive messages from them.
+            </Text>
+            <Pressable
+              onPress={() => router.push('/settings')}
+              className="mt-6 bg-gray-100 rounded-full px-6 py-3"
+            >
+              <Text className="text-warmBrown font-medium">Go to Settings</Text>
+            </Pressable>
+          </View>
+        </SafeAreaView>
+      </View>
+    );
+  }
 
   return (
     <View className="flex-1 bg-cream">
@@ -244,9 +361,23 @@ export default function ChatScreen() {
             </Text>
             <Text className="text-gray-500 text-xs">Active now</Text>
           </View>
-          <Pressable className="p-2">
-            <MoreVertical size={22} color="#8B7355" />
-          </Pressable>
+          <DropdownMenu.Root>
+            <DropdownMenu.Trigger>
+              <Pressable className="p-2" hitSlop={8}>
+                <MoreVertical size={22} color="#8B7355" />
+              </Pressable>
+            </DropdownMenu.Trigger>
+            <DropdownMenu.Content>
+              <DropdownMenu.Item key="report" onSelect={handleReportUser}>
+                <DropdownMenu.ItemIcon ios={{ name: 'flag' }} />
+                <DropdownMenu.ItemTitle>Report User</DropdownMenu.ItemTitle>
+              </DropdownMenu.Item>
+              <DropdownMenu.Item key="block" onSelect={handleBlockUser} destructive>
+                <DropdownMenu.ItemIcon ios={{ name: 'nosign' }} />
+                <DropdownMenu.ItemTitle>Block User</DropdownMenu.ItemTitle>
+              </DropdownMenu.Item>
+            </DropdownMenu.Content>
+          </DropdownMenu.Root>
         </Animated.View>
 
         <KeyboardAvoidingView
@@ -363,6 +494,181 @@ export default function ChatScreen() {
           </View>
         </KeyboardAvoidingView>
       </SafeAreaView>
+
+      {/* Block Confirmation Modal */}
+      <Modal
+        visible={showBlockConfirmModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowBlockConfirmModal(false)}
+      >
+        <Pressable
+          className="flex-1 bg-black/50 justify-center items-center px-6"
+          onPress={() => setShowBlockConfirmModal(false)}
+        >
+          <Animated.View
+            entering={SlideInUp.duration(300)}
+            className="bg-white rounded-3xl w-full max-w-sm overflow-hidden"
+          >
+            <Pressable onPress={(e) => e.stopPropagation()}>
+              <View className="items-center pt-6 pb-4 px-6">
+                <View className="bg-red-100 rounded-full p-4 mb-4">
+                  <Ban size={32} color="#DC2626" />
+                </View>
+                <Text className="text-xl font-bold text-warmBrown text-center">
+                  Block {decodedName}?
+                </Text>
+                <Text className="text-gray-500 text-center mt-2 leading-5">
+                  When you block someone:
+                </Text>
+                <View className="mt-3 w-full">
+                  <Text className="text-gray-600 text-sm mb-1">• You won't see their messages</Text>
+                  <Text className="text-gray-600 text-sm mb-1">• They can't send you messages</Text>
+                  <Text className="text-gray-600 text-sm mb-1">• Their content is hidden from your feed</Text>
+                  <Text className="text-gray-600 text-sm">• Our team will be notified to review</Text>
+                </View>
+              </View>
+
+              <View className="border-t border-gray-100 flex-row">
+                <Pressable
+                  onPress={() => setShowBlockConfirmModal(false)}
+                  className="flex-1 py-4 border-r border-gray-100"
+                >
+                  <Text className="text-center font-semibold text-gray-600">Cancel</Text>
+                </Pressable>
+                <Pressable
+                  onPress={confirmBlockUser}
+                  className="flex-1 py-4"
+                >
+                  <Text className="text-center font-semibold text-red-600">Block</Text>
+                </Pressable>
+              </View>
+            </Pressable>
+          </Animated.View>
+        </Pressable>
+      </Modal>
+
+      {/* Report Modal */}
+      <Modal
+        visible={showReportModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowReportModal(false)}
+      >
+        <View className="flex-1 bg-black/50">
+          <Pressable
+            className="flex-1"
+            onPress={() => setShowReportModal(false)}
+          />
+          <Animated.View
+            entering={SlideInUp.duration(300)}
+            className="bg-white rounded-t-3xl max-h-[80%]"
+          >
+            {/* Modal Header */}
+            <View className="flex-row items-center justify-between px-5 pt-5 pb-3 border-b border-gray-100">
+              <Text className="text-lg font-bold text-warmBrown">
+                {reportStep === 'done' ? 'Report Submitted' : 'Report User'}
+              </Text>
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setShowReportModal(false);
+                }}
+                className="p-1"
+                hitSlop={8}
+              >
+                <X size={24} color="#6B7280" />
+              </Pressable>
+            </View>
+
+            {/* Content */}
+            <ScrollView className="px-5 py-4" showsVerticalScrollIndicator={false}>
+              {reportStep === 'reason' && (
+                <>
+                  <Text className="text-gray-600 mb-4">
+                    Why are you reporting {decodedName}? This will help our moderation team review the report.
+                  </Text>
+
+                  {REPORT_REASONS.map((reason) => (
+                    <Pressable
+                      key={reason.id}
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        setSelectedReason(reason.id);
+                        setReportStep('confirm');
+                      }}
+                      className="flex-row items-center py-4 border-b border-gray-100"
+                    >
+                      <View className="flex-1">
+                        <Text className="text-warmBrown font-medium">{reason.label}</Text>
+                        <Text className="text-gray-500 text-sm mt-0.5">{reason.description}</Text>
+                      </View>
+                    </Pressable>
+                  ))}
+
+                  <View className="flex-row items-start bg-amber-50 rounded-xl p-3 mt-4">
+                    <AlertTriangle size={16} color="#D97706" />
+                    <Text className="flex-1 text-amber-700 text-xs ml-2">
+                      False reports may result in your account being restricted.
+                    </Text>
+                  </View>
+                </>
+              )}
+
+              {reportStep === 'confirm' && (
+                <View className="items-center py-4">
+                  <View className="bg-amber-100 rounded-full p-4 mb-4">
+                    <Flag size={32} color="#D97706" />
+                  </View>
+                  <Text className="text-lg font-bold text-warmBrown text-center">
+                    Confirm Report
+                  </Text>
+                  <Text className="text-gray-500 text-center mt-2">
+                    You're reporting {decodedName} for:
+                  </Text>
+                  <View className="bg-gray-100 rounded-xl px-4 py-2 mt-3">
+                    <Text className="text-warmBrown font-medium">
+                      {REPORT_REASONS.find((r) => r.id === selectedReason)?.label}
+                    </Text>
+                  </View>
+                  <Text className="text-gray-400 text-sm text-center mt-4">
+                    Our moderation team will review this report.
+                  </Text>
+
+                  <View className="flex-row mt-6 w-full">
+                    <Pressable
+                      onPress={() => setReportStep('reason')}
+                      className="flex-1 bg-gray-100 rounded-xl py-3 mr-2"
+                    >
+                      <Text className="text-gray-600 font-medium text-center">Back</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={submitReport}
+                      className="flex-1 bg-amber-500 rounded-xl py-3 ml-2"
+                    >
+                      <Text className="text-white font-medium text-center">Submit Report</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              )}
+
+              {reportStep === 'done' && (
+                <View className="items-center py-8">
+                  <View className="bg-green-100 rounded-full p-4 mb-4">
+                    <Shield size={32} color="#22C55E" />
+                  </View>
+                  <Text className="text-lg font-bold text-warmBrown text-center">
+                    Thank You
+                  </Text>
+                  <Text className="text-gray-500 text-center mt-2">
+                    Your report has been submitted. Our team will review it.
+                  </Text>
+                </View>
+              )}
+            </ScrollView>
+          </Animated.View>
+        </View>
+      </Modal>
     </View>
   );
 }
