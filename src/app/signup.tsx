@@ -59,12 +59,15 @@ export default function SignUpScreen() {
   }, []);
 
   const handleAppleSignIn = async () => {
+    console.log('[Apple Auth] Starting Apple Sign In...');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setIsLoading(true);
     setError(null);
 
     try {
+      console.log('[Apple Auth] Calling signInWithApple...');
       const result = await signInWithApple();
+      console.log('[Apple Auth] Sign in successful, user:', result.user?.id);
 
       if (result.user) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -304,20 +307,14 @@ export default function SignUpScreen() {
 
       {/* Sign in with Apple - Only show on iOS when available */}
       {appleAuthAvailable && (
-        <Animated.View entering={FadeInUp.duration(400).delay(100)}>
-          <Pressable
+        <Animated.View entering={FadeInUp.duration(400).delay(100)} style={{ marginBottom: 12 }}>
+          <AppleAuthentication.AppleAuthenticationButton
+            buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+            buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+            cornerRadius={16}
+            style={{ width: '100%', height: 56 }}
             onPress={handleAppleSignIn}
-            disabled={isLoading}
-            style={{ width: '100%', height: 56, marginBottom: 12 }}
-          >
-            <AppleAuthentication.AppleAuthenticationButton
-              buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
-              buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
-              cornerRadius={16}
-              style={{ width: '100%', height: 56 }}
-              onPress={handleAppleSignIn}
-            />
-          </Pressable>
+          />
         </Animated.View>
       )}
 

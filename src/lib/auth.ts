@@ -9,6 +9,8 @@ export async function isAppleAuthAvailable(): Promise<boolean> {
 }
 
 export async function signInWithApple() {
+  console.log('[Apple Auth] Requesting Apple credentials...');
+
   const credential = await AppleAuthentication.signInAsync({
     requestedScopes: [
       AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
@@ -16,9 +18,13 @@ export async function signInWithApple() {
     ],
   });
 
+  console.log('[Apple Auth] Received credential, has identity token:', !!credential.identityToken);
+
   if (!credential.identityToken) {
     throw new Error('No identity token received from Apple');
   }
+
+  console.log('[Apple Auth] Signing in with Supabase...');
 
   // Sign in with Supabase using Apple's identity token
   const { data, error } = await supabase.auth.signInWithIdToken({
@@ -26,7 +32,12 @@ export async function signInWithApple() {
     token: credential.identityToken,
   });
 
-  if (error) throw error;
+  if (error) {
+    console.log('[Apple Auth] Supabase error:', error.message);
+    throw error;
+  }
+
+  console.log('[Apple Auth] Supabase sign in successful');
 
   // Return both auth data and Apple credential for profile setup
   return {
