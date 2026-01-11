@@ -125,6 +125,7 @@ export default function SignUpScreen() {
     setError(null);
 
     try {
+      console.log('[Google Auth] Calling supabase.auth.signInWithOAuth...');
       const { data, error: signInError } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -132,6 +133,8 @@ export default function SignUpScreen() {
           skipBrowserRedirect: true,
         },
       });
+
+      console.log('[Google Auth] OAuth response:', { hasData: !!data, hasUrl: !!data?.url, error: signInError?.message });
 
       if (signInError) throw signInError;
 
