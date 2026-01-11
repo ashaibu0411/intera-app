@@ -3,10 +3,16 @@
  *
  * Stores user reports and blocked user notifications in Supabase
  * for developer review and moderation.
+ *
+ * Reports are stored in the content_reports table and email notifications
+ * are sent to the developer via Supabase Edge Function.
  */
 
 import { supabase } from './supabase';
 import type { ViolationType, ContentType } from './contentModeration';
+
+// Developer email for report notifications - UPDATE THIS TO YOUR EMAIL
+const DEVELOPER_EMAIL = 'diasporaapp.app@gmail.com';
 
 export interface ContentReport {
   id?: string;
@@ -19,6 +25,48 @@ export interface ContentReport {
   description: string | null;
   status: 'pending' | 'reviewed' | 'action_taken' | 'dismissed';
   created_at?: string;
+}
+
+/**
+ * Send email notification to developer about new report
+ * Uses Supabase Edge Function for email delivery
+ */
+async function sendReportNotificationEmail(report: Omit<ContentReport, 'id' | 'created_at' | 'status'>): Promise<void> {
+  try {
+    // Call the Supabase Edge Function for sending email
+    const { error } = await supabase.functions.invoke('send-report-notification', {
+      body: {
+        to: DEVELOPER_EMAIL,
+        subject: `[URGENT] User Report: ${report.reason === 'blocked' ? 'User Blocked' : report.reason}`,
+        reporterUserId: report.reporter_id,
+        reportedUserId: report.reported_user_id,
+        reportedUserName: report.reported_user_name,
+        contentType: report.content_type,
+        contentId: report.content_id,
+        reason: report.reason,
+        description: report.description,
+        timestamp: new Date().toISOString(),
+      },
+    });
+
+    if (error) {
+      console.log('[Report] Email notification failed (Edge Function may not exist):', error.message);
+      // Fallback: Log to console so it appears in Expo logs
+      console.log('[REPORT NOTIFICATION - CHECK SUPABASE DASHBOARD]');
+      console.log('========================================');
+      console.log(`Reported User: ${report.reported_user_name} (${report.reported_user_id})`);
+      console.log(`Reason: ${report.reason}`);
+      console.log(`Content Type: ${report.content_type}`);
+      console.log(`Description: ${report.description || 'N/A'}`);
+      console.log(`Reporter ID: ${report.reporter_id}`);
+      console.log(`Time: ${new Date().toISOString()}`);
+      console.log('========================================');
+    } else {
+      console.log('[Report] Email notification sent to developer');
+    }
+  } catch (err) {
+    console.log('[Report] Email notification error:', err);
+  }
 }
 
 /**
@@ -38,16 +86,21 @@ export async function submitReport(report: Omit<ContentReport, 'id' | 'created_a
       // If table doesn't exist, log locally (for development)
       console.log('[Report] Supabase error (table may not exist):', error.message);
       console.log('[Report] Report data:', JSON.stringify(report, null, 2));
-
-      // Still return true - report is logged even if DB fails
-      return true;
+    } else {
+      console.log('[Report] Successfully submitted to database');
     }
 
-    console.log('[Report] Successfully submitted to database');
+    // Always try to send email notification (even if DB insert fails)
+    await sendReportNotificationEmail(report);
+
     return true;
   } catch (err) {
     console.log('[Report] Error submitting report:', err);
     console.log('[Report] Report data:', JSON.stringify(report, null, 2));
+
+    // Still try to send email
+    await sendReportNotificationEmail(report);
+
     return true; // Log locally even if submission fails
   }
 }
@@ -93,7 +146,7 @@ export async function reportBlockedUser(
     content_type: 'user',
     content_id: null,
     reason: 'blocked',
-    description: 'User was blocked by another user',
+    description: 'User was blocked by another user - requires moderation review',
   });
 }
 
@@ -142,5 +195,30 @@ export async function getPendingReports(): Promise<ContentReport[]> {
   } catch (err) {
     console.log('[Report] Error fetching reports:', err);
     return [];
+  }
+}
+
+/**
+ * Update report status (for admin actions)
+ */
+export async function updateReportStatus(
+  reportId: string,
+  status: 'reviewed' | 'action_taken' | 'dismissed'
+): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('content_reports')
+      .update({ status })
+      .eq('id', reportId);
+
+    if (error) {
+      console.log('[Report] Error updating report status:', error);
+      return false;
+    }
+
+    return true;
+  } catch (err) {
+    console.log('[Report] Error updating report status:', err);
+    return false;
   }
 }
