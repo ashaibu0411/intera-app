@@ -20,8 +20,13 @@ import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { useStore } from '@/lib/store';
-import { signUpWithEmail, signInWithEmail, signUpWithPhone, verifyOtp, getProfile, getOrCreateProfile, signInWithApple, isAppleAuthAvailable } from '@/lib/auth';
-import * as AppleAuthentication from 'expo-apple-authentication';
+import { signUpWithEmail, signInWithEmail, signUpWithPhone, verifyOtp, getProfile, getOrCreateProfile, signInWithApple } from '@/lib/auth';
+import * as WebBrowser from 'expo-web-browser';
+import * as Google from 'expo-auth-session/providers/google';
+import { supabase } from '@/lib/supabase';
+
+// Required for Google Auth
+WebBrowser.maybeCompleteAuthSession();
 
 type AuthMethod = 'email' | 'phone' | 'apple';
 type AuthMode = 'signup' | 'signin';
@@ -41,7 +46,6 @@ export default function SignUpScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [appleAuthAvailable, setAppleAuthAvailable] = useState(false);
 
   const setCurrentUser = useStore((s) => s.setCurrentUser);
   const setIsGuest = useStore((s) => s.setIsGuest);
@@ -53,10 +57,8 @@ export default function SignUpScreen() {
   const communityName = displayName.trim() || fullName;
   const hasRequiredName = firstName.trim().length > 0 && lastName.trim().length > 0;
 
-  // Check if Apple Auth is available on mount
-  React.useEffect(() => {
-    isAppleAuthAvailable().then(setAppleAuthAvailable);
-  }, []);
+  // Show Apple Sign In on iOS (works in production builds)
+  const showAppleSignIn = Platform.OS === 'ios';
 
   const handleAppleSignIn = async () => {
     console.log('[Apple Auth] Starting Apple Sign In...');
@@ -108,6 +110,83 @@ export default function SignUpScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       const errorMessage = err instanceof Error ? err.message : 'Apple sign-in failed';
       // Don't show error if user cancelled
+      if (!errorMessage.includes('canceled') && !errorMessage.includes('cancelled')) {
+        setError(errorMessage);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    console.log('[Google Auth] Starting Google Sign In...');
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const { data, error: signInError } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: 'com.vibecode.afroconnect-hr87yl://auth/callback',
+          skipBrowserRedirect: true,
+        },
+      });
+
+      if (signInError) throw signInError;
+
+      if (data.url) {
+        const result = await WebBrowser.openAuthSessionAsync(data.url, 'com.vibecode.afroconnect-hr87yl://auth/callback');
+
+        if (result.type === 'success' && result.url) {
+          // Extract tokens from URL
+          const url = new URL(result.url);
+          const params = new URLSearchParams(url.hash.substring(1));
+          const accessToken = params.get('access_token');
+          const refreshToken = params.get('refresh_token');
+
+          if (accessToken) {
+            const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken || '',
+            });
+
+            if (sessionError) throw sessionError;
+
+            if (sessionData.user) {
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+              const profile = await getOrCreateProfile(sessionData.user.id, {
+                name: sessionData.user.user_metadata?.full_name,
+                email: sessionData.user.email,
+              });
+
+              setCurrentUser({
+                id: sessionData.user.id,
+                name: profile?.name || sessionData.user.user_metadata?.full_name || 'User',
+                username: profile?.username || `user_${sessionData.user.id.slice(0, 8)}`,
+                avatar: profile?.avatar_url || sessionData.user.user_metadata?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&h=200&fit=crop',
+                bio: profile?.bio || '',
+                location: profile?.location || (selectedLocation ? `${selectedLocation.city}, ${selectedLocation.country}` : 'Not set'),
+                interests: profile?.interests || [],
+                joinedDate: profile?.created_at || new Date().toISOString(),
+                email: sessionData.user.email,
+              });
+              setIsGuest(false);
+              setIsOnboarded(true);
+
+              if (profile?.bio || profile?.interests?.length) {
+                router.replace('/(tabs)');
+              } else {
+                router.replace('/profile-setup');
+              }
+            }
+          }
+        }
+      }
+    } catch (err: unknown) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      const errorMessage = err instanceof Error ? err.message : 'Google sign-in failed';
       if (!errorMessage.includes('canceled') && !errorMessage.includes('cancelled')) {
         setError(errorMessage);
       }
@@ -305,8 +384,8 @@ export default function SignUpScreen() {
         </View>
       </Animated.View>
 
-      {/* Sign in with Apple - Only show on iOS when available */}
-      {appleAuthAvailable && Platform.OS === 'ios' && (
+      {/* Sign in with Apple - Always show on iOS */}
+      {showAppleSignIn && (
         <Animated.View entering={FadeInUp.duration(400).delay(100)} style={{ marginBottom: 12 }}>
           <Pressable
             onPress={handleAppleSignIn}
@@ -330,8 +409,36 @@ export default function SignUpScreen() {
         </Animated.View>
       )}
 
+      {/* Sign in with Google */}
+      <Animated.View entering={FadeInUp.duration(400).delay(showAppleSignIn ? 150 : 100)} style={{ marginBottom: 12 }}>
+        <Pressable
+          onPress={handleGoogleSignIn}
+          disabled={isLoading}
+          style={{
+            backgroundColor: '#FFFFFF',
+            borderRadius: 16,
+            paddingVertical: 16,
+            paddingHorizontal: 20,
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+            height: 56,
+            borderWidth: 1,
+            borderColor: '#E5E7EB',
+          }}
+        >
+          <Image
+            source={{ uri: 'https://www.google.com/favicon.ico' }}
+            style={{ width: 20, height: 20, marginRight: 10 }}
+          />
+          <Text style={{ color: '#374151', fontSize: 17, fontWeight: '600' }}>
+            {authMode === 'signup' ? 'Sign up with Google' : 'Sign in with Google'}
+          </Text>
+        </Pressable>
+      </Animated.View>
+
       {/* Email */}
-      <Animated.View entering={FadeInUp.duration(400).delay(appleAuthAvailable ? 150 : 100)}>
+      <Animated.View entering={FadeInUp.duration(400).delay(showAppleSignIn ? 200 : 150)}>
         <Pressable
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -350,7 +457,7 @@ export default function SignUpScreen() {
       </Animated.View>
 
       {/* Phone */}
-      <Animated.View entering={FadeInUp.duration(400).delay(appleAuthAvailable ? 200 : 150)}>
+      <Animated.View entering={FadeInUp.duration(400).delay(showAppleSignIn ? 250 : 200)}>
         <Pressable
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
