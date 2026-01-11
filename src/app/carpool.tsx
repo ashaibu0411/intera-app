@@ -458,6 +458,13 @@ export default function CarpoolScreen() {
 
   const handleRequestRide = (ride: CarpoolRide) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    // Check if disclaimer has been accepted before allowing booking
+    if (!disclaimerAccepted) {
+      setShowDisclaimerModal(true);
+      return;
+    }
+
     setSelectedRide(ride);
     setSelectedPaymentMethod(null);
     setShowPaymentModal(true);
