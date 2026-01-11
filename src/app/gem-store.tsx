@@ -75,47 +75,35 @@ export default function GemStoreScreen() {
     // Find matching RevenueCat package
     const rcPackage = rcPackages.find(p => p.identifier === gemPackage.identifier);
 
-    if (rcPackage && rcEnabled) {
-      // Real purchase through RevenueCat
-      const result = await purchaseGems(currentUser.id, rcPackage);
-
+    if (!rcEnabled || !rcPackage) {
+      // Purchases require In-App Purchase
       setPurchasing(null);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      Alert.alert(
+        'Purchases Not Available',
+        'In-app purchases are not available right now. Please try again later.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
 
-      if (result.success) {
-        setGemBalance(prev => prev + (result.gemsAdded ?? 0));
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        Alert.alert(
-          'Purchase Complete!',
-          `You received ${result.gemsAdded?.toLocaleString()} gems!`,
-          [{ text: 'Awesome!' }]
-        );
-      } else {
-        if (result.error !== 'Purchase cancelled') {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-          Alert.alert('Purchase Failed', result.error ?? 'Something went wrong');
-        }
-      }
+    // Real purchase through RevenueCat / In-App Purchase
+    const result = await purchaseGems(currentUser.id, rcPackage);
+
+    setPurchasing(null);
+
+    if (result.success) {
+      setGemBalance(prev => prev + (result.gemsAdded ?? 0));
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert(
+        'Purchase Complete!',
+        `You received ${result.gemsAdded?.toLocaleString()} gems!`,
+        [{ text: 'Awesome!' }]
+      );
     } else {
-      // Fallback: simulate purchase for testing
-      const totalGems = gemPackage.gems + gemPackage.bonusGems;
-
-      // Import and use addGems from giftService
-      const { addGems } = await import('@/lib/giftService');
-      const result = await addGems(currentUser.id, totalGems);
-
-      setPurchasing(null);
-
-      if (result.success) {
-        setGemBalance(result.newBalance ?? gemBalance + totalGems);
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        Alert.alert(
-          'Purchase Complete!',
-          `You received ${totalGems.toLocaleString()} gems!`,
-          [{ text: 'Awesome!' }]
-        );
-      } else {
+      if (result.error !== 'Purchase cancelled') {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        Alert.alert('Error', result.error ?? 'Failed to add gems');
+        Alert.alert('Purchase Failed', result.error ?? 'Something went wrong');
       }
     }
   };

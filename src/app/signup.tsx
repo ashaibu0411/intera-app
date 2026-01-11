@@ -306,15 +306,27 @@ export default function SignUpScreen() {
       </Animated.View>
 
       {/* Sign in with Apple - Only show on iOS when available */}
-      {appleAuthAvailable && (
+      {appleAuthAvailable && Platform.OS === 'ios' && (
         <Animated.View entering={FadeInUp.duration(400).delay(100)} style={{ marginBottom: 12 }}>
-          <AppleAuthentication.AppleAuthenticationButton
-            buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
-            buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
-            cornerRadius={16}
-            style={{ width: '100%', height: 56 }}
+          <Pressable
             onPress={handleAppleSignIn}
-          />
+            disabled={isLoading}
+            style={{
+              backgroundColor: '#000000',
+              borderRadius: 16,
+              paddingVertical: 16,
+              paddingHorizontal: 20,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              height: 56,
+            }}
+          >
+            <Text style={{ color: '#FFFFFF', fontSize: 20, marginRight: 10 }}></Text>
+            <Text style={{ color: '#FFFFFF', fontSize: 17, fontWeight: '600' }}>
+              {authMode === 'signup' ? 'Sign up with Apple' : 'Sign in with Apple'}
+            </Text>
+          </Pressable>
         </Animated.View>
       )}
 
