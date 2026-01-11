@@ -116,8 +116,9 @@ Instead of showing posts first, your home feed now shows:
 ### Welcome & Onboarding
 - Detailed welcome page explaining all app features
 - Location selection (Country > State/Region > City)
-- Guest browsing mode - explore before signing up
-- Sign up with Google, Email, or Phone number
+- **After selecting location, users are directed to create an account or sign in**
+- Sign up with Apple, Email, or Phone number
+- Guest browsing option available from sign up screen
 - Global support for users from all continents and countries
 
 ### Community Feed

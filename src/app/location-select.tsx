@@ -78,7 +78,6 @@ export default function LocationSelectScreen() {
 
   const setSelectedLocation = useStore((s) => s.setSelectedLocation);
   const setCurrentCommunity = useStore((s) => s.setCurrentCommunity);
-  const setIsGuest = useStore((s) => s.setIsGuest);
 
   // Auto-detect location using GPS
   const handleAutoDetect = async () => {
@@ -131,8 +130,8 @@ export default function LocationSelectScreen() {
         }
 
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        setIsGuest(true);
-        router.replace('/(tabs)');
+        // Send to signup after location selection
+        router.replace('/signup');
       } else {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
@@ -193,8 +192,8 @@ export default function LocationSelectScreen() {
       });
     }
 
-    setIsGuest(true);
-    router.replace('/(tabs)');
+    // Send to signup after location selection
+    router.replace('/signup');
   };
 
   const selectedCountryData = useMemo(
@@ -326,8 +325,8 @@ export default function LocationSelectScreen() {
       }
     }
 
-    setIsGuest(true);
-    router.replace('/(tabs)');
+    // Send to signup after location selection
+    router.replace('/signup');
   };
 
   const handleBack = () => {
@@ -403,8 +402,8 @@ export default function LocationSelectScreen() {
       }
     }
 
-    setIsGuest(true);
-    router.replace('/(tabs)');
+    // Send to signup after location selection
+    router.replace('/signup');
   };
 
   const canContinue = selectedCountry && selectedCity;
