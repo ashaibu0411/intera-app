@@ -501,6 +501,7 @@ interface AppState {
   isOnboarded: boolean;
   isGuest: boolean;
   hasSeenWelcome: boolean;
+  hasSeenStory: boolean;
 
   // Location state
   selectedLocation: LocationData | null;
@@ -588,6 +589,7 @@ interface AppState {
   setIsOnboarded: (value: boolean) => void;
   setIsGuest: (value: boolean) => void;
   setHasSeenWelcome: (value: boolean) => void;
+  setHasSeenStory: (value: boolean) => void;
   setSelectedLocation: (location: LocationData | null) => void;
   setCurrentCommunity: (community: Community | null) => void;
   setFeedFilter: (filter: 'local' | 'global') => void;
@@ -652,6 +654,7 @@ export const useStore = create<AppState>()(
       isOnboarded: false,
       isGuest: false,
       hasSeenWelcome: false,
+      hasSeenStory: false,
       selectedLocation: null,
       locationDetectionDismissed: false,
       lastDetectedCity: null,
@@ -818,6 +821,7 @@ export const useStore = create<AppState>()(
       setIsOnboarded: (value) => set({ isOnboarded: value }),
       setIsGuest: (value) => set({ isGuest: value }),
       setHasSeenWelcome: (value) => set({ hasSeenWelcome: value }),
+      setHasSeenStory: (value) => set({ hasSeenStory: value }),
       setSelectedLocation: (location) => set({ selectedLocation: location }),
       setCurrentCommunity: (community) => set({ currentCommunity: community }),
       setFeedFilter: (filter) => set({ feedFilter: filter }),
@@ -1146,6 +1150,7 @@ export const useStore = create<AppState>()(
         isOnboarded: state.isOnboarded,
         isGuest: state.isGuest,
         hasSeenWelcome: state.hasSeenWelcome,
+        hasSeenStory: state.hasSeenStory,
         selectedLocation: state.selectedLocation,
         locationDetectionDismissed: state.locationDetectionDismissed,
         lastDetectedCity: state.lastDetectedCity,

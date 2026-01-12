@@ -4,6 +4,20 @@ A community-driven social platform connecting foreigners, expats, and global cit
 
 **Slogan:** *Connecting Foreigners Globally, Building Communities*
 
+## The Intera Story
+
+When users first download the app, they are greeted with the Intera origin story - a beautiful, immersive introduction that explains the meaning behind the name and the platform's mission:
+
+> *"In a world that had become noisier but lonelier, people were surrounded by millions—yet truly connected to none... Then came Intera."*
+
+The word **Intera** comes from *interact*, *interconnect*, and *interweave* — and that is exactly what the platform was built to do. Not just to show you content, but to weave people into each other's lives.
+
+**Key Philosophy:**
+- Intera doesn't ask, "Who do you follow?" It asks, "Who are you connected to?"
+- It is not just social. It is relational.
+- It is not about going viral. It is about belonging.
+- *Intera — where the world doesn't just meet, it connects.*
+
 ## Core Philosophy
 
 **"Not a social network — a living community."**
