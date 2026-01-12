@@ -16,6 +16,53 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type PaymentMethod = 'cash' | 'cashapp' | 'venmo' | 'zelle' | 'paypal' | 'wise' | 'mpesa' | 'bank';
 type PricingType = 'fixed' | 'gas-split' | 'free' | 'donation';
+type MainTab = 'rideshare' | 'rentcar';
+
+interface CarListing {
+  id: string;
+  owner: {
+    id: string;
+    name: string;
+    avatar: string;
+    rating: number;
+    rentals: number;
+    isVerified: boolean;
+    memberSince: string;
+    responseTime: string;
+  };
+  car: {
+    make: string;
+    model: string;
+    year: number;
+    color: string;
+    type: 'sedan' | 'suv' | 'truck' | 'van' | 'luxury' | 'economy';
+    seats: number;
+    transmission: 'automatic' | 'manual';
+    fuelType: 'gas' | 'diesel' | 'electric' | 'hybrid';
+    photos: string[];
+  };
+  location: string;
+  city: string;
+  pricePerDay: number;
+  currency: string;
+  minDays: number;
+  maxDays: number;
+  available: boolean;
+  requirements: {
+    minAge: number;
+    validLicense: boolean;
+    insuranceRequired: boolean;
+    depositAmount: number;
+    depositCurrency: string;
+    idRequired: boolean;
+    backgroundCheck: boolean;
+    customRequirements: string[];
+  };
+  features: string[];
+  description: string;
+  rules: string[];
+  paymentInfo: PaymentInfo;
+}
 
 interface PaymentInfo {
   cashApp?: string;
@@ -71,6 +118,266 @@ interface CarpoolRide {
   isRecurring: boolean;
   paymentInfo: PaymentInfo;
 }
+
+const MOCK_CAR_LISTINGS: CarListing[] = [
+  {
+    id: 'car1',
+    owner: {
+      id: 'owner1',
+      name: 'David Mensah',
+      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200',
+      rating: 4.9,
+      rentals: 47,
+      isVerified: true,
+      memberSince: 'January 2023',
+      responseTime: 'Usually responds within 1 hour',
+    },
+    car: {
+      make: 'Toyota',
+      model: 'Camry',
+      year: 2022,
+      color: 'Silver',
+      type: 'sedan',
+      seats: 5,
+      transmission: 'automatic',
+      fuelType: 'gas',
+      photos: ['https://images.unsplash.com/photo-1621007947382-bb3c3994e3fb?w=800'],
+    },
+    location: 'Harlem, Manhattan',
+    city: 'New York, USA',
+    pricePerDay: 45,
+    currency: 'USD',
+    minDays: 1,
+    maxDays: 30,
+    available: true,
+    requirements: {
+      minAge: 21,
+      validLicense: true,
+      insuranceRequired: true,
+      depositAmount: 200,
+      depositCurrency: 'USD',
+      idRequired: true,
+      backgroundCheck: false,
+      customRequirements: ['No smoking in car', 'Return with full tank'],
+    },
+    features: ['Bluetooth', 'Backup Camera', 'Apple CarPlay', 'Cruise Control'],
+    description: 'Clean, reliable Toyota Camry perfect for city driving or road trips. Great gas mileage and very comfortable. I keep it spotless!',
+    rules: ['No smoking', 'No pets', 'Return clean', 'Full tank on return'],
+    paymentInfo: {
+      cashApp: '$DavidM_NYC',
+      venmo: '@DavidMensah',
+      zelle: 'david.m@email.com',
+      acceptsCash: true,
+    },
+  },
+  {
+    id: 'car2',
+    owner: {
+      id: 'owner2',
+      name: 'Amina Diallo',
+      avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200',
+      rating: 5.0,
+      rentals: 89,
+      isVerified: true,
+      memberSince: 'March 2022',
+      responseTime: 'Usually responds within 30 minutes',
+    },
+    car: {
+      make: 'Honda',
+      model: 'CR-V',
+      year: 2023,
+      color: 'White',
+      type: 'suv',
+      seats: 5,
+      transmission: 'automatic',
+      fuelType: 'hybrid',
+      photos: ['https://images.unsplash.com/photo-1568844293986-8c8a3c3c2dc1?w=800'],
+    },
+    location: 'Accra Central',
+    city: 'Accra, Ghana',
+    pricePerDay: 120,
+    currency: 'GHS',
+    minDays: 2,
+    maxDays: 14,
+    available: true,
+    requirements: {
+      minAge: 25,
+      validLicense: true,
+      insuranceRequired: true,
+      depositAmount: 500,
+      depositCurrency: 'GHS',
+      idRequired: true,
+      backgroundCheck: false,
+      customRequirements: ['Ghana or International license accepted', 'Provide copy of passport'],
+    },
+    features: ['AC', 'GPS', 'USB Charging', 'Roof Rack', 'AWD'],
+    description: 'Perfect SUV for exploring Ghana! Hybrid engine saves on fuel. Great for trips to Cape Coast, Kumasi, or around the city. Well maintained.',
+    rules: ['No smoking', 'Pets allowed with deposit', 'Weekly cleaning included for 7+ day rentals'],
+    paymentInfo: {
+      mpesa: '+233 24 555 1234',
+      bankDetails: 'Access Bank - 1234567890 (Amina Diallo)',
+      acceptsCash: true,
+    },
+  },
+  {
+    id: 'car3',
+    owner: {
+      id: 'owner3',
+      name: 'Kwame Asante',
+      avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200',
+      rating: 4.7,
+      rentals: 23,
+      isVerified: true,
+      memberSince: 'August 2024',
+      responseTime: 'Usually responds within 2 hours',
+    },
+    car: {
+      make: 'Mercedes-Benz',
+      model: 'E-Class',
+      year: 2021,
+      color: 'Black',
+      type: 'luxury',
+      seats: 5,
+      transmission: 'automatic',
+      fuelType: 'gas',
+      photos: ['https://images.unsplash.com/photo-1618843479313-40f8afb4b4d8?w=800'],
+    },
+    location: 'Victoria Island',
+    city: 'Lagos, Nigeria',
+    pricePerDay: 45000,
+    currency: 'NGN',
+    minDays: 1,
+    maxDays: 7,
+    available: true,
+    requirements: {
+      minAge: 25,
+      validLicense: true,
+      insuranceRequired: true,
+      depositAmount: 100000,
+      depositCurrency: 'NGN',
+      idRequired: true,
+      backgroundCheck: true,
+      customRequirements: ['Proof of employment or business', 'Two forms of ID required', 'Video call verification before pickup'],
+    },
+    features: ['Leather Seats', 'Premium Sound', 'Sunroof', 'Navigation', 'Heated Seats'],
+    description: 'Luxury E-Class for business meetings, special occasions, or when you want to travel in style. Impeccable condition, regularly serviced.',
+    rules: ['No smoking', 'No pets', 'Professional cleaning fee if returned dirty', 'Mileage limit: 200km/day'],
+    paymentInfo: {
+      bankDetails: 'GTBank - 0123456789 (Kwame Asante)',
+      mpesa: '+234 803 555 7890',
+      acceptsCash: false,
+    },
+  },
+  {
+    id: 'car4',
+    owner: {
+      id: 'owner4',
+      name: 'Sophie Williams',
+      avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200',
+      rating: 4.8,
+      rentals: 156,
+      isVerified: true,
+      memberSince: 'November 2021',
+      responseTime: 'Usually responds within 1 hour',
+    },
+    car: {
+      make: 'Volkswagen',
+      model: 'Golf',
+      year: 2022,
+      color: 'Blue',
+      type: 'economy',
+      seats: 5,
+      transmission: 'manual',
+      fuelType: 'gas',
+      photos: ['https://images.unsplash.com/photo-1471444928139-48c5bf5173f8?w=800'],
+    },
+    location: 'Brixton',
+    city: 'London, UK',
+    pricePerDay: 35,
+    currency: 'GBP',
+    minDays: 1,
+    maxDays: 21,
+    available: true,
+    requirements: {
+      minAge: 21,
+      validLicense: true,
+      insuranceRequired: false,
+      depositAmount: 150,
+      depositCurrency: 'GBP',
+      idRequired: true,
+      backgroundCheck: false,
+      customRequirements: ['UK or EU license only', 'Insurance included in price'],
+    },
+    features: ['Bluetooth', 'DAB Radio', 'Parking Sensors', 'Fuel Efficient'],
+    description: 'Nimble Golf perfect for London streets. Easy to park, great on fuel. Manual transmission - must know how to drive stick!',
+    rules: ['No smoking', 'Pets negotiable', 'Congestion charge not included'],
+    paymentInfo: {
+      paypal: 'sophie.w@email.com',
+      wise: 'sophie.williams@email.com',
+      bankDetails: 'Monzo - Sort: 04-00-04 Acc: 87654321',
+      acceptsCash: false,
+    },
+  },
+  {
+    id: 'car5',
+    owner: {
+      id: 'owner5',
+      name: 'Jean-Pierre Ndiaye',
+      avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=200',
+      rating: 4.6,
+      rentals: 34,
+      isVerified: false,
+      memberSince: 'June 2024',
+      responseTime: 'Usually responds within 3 hours',
+    },
+    car: {
+      make: 'Renault',
+      model: 'Duster',
+      year: 2020,
+      color: 'Orange',
+      type: 'suv',
+      seats: 5,
+      transmission: 'automatic',
+      fuelType: 'diesel',
+      photos: ['https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?w=800'],
+    },
+    location: 'Dakar Centre',
+    city: 'Dakar, Senegal',
+    pricePerDay: 25000,
+    currency: 'CFA',
+    minDays: 3,
+    maxDays: 30,
+    available: true,
+    requirements: {
+      minAge: 23,
+      validLicense: true,
+      insuranceRequired: true,
+      depositAmount: 50000,
+      depositCurrency: 'CFA',
+      idRequired: true,
+      backgroundCheck: false,
+      customRequirements: ['International license accepted', 'Passport copy required'],
+    },
+    features: ['AC', '4x4', 'Roof Rails', 'USB Charging'],
+    description: 'Rugged Duster perfect for Senegal roads. Can handle sand and rough terrain. Great for trips to Saint-Louis or Casamance.',
+    rules: ['No smoking', 'Off-road driving allowed', 'Wash before return'],
+    paymentInfo: {
+      mpesa: '+221 77 555 1234',
+      bankDetails: 'CBAO - 123456789',
+      acceptsCash: true,
+    },
+  },
+];
+
+const CAR_TYPES = [
+  { key: 'all', label: 'All Cars' },
+  { key: 'economy', label: 'Economy' },
+  { key: 'sedan', label: 'Sedan' },
+  { key: 'suv', label: 'SUV' },
+  { key: 'luxury', label: 'Luxury' },
+  { key: 'truck', label: 'Truck' },
+  { key: 'van', label: 'Van' },
+];
 
 const MOCK_RIDES: CarpoolRide[] = [
   {
@@ -322,18 +629,28 @@ const PRICING_COLORS: Record<PricingType, { bg: string; text: string; label: str
 };
 
 const DISCLAIMER_STORAGE_KEY = 'carpool_disclaimer_accepted';
+const CAR_RENTAL_DISCLAIMER_KEY = 'car_rental_disclaimer_accepted';
 
 export default function CarpoolScreen() {
+  // Main tab state
+  const [mainTab, setMainTab] = useState<MainTab>('rideshare');
+
   const [selectedType, setSelectedType] = useState('all');
+  const [selectedCarType, setSelectedCarType] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [showPostModal, setShowPostModal] = useState(false);
+  const [showPostCarModal, setShowPostCarModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showCarDetailModal, setShowCarDetailModal] = useState(false);
   const [selectedRide, setSelectedRide] = useState<CarpoolRide | null>(null);
+  const [selectedCar, setSelectedCar] = useState<CarListing | null>(null);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod | null>(null);
 
   // Safety & Legal state
   const [showDisclaimerModal, setShowDisclaimerModal] = useState(false);
+  const [showCarRentalDisclaimer, setShowCarRentalDisclaimer] = useState(false);
   const [disclaimerAccepted, setDisclaimerAccepted] = useState(false);
+  const [carRentalDisclaimerAccepted, setCarRentalDisclaimerAccepted] = useState(false);
   const [showSafetyModal, setShowSafetyModal] = useState(false);
   const [showEmergencyOptions, setShowEmergencyOptions] = useState(false);
   const [emergencyContact, setEmergencyContact] = useState('');
@@ -440,6 +757,41 @@ export default function CarpoolScreen() {
     acceptsCash: true,
   });
 
+  // Post car form state
+  const [postCarForm, setPostCarForm] = useState({
+    make: '',
+    model: '',
+    year: '',
+    color: '',
+    carType: 'sedan' as CarListing['car']['type'],
+    seats: '',
+    transmission: 'automatic' as 'automatic' | 'manual',
+    fuelType: 'gas' as 'gas' | 'diesel' | 'electric' | 'hybrid',
+    location: '',
+    city: '',
+    pricePerDay: '',
+    currency: '',
+    minDays: '1',
+    maxDays: '30',
+    minAge: '21',
+    depositAmount: '',
+    insuranceRequired: true,
+    idRequired: true,
+    backgroundCheck: false,
+    customRequirements: '',
+    features: '',
+    description: '',
+    rules: '',
+    cashApp: '',
+    venmo: '',
+    zelle: '',
+    paypal: '',
+    wise: '',
+    mpesa: '',
+    bankDetails: '',
+    acceptsCash: true,
+  });
+
   // Calculate gas split per person
   const getGasSplitAmount = (ride: CarpoolRide) => {
     if (ride.pricingType !== 'gas-split' || !ride.estimatedGasCost) return 0;
@@ -455,6 +807,64 @@ export default function CarpoolScreen() {
       ride.driver.name.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesType && matchesSearch;
   });
+
+  const filteredCars = MOCK_CAR_LISTINGS.filter(car => {
+    const matchesType = selectedCarType === 'all' || car.car.type === selectedCarType;
+    const matchesSearch = searchQuery === '' ||
+      car.car.make.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      car.car.model.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      car.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      car.city.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      car.owner.name.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesType && matchesSearch && car.available;
+  });
+
+  const handleViewCar = (car: CarListing) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    // Check if car rental disclaimer has been accepted
+    if (!carRentalDisclaimerAccepted) {
+      setSelectedCar(car);
+      setShowCarRentalDisclaimer(true);
+      return;
+    }
+
+    setSelectedCar(car);
+    setShowCarDetailModal(true);
+  };
+
+  const handleAcceptCarRentalDisclaimer = async () => {
+    try {
+      await AsyncStorage.setItem(CAR_RENTAL_DISCLAIMER_KEY, 'true');
+      setCarRentalDisclaimerAccepted(true);
+      setShowCarRentalDisclaimer(false);
+      if (selectedCar) {
+        setShowCarDetailModal(true);
+      }
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch {
+      setCarRentalDisclaimerAccepted(true);
+      setShowCarRentalDisclaimer(false);
+      if (selectedCar) {
+        setShowCarDetailModal(true);
+      }
+    }
+  };
+
+  // Check car rental disclaimer on mount
+  useEffect(() => {
+    const checkCarRentalDisclaimer = async () => {
+      try {
+        const accepted = await AsyncStorage.getItem(CAR_RENTAL_DISCLAIMER_KEY);
+        if (accepted === 'true') {
+          setCarRentalDisclaimerAccepted(true);
+        }
+      } catch {
+        // Ignore
+      }
+    };
+    checkCarRentalDisclaimer();
+  }, []);
 
   const handleRequestRide = (ride: CarpoolRide) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -524,7 +934,9 @@ export default function CarpoolScreen() {
             </Pressable>
             <View className="flex-row items-center">
               <Car size={20} color="#3B82F6" />
-              <Text className="text-white text-lg font-bold ml-2">Carpool</Text>
+              <Text className="text-white text-lg font-bold ml-2">
+                {mainTab === 'rideshare' ? 'Carpool' : 'Rent a Car'}
+              </Text>
             </View>
             <View className="flex-row items-center gap-2">
               {/* Safety Button */}
@@ -537,11 +949,15 @@ export default function CarpoolScreen() {
               >
                 <Shield size={18} color="#22C55E" />
               </Pressable>
-              {/* Post Ride Button */}
+              {/* Post Button - changes based on tab */}
               <Pressable
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                  setShowPostModal(true);
+                  if (mainTab === 'rideshare') {
+                    setShowPostModal(true);
+                  } else {
+                    setShowPostCarModal(true);
+                  }
                 }}
                 className="w-10 h-10 rounded-full bg-blue-500 items-center justify-center"
               >
@@ -550,11 +966,45 @@ export default function CarpoolScreen() {
             </View>
           </View>
 
+          {/* Main Tab Switcher */}
+          <View className="flex-row bg-white/10 rounded-2xl p-1 mb-4">
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setMainTab('rideshare');
+              }}
+              className={`flex-1 py-3 rounded-xl items-center ${
+                mainTab === 'rideshare' ? 'bg-blue-500' : ''
+              }`}
+            >
+              <Text className={`font-semibold ${
+                mainTab === 'rideshare' ? 'text-white' : 'text-gray-400'
+              }`}>
+                Rideshare
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setMainTab('rentcar');
+              }}
+              className={`flex-1 py-3 rounded-xl items-center ${
+                mainTab === 'rentcar' ? 'bg-emerald-500' : ''
+              }`}
+            >
+              <Text className={`font-semibold ${
+                mainTab === 'rentcar' ? 'text-white' : 'text-gray-400'
+              }`}>
+                Rent a Car
+              </Text>
+            </Pressable>
+          </View>
+
           {/* Search */}
           <View className="flex-row items-center bg-white/10 rounded-2xl px-4 py-3 mb-4">
             <MapPin size={18} color="#9CA3AF" />
             <TextInput
-              placeholder="Where are you going?"
+              placeholder={mainTab === 'rideshare' ? "Where are you going?" : "Search cars by location, make, model..."}
               placeholderTextColor="#9CA3AF"
               value={searchQuery}
               onChangeText={setSearchQuery}
@@ -562,48 +1012,78 @@ export default function CarpoolScreen() {
             />
           </View>
 
-          {/* Ride Type Filter */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }}>
-            <View className="flex-row gap-2">
-              {RIDE_TYPES.map((type) => {
-                const Icon = type.icon;
-                return (
+          {/* Ride Type Filter (Rideshare) or Car Type Filter (Rent a Car) */}
+          {mainTab === 'rideshare' ? (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }}>
+              <View className="flex-row gap-2">
+                {RIDE_TYPES.map((type) => {
+                  const Icon = type.icon;
+                  return (
+                    <Pressable
+                      key={type.key}
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        setSelectedType(type.key);
+                      }}
+                      className={`flex-row items-center px-4 py-2.5 rounded-full ${
+                        selectedType === type.key
+                          ? 'bg-blue-500'
+                          : 'bg-white/10'
+                      }`}
+                    >
+                      <Icon size={16} color={selectedType === type.key ? '#fff' : '#9CA3AF'} />
+                      <Text className={`ml-2 font-medium ${
+                        selectedType === type.key ? 'text-white' : 'text-gray-300'
+                      }`}>
+                        {type.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </ScrollView>
+          ) : (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }}>
+              <View className="flex-row gap-2">
+                {CAR_TYPES.map((type) => (
                   <Pressable
                     key={type.key}
                     onPress={() => {
                       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      setSelectedType(type.key);
+                      setSelectedCarType(type.key);
                     }}
-                    className={`flex-row items-center px-4 py-2.5 rounded-full ${
-                      selectedType === type.key
-                        ? 'bg-blue-500'
+                    className={`px-4 py-2.5 rounded-full ${
+                      selectedCarType === type.key
+                        ? 'bg-emerald-500'
                         : 'bg-white/10'
                     }`}
                   >
-                    <Icon size={16} color={selectedType === type.key ? '#fff' : '#9CA3AF'} />
-                    <Text className={`ml-2 font-medium ${
-                      selectedType === type.key ? 'text-white' : 'text-gray-300'
+                    <Text className={`font-medium ${
+                      selectedCarType === type.key ? 'text-white' : 'text-gray-300'
                     }`}>
                       {type.label}
                     </Text>
                   </Pressable>
-                );
-              })}
-            </View>
-          </ScrollView>
+                ))}
+              </View>
+            </ScrollView>
+          )}
         </View>
 
-        {/* Rides List */}
+        {/* Content based on selected tab */}
         <ScrollView className="flex-1 px-5" showsVerticalScrollIndicator={false}>
-          {filteredRides.map((ride, index) => (
-            <Animated.View
-              key={ride.id}
-              entering={FadeInDown.delay(index * 80).springify()}
-            >
-              <Pressable
-                onPress={() => handleRequestRide(ride)}
-                className="bg-white/5 rounded-3xl overflow-hidden mb-4 border border-white/10"
-              >
+          {mainTab === 'rideshare' ? (
+            // Rideshare rides list
+            <>
+              {filteredRides.map((ride, index) => (
+                <Animated.View
+                  key={ride.id}
+                  entering={FadeInDown.delay(index * 80).springify()}
+                >
+                  <Pressable
+                    onPress={() => handleRequestRide(ride)}
+                    className="bg-white/5 rounded-3xl overflow-hidden mb-4 border border-white/10"
+                  >
                 {/* Type Badge & Pricing Type */}
                 <View className="flex-row items-center justify-between px-4 pt-4">
                   <View className="flex-row items-center gap-2">
@@ -775,7 +1255,168 @@ export default function CarpoolScreen() {
             </Animated.View>
           ))}
 
-          <View className="h-32" />
+              <View className="h-32" />
+            </>
+          ) : (
+            // Rent a Car listings
+            <>
+              {filteredCars.length === 0 ? (
+                <View className="items-center py-12">
+                  <Car size={48} color="#4B5563" />
+                  <Text className="text-gray-400 text-lg mt-4">No cars found</Text>
+                  <Text className="text-gray-500 text-sm mt-1">Try adjusting your search or filters</Text>
+                </View>
+              ) : (
+                filteredCars.map((car, index) => (
+                  <Animated.View
+                    key={car.id}
+                    entering={FadeInDown.delay(index * 80).springify()}
+                  >
+                    <Pressable
+                      onPress={() => handleViewCar(car)}
+                      className="bg-white/5 rounded-3xl overflow-hidden mb-4 border border-white/10"
+                    >
+                      {/* Car Image */}
+                      <View className="relative">
+                        <Image
+                          source={{ uri: car.car.photos[0] }}
+                          style={{ width: '100%', height: 180 }}
+                          contentFit="cover"
+                        />
+                        {/* Car Type Badge */}
+                        <View className="absolute top-3 left-3 px-3 py-1.5 rounded-full bg-emerald-500/90">
+                          <Text className="text-white text-xs font-bold uppercase">{car.car.type}</Text>
+                        </View>
+                        {/* Verified Badge */}
+                        {car.owner.isVerified && (
+                          <View className="absolute top-3 right-3 flex-row items-center px-2.5 py-1.5 rounded-full bg-blue-500/90">
+                            <BadgeCheck size={12} color="#fff" />
+                            <Text className="text-white text-xs font-medium ml-1">Verified</Text>
+                          </View>
+                        )}
+                      </View>
+
+                      {/* Car Details */}
+                      <View className="p-4">
+                        {/* Car Name & Price */}
+                        <View className="flex-row items-start justify-between mb-2">
+                          <View className="flex-1">
+                            <Text className="text-white font-bold text-lg">
+                              {car.car.year} {car.car.make} {car.car.model}
+                            </Text>
+                            <View className="flex-row items-center mt-1">
+                              <MapPin size={12} color="#9CA3AF" />
+                              <Text className="text-gray-400 text-sm ml-1">{car.location}</Text>
+                              <Text className="text-gray-600 text-sm ml-1">• {car.city}</Text>
+                            </View>
+                          </View>
+                          <View className="items-end">
+                            <Text className="text-emerald-400 text-xl font-bold">
+                              {car.currency === 'USD' ? '$' : car.currency === 'GBP' ? '£' : ''}{car.pricePerDay.toLocaleString()}
+                              {car.currency !== 'USD' && car.currency !== 'GBP' ? ` ${car.currency}` : ''}
+                            </Text>
+                            <Text className="text-gray-500 text-xs">per day</Text>
+                          </View>
+                        </View>
+
+                        {/* Car Specs */}
+                        <View className="flex-row items-center flex-wrap gap-2 mb-3">
+                          <View className="flex-row items-center px-2.5 py-1 rounded-full bg-white/10">
+                            <Users size={12} color="#9CA3AF" />
+                            <Text className="text-gray-300 text-xs ml-1">{car.car.seats} seats</Text>
+                          </View>
+                          <View className="flex-row items-center px-2.5 py-1 rounded-full bg-white/10">
+                            <Car size={12} color="#9CA3AF" />
+                            <Text className="text-gray-300 text-xs ml-1">{car.car.transmission}</Text>
+                          </View>
+                          <View className="flex-row items-center px-2.5 py-1 rounded-full bg-white/10">
+                            <Fuel size={12} color="#9CA3AF" />
+                            <Text className="text-gray-300 text-xs ml-1">{car.car.fuelType}</Text>
+                          </View>
+                        </View>
+
+                        {/* Key Requirements Preview */}
+                        <View className="bg-white/5 rounded-xl p-3 mb-3">
+                          <Text className="text-gray-400 text-xs font-medium mb-2">KEY REQUIREMENTS</Text>
+                          <View className="flex-row items-center flex-wrap gap-2">
+                            <View className="flex-row items-center">
+                              <UserCheck size={12} color="#10B981" />
+                              <Text className="text-gray-300 text-xs ml-1">Age {car.requirements.minAge}+</Text>
+                            </View>
+                            {car.requirements.depositAmount > 0 && (
+                              <View className="flex-row items-center">
+                                <Wallet size={12} color="#F59E0B" />
+                                <Text className="text-gray-300 text-xs ml-1">
+                                  {car.requirements.depositCurrency === 'USD' ? '$' : ''}{car.requirements.depositAmount.toLocaleString()} deposit
+                                </Text>
+                              </View>
+                            )}
+                            {car.requirements.insuranceRequired && (
+                              <View className="flex-row items-center">
+                                <Shield size={12} color="#3B82F6" />
+                                <Text className="text-gray-300 text-xs ml-1">Insurance req.</Text>
+                              </View>
+                            )}
+                          </View>
+                        </View>
+
+                        {/* Features */}
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }}>
+                          <View className="flex-row gap-2">
+                            {car.features.slice(0, 4).map((feature, idx) => (
+                              <View key={idx} className="px-2.5 py-1 rounded-full bg-emerald-500/20">
+                                <Text className="text-emerald-400 text-xs">{feature}</Text>
+                              </View>
+                            ))}
+                            {car.features.length > 4 && (
+                              <View className="px-2.5 py-1 rounded-full bg-white/10">
+                                <Text className="text-gray-400 text-xs">+{car.features.length - 4} more</Text>
+                              </View>
+                            )}
+                          </View>
+                        </ScrollView>
+                      </View>
+
+                      {/* Owner Info & Action */}
+                      <View className="flex-row items-center justify-between px-4 py-3 bg-white/5 border-t border-white/10">
+                        <View className="flex-row items-center flex-1">
+                          <Image
+                            source={{ uri: car.owner.avatar }}
+                            style={{ width: 40, height: 40, borderRadius: 20 }}
+                            contentFit="cover"
+                          />
+                          <View className="ml-3">
+                            <View className="flex-row items-center">
+                              <Text className="text-white font-semibold">{car.owner.name}</Text>
+                              {car.owner.isVerified && (
+                                <View className="ml-1.5 w-4 h-4 rounded-full bg-blue-500 items-center justify-center">
+                                  <Text className="text-white text-xs">✓</Text>
+                                </View>
+                              )}
+                            </View>
+                            <View className="flex-row items-center">
+                              <Star size={12} color="#FBBF24" fill="#FBBF24" />
+                              <Text className="text-yellow-400 text-xs ml-1">{car.owner.rating}</Text>
+                              <Text className="text-gray-500 text-xs ml-2">• {car.owner.rentals} rentals</Text>
+                            </View>
+                          </View>
+                        </View>
+                        <Pressable
+                          onPress={() => handleViewCar(car)}
+                          className="flex-row items-center bg-emerald-500 px-4 py-2.5 rounded-full"
+                        >
+                          <Text className="text-white font-semibold">View</Text>
+                          <ChevronRight size={16} color="#fff" />
+                        </Pressable>
+                      </View>
+                    </Pressable>
+                  </Animated.View>
+                ))
+              )}
+
+              <View className="h-32" />
+            </>
+          )}
         </ScrollView>
 
         {/* Payment Method Modal */}
@@ -1733,6 +2374,872 @@ export default function CarpoolScreen() {
                   </ScrollView>
                 </>
               )}
+            </Animated.View>
+          </View>
+        </Modal>
+
+        {/* Car Rental Disclaimer Modal */}
+        <Modal visible={showCarRentalDisclaimer} animationType="fade" transparent>
+          <View className="flex-1 bg-black/90 justify-center p-6">
+            <Animated.View
+              entering={ZoomIn.springify()}
+              className="bg-[#1A1A2E] rounded-3xl overflow-hidden"
+            >
+              <LinearGradient
+                colors={['#F59E0B', '#D97706']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={{ padding: 24, alignItems: 'center' }}
+              >
+                <View className="w-16 h-16 rounded-full bg-white/20 items-center justify-center mb-4">
+                  <AlertTriangle size={32} color="#fff" />
+                </View>
+                <Text className="text-white text-xl font-bold text-center">Important Notice</Text>
+                <Text className="text-white/80 text-center mt-1">Car Rental Terms</Text>
+              </LinearGradient>
+
+              <ScrollView className="p-6" style={{ maxHeight: 400 }}>
+                <View className="bg-amber-500/10 rounded-2xl p-4 mb-4 border border-amber-500/30">
+                  <View className="flex-row items-start">
+                    <CircleAlert size={20} color="#F59E0B" />
+                    <Text className="text-amber-400 text-sm ml-3 flex-1 leading-5">
+                      Intera is a connection platform only. We do NOT provide rental services, insurance, or guarantees.
+                    </Text>
+                  </View>
+                </View>
+
+                <Text className="text-white font-semibold text-base mb-3">By using Rent a Car, you understand:</Text>
+
+                <View className="space-y-3">
+                  <View className="flex-row items-start">
+                    <View className="w-6 h-6 rounded-full bg-white/10 items-center justify-center mt-0.5">
+                      <Text className="text-white text-xs font-bold">1</Text>
+                    </View>
+                    <Text className="text-gray-300 text-sm ml-3 flex-1 leading-5">
+                      All rental agreements are made directly between you and the car owner. Intera is not a party to any rental agreement.
+                    </Text>
+                  </View>
+
+                  <View className="flex-row items-start mt-3">
+                    <View className="w-6 h-6 rounded-full bg-white/10 items-center justify-center mt-0.5">
+                      <Text className="text-white text-xs font-bold">2</Text>
+                    </View>
+                    <Text className="text-gray-300 text-sm ml-3 flex-1 leading-5">
+                      You are responsible for verifying the car owner's identity, the vehicle condition, and any insurance requirements.
+                    </Text>
+                  </View>
+
+                  <View className="flex-row items-start mt-3">
+                    <View className="w-6 h-6 rounded-full bg-white/10 items-center justify-center mt-0.5">
+                      <Text className="text-white text-xs font-bold">3</Text>
+                    </View>
+                    <Text className="text-gray-300 text-sm ml-3 flex-1 leading-5">
+                      In case of accidents, damage, or disputes, Intera bears no liability. All matters are between you and the car owner.
+                    </Text>
+                  </View>
+
+                  <View className="flex-row items-start mt-3">
+                    <View className="w-6 h-6 rounded-full bg-white/10 items-center justify-center mt-0.5">
+                      <Text className="text-white text-xs font-bold">4</Text>
+                    </View>
+                    <Text className="text-gray-300 text-sm ml-3 flex-1 leading-5">
+                      We strongly recommend getting proper insurance coverage and written agreements before any rental.
+                    </Text>
+                  </View>
+
+                  <View className="flex-row items-start mt-3">
+                    <View className="w-6 h-6 rounded-full bg-white/10 items-center justify-center mt-0.5">
+                      <Text className="text-white text-xs font-bold">5</Text>
+                    </View>
+                    <Text className="text-gray-300 text-sm ml-3 flex-1 leading-5">
+                      Each owner sets their own requirements (deposit, insurance, ID, etc.). Please review and comply with their terms.
+                    </Text>
+                  </View>
+                </View>
+
+                <View className="bg-red-500/10 rounded-2xl p-4 mt-4 border border-red-500/30">
+                  <Text className="text-red-400 text-sm text-center leading-5">
+                    By continuing, you accept full responsibility for all arrangements made through this platform.
+                  </Text>
+                </View>
+              </ScrollView>
+
+              <View className="p-6 border-t border-white/10">
+                <Pressable
+                  onPress={handleAcceptCarRentalDisclaimer}
+                  className="bg-emerald-500 py-4 rounded-2xl items-center mb-3"
+                >
+                  <Text className="text-white font-bold text-base">I Understand & Accept</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => {
+                    setShowCarRentalDisclaimer(false);
+                    setSelectedCar(null);
+                  }}
+                  className="py-3 items-center"
+                >
+                  <Text className="text-gray-400 font-medium">Cancel</Text>
+                </Pressable>
+              </View>
+            </Animated.View>
+          </View>
+        </Modal>
+
+        {/* Car Detail Modal */}
+        <Modal visible={showCarDetailModal} animationType="slide" transparent>
+          <View className="flex-1 bg-black/80">
+            <Animated.View
+              entering={FadeIn.springify()}
+              className="flex-1 bg-[#0A0A0A] mt-12 rounded-t-3xl"
+            >
+              {selectedCar && (
+                <>
+                  {/* Header */}
+                  <View className="flex-row items-center justify-between p-4 border-b border-white/10">
+                    <Pressable
+                      onPress={() => {
+                        setShowCarDetailModal(false);
+                        setSelectedCar(null);
+                      }}
+                      className="w-10 h-10 rounded-full bg-white/10 items-center justify-center"
+                    >
+                      <X size={20} color="#fff" />
+                    </Pressable>
+                    <Text className="text-white font-bold text-lg">Car Details</Text>
+                    <View className="w-10" />
+                  </View>
+
+                  <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+                    {/* Car Image */}
+                    <Image
+                      source={{ uri: selectedCar.car.photos[0] }}
+                      style={{ width: '100%', height: 220 }}
+                      contentFit="cover"
+                    />
+
+                    <View className="p-5">
+                      {/* Car Title & Price */}
+                      <View className="flex-row items-start justify-between mb-4">
+                        <View className="flex-1">
+                          <Text className="text-white font-bold text-2xl">
+                            {selectedCar.car.year} {selectedCar.car.make} {selectedCar.car.model}
+                          </Text>
+                          <View className="flex-row items-center mt-1">
+                            <MapPin size={14} color="#9CA3AF" />
+                            <Text className="text-gray-400 ml-1">{selectedCar.location}, {selectedCar.city}</Text>
+                          </View>
+                        </View>
+                        <View className="items-end">
+                          <Text className="text-emerald-400 text-2xl font-bold">
+                            {selectedCar.currency === 'USD' ? '$' : selectedCar.currency === 'GBP' ? '£' : ''}{selectedCar.pricePerDay.toLocaleString()}
+                            {selectedCar.currency !== 'USD' && selectedCar.currency !== 'GBP' ? ` ${selectedCar.currency}` : ''}
+                          </Text>
+                          <Text className="text-gray-500 text-sm">per day</Text>
+                        </View>
+                      </View>
+
+                      {/* Car Specs */}
+                      <View className="flex-row flex-wrap gap-3 mb-5">
+                        <View className="bg-white/10 px-4 py-2 rounded-xl">
+                          <Text className="text-gray-500 text-xs">Type</Text>
+                          <Text className="text-white font-medium capitalize">{selectedCar.car.type}</Text>
+                        </View>
+                        <View className="bg-white/10 px-4 py-2 rounded-xl">
+                          <Text className="text-gray-500 text-xs">Seats</Text>
+                          <Text className="text-white font-medium">{selectedCar.car.seats}</Text>
+                        </View>
+                        <View className="bg-white/10 px-4 py-2 rounded-xl">
+                          <Text className="text-gray-500 text-xs">Transmission</Text>
+                          <Text className="text-white font-medium capitalize">{selectedCar.car.transmission}</Text>
+                        </View>
+                        <View className="bg-white/10 px-4 py-2 rounded-xl">
+                          <Text className="text-gray-500 text-xs">Fuel</Text>
+                          <Text className="text-white font-medium capitalize">{selectedCar.car.fuelType}</Text>
+                        </View>
+                        <View className="bg-white/10 px-4 py-2 rounded-xl">
+                          <Text className="text-gray-500 text-xs">Color</Text>
+                          <Text className="text-white font-medium">{selectedCar.car.color}</Text>
+                        </View>
+                      </View>
+
+                      {/* Description */}
+                      <View className="mb-5">
+                        <Text className="text-white font-semibold text-lg mb-2">About This Car</Text>
+                        <Text className="text-gray-400 leading-6">{selectedCar.description}</Text>
+                      </View>
+
+                      {/* Features */}
+                      <View className="mb-5">
+                        <Text className="text-white font-semibold text-lg mb-3">Features</Text>
+                        <View className="flex-row flex-wrap gap-2">
+                          {selectedCar.features.map((feature, idx) => (
+                            <View key={idx} className="bg-emerald-500/20 px-3 py-1.5 rounded-full">
+                              <Text className="text-emerald-400 text-sm">{feature}</Text>
+                            </View>
+                          ))}
+                        </View>
+                      </View>
+
+                      {/* Owner Requirements */}
+                      <View className="mb-5">
+                        <Text className="text-white font-semibold text-lg mb-3">Owner Requirements</Text>
+                        <View className="bg-white/5 rounded-2xl p-4 border border-white/10">
+                          <View className="flex-row items-center mb-3">
+                            <UserCheck size={18} color="#10B981" />
+                            <Text className="text-white ml-3">Minimum age: {selectedCar.requirements.minAge}+</Text>
+                          </View>
+                          {selectedCar.requirements.validLicense && (
+                            <View className="flex-row items-center mb-3">
+                              <FileText size={18} color="#3B82F6" />
+                              <Text className="text-white ml-3">Valid driver's license required</Text>
+                            </View>
+                          )}
+                          {selectedCar.requirements.idRequired && (
+                            <View className="flex-row items-center mb-3">
+                              <BadgeCheck size={18} color="#8B5CF6" />
+                              <Text className="text-white ml-3">Government ID required</Text>
+                            </View>
+                          )}
+                          {selectedCar.requirements.insuranceRequired && (
+                            <View className="flex-row items-center mb-3">
+                              <Shield size={18} color="#F59E0B" />
+                              <Text className="text-white ml-3">Insurance required (you provide)</Text>
+                            </View>
+                          )}
+                          {selectedCar.requirements.depositAmount > 0 && (
+                            <View className="flex-row items-center mb-3">
+                              <Wallet size={18} color="#EC4899" />
+                              <Text className="text-white ml-3">
+                                Deposit: {selectedCar.requirements.depositCurrency === 'USD' ? '$' : ''}{selectedCar.requirements.depositAmount.toLocaleString()} {selectedCar.requirements.depositCurrency}
+                              </Text>
+                            </View>
+                          )}
+                          {selectedCar.requirements.backgroundCheck && (
+                            <View className="flex-row items-center mb-3">
+                              <UserCheck size={18} color="#EF4444" />
+                              <Text className="text-white ml-3">Background check required</Text>
+                            </View>
+                          )}
+                          {selectedCar.requirements.customRequirements.length > 0 && (
+                            <View className="mt-2 pt-3 border-t border-white/10">
+                              <Text className="text-gray-400 text-sm font-medium mb-2">Additional Requirements:</Text>
+                              {selectedCar.requirements.customRequirements.map((req, idx) => (
+                                <View key={idx} className="flex-row items-start mb-1.5">
+                                  <Text className="text-gray-500 mr-2">•</Text>
+                                  <Text className="text-gray-300 text-sm flex-1">{req}</Text>
+                                </View>
+                              ))}
+                            </View>
+                          )}
+                        </View>
+                      </View>
+
+                      {/* Car Rules */}
+                      {selectedCar.rules.length > 0 && (
+                        <View className="mb-5">
+                          <Text className="text-white font-semibold text-lg mb-3">Car Rules</Text>
+                          <View className="bg-white/5 rounded-2xl p-4 border border-white/10">
+                            {selectedCar.rules.map((rule, idx) => (
+                              <View key={idx} className="flex-row items-start mb-2">
+                                <Text className="text-amber-400 mr-2">•</Text>
+                                <Text className="text-gray-300 flex-1">{rule}</Text>
+                              </View>
+                            ))}
+                          </View>
+                        </View>
+                      )}
+
+                      {/* Rental Period */}
+                      <View className="mb-5">
+                        <Text className="text-white font-semibold text-lg mb-3">Rental Period</Text>
+                        <View className="flex-row gap-3">
+                          <View className="flex-1 bg-white/5 rounded-xl p-3 items-center">
+                            <Text className="text-gray-500 text-xs">Minimum</Text>
+                            <Text className="text-white font-bold text-lg">{selectedCar.minDays} {selectedCar.minDays === 1 ? 'day' : 'days'}</Text>
+                          </View>
+                          <View className="flex-1 bg-white/5 rounded-xl p-3 items-center">
+                            <Text className="text-gray-500 text-xs">Maximum</Text>
+                            <Text className="text-white font-bold text-lg">{selectedCar.maxDays} days</Text>
+                          </View>
+                        </View>
+                      </View>
+
+                      {/* Owner Info */}
+                      <View className="mb-5">
+                        <Text className="text-white font-semibold text-lg mb-3">Car Owner</Text>
+                        <View className="bg-white/5 rounded-2xl p-4 border border-white/10">
+                          <View className="flex-row items-center">
+                            <Image
+                              source={{ uri: selectedCar.owner.avatar }}
+                              style={{ width: 56, height: 56, borderRadius: 28 }}
+                              contentFit="cover"
+                            />
+                            <View className="ml-4 flex-1">
+                              <View className="flex-row items-center">
+                                <Text className="text-white font-bold text-lg">{selectedCar.owner.name}</Text>
+                                {selectedCar.owner.isVerified && (
+                                  <View className="ml-2 w-5 h-5 rounded-full bg-blue-500 items-center justify-center">
+                                    <Text className="text-white text-xs">✓</Text>
+                                  </View>
+                                )}
+                              </View>
+                              <View className="flex-row items-center mt-1">
+                                <Star size={14} color="#FBBF24" fill="#FBBF24" />
+                                <Text className="text-yellow-400 text-sm ml-1">{selectedCar.owner.rating}</Text>
+                                <Text className="text-gray-500 text-sm ml-2">• {selectedCar.owner.rentals} rentals</Text>
+                              </View>
+                              <Text className="text-gray-500 text-xs mt-1">Member since {selectedCar.owner.memberSince}</Text>
+                            </View>
+                          </View>
+                          <View className="mt-3 pt-3 border-t border-white/10">
+                            <Text className="text-gray-400 text-sm">{selectedCar.owner.responseTime}</Text>
+                          </View>
+                        </View>
+                      </View>
+
+                      {/* Payment Methods */}
+                      <View className="mb-5">
+                        <Text className="text-white font-semibold text-lg mb-3">Payment Methods Accepted</Text>
+                        <View className="bg-white/5 rounded-2xl p-4 border border-white/10">
+                          <View className="flex-row flex-wrap gap-2">
+                            {selectedCar.paymentInfo.acceptsCash && (
+                              <View className="flex-row items-center bg-green-500/20 px-3 py-1.5 rounded-full">
+                                <Wallet size={14} color="#22C55E" />
+                                <Text className="text-green-400 text-sm ml-1.5">Cash</Text>
+                              </View>
+                            )}
+                            {selectedCar.paymentInfo.cashApp && (
+                              <View className="flex-row items-center bg-green-500/20 px-3 py-1.5 rounded-full">
+                                <DollarSign size={14} color="#22C55E" />
+                                <Text className="text-green-400 text-sm ml-1.5">Cash App</Text>
+                              </View>
+                            )}
+                            {selectedCar.paymentInfo.venmo && (
+                              <View className="flex-row items-center bg-blue-500/20 px-3 py-1.5 rounded-full">
+                                <Smartphone size={14} color="#3B82F6" />
+                                <Text className="text-blue-400 text-sm ml-1.5">Venmo</Text>
+                              </View>
+                            )}
+                            {selectedCar.paymentInfo.zelle && (
+                              <View className="flex-row items-center bg-purple-500/20 px-3 py-1.5 rounded-full">
+                                <Banknote size={14} color="#8B5CF6" />
+                                <Text className="text-purple-400 text-sm ml-1.5">Zelle</Text>
+                              </View>
+                            )}
+                            {selectedCar.paymentInfo.paypal && (
+                              <View className="flex-row items-center bg-blue-500/20 px-3 py-1.5 rounded-full">
+                                <Globe size={14} color="#3B82F6" />
+                                <Text className="text-blue-400 text-sm ml-1.5">PayPal</Text>
+                              </View>
+                            )}
+                            {selectedCar.paymentInfo.wise && (
+                              <View className="flex-row items-center bg-emerald-500/20 px-3 py-1.5 rounded-full">
+                                <Send size={14} color="#10B981" />
+                                <Text className="text-emerald-400 text-sm ml-1.5">Wise</Text>
+                              </View>
+                            )}
+                            {selectedCar.paymentInfo.mpesa && (
+                              <View className="flex-row items-center bg-green-500/20 px-3 py-1.5 rounded-full">
+                                <Smartphone size={14} color="#22C55E" />
+                                <Text className="text-green-400 text-sm ml-1.5">M-Pesa</Text>
+                              </View>
+                            )}
+                            {selectedCar.paymentInfo.bankDetails && (
+                              <View className="flex-row items-center bg-gray-500/20 px-3 py-1.5 rounded-full">
+                                <Building size={14} color="#9CA3AF" />
+                                <Text className="text-gray-400 text-sm ml-1.5">Bank Transfer</Text>
+                              </View>
+                            )}
+                          </View>
+                        </View>
+                      </View>
+
+                      {/* Disclaimer */}
+                      <View className="bg-amber-500/10 rounded-2xl p-4 border border-amber-500/30 mb-6">
+                        <View className="flex-row items-start">
+                          <AlertTriangle size={18} color="#F59E0B" />
+                          <Text className="text-amber-400/90 text-xs ml-3 flex-1 leading-5">
+                            Intera only facilitates connections. All rental terms, payments, and agreements are between you and the car owner. We recommend getting everything in writing.
+                          </Text>
+                        </View>
+                      </View>
+
+                      <View className="h-8" />
+                    </View>
+                  </ScrollView>
+
+                  {/* Contact Owner Button */}
+                  <View className="p-4 border-t border-white/10 bg-[#0A0A0A]">
+                    <Pressable
+                      onPress={() => {
+                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                        setShowCarDetailModal(false);
+                        // Navigate to chat with owner
+                        router.push(`/chat/${selectedCar.owner.id}` as any);
+                      }}
+                      className="bg-emerald-500 py-4 rounded-2xl flex-row items-center justify-center"
+                    >
+                      <MessageCircle size={20} color="#fff" />
+                      <Text className="text-white font-bold text-base ml-2">Message {selectedCar.owner.name.split(' ')[0]}</Text>
+                    </Pressable>
+                  </View>
+                </>
+              )}
+            </Animated.View>
+          </View>
+        </Modal>
+
+        {/* Post Car Modal */}
+        <Modal visible={showPostCarModal} animationType="slide" transparent>
+          <View className="flex-1 bg-black/80">
+            <Animated.View
+              entering={FadeIn.springify()}
+              className="flex-1 bg-[#0A0A0A] mt-12 rounded-t-3xl"
+            >
+              {/* Header */}
+              <View className="flex-row items-center justify-between p-4 border-b border-white/10">
+                <Pressable
+                  onPress={() => setShowPostCarModal(false)}
+                  className="w-10 h-10 rounded-full bg-white/10 items-center justify-center"
+                >
+                  <X size={20} color="#fff" />
+                </Pressable>
+                <Text className="text-white font-bold text-lg">List Your Car</Text>
+                <View className="w-10" />
+              </View>
+
+              <ScrollView className="flex-1 p-5" showsVerticalScrollIndicator={false}>
+                {/* Intro */}
+                <View className="bg-emerald-500/10 rounded-2xl p-4 mb-6 border border-emerald-500/30">
+                  <Text className="text-emerald-400 font-semibold mb-1">Rent out your car!</Text>
+                  <Text className="text-gray-400 text-sm leading-5">
+                    Set your own price, requirements, and availability. You control everything - we just connect you with renters.
+                  </Text>
+                </View>
+
+                {/* Car Details Section */}
+                <Text className="text-white font-semibold text-lg mb-4">Car Details</Text>
+
+                <View className="flex-row gap-3 mb-4">
+                  <View className="flex-1">
+                    <Text className="text-gray-400 text-sm mb-2">Make *</Text>
+                    <TextInput
+                      placeholder="Toyota"
+                      placeholderTextColor="#6B7280"
+                      value={postCarForm.make}
+                      onChangeText={(text) => setPostCarForm({ ...postCarForm, make: text })}
+                      className="bg-white/10 rounded-xl px-4 py-3 text-white"
+                    />
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-gray-400 text-sm mb-2">Model *</Text>
+                    <TextInput
+                      placeholder="Camry"
+                      placeholderTextColor="#6B7280"
+                      value={postCarForm.model}
+                      onChangeText={(text) => setPostCarForm({ ...postCarForm, model: text })}
+                      className="bg-white/10 rounded-xl px-4 py-3 text-white"
+                    />
+                  </View>
+                </View>
+
+                <View className="flex-row gap-3 mb-4">
+                  <View className="flex-1">
+                    <Text className="text-gray-400 text-sm mb-2">Year *</Text>
+                    <TextInput
+                      placeholder="2022"
+                      placeholderTextColor="#6B7280"
+                      keyboardType="numeric"
+                      value={postCarForm.year}
+                      onChangeText={(text) => setPostCarForm({ ...postCarForm, year: text })}
+                      className="bg-white/10 rounded-xl px-4 py-3 text-white"
+                    />
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-gray-400 text-sm mb-2">Color *</Text>
+                    <TextInput
+                      placeholder="Silver"
+                      placeholderTextColor="#6B7280"
+                      value={postCarForm.color}
+                      onChangeText={(text) => setPostCarForm({ ...postCarForm, color: text })}
+                      className="bg-white/10 rounded-xl px-4 py-3 text-white"
+                    />
+                  </View>
+                </View>
+
+                <View className="flex-row gap-3 mb-4">
+                  <View className="flex-1">
+                    <Text className="text-gray-400 text-sm mb-2">Seats *</Text>
+                    <TextInput
+                      placeholder="5"
+                      placeholderTextColor="#6B7280"
+                      keyboardType="numeric"
+                      value={postCarForm.seats}
+                      onChangeText={(text) => setPostCarForm({ ...postCarForm, seats: text })}
+                      className="bg-white/10 rounded-xl px-4 py-3 text-white"
+                    />
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-gray-400 text-sm mb-2">Min Age *</Text>
+                    <TextInput
+                      placeholder="21"
+                      placeholderTextColor="#6B7280"
+                      keyboardType="numeric"
+                      value={postCarForm.minAge}
+                      onChangeText={(text) => setPostCarForm({ ...postCarForm, minAge: text })}
+                      className="bg-white/10 rounded-xl px-4 py-3 text-white"
+                    />
+                  </View>
+                </View>
+
+                {/* Car Type */}
+                <Text className="text-gray-400 text-sm mb-2">Car Type *</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-4" style={{ flexGrow: 0 }}>
+                  <View className="flex-row gap-2">
+                    {(['sedan', 'suv', 'truck', 'van', 'luxury', 'economy'] as const).map((type) => (
+                      <Pressable
+                        key={type}
+                        onPress={() => setPostCarForm({ ...postCarForm, carType: type })}
+                        className={`px-4 py-2 rounded-full ${
+                          postCarForm.carType === type ? 'bg-emerald-500' : 'bg-white/10'
+                        }`}
+                      >
+                        <Text className={`capitalize ${
+                          postCarForm.carType === type ? 'text-white font-medium' : 'text-gray-400'
+                        }`}>{type}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </ScrollView>
+
+                {/* Transmission & Fuel */}
+                <View className="flex-row gap-3 mb-4">
+                  <View className="flex-1">
+                    <Text className="text-gray-400 text-sm mb-2">Transmission</Text>
+                    <View className="flex-row gap-2">
+                      <Pressable
+                        onPress={() => setPostCarForm({ ...postCarForm, transmission: 'automatic' })}
+                        className={`flex-1 py-2.5 rounded-xl items-center ${
+                          postCarForm.transmission === 'automatic' ? 'bg-emerald-500' : 'bg-white/10'
+                        }`}
+                      >
+                        <Text className={postCarForm.transmission === 'automatic' ? 'text-white font-medium' : 'text-gray-400'}>Auto</Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={() => setPostCarForm({ ...postCarForm, transmission: 'manual' })}
+                        className={`flex-1 py-2.5 rounded-xl items-center ${
+                          postCarForm.transmission === 'manual' ? 'bg-emerald-500' : 'bg-white/10'
+                        }`}
+                      >
+                        <Text className={postCarForm.transmission === 'manual' ? 'text-white font-medium' : 'text-gray-400'}>Manual</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-gray-400 text-sm mb-2">Fuel Type</Text>
+                    <View className="flex-row gap-2">
+                      <Pressable
+                        onPress={() => setPostCarForm({ ...postCarForm, fuelType: 'gas' })}
+                        className={`flex-1 py-2.5 rounded-xl items-center ${
+                          postCarForm.fuelType === 'gas' ? 'bg-emerald-500' : 'bg-white/10'
+                        }`}
+                      >
+                        <Text className={postCarForm.fuelType === 'gas' ? 'text-white font-medium' : 'text-gray-400'}>Gas</Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={() => setPostCarForm({ ...postCarForm, fuelType: 'electric' })}
+                        className={`flex-1 py-2.5 rounded-xl items-center ${
+                          postCarForm.fuelType === 'electric' ? 'bg-emerald-500' : 'bg-white/10'
+                        }`}
+                      >
+                        <Text className={postCarForm.fuelType === 'electric' ? 'text-white font-medium' : 'text-gray-400'}>EV</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Location */}
+                <Text className="text-white font-semibold text-lg mb-4 mt-4">Location & Pricing</Text>
+
+                <View className="mb-4">
+                  <Text className="text-gray-400 text-sm mb-2">Pickup Location *</Text>
+                  <TextInput
+                    placeholder="e.g., Harlem, Manhattan"
+                    placeholderTextColor="#6B7280"
+                    value={postCarForm.location}
+                    onChangeText={(text) => setPostCarForm({ ...postCarForm, location: text })}
+                    className="bg-white/10 rounded-xl px-4 py-3 text-white"
+                  />
+                </View>
+
+                <View className="mb-4">
+                  <Text className="text-gray-400 text-sm mb-2">City *</Text>
+                  <TextInput
+                    placeholder="e.g., New York, USA"
+                    placeholderTextColor="#6B7280"
+                    value={postCarForm.city}
+                    onChangeText={(text) => setPostCarForm({ ...postCarForm, city: text })}
+                    className="bg-white/10 rounded-xl px-4 py-3 text-white"
+                  />
+                </View>
+
+                <View className="flex-row gap-3 mb-4">
+                  <View className="flex-1">
+                    <Text className="text-gray-400 text-sm mb-2">Price/Day *</Text>
+                    <TextInput
+                      placeholder="45"
+                      placeholderTextColor="#6B7280"
+                      keyboardType="numeric"
+                      value={postCarForm.pricePerDay}
+                      onChangeText={(text) => setPostCarForm({ ...postCarForm, pricePerDay: text })}
+                      className="bg-white/10 rounded-xl px-4 py-3 text-white"
+                    />
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-gray-400 text-sm mb-2">Currency *</Text>
+                    <TextInput
+                      placeholder="USD"
+                      placeholderTextColor="#6B7280"
+                      value={postCarForm.currency}
+                      onChangeText={(text) => setPostCarForm({ ...postCarForm, currency: text })}
+                      className="bg-white/10 rounded-xl px-4 py-3 text-white"
+                    />
+                  </View>
+                </View>
+
+                <View className="flex-row gap-3 mb-4">
+                  <View className="flex-1">
+                    <Text className="text-gray-400 text-sm mb-2">Deposit Amount</Text>
+                    <TextInput
+                      placeholder="200"
+                      placeholderTextColor="#6B7280"
+                      keyboardType="numeric"
+                      value={postCarForm.depositAmount}
+                      onChangeText={(text) => setPostCarForm({ ...postCarForm, depositAmount: text })}
+                      className="bg-white/10 rounded-xl px-4 py-3 text-white"
+                    />
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-gray-400 text-sm mb-2">Min/Max Days</Text>
+                    <View className="flex-row items-center bg-white/10 rounded-xl px-4 py-3">
+                      <TextInput
+                        placeholder="1"
+                        placeholderTextColor="#6B7280"
+                        keyboardType="numeric"
+                        value={postCarForm.minDays}
+                        onChangeText={(text) => setPostCarForm({ ...postCarForm, minDays: text })}
+                        className="flex-1 text-white text-center"
+                      />
+                      <Text className="text-gray-500 mx-2">-</Text>
+                      <TextInput
+                        placeholder="30"
+                        placeholderTextColor="#6B7280"
+                        keyboardType="numeric"
+                        value={postCarForm.maxDays}
+                        onChangeText={(text) => setPostCarForm({ ...postCarForm, maxDays: text })}
+                        className="flex-1 text-white text-center"
+                      />
+                    </View>
+                  </View>
+                </View>
+
+                {/* Requirements */}
+                <Text className="text-white font-semibold text-lg mb-4 mt-4">Your Requirements</Text>
+
+                <View className="bg-white/5 rounded-2xl p-4 mb-4">
+                  <View className="flex-row items-center justify-between mb-4">
+                    <View className="flex-row items-center">
+                      <Shield size={18} color="#F59E0B" />
+                      <Text className="text-white ml-3">Require insurance</Text>
+                    </View>
+                    <Switch
+                      value={postCarForm.insuranceRequired}
+                      onValueChange={(value) => setPostCarForm({ ...postCarForm, insuranceRequired: value })}
+                      trackColor={{ false: '#374151', true: '#10B981' }}
+                      thumbColor="#fff"
+                    />
+                  </View>
+                  <View className="flex-row items-center justify-between mb-4">
+                    <View className="flex-row items-center">
+                      <BadgeCheck size={18} color="#8B5CF6" />
+                      <Text className="text-white ml-3">Require ID verification</Text>
+                    </View>
+                    <Switch
+                      value={postCarForm.idRequired}
+                      onValueChange={(value) => setPostCarForm({ ...postCarForm, idRequired: value })}
+                      trackColor={{ false: '#374151', true: '#10B981' }}
+                      thumbColor="#fff"
+                    />
+                  </View>
+                  <View className="flex-row items-center justify-between">
+                    <View className="flex-row items-center">
+                      <UserCheck size={18} color="#EF4444" />
+                      <Text className="text-white ml-3">Require background check</Text>
+                    </View>
+                    <Switch
+                      value={postCarForm.backgroundCheck}
+                      onValueChange={(value) => setPostCarForm({ ...postCarForm, backgroundCheck: value })}
+                      trackColor={{ false: '#374151', true: '#10B981' }}
+                      thumbColor="#fff"
+                    />
+                  </View>
+                </View>
+
+                <View className="mb-4">
+                  <Text className="text-gray-400 text-sm mb-2">Custom Requirements (one per line)</Text>
+                  <TextInput
+                    placeholder="e.g., No smoking in car&#10;Return with full tank"
+                    placeholderTextColor="#6B7280"
+                    multiline
+                    numberOfLines={3}
+                    value={postCarForm.customRequirements}
+                    onChangeText={(text) => setPostCarForm({ ...postCarForm, customRequirements: text })}
+                    className="bg-white/10 rounded-xl px-4 py-3 text-white min-h-[80px]"
+                    textAlignVertical="top"
+                  />
+                </View>
+
+                {/* Description */}
+                <Text className="text-white font-semibold text-lg mb-4 mt-4">Description & Features</Text>
+
+                <View className="mb-4">
+                  <Text className="text-gray-400 text-sm mb-2">Description *</Text>
+                  <TextInput
+                    placeholder="Tell renters about your car..."
+                    placeholderTextColor="#6B7280"
+                    multiline
+                    numberOfLines={4}
+                    value={postCarForm.description}
+                    onChangeText={(text) => setPostCarForm({ ...postCarForm, description: text })}
+                    className="bg-white/10 rounded-xl px-4 py-3 text-white min-h-[100px]"
+                    textAlignVertical="top"
+                  />
+                </View>
+
+                <View className="mb-4">
+                  <Text className="text-gray-400 text-sm mb-2">Features (comma separated)</Text>
+                  <TextInput
+                    placeholder="Bluetooth, Backup Camera, Apple CarPlay"
+                    placeholderTextColor="#6B7280"
+                    value={postCarForm.features}
+                    onChangeText={(text) => setPostCarForm({ ...postCarForm, features: text })}
+                    className="bg-white/10 rounded-xl px-4 py-3 text-white"
+                  />
+                </View>
+
+                <View className="mb-4">
+                  <Text className="text-gray-400 text-sm mb-2">Rules (comma separated)</Text>
+                  <TextInput
+                    placeholder="No smoking, No pets, Return clean"
+                    placeholderTextColor="#6B7280"
+                    value={postCarForm.rules}
+                    onChangeText={(text) => setPostCarForm({ ...postCarForm, rules: text })}
+                    className="bg-white/10 rounded-xl px-4 py-3 text-white"
+                  />
+                </View>
+
+                {/* Payment Methods */}
+                <Text className="text-white font-semibold text-lg mb-4 mt-4">Payment Methods</Text>
+
+                <View className="bg-white/5 rounded-2xl p-4 mb-4">
+                  <View className="flex-row items-center justify-between mb-4">
+                    <View className="flex-row items-center">
+                      <Wallet size={18} color="#22C55E" />
+                      <Text className="text-white ml-3">Accept Cash</Text>
+                    </View>
+                    <Switch
+                      value={postCarForm.acceptsCash}
+                      onValueChange={(value) => setPostCarForm({ ...postCarForm, acceptsCash: value })}
+                      trackColor={{ false: '#374151', true: '#10B981' }}
+                      thumbColor="#fff"
+                    />
+                  </View>
+                </View>
+
+                <View className="flex-row gap-3 mb-4">
+                  <View className="flex-1">
+                    <Text className="text-gray-400 text-sm mb-2">Cash App</Text>
+                    <TextInput
+                      placeholder="$YourTag"
+                      placeholderTextColor="#6B7280"
+                      value={postCarForm.cashApp}
+                      onChangeText={(text) => setPostCarForm({ ...postCarForm, cashApp: text })}
+                      className="bg-white/10 rounded-xl px-4 py-3 text-white"
+                    />
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-gray-400 text-sm mb-2">Venmo</Text>
+                    <TextInput
+                      placeholder="@YourUsername"
+                      placeholderTextColor="#6B7280"
+                      value={postCarForm.venmo}
+                      onChangeText={(text) => setPostCarForm({ ...postCarForm, venmo: text })}
+                      className="bg-white/10 rounded-xl px-4 py-3 text-white"
+                    />
+                  </View>
+                </View>
+
+                <View className="flex-row gap-3 mb-4">
+                  <View className="flex-1">
+                    <Text className="text-gray-400 text-sm mb-2">Zelle</Text>
+                    <TextInput
+                      placeholder="email@example.com"
+                      placeholderTextColor="#6B7280"
+                      value={postCarForm.zelle}
+                      onChangeText={(text) => setPostCarForm({ ...postCarForm, zelle: text })}
+                      className="bg-white/10 rounded-xl px-4 py-3 text-white"
+                    />
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-gray-400 text-sm mb-2">M-Pesa</Text>
+                    <TextInput
+                      placeholder="+254..."
+                      placeholderTextColor="#6B7280"
+                      value={postCarForm.mpesa}
+                      onChangeText={(text) => setPostCarForm({ ...postCarForm, mpesa: text })}
+                      className="bg-white/10 rounded-xl px-4 py-3 text-white"
+                    />
+                  </View>
+                </View>
+
+                <View className="mb-6">
+                  <Text className="text-gray-400 text-sm mb-2">Bank Details (optional)</Text>
+                  <TextInput
+                    placeholder="Bank name, account number, etc."
+                    placeholderTextColor="#6B7280"
+                    value={postCarForm.bankDetails}
+                    onChangeText={(text) => setPostCarForm({ ...postCarForm, bankDetails: text })}
+                    className="bg-white/10 rounded-xl px-4 py-3 text-white"
+                  />
+                </View>
+
+                {/* Disclaimer */}
+                <View className="bg-amber-500/10 rounded-2xl p-4 border border-amber-500/30 mb-6">
+                  <View className="flex-row items-start">
+                    <AlertTriangle size={18} color="#F59E0B" />
+                    <Text className="text-amber-400/90 text-xs ml-3 flex-1 leading-5">
+                      By listing your car, you agree that you are solely responsible for all rental agreements, insurance, and any incidents. Intera is a connection platform only.
+                    </Text>
+                  </View>
+                </View>
+
+                <View className="h-8" />
+              </ScrollView>
+
+              {/* Submit Button */}
+              <View className="p-4 border-t border-white/10 bg-[#0A0A0A]">
+                <Pressable
+                  onPress={() => {
+                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                    setShowPostCarModal(false);
+                    // In real app, would submit to backend
+                    Alert.alert('Success', 'Your car listing has been submitted for review!');
+                  }}
+                  className="bg-emerald-500 py-4 rounded-2xl items-center"
+                >
+                  <Text className="text-white font-bold text-base">List My Car</Text>
+                </Pressable>
+              </View>
             </Animated.View>
           </View>
         </Modal>
