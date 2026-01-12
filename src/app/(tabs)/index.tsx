@@ -123,16 +123,8 @@ export default function HomeScreen() {
   const feedFilter = useStore((s) => s.feedFilter);
   const setFeedFilter = useStore((s) => s.setFeedFilter);
   const blockedUserIds = useStore((s) => s.blockedUserIds);
-  const hasSeenStory = useStore((s) => s.hasSeenStory);
 
   const { unreadCount, refetch: refetchUnread } = useUnreadMessages();
-
-  // Redirect first-time users to the story screen
-  useEffect(() => {
-    if (!hasSeenStory) {
-      router.replace('/story');
-    }
-  }, [hasSeenStory]);
 
   useEffect(() => {
     getCurrentUser().then(setCurrentUser);

@@ -10,7 +10,7 @@ import { requestNotificationPermissions } from '@/lib/notifications';
 import { useMessageNotifications } from '@/lib/useMessageNotifications';
 
 export const unstable_settings = {
-  initialRouteName: '(tabs)',
+  initialRouteName: 'index',
 };
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
@@ -43,6 +43,7 @@ function RootLayoutNav() {
   return (
     <ThemeProvider value={DiasporaTheme}>
       <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="index" options={{ animation: 'none' }} />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="story" options={{ animation: 'fade' }} />
         <Stack.Screen name="welcome" options={{ animation: 'fade' }} />
