@@ -1,16 +1,17 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { Stack } from 'expo-router';
+import { Stack, router, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { requestNotificationPermissions } from '@/lib/notifications';
 import { useMessageNotifications } from '@/lib/useMessageNotifications';
+import { useStore } from '@/lib/store';
 
 export const unstable_settings = {
-  initialRouteName: 'index',
+  initialRouteName: '(tabs)',
 };
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
@@ -32,6 +33,11 @@ const DiasporaTheme = {
 };
 
 function RootLayoutNav() {
+  const hasSeenStory = useStore((s) => s.hasSeenStory);
+  const [isHydrated, setIsHydrated] = useState(false);
+  const [hasNavigated, setHasNavigated] = useState(false);
+  const segments = useSegments();
+
   // Request notification permissions on app launch
   useEffect(() => {
     requestNotificationPermissions();
@@ -40,10 +46,34 @@ function RootLayoutNav() {
   // Listen for new messages and send notifications
   useMessageNotifications();
 
+  // Wait for store hydration
+  useEffect(() => {
+    const checkHydration = () => {
+      if (useStore.persist.hasHydrated()) {
+        setIsHydrated(true);
+      }
+    };
+
+    checkHydration();
+    const unsubscribe = useStore.persist.onFinishHydration(() => {
+      setIsHydrated(true);
+    });
+
+    return unsubscribe;
+  }, []);
+
+  // Navigate to story screen if user hasn't seen it
+  // Using segments to confirm router is mounted
+  useEffect(() => {
+    if (isHydrated && !hasSeenStory && !hasNavigated && segments.length > 0) {
+      router.replace('/story');
+      setHasNavigated(true);
+    }
+  }, [isHydrated, hasSeenStory, hasNavigated, segments]);
+
   return (
     <ThemeProvider value={DiasporaTheme}>
       <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="index" options={{ animation: 'none' }} />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="story" options={{ animation: 'fade' }} />
         <Stack.Screen name="welcome" options={{ animation: 'fade' }} />
