@@ -187,7 +187,7 @@ export function CommunityPresence({ city, memberCount, isGlobal = false }: Commu
 
   const handleViewMembers = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push('/find-helpers');
+    router.push('/(tabs)/search');
   };
 
   const handleEventPress = (event: PresenceEvent) => {
