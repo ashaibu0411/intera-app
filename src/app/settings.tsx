@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, Pressable, Switch, Linking, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Bell, BellOff, ChevronRight, Shield, CircleHelp, LogOut, Trash2, AlertTriangle, Ban, X } from 'lucide-react-native';
+import { ArrowLeft, Bell, BellOff, ChevronRight, Shield, CircleHelp, LogOut, Trash2, AlertTriangle, Ban, X, Eye, EyeOff } from 'lucide-react-native';
 import { Image } from 'expo-image';
 import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { useStore } from '@/lib/store';
 import { requestNotificationPermissions, areNotificationsEnabled } from '@/lib/notifications';
-import { signOut, deleteAccount } from '@/lib/auth';
+import { signOut, deleteAccount, getCurrentUser } from '@/lib/auth';
+import { supabase } from '@/lib/supabase';
 
 export default function SettingsScreen() {
   const notificationsEnabled = useStore((s) => s.notificationsEnabled);
@@ -20,6 +21,57 @@ export default function SettingsScreen() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showBlockedUsersModal, setShowBlockedUsersModal] = useState(false);
+  const [showOnlineStatus, setShowOnlineStatus] = useState(true);
+  const [isUpdatingOnlineStatus, setIsUpdatingOnlineStatus] = useState(false);
+
+  // Load user's online visibility preference
+  useEffect(() => {
+    const loadOnlinePreference = async () => {
+      try {
+        const user = await getCurrentUser();
+        if (user?.id) {
+          const { data, error } = await supabase
+            .from('profiles')
+            .select('show_online_status')
+            .eq('id', user.id)
+            .single();
+
+          if (!error && data) {
+            // Default to true if not set
+            setShowOnlineStatus(data.show_online_status !== false);
+          }
+        }
+      } catch (err) {
+        console.log('[Settings] Error loading online preference:', err);
+      }
+    };
+    loadOnlinePreference();
+  }, []);
+
+  const handleToggleOnlineStatus = async (value: boolean) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setIsUpdatingOnlineStatus(true);
+
+    try {
+      const user = await getCurrentUser();
+      if (user?.id) {
+        const { error } = await supabase
+          .from('profiles')
+          .update({ show_online_status: value })
+          .eq('id', user.id);
+
+        if (error) {
+          console.log('[Settings] Error updating online status:', error);
+        } else {
+          setShowOnlineStatus(value);
+        }
+      }
+    } catch (err) {
+      console.log('[Settings] Error updating online status:', err);
+    } finally {
+      setIsUpdatingOnlineStatus(false);
+    }
+  };
 
   // Check system notification permissions on mount
   useEffect(() => {
@@ -178,6 +230,30 @@ export default function SettingsScreen() {
             </Text>
 
             <View className="bg-white rounded-2xl overflow-hidden shadow-sm">
+              {/* Show Online Status Toggle */}
+              <View className="flex-row items-center p-4 border-b border-gray-100">
+                <View className="bg-green-50 rounded-full p-2.5 mr-3">
+                  {showOnlineStatus ? (
+                    <Eye size={20} color="#10B981" />
+                  ) : (
+                    <EyeOff size={20} color="#9CA3AF" />
+                  )}
+                </View>
+                <View className="flex-1">
+                  <Text className="text-warmBrown font-medium">Show Online Status</Text>
+                  <Text className="text-gray-500 text-sm mt-0.5">
+                    Let others see when you're online
+                  </Text>
+                </View>
+                <Switch
+                  value={showOnlineStatus}
+                  onValueChange={handleToggleOnlineStatus}
+                  trackColor={{ false: '#E5E7EB', true: '#10B981' }}
+                  thumbColor="#FFFFFF"
+                  disabled={isUpdatingOnlineStatus}
+                />
+              </View>
+
               <Pressable
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);

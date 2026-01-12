@@ -2,14 +2,14 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, TextInput, ScrollView, Pressable, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
-import { Search as SearchIcon, X, Users, Calendar, Briefcase, Hash, UserCircle } from 'lucide-react-native';
+import { Search as SearchIcon, X, Users, Calendar, Briefcase, Hash, UserCircle, Circle } from 'lucide-react-native';
 import Animated, { FadeIn, FadeInUp, FadeInRight } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { MOCK_POSTS, MOCK_COMMUNITIES } from '@/lib/store';
 import { supabase, DbUser } from '@/lib/supabase';
 import { useRouter } from 'expo-router';
 
-type SearchCategory = 'all' | 'people' | 'posts' | 'events' | 'businesses';
+type SearchCategory = 'all' | 'people' | 'online' | 'posts' | 'events' | 'businesses';
 
 interface CategoryItem {
   id: SearchCategory;
@@ -20,6 +20,7 @@ interface CategoryItem {
 const CATEGORIES: CategoryItem[] = [
   { id: 'all', label: 'All', IconComponent: Hash },
   { id: 'people', label: 'People', IconComponent: Users },
+  { id: 'online', label: 'Online', IconComponent: Circle },
   { id: 'posts', label: 'Posts', IconComponent: Hash },
   { id: 'events', label: 'Events', IconComponent: Calendar },
   { id: 'businesses', label: 'Businesses', IconComponent: Briefcase },
@@ -33,13 +34,52 @@ export default function SearchScreen() {
   const [activeCategory, setActiveCategory] = useState<SearchCategory>('all');
   const [searchResults, setSearchResults] = useState<DbUser[]>([]);
   const [recentUsers, setRecentUsers] = useState<DbUser[]>([]);
+  const [onlineUsers, setOnlineUsers] = useState<DbUser[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
+  const [isLoadingOnline, setIsLoadingOnline] = useState(false);
 
   // Load recent/popular users on mount
   useEffect(() => {
     loadRecentUsers();
+    loadOnlineUsers();
   }, []);
+
+  // Reload online users when switching to online tab
+  useEffect(() => {
+    if (activeCategory === 'online') {
+      loadOnlineUsers();
+    }
+  }, [activeCategory]);
+
+  const loadOnlineUsers = async () => {
+    setIsLoadingOnline(true);
+    try {
+      // Get users who are online and have show_online_status enabled (or null/undefined which defaults to true)
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('is_online', true)
+        .order('last_seen', { ascending: false })
+        .limit(50);
+
+      if (error) {
+        console.log('[Online Users] Error:', JSON.stringify(error));
+        return;
+      }
+
+      // Filter to only show users who want to be visible (show_online_status is true or not set)
+      const visibleOnlineUsers = (data || []).filter(
+        (user: DbUser) => user.show_online_status !== false
+      );
+      setOnlineUsers(visibleOnlineUsers);
+      console.log(`[Online Users] Found ${visibleOnlineUsers.length} online users`);
+    } catch (err) {
+      console.log('[Online Users] Error:', err);
+    } finally {
+      setIsLoadingOnline(false);
+    }
+  };
 
   const loadRecentUsers = async () => {
     try {
@@ -74,19 +114,24 @@ export default function SearchScreen() {
     }, 300); // Debounce search by 300ms
 
     return () => clearTimeout(searchTimeout);
-  }, [query]);
+  }, [query, activeCategory]);
 
   const searchUsers = async (searchQuery: string) => {
     setIsSearching(true);
     setHasSearched(true);
 
     try {
-      // Search by name or username using ilike for case-insensitive partial match
-      const { data, error } = await supabase
+      let queryBuilder = supabase
         .from('profiles')
         .select('*')
-        .or(`name.ilike.%${searchQuery}%,username.ilike.%${searchQuery}%`)
-        .limit(20);
+        .or(`name.ilike.%${searchQuery}%,username.ilike.%${searchQuery}%`);
+
+      // If searching in online category, filter by online status
+      if (activeCategory === 'online') {
+        queryBuilder = queryBuilder.eq('is_online', true);
+      }
+
+      const { data, error } = await queryBuilder.limit(20);
 
       if (error) {
         console.log('[People Search] Error:', JSON.stringify(error));
@@ -94,8 +139,14 @@ export default function SearchScreen() {
         return;
       }
 
-      console.log(`[People Search] Found ${data?.length || 0} users matching "${searchQuery}"`);
-      setSearchResults(data || []);
+      // Filter for online visibility if in online category
+      let results = data || [];
+      if (activeCategory === 'online') {
+        results = results.filter((user: DbUser) => user.show_online_status !== false);
+      }
+
+      console.log(`[People Search] Found ${results.length} users matching "${searchQuery}"`);
+      setSearchResults(results);
     } catch (err) {
       console.log('[People Search] Error:', err);
       setSearchResults([]);
@@ -126,36 +177,53 @@ export default function SearchScreen() {
     post.content.toLowerCase().includes(query.toLowerCase())
   );
 
-  const renderUserCard = (user: DbUser, index: number) => (
-    <Animated.View
-      key={user.id}
-      entering={FadeInUp.duration(300).delay(index * 50)}
-    >
-      <Pressable
-        className="flex-row items-center bg-white rounded-2xl p-4 mb-3 shadow-sm"
-        onPress={() => handleUserPress(user)}
+  const renderUserCard = (user: DbUser, index: number, showOnlineStatus: boolean = true) => {
+    const isOnline = user.is_online && user.show_online_status !== false;
+
+    return (
+      <Animated.View
+        key={user.id}
+        entering={FadeInUp.duration(300).delay(index * 50)}
       >
-        {user.avatar_url ? (
-          <Image
-            source={{ uri: user.avatar_url }}
-            style={{ width: 50, height: 50, borderRadius: 25 }}
-            contentFit="cover"
-          />
-        ) : (
-          <View className="w-[50px] h-[50px] rounded-full bg-terracotta-100 items-center justify-center">
-            <UserCircle size={30} color="#C45C26" />
+        <Pressable
+          className="flex-row items-center bg-white rounded-2xl p-4 mb-3 shadow-sm"
+          onPress={() => handleUserPress(user)}
+        >
+          <View className="relative">
+            {user.avatar_url ? (
+              <Image
+                source={{ uri: user.avatar_url }}
+                style={{ width: 50, height: 50, borderRadius: 25 }}
+                contentFit="cover"
+              />
+            ) : (
+              <View className="w-[50px] h-[50px] rounded-full bg-terracotta-100 items-center justify-center">
+                <UserCircle size={30} color="#C45C26" />
+              </View>
+            )}
+            {/* Online indicator */}
+            {showOnlineStatus && isOnline && (
+              <View className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-green-500 border-2 border-white" />
+            )}
           </View>
-        )}
-        <View className="flex-1 ml-3">
-          <Text className="text-warmBrown font-semibold">{user.name}</Text>
-          <Text className="text-gray-500 text-sm">@{user.username}</Text>
-          {user.location && (
-            <Text className="text-gray-400 text-sm mt-0.5">{user.location}</Text>
-          )}
-        </View>
-      </Pressable>
-    </Animated.View>
-  );
+          <View className="flex-1 ml-3">
+            <View className="flex-row items-center">
+              <Text className="text-warmBrown font-semibold">{user.name}</Text>
+              {showOnlineStatus && isOnline && (
+                <View className="ml-2 px-2 py-0.5 bg-green-100 rounded-full">
+                  <Text className="text-green-700 text-xs font-medium">Online</Text>
+                </View>
+              )}
+            </View>
+            <Text className="text-gray-500 text-sm">@{user.username}</Text>
+            {user.location && (
+              <Text className="text-gray-400 text-sm mt-0.5">{user.location}</Text>
+            )}
+          </View>
+        </Pressable>
+      </Animated.View>
+    );
+  };
 
   return (
     <View className="flex-1 bg-cream">
@@ -226,6 +294,35 @@ export default function SearchScreen() {
           {/* Search Results */}
           {query.length > 0 ? (
             <View className="px-5 pb-6">
+              {/* Online Users Results */}
+              {activeCategory === 'online' && (
+                <Animated.View entering={FadeInUp.duration(400)}>
+                  <View className="flex-row items-center mb-3 mt-2">
+                    <View className="w-2.5 h-2.5 rounded-full bg-green-500 mr-2" />
+                    <Text className="text-lg font-semibold text-warmBrown">Online Now</Text>
+                  </View>
+
+                  {isSearching ? (
+                    <View className="items-center py-8">
+                      <ActivityIndicator size="large" color="#C45C26" />
+                      <Text className="text-gray-500 mt-3">Searching online users...</Text>
+                    </View>
+                  ) : searchResults.length > 0 ? (
+                    searchResults.map((user, index) => renderUserCard(user, index, true))
+                  ) : hasSearched ? (
+                    <View className="items-center py-8 bg-white rounded-2xl">
+                      <Circle size={48} color="#9CA3AF" />
+                      <Text className="text-gray-500 mt-3 text-center">
+                        No online users found for "{query}"
+                      </Text>
+                      <Text className="text-gray-400 text-sm mt-1 text-center px-4">
+                        Try a different search or check back later
+                      </Text>
+                    </View>
+                  ) : null}
+                </Animated.View>
+              )}
+
               {/* People Results */}
               {(activeCategory === 'all' || activeCategory === 'people') && (
                 <Animated.View entering={FadeInUp.duration(400)}>
@@ -280,50 +377,83 @@ export default function SearchScreen() {
               )}
             </View>
           ) : (
-            /* Suggested Content */
+            /* Suggested Content - Show online users when on online tab */
             <View className="px-5 pb-6">
-              <Animated.View entering={FadeInUp.duration(400)}>
-                <Text className="text-lg font-semibold text-warmBrown mb-3 mt-2">
-                  Suggested Communities
-                </Text>
-                {MOCK_COMMUNITIES.map((community, index) => (
-                  <Animated.View
-                    key={community.id}
-                    entering={FadeInUp.duration(300).delay(index * 100)}
-                  >
-                    <Pressable className="flex-row items-center bg-white rounded-2xl p-4 mb-3 shadow-sm">
-                      <Image
-                        source={{ uri: community.image }}
-                        style={{ width: 60, height: 60, borderRadius: 12 }}
-                        contentFit="cover"
-                      />
-                      <View className="flex-1 ml-3">
-                        <Text className="text-warmBrown font-semibold">{community.name}</Text>
-                        <Text className="text-gray-500 text-sm">
-                          {community.city}, {community.country}
-                        </Text>
-                        <Text className="text-terracotta-500 text-sm mt-1">
-                          {community.memberCount.toLocaleString()} members
-                        </Text>
-                      </View>
-                    </Pressable>
-                  </Animated.View>
-                ))}
-              </Animated.View>
-
-              {/* Recent Users from Database */}
-              <Animated.View entering={FadeInUp.duration(400).delay(200)}>
-                <Text className="text-lg font-semibold text-warmBrown mb-3 mt-4">
-                  New Members
-                </Text>
-                {recentUsers.length > 0 ? (
-                  recentUsers.map((user, index) => renderUserCard(user, index))
-                ) : (
-                  <View className="items-center py-6 bg-white rounded-2xl">
-                    <Text className="text-gray-500">Loading members...</Text>
+              {/* Online Users Section - show when on Online tab */}
+              {activeCategory === 'online' && (
+                <Animated.View entering={FadeInUp.duration(400)}>
+                  <View className="flex-row items-center mb-3 mt-2">
+                    <View className="w-2.5 h-2.5 rounded-full bg-green-500 mr-2" />
+                    <Text className="text-lg font-semibold text-warmBrown">Online Now</Text>
+                    <Text className="text-gray-400 text-sm ml-2">({onlineUsers.length})</Text>
                   </View>
-                )}
-              </Animated.View>
+
+                  {isLoadingOnline ? (
+                    <View className="items-center py-8">
+                      <ActivityIndicator size="large" color="#10B981" />
+                      <Text className="text-gray-500 mt-3">Loading online users...</Text>
+                    </View>
+                  ) : onlineUsers.length > 0 ? (
+                    onlineUsers.map((user, index) => renderUserCard(user, index, true))
+                  ) : (
+                    <View className="items-center py-8 bg-white rounded-2xl">
+                      <Circle size={48} color="#9CA3AF" />
+                      <Text className="text-gray-500 mt-3 text-center">No one is online right now</Text>
+                      <Text className="text-gray-400 text-sm mt-1 text-center px-4">
+                        Check back later to see who's online
+                      </Text>
+                    </View>
+                  )}
+                </Animated.View>
+              )}
+
+              {/* Communities - show when NOT on online tab */}
+              {activeCategory !== 'online' && (
+                <Animated.View entering={FadeInUp.duration(400)}>
+                  <Text className="text-lg font-semibold text-warmBrown mb-3 mt-2">
+                    Suggested Communities
+                  </Text>
+                  {MOCK_COMMUNITIES.map((community, index) => (
+                    <Animated.View
+                      key={community.id}
+                      entering={FadeInUp.duration(300).delay(index * 100)}
+                    >
+                      <Pressable className="flex-row items-center bg-white rounded-2xl p-4 mb-3 shadow-sm">
+                        <Image
+                          source={{ uri: community.image }}
+                          style={{ width: 60, height: 60, borderRadius: 12 }}
+                          contentFit="cover"
+                        />
+                        <View className="flex-1 ml-3">
+                          <Text className="text-warmBrown font-semibold">{community.name}</Text>
+                          <Text className="text-gray-500 text-sm">
+                            {community.city}, {community.country}
+                          </Text>
+                          <Text className="text-terracotta-500 text-sm mt-1">
+                            {community.memberCount.toLocaleString()} members
+                          </Text>
+                        </View>
+                      </Pressable>
+                    </Animated.View>
+                  ))}
+                </Animated.View>
+              )}
+
+              {/* Recent Users from Database - show when NOT on online tab */}
+              {activeCategory !== 'online' && (
+                <Animated.View entering={FadeInUp.duration(400).delay(200)}>
+                  <Text className="text-lg font-semibold text-warmBrown mb-3 mt-4">
+                    New Members
+                  </Text>
+                  {recentUsers.length > 0 ? (
+                    recentUsers.map((user, index) => renderUserCard(user, index))
+                  ) : (
+                    <View className="items-center py-6 bg-white rounded-2xl">
+                      <Text className="text-gray-500">Loading members...</Text>
+                    </View>
+                  )}
+                </Animated.View>
+              )}
             </View>
           )}
         </ScrollView>

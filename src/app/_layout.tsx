@@ -5,10 +5,12 @@ import { StatusBar } from 'expo-status-bar';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
+import { AppState, AppStateStatus } from 'react-native';
 import { requestNotificationPermissions } from '@/lib/notifications';
 import { useMessageNotifications } from '@/lib/useMessageNotifications';
 import { useStore } from '@/lib/store';
+import { markUserOnline, markUserOffline } from '@/lib/onlineStatus';
 
 export const unstable_settings = {
   initialRouteName: '(tabs)',
@@ -37,10 +39,34 @@ function RootLayoutNav() {
   const [isHydrated, setIsHydrated] = useState(false);
   const [hasNavigated, setHasNavigated] = useState(false);
   const segments = useSegments();
+  const appState = useRef<AppStateStatus>(AppState.currentState);
 
   // Request notification permissions on app launch
   useEffect(() => {
     requestNotificationPermissions();
+  }, []);
+
+  // Track online status based on app state
+  useEffect(() => {
+    // Mark user online when app starts
+    markUserOnline();
+
+    const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
+      if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
+        // App has come to foreground - mark user online
+        markUserOnline();
+      } else if (nextAppState.match(/inactive|background/)) {
+        // App is going to background - mark user offline
+        markUserOffline();
+      }
+      appState.current = nextAppState;
+    });
+
+    return () => {
+      subscription.remove();
+      // Mark offline when component unmounts (app closes)
+      markUserOffline();
+    };
   }, []);
 
   // Listen for new messages and send notifications

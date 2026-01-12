@@ -26,6 +26,9 @@ export interface DbUser {
   location: string | null;
   interests: string[];
   created_at: string;
+  is_online?: boolean;
+  last_seen?: string;
+  show_online_status?: boolean;
 }
 
 export interface DbPost {
