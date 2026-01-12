@@ -229,7 +229,10 @@ export function CommunityPresence({ city, memberCount, isGlobal = false }: Commu
       <View className="bg-gray-50 rounded-2xl overflow-hidden">
         {/* Header - Who's Here */}
         <View className="p-4 pb-3">
-          <View className="flex-row items-center justify-between mb-3">
+          <Pressable
+            onPress={handleViewMembers}
+            className="flex-row items-center justify-between mb-3 active:opacity-70"
+          >
             <View className="flex-row items-center">
               <Animated.View style={pulseStyle}>
                 <View className="w-2.5 h-2.5 rounded-full bg-green-500 mr-2" />
@@ -237,6 +240,7 @@ export function CommunityPresence({ city, memberCount, isGlobal = false }: Commu
               <Text className="text-lg font-bold text-gray-900">
                 {activeCount.toLocaleString()} {isGlobal ? 'online worldwide' : 'people here now'}
               </Text>
+              <ChevronRight size={18} color="#6B7280" style={{ marginLeft: 4 }} />
             </View>
             <View className="bg-gray-200 px-2.5 py-1 rounded-full flex-row items-center">
               {isGlobal && <Globe size={12} color="#6B7280" style={{ marginRight: 4 }} />}
@@ -244,7 +248,7 @@ export function CommunityPresence({ city, memberCount, isGlobal = false }: Commu
                 {isGlobal ? '50K+ members' : `${memberCount.toLocaleString()} total`}
               </Text>
             </View>
-          </View>
+          </Pressable>
 
           {/* Active Avatars Row */}
           <Pressable onPress={handleViewMembers}>
