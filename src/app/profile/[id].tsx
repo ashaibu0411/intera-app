@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { View, Text, ScrollView, Pressable, Alert, Modal } from 'react-native';
+import React, { useState, useMemo, useEffect } from 'react';
+import { View, Text, ScrollView, Pressable, Alert, Modal, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -17,6 +17,7 @@ import {
   X,
   AlertTriangle,
   Shield,
+  Circle,
 } from 'lucide-react-native';
 import Animated, { FadeIn, FadeInUp, SlideInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -28,6 +29,7 @@ import { StoryAvatar } from '@/components/StoryAvatar';
 import { RoleBadges, HelperBadge } from '@/components/RoleBadge';
 import { PostCard } from '@/components/PostCard';
 import type { ViolationType } from '@/lib/contentModeration';
+import { supabase, DbUser } from '@/lib/supabase';
 
 // Report reasons for App Store Guideline 1.2 compliance
 const REPORT_REASONS: { id: ViolationType | 'other'; label: string; description: string }[] = [
@@ -55,8 +57,36 @@ export default function UserProfileScreen() {
   const [reportStep, setReportStep] = useState<'reason' | 'confirm' | 'done'>('reason');
   const [selectedReason, setSelectedReason] = useState<ViolationType | 'other' | null>(null);
   const [showBlockConfirmModal, setShowBlockConfirmModal] = useState(false);
+  const [dbUser, setDbUser] = useState<DbUser | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Find the user by ID from MOCK_USERS or connections
+  // Fetch user from database
+  useEffect(() => {
+    const fetchUser = async () => {
+      if (!id) return;
+
+      setIsLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', id)
+          .single();
+
+        if (!error && data) {
+          setDbUser(data);
+        }
+      } catch (err) {
+        console.log('[Profile] Error fetching user:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchUser();
+  }, [id]);
+
+  // Find the user by ID from MOCK_USERS, connections, or database
   const user = useMemo(() => {
     // Check mock users first
     const mockUser = MOCK_USERS.find((u) => u.id === id);
@@ -66,9 +96,26 @@ export default function UserProfileScreen() {
     const connectionUser = connections.find((u) => u.id === id);
     if (connectionUser) return connectionUser;
 
+    // Use database user if found
+    if (dbUser) {
+      // Convert DbUser to User format
+      return {
+        id: dbUser.id,
+        name: dbUser.name,
+        username: dbUser.username,
+        avatar: dbUser.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&h=200&fit=crop&crop=face',
+        bio: dbUser.bio || '',
+        location: dbUser.location || 'Unknown',
+        interests: dbUser.interests || [],
+        joinedDate: dbUser.created_at,
+        isOnline: dbUser.is_online,
+        showOnlineStatus: dbUser.show_online_status,
+      } as User;
+    }
+
     // Fallback to a default user for display purposes
     return null;
-  }, [id, connections]);
+  }, [id, connections, dbUser]);
 
   // Check if this user is blocked
   const isBlocked = useMemo(() => {
@@ -89,6 +136,15 @@ export default function UserProfileScreen() {
 
     return [...createdUserPosts, ...mockUserPosts].slice(0, 10);
   }, [user, id, userPosts, isBlocked]);
+
+  if (isLoading) {
+    return (
+      <View className="flex-1 bg-cream items-center justify-center">
+        <ActivityIndicator size="large" color="#C45C26" />
+        <Text className="text-gray-500 mt-3">Loading profile...</Text>
+      </View>
+    );
+  }
 
   if (!user) {
     return (
@@ -282,6 +338,14 @@ export default function UserProfileScreen() {
 
                 <Text className="text-white text-2xl font-bold mt-4">{user.name}</Text>
                 <Text className="text-white/70 text-sm">@{user.username}</Text>
+
+                {/* Online Status Badge */}
+                {(user as any).isOnline && (user as any).showOnlineStatus !== false && (
+                  <View className="flex-row items-center mt-2 bg-green-500/20 px-3 py-1 rounded-full">
+                    <Circle size={8} color="#22C55E" fill="#22C55E" />
+                    <Text className="text-green-400 text-sm font-medium ml-1.5">Online now</Text>
+                  </View>
+                )}
 
                 {/* Helper Badge */}
                 {user.isHelper && (

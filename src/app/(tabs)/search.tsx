@@ -169,8 +169,8 @@ export default function SearchScreen() {
 
   const handleUserPress = (user: DbUser) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    // Navigate to user profile if you have a profile screen
-    // router.push(`/profile/${user.id}`);
+    // Navigate to user profile
+    router.push(`/profile/${user.id}` as any);
   };
 
   const filteredPosts = MOCK_POSTS.filter((post) =>
