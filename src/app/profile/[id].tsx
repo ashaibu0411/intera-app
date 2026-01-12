@@ -30,6 +30,8 @@ import { RoleBadges, HelperBadge } from '@/components/RoleBadge';
 import { PostCard } from '@/components/PostCard';
 import type { ViolationType } from '@/lib/contentModeration';
 import { supabase, DbUser } from '@/lib/supabase';
+import { getPostsByUser } from '@/lib/posts';
+import type { Post } from '@/lib/store';
 
 // Report reasons for App Store Guideline 1.2 compliance
 const REPORT_REASONS: { id: ViolationType | 'other'; label: string; description: string }[] = [
@@ -59,6 +61,7 @@ export default function UserProfileScreen() {
   const [showBlockConfirmModal, setShowBlockConfirmModal] = useState(false);
   const [dbUser, setDbUser] = useState<DbUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [dbPosts, setDbPosts] = useState<Post[]>([]);
 
   // Fetch user from database
   useEffect(() => {
@@ -76,6 +79,10 @@ export default function UserProfileScreen() {
         if (!error && data) {
           setDbUser(data);
         }
+
+        // Also fetch user's posts from database
+        const posts = await getPostsByUser(id);
+        setDbPosts(posts as Post[]);
       } catch (err) {
         console.log('[Profile] Error fetching user:', err);
       } finally {
@@ -134,8 +141,16 @@ export default function UserProfileScreen() {
     const mockUserPosts = MOCK_POSTS.filter((p) => p.author.id === id);
     const createdUserPosts = userPosts.filter((p) => p.author.id === id);
 
-    return [...createdUserPosts, ...mockUserPosts].slice(0, 10);
-  }, [user, id, userPosts, isBlocked]);
+    // Combine all posts and remove duplicates by id
+    const allPosts = [...dbPosts, ...createdUserPosts, ...mockUserPosts];
+    const uniquePosts = allPosts.filter(
+      (post, index, self) => index === self.findIndex((p) => p.id === post.id)
+    );
+
+    return uniquePosts
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 20);
+  }, [user, id, userPosts, isBlocked, dbPosts]);
 
   if (isLoading) {
     return (
