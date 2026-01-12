@@ -299,7 +299,57 @@ export default function FaithWallsScreen() {
   const submitPost = () => {
     if (!postContent.trim()) return;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    // Add new post logic here
+
+    const userName = currentUser?.name || 'User';
+    const userAvatar = currentUser?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop&crop=face';
+
+    if (activeTab === 'prayer') {
+      const newPrayer: PrayerRequest = {
+        id: `p-${Date.now()}`,
+        author: {
+          name: isAnonymous ? 'Anonymous' : userName,
+          avatar: isAnonymous ? '' : userAvatar,
+          isAnonymous: isAnonymous,
+        },
+        content: postContent.trim(),
+        category: 'other',
+        prayerCount: 0,
+        createdAt: 'Just now',
+        isPrayedFor: false,
+        isUrgent: false,
+      };
+      setPrayers(prev => [newPrayer, ...prev]);
+    } else if (activeTab === 'testimony') {
+      const newTestimony: Testimony = {
+        id: `t-${Date.now()}`,
+        author: {
+          name: userName,
+          avatar: userAvatar,
+        },
+        title: postTitle.trim() || 'My Testimony',
+        content: postContent.trim(),
+        category: 'breakthrough',
+        praiseCount: 0,
+        commentCount: 0,
+        createdAt: 'Just now',
+        hasPraised: false,
+      };
+      setTestimonies(prev => [newTestimony, ...prev]);
+    } else if (activeTab === 'encouragement') {
+      const newEncouragement: Encouragement = {
+        id: `e-${Date.now()}`,
+        author: {
+          name: userName,
+          avatar: userAvatar,
+        },
+        content: postContent.trim(),
+        heartCount: 0,
+        createdAt: 'Just now',
+        hasHearted: false,
+      };
+      setEncouragements(prev => [newEncouragement, ...prev]);
+    }
+
     setShowPostModal(false);
     setPostContent('');
     setPostTitle('');
