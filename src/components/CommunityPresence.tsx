@@ -283,10 +283,10 @@ export function CommunityPresence({ city, memberCount, isGlobal = false }: Commu
                 ))}
               </View>
               <View className="ml-3 flex-1">
-                <Text className="text-sm text-gray-600">
+                <Text className="text-base text-gray-600">
                   <Text className="font-semibold text-gray-900">{activeMembers[0]?.name.split(' ')[0]}</Text>, <Text className="font-semibold text-gray-900">{activeMembers[1]?.name.split(' ')[0]}</Text> and {activeCount - 2} others
                 </Text>
-                <Text className="text-xs text-gray-400 mt-0.5">
+                <Text className="text-sm text-gray-400 mt-0.5">
                   {isGlobal ? 'From 50+ countries' : 'Tap to see who\'s here'}
                 </Text>
               </View>
@@ -297,9 +297,9 @@ export function CommunityPresence({ city, memberCount, isGlobal = false }: Commu
 
         {/* Live Activity Feed */}
         <View className="border-t border-gray-200 bg-white">
-          <View className="px-4 py-2 flex-row items-center border-b border-gray-100">
-            <Radio size={14} color="#EF4444" />
-            <Text className="text-xs font-semibold text-gray-500 ml-1.5 uppercase tracking-wide">
+          <View className="px-4 py-2.5 flex-row items-center border-b border-gray-100">
+            <Radio size={16} color="#EF4444" />
+            <Text className="text-sm font-semibold text-gray-500 ml-1.5 uppercase tracking-wide">
               {isGlobal ? 'Global Activity' : 'Live Activity'}
             </Text>
           </View>
@@ -311,20 +311,20 @@ export function CommunityPresence({ city, memberCount, isGlobal = false }: Commu
                 entering={FadeInRight.duration(300).delay(index * 100)}
               >
                 <Pressable
-                  className="flex-row items-center px-4 py-2 active:bg-gray-50"
+                  className="flex-row items-center px-4 py-2.5 active:bg-gray-50"
                   onPress={() => handleEventPress(event)}
                 >
-                  <View className="w-8 h-8 rounded-full bg-gray-100 items-center justify-center">
+                  <View className="w-9 h-9 rounded-full bg-gray-100 items-center justify-center">
                     {getEventIcon(event.type)}
                   </View>
-                  <Text className="flex-1 text-sm text-gray-700 ml-3" numberOfLines={1}>
+                  <Text className="flex-1 text-base text-gray-700 ml-3" numberOfLines={1}>
                     {event.text}
                   </Text>
                   <View className="flex-row items-center">
-                    <Text className="text-xs text-gray-400 mr-1">
+                    <Text className="text-sm text-gray-400 mr-1">
                       {getTimeAgo(event.timestamp)}
                     </Text>
-                    <ChevronRight size={14} color="#D1D5DB" />
+                    <ChevronRight size={16} color="#D1D5DB" />
                   </View>
                 </Pressable>
               </Animated.View>

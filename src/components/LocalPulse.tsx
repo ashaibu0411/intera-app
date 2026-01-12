@@ -217,14 +217,14 @@ export function LocalPulse({ city, isGlobal = false }: LocalPulseProps) {
       {/* Section Header */}
       <View className="flex-row items-center justify-between mb-3">
         <View className="flex-row items-center">
-          <View className="w-8 h-8 rounded-full bg-amber-100 items-center justify-center mr-2">
-            {isGlobal ? <Globe size={18} color="#F59E0B" /> : <Zap size={18} color="#F59E0B" />}
+          <View className="w-9 h-9 rounded-full bg-amber-100 items-center justify-center mr-2">
+            {isGlobal ? <Globe size={20} color="#F59E0B" /> : <Zap size={20} color="#F59E0B" />}
           </View>
           <View>
-            <Text className="text-base font-bold text-gray-900">
+            <Text className="text-lg font-bold text-gray-900">
               {isGlobal ? 'Happening Worldwide' : "What's Happening"}
             </Text>
-            <Text className="text-xs text-gray-500">
+            <Text className="text-sm text-gray-500">
               {isGlobal ? 'Across the diaspora' : 'Near you right now'}
             </Text>
           </View>
@@ -232,7 +232,7 @@ export function LocalPulse({ city, isGlobal = false }: LocalPulseProps) {
         {!isGlobal && (
           <View className="flex-row items-center">
             <MapPin size={14} color="#9CA3AF" />
-            <Text className="text-xs text-gray-400 ml-1">{city}</Text>
+            <Text className="text-sm text-gray-400 ml-1">{city}</Text>
           </View>
         )}
       </View>
@@ -246,7 +246,7 @@ export function LocalPulse({ city, isGlobal = false }: LocalPulseProps) {
           >
             <Pressable
               onPress={() => handleItemPress(item)}
-              className={`flex-row items-center p-3 ${
+              className={`flex-row items-center p-4 ${
                 index < displayItems.length - 1 ? 'border-b border-gray-50' : ''
               }`}
               style={({ pressed }) => ({
@@ -255,7 +255,7 @@ export function LocalPulse({ city, isGlobal = false }: LocalPulseProps) {
             >
               {/* Icon */}
               <View
-                className="w-10 h-10 rounded-xl items-center justify-center"
+                className="w-11 h-11 rounded-xl items-center justify-center"
                 style={{ backgroundColor: item.bgColor }}
               >
                 {item.icon}
@@ -264,7 +264,7 @@ export function LocalPulse({ city, isGlobal = false }: LocalPulseProps) {
               {/* Content */}
               <View className="flex-1 ml-3">
                 <View className="flex-row items-center">
-                  <Text className="text-sm font-semibold text-gray-900 flex-1" numberOfLines={1}>
+                  <Text className="text-base font-semibold text-gray-900 flex-1" numberOfLines={1}>
                     {item.title}
                   </Text>
                   {item.urgent && (
@@ -274,7 +274,7 @@ export function LocalPulse({ city, isGlobal = false }: LocalPulseProps) {
                   )}
                 </View>
                 {item.subtitle && (
-                  <Text className="text-xs text-gray-500 mt-0.5" numberOfLines={1}>
+                  <Text className="text-sm text-gray-500 mt-0.5" numberOfLines={1}>
                     {item.subtitle}
                   </Text>
                 )}
@@ -282,15 +282,15 @@ export function LocalPulse({ city, isGlobal = false }: LocalPulseProps) {
 
               {/* Meta */}
               <View className="items-end ml-2">
-                <Text className="text-xs text-gray-400">{item.timeAgo}</Text>
+                <Text className="text-sm text-gray-400">{item.timeAgo}</Text>
                 {item.responseCount && (
-                  <Text className="text-xs text-gray-400 mt-0.5">
+                  <Text className="text-sm text-gray-400 mt-0.5">
                     {item.responseCount} interested
                   </Text>
                 )}
               </View>
 
-              <ChevronRight size={16} color="#D1D5DB" style={{ marginLeft: 4 }} />
+              <ChevronRight size={18} color="#D1D5DB" style={{ marginLeft: 4 }} />
             </Pressable>
           </Animated.View>
         ))}
