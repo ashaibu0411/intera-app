@@ -31,6 +31,7 @@ const DiasporaTheme = {
     text: '#1F2937',
     primary: '#7C3AED',
     border: '#E5E7EB',
+    notification: '#EF4444',
   },
 };
 
