@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { View, Text, Pressable, Dimensions, FlatList, ViewToken, ActivityIndicator, Alert, Modal } from 'react-native';
+import { View, Text, Pressable, Dimensions, FlatList, ViewToken, ActivityIndicator, Alert, Modal, Share, RefreshControl, Platform, TextInput } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { Video as ExpoVideo, ResizeMode, AVPlaybackStatus, Audio } from 'expo-av';
@@ -22,17 +22,26 @@ import {
   X,
   Shield,
   AlertTriangle,
+  Send,
+  ChevronDown,
+  Sparkles,
+  TrendingUp,
 } from 'lucide-react-native';
 import Animated, {
   FadeIn,
   FadeInUp,
   SlideInUp,
+  SlideInDown,
   useSharedValue,
   useAnimatedStyle,
   withSpring,
   withSequence,
   withTiming,
+  withRepeat,
+  interpolate,
+  Extrapolate,
 } from 'react-native-reanimated';
+import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import * as DropdownMenu from 'zeego/dropdown-menu';
@@ -61,6 +70,7 @@ interface Clip {
     username: string;
     avatar: string;
     isVerified: boolean;
+    isFollowing?: boolean;
   };
   videoUrl?: string;
   thumbnail: string;
@@ -69,11 +79,14 @@ interface Clip {
   likes: number;
   comments: number;
   shares: number;
+  views: number;
   isLiked: boolean;
   isSaved: boolean;
+  duration?: number;
+  createdAt: string;
 }
 
-// Demo clips with sample video URLs that have audio
+// Enhanced demo clips with more data
 const MOCK_CLIPS: Clip[] = [
   {
     id: '1',
@@ -83,6 +96,7 @@ const MOCK_CLIPS: Clip[] = [
       username: 'sarahj',
       avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop&crop=face',
       isVerified: true,
+      isFollowing: false,
     },
     videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
     thumbnail: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&h=1400&fit=crop',
@@ -91,8 +105,11 @@ const MOCK_CLIPS: Clip[] = [
     likes: 12400,
     comments: 342,
     shares: 89,
+    views: 125000,
     isLiked: false,
     isSaved: false,
+    duration: 60,
+    createdAt: '2024-12-28T10:00:00Z',
   },
   {
     id: '2',
@@ -102,6 +119,7 @@ const MOCK_CLIPS: Clip[] = [
       username: 'mikechen',
       avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop&crop=face',
       isVerified: false,
+      isFollowing: true,
     },
     videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
     thumbnail: 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=800&h=1400&fit=crop',
@@ -110,8 +128,11 @@ const MOCK_CLIPS: Clip[] = [
     likes: 8930,
     comments: 215,
     shares: 67,
+    views: 98000,
     isLiked: true,
     isSaved: false,
+    duration: 45,
+    createdAt: '2024-12-27T15:30:00Z',
   },
   {
     id: '3',
@@ -121,6 +142,7 @@ const MOCK_CLIPS: Clip[] = [
       username: 'emmaw',
       avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200&h=200&fit=crop&crop=face',
       isVerified: true,
+      isFollowing: false,
     },
     videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4',
     thumbnail: 'https://images.unsplash.com/photo-1449824913935-59a10b8d2000?w=800&h=1400&fit=crop',
@@ -129,8 +151,11 @@ const MOCK_CLIPS: Clip[] = [
     likes: 24100,
     comments: 567,
     shares: 234,
+    views: 320000,
     isLiked: false,
     isSaved: true,
+    duration: 30,
+    createdAt: '2024-12-26T20:15:00Z',
   },
   {
     id: '4',
@@ -140,6 +165,7 @@ const MOCK_CLIPS: Clip[] = [
       username: 'alexr',
       avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&h=200&fit=crop&crop=face',
       isVerified: false,
+      isFollowing: true,
     },
     videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4',
     thumbnail: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=800&h=1400&fit=crop',
@@ -148,8 +174,11 @@ const MOCK_CLIPS: Clip[] = [
     likes: 15600,
     comments: 423,
     shares: 156,
+    views: 198000,
     isLiked: false,
     isSaved: false,
+    duration: 55,
+    createdAt: '2024-12-25T12:00:00Z',
   },
   {
     id: '5',
@@ -159,6 +188,7 @@ const MOCK_CLIPS: Clip[] = [
       username: 'lisapark',
       avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop&crop=face',
       isVerified: true,
+      isFollowing: false,
     },
     videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/SubaruOutbackOnStreetAndDirt.mp4',
     thumbnail: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&h=1400&fit=crop',
@@ -167,8 +197,11 @@ const MOCK_CLIPS: Clip[] = [
     likes: 31200,
     comments: 890,
     shares: 412,
+    views: 450000,
     isLiked: true,
     isSaved: true,
+    duration: 40,
+    createdAt: '2024-12-24T18:30:00Z',
   },
 ];
 
@@ -182,6 +215,24 @@ function formatNumber(num: number): string {
   return num.toString();
 }
 
+function formatDuration(seconds: number): string {
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+function getTimeAgo(dateString: string): string {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+  
+  if (diffInSeconds < 60) return 'just now';
+  if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
+  if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
+  if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)}d ago`;
+  return `${Math.floor(diffInSeconds / 604800)}w ago`;
+}
+
 interface ClipItemProps {
   clip: Clip;
   isActive: boolean;
@@ -189,28 +240,44 @@ interface ClipItemProps {
   onToggleMute: () => void;
   onBlockUser: () => void;
   onReportUser: () => void;
+  onComment: () => void;
+  onShare: () => void;
 }
 
-function ClipItem({ clip, isActive, isMuted, onToggleMute, onBlockUser, onReportUser }: ClipItemProps) {
+function ClipItem({ clip, isActive, isMuted, onToggleMute, onBlockUser, onReportUser, onComment, onShare }: ClipItemProps) {
   const insets = useSafeAreaInsets();
   const [liked, setLiked] = useState(clip.isLiked);
   const [saved, setSaved] = useState(clip.isSaved);
   const [likeCount, setLikeCount] = useState(clip.likes);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [playbackPosition, setPlaybackPosition] = useState(0);
+  const [duration, setDuration] = useState(clip.duration || 0);
+  const [isFollowing, setIsFollowing] = useState(clip.user.isFollowing || false);
   const videoRef = useRef<ExpoVideo>(null);
 
   const heartScale = useSharedValue(1);
   const doubleTapHeart = useSharedValue(0);
+  const progressWidth = useSharedValue(0);
+  const playPauseOpacity = useSharedValue(0);
 
-  // Auto-play/pause based on visibility
+  // Auto-play/pause based on visibility with preloading
   useEffect(() => {
     if (isActive && clip.videoUrl) {
-      videoRef.current?.playAsync();
+      // Preload video when it becomes active
+      videoRef.current?.loadAsync({ uri: clip.videoUrl }, { shouldPlay: true });
     } else {
       videoRef.current?.pauseAsync();
     }
   }, [isActive, clip.videoUrl]);
+
+  // Preload next/previous videos for smoother experience
+  useEffect(() => {
+    if (isActive) {
+      // This would preload adjacent videos in a real implementation
+      // For now, we just ensure current video is ready
+    }
+  }, [isActive]);
 
   const heartAnimatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: heartScale.value }],
@@ -219,6 +286,14 @@ function ClipItem({ clip, isActive, isMuted, onToggleMute, onBlockUser, onReport
   const doubleTapHeartStyle = useAnimatedStyle(() => ({
     opacity: doubleTapHeart.value,
     transform: [{ scale: doubleTapHeart.value }],
+  }));
+
+  const progressStyle = useAnimatedStyle(() => ({
+    width: `${progressWidth.value}%`,
+  }));
+
+  const playPauseStyle = useAnimatedStyle(() => ({
+    opacity: playPauseOpacity.value,
   }));
 
   const handleLike = () => {
@@ -240,8 +315,8 @@ function ClipItem({ clip, isActive, isMuted, onToggleMute, onBlockUser, onReport
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
       doubleTapHeart.value = withSequence(
         withTiming(1, { duration: 200 }),
-        withTiming(1, { duration: 600 }),
-        withTiming(0, { duration: 200 })
+        withTiming(1.2, { duration: 200 }),
+        withTiming(0, { duration: 400 })
       );
       setLiked(true);
       setLikeCount(prev => prev + 1);
@@ -253,20 +328,19 @@ function ClipItem({ clip, isActive, isMuted, onToggleMute, onBlockUser, onReport
     setSaved(!saved);
   };
 
-  const handleComment = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  };
-
-  const handleShare = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  };
-
   const handleFollow = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setIsFollowing(!isFollowing);
   };
 
   const togglePlayPause = async () => {
     if (!videoRef.current) return;
+
+    playPauseOpacity.value = withSequence(
+      withTiming(1, { duration: 200 }),
+      withTiming(1, { duration: 800 }),
+      withTiming(0, { duration: 200 })
+    );
 
     if (isPlaying) {
       await videoRef.current.pauseAsync();
@@ -281,7 +355,6 @@ function ClipItem({ clip, isActive, isMuted, onToggleMute, onBlockUser, onReport
     if (now - lastTap.current < 300) {
       handleDoubleTap();
     } else {
-      // Single tap toggles play/pause
       togglePlayPause();
     }
     lastTap.current = now;
@@ -290,207 +363,378 @@ function ClipItem({ clip, isActive, isMuted, onToggleMute, onBlockUser, onReport
   const onPlaybackStatusUpdate = (status: AVPlaybackStatus) => {
     if (status.isLoaded) {
       setIsPlaying(status.isPlaying);
+      setIsLoading(status.isLoaded === false);
+      
+      if (status.durationMillis) {
+        setDuration(status.durationMillis / 1000);
+      }
+      
+      if (status.positionMillis && status.durationMillis) {
+        const progress = (status.positionMillis / status.durationMillis) * 100;
+        progressWidth.value = withTiming(progress, { duration: 100 });
+        setPlaybackPosition(status.positionMillis / 1000);
+      }
+    } else if (status.error) {
+      console.error('Video playback error:', status.error);
       setIsLoading(false);
     }
   };
 
+  // Gesture for swipe interactions
+  const panGesture = Gesture.Pan()
+    .onEnd((event) => {
+      // Handle swipe gestures for additional interactions
+      if (Math.abs(event.translationY) > 50) {
+        // Could implement swipe to next/previous or other actions
+      }
+    });
+
   return (
-    <Pressable
-      onPress={handleTap}
-      style={{ height: SCREEN_HEIGHT, width: SCREEN_WIDTH }}
-      className="relative"
-    >
-      {/* Video or Thumbnail Background */}
-      {clip.videoUrl ? (
-        <>
-          <ExpoVideo
-            ref={videoRef}
-            source={{ uri: clip.videoUrl }}
-            style={{ position: 'absolute', width: '100%', height: '100%' }}
-            resizeMode={ResizeMode.COVER}
-            isLooping
-            shouldPlay={isActive}
-            isMuted={isMuted}
-            volume={1.0}
-            onPlaybackStatusUpdate={onPlaybackStatusUpdate}
-          />
-          {/* Thumbnail while loading */}
-          {isLoading && (
-            <Image
-              source={{ uri: clip.thumbnail }}
-              style={{ position: 'absolute', width: '100%', height: '100%' }}
-              contentFit="cover"
-            />
-          )}
-        </>
-      ) : (
-        <Image
-          source={{ uri: clip.thumbnail }}
-          style={{ position: 'absolute', width: '100%', height: '100%' }}
-          contentFit="cover"
-        />
-      )}
-
-      {/* Gradient Overlays */}
-      <LinearGradient
-        colors={['rgba(0,0,0,0.3)', 'transparent', 'transparent', 'rgba(0,0,0,0.6)']}
-        locations={[0, 0.2, 0.6, 1]}
-        style={{ position: 'absolute', width: '100%', height: '100%' }}
-      />
-
-      {/* Double Tap Heart */}
-      <Animated.View
-        style={[doubleTapHeartStyle, { position: 'absolute', top: '40%', left: '35%' }]}
+    <GestureDetector gesture={panGesture}>
+      <Pressable
+        onPress={handleTap}
+        style={{ height: SCREEN_HEIGHT, width: SCREEN_WIDTH }}
+        className="relative"
       >
-        <Heart size={120} color="#fff" fill="#fff" />
-      </Animated.View>
+        {/* Video or Thumbnail Background */}
+        {clip.videoUrl ? (
+          <>
+            <ExpoVideo
+              ref={videoRef}
+              source={{ uri: clip.videoUrl }}
+              style={{ position: 'absolute', width: '100%', height: '100%' }}
+              resizeMode={ResizeMode.COVER}
+              isLooping
+              shouldPlay={isActive}
+              isMuted={isMuted}
+              volume={1.0}
+              onPlaybackStatusUpdate={onPlaybackStatusUpdate}
+              useNativeControls={false}
+              progressUpdateIntervalMillis={100}
+            />
+            {/* Thumbnail while loading */}
+            {isLoading && (
+              <Image
+                source={{ uri: clip.thumbnail }}
+                style={{ position: 'absolute', width: '100%', height: '100%' }}
+                contentFit="cover"
+                cachePolicy="memory-disk"
+              />
+            )}
+          </>
+        ) : (
+          <Image
+            source={{ uri: clip.thumbnail }}
+            style={{ position: 'absolute', width: '100%', height: '100%' }}
+            contentFit="cover"
+            cachePolicy="memory-disk"
+          />
+        )}
 
-      {/* Loading Indicator */}
-      {isLoading && clip.videoUrl && (
-        <View className="absolute inset-0 items-center justify-center">
-          <ActivityIndicator size="large" color="#fff" />
+        {/* Gradient Overlays - Enhanced */}
+        <LinearGradient
+          colors={['rgba(0,0,0,0.4)', 'transparent', 'transparent', 'rgba(0,0,0,0.7)']}
+          locations={[0, 0.15, 0.7, 1]}
+          style={{ position: 'absolute', width: '100%', height: '100%' }}
+        />
+
+        {/* Video Progress Indicator */}
+        {isActive && duration > 0 && (
+          <View className="absolute top-0 left-0 right-0 h-1 bg-black/20">
+            <Animated.View
+              style={[
+                progressStyle,
+                { height: '100%', backgroundColor: '#FFFFFF', borderRadius: 1 }
+              ]}
+            />
+          </View>
+        )}
+
+        {/* Double Tap Heart - Enhanced */}
+        <Animated.View
+          style={[doubleTapHeartStyle, { position: 'absolute', top: '40%', left: '35%', zIndex: 10 }]}
+        >
+          <View className="items-center">
+            <Heart size={120} color="#EF4444" fill="#EF4444" />
+            <Text className="text-white font-bold text-lg mt-2" style={{ textShadowColor: 'rgba(0,0,0,0.5)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 }}>
+              +1
+            </Text>
+          </View>
+        </Animated.View>
+
+        {/* Loading Indicator - Enhanced */}
+        {isLoading && clip.videoUrl && (
+          <View className="absolute inset-0 items-center justify-center bg-black/20">
+            <View className="items-center">
+              <ActivityIndicator size="large" color="#fff" />
+              <Text className="text-white text-sm mt-3 font-medium">Loading video...</Text>
+            </View>
+          </View>
+        )}
+
+        {/* Play/Pause Indicator - Enhanced */}
+        <Animated.View
+          style={[playPauseStyle, { position: 'absolute', top: '50%', left: '50%', transform: [{ translateX: -30 }, { translateY: -30 }] }]}
+        >
+          <View className="bg-black/60 rounded-full p-4">
+            {isPlaying ? (
+              <Pause size={48} color="#fff" fill="#fff" />
+            ) : (
+              <Play size={48} color="#fff" fill="#fff" />
+            )}
+          </View>
+        </Animated.View>
+
+        {/* Mute/Unmute Button - Enhanced */}
+        <Pressable
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            onToggleMute();
+          }}
+          className="absolute bg-black/50 rounded-full p-2.5 backdrop-blur-sm"
+          style={{ top: insets.top + 60, right: 16 }}
+        >
+          {isMuted ? (
+            <VolumeX size={22} color="#fff" />
+          ) : (
+            <Volume2 size={22} color="#fff" />
+          )}
+        </Pressable>
+
+        {/* Right Side Actions - Enhanced */}
+        <View
+          className="absolute right-3 items-center gap-6"
+          style={{ bottom: 120 + insets.bottom }}
+        >
+          {/* Profile - Enhanced */}
+          <View className="items-center">
+            <Pressable className="relative" onPress={() => router.push(`/profile/${clip.user.id}`)}>
+              <Image
+                source={{ uri: clip.user.avatar }}
+                style={{ width: 52, height: 52, borderRadius: 26, borderWidth: 2.5, borderColor: '#fff' }}
+                contentFit="cover"
+                cachePolicy="memory-disk"
+              />
+              {!isFollowing && (
+                <Pressable
+                  onPress={handleFollow}
+                  className="absolute -bottom-2 left-1/2 -ml-3.5 bg-rose-500 rounded-full w-7 h-7 items-center justify-center border-2 border-white"
+                >
+                  <Plus size={16} color="#fff" strokeWidth={3} />
+                </Pressable>
+              )}
+            </Pressable>
+          </View>
+
+          {/* Like - Enhanced */}
+          <Pressable onPress={handleLike} className="items-center">
+            <Animated.View style={heartAnimatedStyle}>
+              <Heart
+                size={36}
+                color={liked ? '#EF4444' : '#fff'}
+                fill={liked ? '#EF4444' : 'transparent'}
+                strokeWidth={liked ? 0 : 2.5}
+              />
+            </Animated.View>
+            <Text className="text-white text-xs font-bold mt-1.5" style={{ textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 }}>
+              {formatNumber(likeCount)}
+            </Text>
+          </Pressable>
+
+          {/* Comment - Enhanced */}
+          <Pressable onPress={onComment} className="items-center">
+            <MessageCircle size={36} color="#fff" strokeWidth={2.5} />
+            <Text className="text-white text-xs font-bold mt-1.5" style={{ textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 }}>
+              {formatNumber(clip.comments)}
+            </Text>
+          </Pressable>
+
+          {/* Save - Enhanced */}
+          <Pressable onPress={handleSave} className="items-center">
+            <Bookmark
+              size={32}
+              color={saved ? '#FBBF24' : '#fff'}
+              fill={saved ? '#FBBF24' : 'transparent'}
+              strokeWidth={saved ? 0 : 2.5}
+            />
+          </Pressable>
+
+          {/* Share - Enhanced */}
+          <Pressable onPress={onShare} className="items-center">
+            <Share2 size={30} color="#fff" strokeWidth={2.5} />
+            <Text className="text-white text-xs font-bold mt-1.5" style={{ textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 }}>
+              {formatNumber(clip.shares)}
+            </Text>
+          </Pressable>
+
+          {/* More - Enhanced */}
+          <DropdownMenu.Root>
+            <DropdownMenu.Trigger>
+              <Pressable className="items-center">
+                <MoreHorizontal size={28} color="#fff" strokeWidth={2.5} />
+              </Pressable>
+            </DropdownMenu.Trigger>
+            <DropdownMenu.Content>
+              <DropdownMenu.Item key="report" onSelect={onReportUser}>
+                <DropdownMenu.ItemIcon ios={{ name: 'flag' }}>
+                  <Flag size={18} color="#EF4444" />
+                </DropdownMenu.ItemIcon>
+                <DropdownMenu.ItemTitle>Report</DropdownMenu.ItemTitle>
+              </DropdownMenu.Item>
+              <DropdownMenu.Item key="block" onSelect={onBlockUser} destructive>
+                <DropdownMenu.ItemIcon ios={{ name: 'hand.raised' }}>
+                  <Ban size={18} color="#EF4444" />
+                </DropdownMenu.ItemIcon>
+                <DropdownMenu.ItemTitle>Block User</DropdownMenu.ItemTitle>
+              </DropdownMenu.Item>
+            </DropdownMenu.Content>
+          </DropdownMenu.Root>
         </View>
-      )}
 
-      {/* Play/Pause Indicator (shows briefly when toggling) */}
-      {!isPlaying && !isLoading && (
-        <View className="absolute inset-0 items-center justify-center">
-          <View className="bg-black/30 rounded-full p-4">
-            <Play size={48} color="#fff" fill="#fff" />
+        {/* Bottom Info - Enhanced */}
+        <View
+          className="absolute left-4 right-20"
+          style={{ bottom: 100 + insets.bottom }}
+        >
+          {/* Username - Enhanced */}
+          <View className="flex-row items-center mb-2">
+            <Pressable onPress={() => router.push(`/profile/${clip.user.id}`)}>
+              <Text className="text-white font-bold text-base" style={{ textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 }}>
+                @{clip.user.username}
+              </Text>
+            </Pressable>
+            {clip.user.isVerified && (
+              <View className="ml-1.5 bg-blue-500 rounded-full w-4.5 h-4.5 items-center justify-center">
+                <Text className="text-white text-[10px] font-bold">✓</Text>
+              </View>
+            )}
+          </View>
+
+          {/* Description - Enhanced */}
+          <Text className="text-white text-sm leading-5 mb-3" numberOfLines={3} style={{ textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 }}>
+            {clip.description}
+          </Text>
+
+          {/* Music - Enhanced */}
+          <Pressable className="flex-row items-center mb-2">
+            <Music2 size={16} color="#fff" />
+            <Text className="text-white text-xs ml-2 font-medium" numberOfLines={1} style={{ textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 }}>
+              {clip.music}
+            </Text>
+          </Pressable>
+
+          {/* Views and Time - Enhanced */}
+          <View className="flex-row items-center gap-3">
+            <Text className="text-white/80 text-xs" style={{ textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 }}>
+              {formatNumber(clip.views)} views
+            </Text>
+            <Text className="text-white/60 text-xs">•</Text>
+            <Text className="text-white/80 text-xs" style={{ textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 }}>
+              {getTimeAgo(clip.createdAt)}
+            </Text>
           </View>
         </View>
-      )}
-
-      {/* Mute/Unmute Button */}
-      <Pressable
-        onPress={() => {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          onToggleMute();
-        }}
-        className="absolute bg-black/40 rounded-full p-2"
-        style={{ top: insets.top + 60, right: 16 }}
-      >
-        {isMuted ? (
-          <VolumeX size={22} color="#fff" />
-        ) : (
-          <Volume2 size={22} color="#fff" />
-        )}
       </Pressable>
+    </GestureDetector>
+  );
+}
 
-      {/* Right Side Actions */}
-      <View
-        className="absolute right-3 items-center gap-5"
-        style={{ bottom: 120 + insets.bottom }}
-      >
-        {/* Profile */}
-        <View className="items-center">
-          <Pressable className="relative">
-            <Image
-              source={{ uri: clip.user.avatar }}
-              style={{ width: 48, height: 48, borderRadius: 24, borderWidth: 2, borderColor: '#fff' }}
-              contentFit="cover"
-            />
-            <Pressable
-              onPress={handleFollow}
-              className="absolute -bottom-2 left-1/2 -ml-3 bg-rose-500 rounded-full w-6 h-6 items-center justify-center"
-            >
-              <Plus size={14} color="#fff" strokeWidth={3} />
+// Comments Modal Component
+function CommentsModal({ visible, clip, onClose }: { visible: boolean; clip: Clip | null; onClose: () => void }) {
+  const insets = useSafeAreaInsets();
+  const [commentText, setCommentText] = useState('');
+  const [comments, setComments] = useState([
+    { id: '1', user: { name: 'John Doe', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100', username: 'johndoe' }, text: 'This is amazing! 🔥', likes: 12, timeAgo: '2h ago' },
+    { id: '2', user: { name: 'Jane Smith', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100', username: 'janesmith' }, text: 'Love this! Can we do this together?', likes: 8, timeAgo: '5h ago' },
+  ]);
+
+  const handleSendComment = () => {
+    if (commentText.trim()) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      setComments([{
+        id: Date.now().toString(),
+        user: { name: 'You', avatar: '', username: 'you' },
+        text: commentText,
+        likes: 0,
+        timeAgo: 'just now',
+      }, ...comments]);
+      setCommentText('');
+    }
+  };
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <View className="flex-1 bg-black/50">
+        <Pressable className="flex-1" onPress={onClose} />
+        <Animated.View
+          entering={SlideInUp.duration(300)}
+          className="bg-white rounded-t-3xl max-h-[70%]"
+        >
+          <View className="flex-row items-center justify-between px-5 pt-5 pb-3 border-b border-gray-100">
+            <Text className="text-lg font-bold text-warmBrown">
+              {formatNumber(clip?.comments || 0)} Comments
+            </Text>
+            <Pressable onPress={onClose} className="p-1" hitSlop={8}>
+              <ChevronDown size={24} color="#6B7280" />
             </Pressable>
-          </Pressable>
-        </View>
+          </View>
 
-        {/* Like */}
-        <Pressable onPress={handleLike} className="items-center">
-          <Animated.View style={heartAnimatedStyle}>
-            <Heart
-              size={32}
-              color={liked ? '#EF4444' : '#fff'}
-              fill={liked ? '#EF4444' : 'transparent'}
-            />
-          </Animated.View>
-          <Text className="text-white text-xs font-semibold mt-1">
-            {formatNumber(likeCount)}
-          </Text>
-        </Pressable>
-
-        {/* Comment */}
-        <Pressable onPress={handleComment} className="items-center">
-          <MessageCircle size={32} color="#fff" />
-          <Text className="text-white text-xs font-semibold mt-1">
-            {formatNumber(clip.comments)}
-          </Text>
-        </Pressable>
-
-        {/* Save */}
-        <Pressable onPress={handleSave} className="items-center">
-          <Bookmark
-            size={30}
-            color={saved ? '#FBBF24' : '#fff'}
-            fill={saved ? '#FBBF24' : 'transparent'}
+          <FlatList
+            data={comments}
+            keyExtractor={(item) => item.id}
+            className="flex-1 px-5 py-4"
+            renderItem={({ item }) => (
+              <View className="flex-row mb-4">
+                <Image
+                  source={{ uri: item.user.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100' }}
+                  style={{ width: 36, height: 36, borderRadius: 18 }}
+                  contentFit="cover"
+                />
+                <View className="flex-1 ml-3">
+                  <View className="flex-row items-center mb-1">
+                    <Text className="text-warmBrown font-semibold text-sm">@{item.user.username}</Text>
+                    <Text className="text-gray-500 text-xs ml-2">{item.timeAgo}</Text>
+                  </View>
+                  <Text className="text-gray-800 text-sm mb-1">{item.text}</Text>
+                  <View className="flex-row items-center gap-4">
+                    <Pressable className="flex-row items-center">
+                      <Heart size={14} color="#9CA3AF" />
+                      <Text className="text-gray-500 text-xs ml-1">{item.likes}</Text>
+                    </Pressable>
+                    <Text className="text-gray-500 text-xs">Reply</Text>
+                  </View>
+                </View>
+              </View>
+            )}
           />
-        </Pressable>
 
-        {/* Share */}
-        <Pressable onPress={handleShare} className="items-center">
-          <Share2 size={28} color="#fff" />
-          <Text className="text-white text-xs font-semibold mt-1">
-            {formatNumber(clip.shares)}
-          </Text>
-        </Pressable>
-
-        {/* More */}
-        <DropdownMenu.Root>
-          <DropdownMenu.Trigger>
-            <Pressable className="items-center">
-              <MoreHorizontal size={26} color="#fff" />
-            </Pressable>
-          </DropdownMenu.Trigger>
-          <DropdownMenu.Content>
-            <DropdownMenu.Item key="report" onSelect={onReportUser}>
-              <DropdownMenu.ItemIcon ios={{ name: 'flag' }}>
-                <Flag size={18} color="#EF4444" />
-              </DropdownMenu.ItemIcon>
-              <DropdownMenu.ItemTitle>Report</DropdownMenu.ItemTitle>
-            </DropdownMenu.Item>
-            <DropdownMenu.Item key="block" onSelect={onBlockUser} destructive>
-              <DropdownMenu.ItemIcon ios={{ name: 'hand.raised' }}>
-                <Ban size={18} color="#EF4444" />
-              </DropdownMenu.ItemIcon>
-              <DropdownMenu.ItemTitle>Block User</DropdownMenu.ItemTitle>
-            </DropdownMenu.Item>
-          </DropdownMenu.Content>
-        </DropdownMenu.Root>
-      </View>
-
-      {/* Bottom Info */}
-      <View
-        className="absolute left-4 right-20"
-        style={{ bottom: 100 + insets.bottom }}
-      >
-        {/* Username */}
-        <View className="flex-row items-center mb-2">
-          <Text className="text-white font-bold text-base">@{clip.user.username}</Text>
-          {clip.user.isVerified && (
-            <View className="ml-1 bg-blue-500 rounded-full w-4 h-4 items-center justify-center">
-              <Text className="text-white text-xs">✓</Text>
+          <View className="border-t border-gray-100 px-5 py-3" style={{ paddingBottom: insets.bottom + 12 }}>
+            <View className="flex-row items-center">
+              <TextInput
+                value={commentText}
+                onChangeText={setCommentText}
+                placeholder="Add a comment..."
+                placeholderTextColor="#9CA3AF"
+                className="flex-1 bg-gray-100 rounded-full px-4 py-2.5 text-warmBrown"
+                style={{ fontSize: 15 }}
+              />
+              <Pressable
+                onPress={handleSendComment}
+                disabled={!commentText.trim()}
+                className={`ml-2 bg-terracotta-500 rounded-full p-2.5 ${!commentText.trim() ? 'opacity-50' : ''}`}
+              >
+                <Send size={20} color="#fff" />
+              </Pressable>
             </View>
-          )}
-        </View>
-
-        {/* Description */}
-        <Text className="text-white text-sm leading-5 mb-3" numberOfLines={3}>
-          {clip.description}
-        </Text>
-
-        {/* Music */}
-        <View className="flex-row items-center">
-          <Music2 size={14} color="#fff" />
-          <Text className="text-white text-xs ml-2" numberOfLines={1}>
-            {clip.music}
-          </Text>
-        </View>
+          </View>
+        </Animated.View>
       </View>
-    </Pressable>
+    </Modal>
   );
 }
 
@@ -499,7 +743,10 @@ export default function ClipsTabScreen() {
   const [activeIndex, setActiveIndex] = useState(0);
   const [activeTab, setActiveTab] = useState<'following' | 'foryou'>('foryou');
   const [isMuted, setIsMuted] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
+  const [showCommentsModal, setShowCommentsModal] = useState(false);
+  const [selectedClip, setSelectedClip] = useState<Clip | null>(null);
   const [reportStep, setReportStep] = useState<'reason' | 'confirm' | 'done'>('reason');
   const [selectedReason, setSelectedReason] = useState<ViolationType | 'other' | null>(null);
   const [showBlockConfirmModal, setShowBlockConfirmModal] = useState(false);
@@ -559,6 +806,36 @@ export default function ClipsTabScreen() {
     setIsMuted(prev => !prev);
   }, []);
 
+  const handleComment = (clip: Clip) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setSelectedClip(clip);
+    setShowCommentsModal(true);
+  };
+
+  const handleShare = async (clip: Clip) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      const result = await Share.share({
+        message: `Check out this clip by @${clip.user.username} on Intera!\n\n${clip.description}`,
+        url: clip.videoUrl || clip.thumbnail,
+      });
+      if (result.action === Share.sharedAction) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch (error) {
+      console.error('Error sharing:', error);
+    }
+  };
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    // Simulate refresh
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    setRefreshing(false);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }, []);
+
   // Configure audio mode to play sound even when phone is on silent
   useEffect(() => {
     const configureAudio = async () => {
@@ -600,7 +877,7 @@ export default function ClipsTabScreen() {
 
   return (
     <View className="flex-1 bg-black">
-      {/* Header */}
+      {/* Header - Enhanced */}
       <View
         className="absolute z-10 left-0 right-0 flex-row items-center justify-between px-4"
         style={{ top: insets.top + 8 }}
@@ -608,45 +885,49 @@ export default function ClipsTabScreen() {
         {/* Spacer for balance */}
         <View style={{ width: 44 }} />
 
-        {/* Tab Switcher */}
-        <Animated.View entering={FadeIn.duration(400)} className="flex-row items-center">
-          <Pressable onPress={() => handleTabChange('following')} className="px-4 py-2">
+        {/* Tab Switcher - Enhanced */}
+        <Animated.View entering={FadeIn.duration(400)} className="flex-row items-center bg-black/30 rounded-full px-1 py-1 backdrop-blur-sm">
+          <Pressable 
+            onPress={() => handleTabChange('following')} 
+            className={`px-5 py-2 rounded-full ${activeTab === 'following' ? 'bg-white' : ''}`}
+          >
             <Text
-              className={`font-semibold text-base ${
-                activeTab === 'following' ? 'text-white' : 'text-white/60'
+              className={`font-semibold text-sm ${
+                activeTab === 'following' ? 'text-black' : 'text-white'
               }`}
             >
               Following
             </Text>
-            {activeTab === 'following' && (
-              <View className="absolute bottom-1 left-4 right-4 h-0.5 bg-white rounded-full" />
-            )}
           </Pressable>
-          <View className="w-px h-4 bg-white/30 mx-1" />
-          <Pressable onPress={() => handleTabChange('foryou')} className="px-4 py-2">
-            <Text
-              className={`font-semibold text-base ${
-                activeTab === 'foryou' ? 'text-white' : 'text-white/60'
-              }`}
-            >
-              For You
-            </Text>
-            {activeTab === 'foryou' && (
-              <View className="absolute bottom-1 left-4 right-4 h-0.5 bg-white rounded-full" />
-            )}
+          <Pressable 
+            onPress={() => handleTabChange('foryou')} 
+            className={`px-5 py-2 rounded-full ${activeTab === 'foryou' ? 'bg-white' : ''}`}
+          >
+            <View className="flex-row items-center">
+              <Text
+                className={`font-semibold text-sm ${
+                  activeTab === 'foryou' ? 'text-black' : 'text-white'
+                }`}
+              >
+                For You
+              </Text>
+              {activeTab === 'foryou' && (
+                <TrendingUp size={14} color="#000" style={{ marginLeft: 4 }} />
+              )}
+            </View>
           </Pressable>
         </Animated.View>
 
-        {/* Create Button */}
+        {/* Create Button - Enhanced */}
         <Pressable
           onPress={handleCreateClip}
-          className="bg-white rounded-lg w-11 h-7 items-center justify-center"
+          className="bg-white rounded-full w-10 h-10 items-center justify-center shadow-lg"
         >
-          <Plus size={20} color="#000" strokeWidth={3} />
+          <Plus size={22} color="#000" strokeWidth={3} />
         </Pressable>
       </View>
 
-      {/* Clips Feed */}
+      {/* Clips Feed - Enhanced with Pull to Refresh */}
       <FlatList
         data={filteredClips}
         keyExtractor={(item) => item.id}
@@ -658,6 +939,8 @@ export default function ClipsTabScreen() {
             onToggleMute={toggleMute}
             onBlockUser={() => handleBlockUser({ id: item.user.id, name: item.user.name, avatar: item.user.avatar })}
             onReportUser={() => handleReportUser({ id: item.user.id, name: item.user.name, avatar: item.user.avatar })}
+            onComment={() => handleComment(item)}
+            onShare={() => handleShare(item)}
           />
         )}
         pagingEnabled
@@ -666,6 +949,28 @@ export default function ClipsTabScreen() {
         decelerationRate="fast"
         viewabilityConfig={viewabilityConfig}
         onViewableItemsChanged={onViewableItemsChanged}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#fff"
+            colors={['#fff']}
+          />
+        }
+        removeClippedSubviews={true}
+        maxToRenderPerBatch={3}
+        windowSize={5}
+        initialNumToRender={2}
+      />
+
+      {/* Comments Modal */}
+      <CommentsModal
+        visible={showCommentsModal}
+        clip={selectedClip}
+        onClose={() => {
+          setShowCommentsModal(false);
+          setSelectedClip(null);
+        }}
       />
 
       {/* Block Confirmation Modal */}
