@@ -19,19 +19,11 @@ export async function isAppleAuthAvailable(): Promise<boolean> {
 export async function signInWithApple() {
   console.log('[Apple Auth] Starting Apple Sign-In...');
 
-  // Check if Apple authentication is available on this device
-  let isAvailable = false;
-  try {
-    isAvailable = await AppleAuthentication.isAvailableAsync();
-    console.log('[Apple Auth] isAvailableAsync:', isAvailable);
-  } catch (availError) {
-    console.log('[Apple Auth] Could not check availability:', availError);
-    // On production iOS builds, assume it's available if check fails
-    isAvailable = Platform.OS === 'ios';
-  }
-
-  if (!isAvailable) {
-    throw new Error('Apple Sign-In is not available on this device. Please try another sign-in method.');
+  // On iOS, we skip the availability check and try to sign in directly
+  // The isAvailableAsync() can return false incorrectly on some iPad configurations
+  // If Apple Sign-In is truly unavailable, the signInAsync will throw an appropriate error
+  if (Platform.OS !== 'ios') {
+    throw new Error('Apple Sign-In is only available on iOS devices.');
   }
 
   console.log('[Apple Auth] Requesting Apple credentials...');
