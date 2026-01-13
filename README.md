@@ -1143,6 +1143,35 @@ Three powerful features designed to make Diaspora the go-to app for foreigners a
   - "Support the driver" toggle for passengers to cover platform fees
 - Sample rides from multiple countries: USA, Ghana, Nigeria, UK, Senegal, Kenya
 
+#### Car Rental with Document Upload (NEW!)
+- **Rent a Car Tab** - Rent cars directly from community members
+- **Document Requirements System** - Car owners can require renters to upload documents through the app
+- **10 Document Types Available**:
+  - Driver's License (front & back)
+  - Government ID (National ID, state ID)
+  - Insurance Proof (current auto insurance certificate)
+  - Passport (valid passport photo page)
+  - Proof of Address (utility bill or bank statement)
+  - Credit Card Photo (last 4 digits visible for security)
+  - Selfie with ID (photo holding your ID)
+  - Vehicle Registration (proof you own a vehicle)
+  - Employment Proof (pay stub or employment letter)
+  - Bank Statement (recent statement, can redact amounts)
+- **For Car Owners**:
+  - Select which documents renters must upload before approval
+  - Everything handled through the app - no need to meet first
+  - Review uploaded documents before approving rental
+  - Set minimum age, insurance requirements, deposit amounts
+- **For Renters**:
+  - See required documents before requesting to rent
+  - Upload documents via photo library or camera capture
+  - Progress tracker showing uploaded vs required documents
+  - Add optional message to introduce yourself
+  - Privacy notice: documents encrypted and auto-deleted after 30 days
+- **Two-Button System**:
+  - "Request to Rent" - Opens document upload modal when documents are required
+  - "Message Owner" - Direct chat for questions or simple rentals
+
 ### 25. Pet Connect (`/pet-connect`)
 - **Connect with pet owners** in your community
 - Pet profiles with photos, breed, age, and personality

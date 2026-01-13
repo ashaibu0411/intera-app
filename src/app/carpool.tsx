@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, Pressable, TextInput, Modal, Switch, Linking, Alert } from 'react-native';
+import { View, Text, ScrollView, Pressable, TextInput, Modal, Switch, Linking, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Image } from 'expo-image';
@@ -7,12 +7,55 @@ import {
   ArrowLeft, Car, MapPin, Calendar, Clock, Users, Star, MessageCircle, Plus, X,
   ChevronRight, Plane, Briefcase, Music, PartyPopper, CreditCard, Banknote, Gem,
   DollarSign, Smartphone, Check, Info, Shield, Globe, Building, Send, Wallet, Heart, Fuel,
-  AlertTriangle, Phone, Share2, UserCheck, BadgeCheck, FileText, CircleAlert
+  AlertTriangle, Phone, Share2, UserCheck, BadgeCheck, FileText, CircleAlert, Upload,
+  CreditCard as CreditCardIcon, Camera, FileCheck, Car as CarIcon, Paperclip
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
+import * as ImagePicker from 'expo-image-picker';
 import Animated, { FadeInDown, ZoomIn, FadeIn } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// Document types that car owners can require from renters
+type DocumentType =
+  | 'drivers_license'
+  | 'government_id'
+  | 'insurance_proof'
+  | 'passport'
+  | 'proof_of_address'
+  | 'credit_card'
+  | 'selfie_with_id'
+  | 'vehicle_registration'
+  | 'employment_proof'
+  | 'bank_statement';
+
+interface DocumentRequirement {
+  type: DocumentType;
+  label: string;
+  description: string;
+  icon: string;
+  required: boolean;
+}
+
+// All available document types car owners can choose from
+const AVAILABLE_DOCUMENT_TYPES: DocumentRequirement[] = [
+  { type: 'drivers_license', label: "Driver's License", description: 'Valid driver\'s license (front & back)', icon: 'license', required: false },
+  { type: 'government_id', label: 'Government ID', description: 'National ID, state ID, or equivalent', icon: 'id', required: false },
+  { type: 'insurance_proof', label: 'Insurance Proof', description: 'Current auto insurance certificate', icon: 'shield', required: false },
+  { type: 'passport', label: 'Passport', description: 'Valid passport photo page', icon: 'passport', required: false },
+  { type: 'proof_of_address', label: 'Proof of Address', description: 'Utility bill or bank statement', icon: 'home', required: false },
+  { type: 'credit_card', label: 'Credit Card Photo', description: 'Credit card for security (last 4 digits visible)', icon: 'card', required: false },
+  { type: 'selfie_with_id', label: 'Selfie with ID', description: 'Photo of yourself holding your ID', icon: 'selfie', required: false },
+  { type: 'vehicle_registration', label: 'Your Vehicle Registration', description: 'Proof you own a vehicle (trust verification)', icon: 'car', required: false },
+  { type: 'employment_proof', label: 'Employment Proof', description: 'Pay stub or employment letter', icon: 'work', required: false },
+  { type: 'bank_statement', label: 'Bank Statement', description: 'Recent bank statement (can redact amounts)', icon: 'bank', required: false },
+];
+
+interface UploadedDocument {
+  type: DocumentType;
+  uri: string;
+  fileName?: string;
+}
 
 type PaymentMethod = 'cash' | 'cashapp' | 'venmo' | 'zelle' | 'paypal' | 'wise' | 'mpesa' | 'bank';
 type PricingType = 'fixed' | 'gas-split' | 'free' | 'donation';
@@ -57,6 +100,8 @@ interface CarListing {
     idRequired: boolean;
     backgroundCheck: boolean;
     customRequirements: string[];
+    // Document upload requirements - owners can select which documents renters must upload
+    requiredDocuments: DocumentType[];
   };
   features: string[];
   description: string;
@@ -159,6 +204,7 @@ const MOCK_CAR_LISTINGS: CarListing[] = [
       idRequired: true,
       backgroundCheck: false,
       customRequirements: ['No smoking in car', 'Return with full tank'],
+      requiredDocuments: ['drivers_license', 'government_id', 'insurance_proof'],
     },
     features: ['Bluetooth', 'Backup Camera', 'Apple CarPlay', 'Cruise Control'],
     description: 'Clean, reliable Toyota Camry perfect for city driving or road trips. Great gas mileage and very comfortable. I keep it spotless!',
@@ -209,6 +255,7 @@ const MOCK_CAR_LISTINGS: CarListing[] = [
       idRequired: true,
       backgroundCheck: false,
       customRequirements: ['Ghana or International license accepted', 'Provide copy of passport'],
+      requiredDocuments: ['drivers_license', 'passport', 'insurance_proof', 'selfie_with_id'],
     },
     features: ['AC', 'GPS', 'USB Charging', 'Roof Rack', 'AWD'],
     description: 'Perfect SUV for exploring Ghana! Hybrid engine saves on fuel. Great for trips to Cape Coast, Kumasi, or around the city. Well maintained.',
@@ -258,6 +305,7 @@ const MOCK_CAR_LISTINGS: CarListing[] = [
       idRequired: true,
       backgroundCheck: true,
       customRequirements: ['Proof of employment or business', 'Two forms of ID required', 'Video call verification before pickup'],
+      requiredDocuments: ['drivers_license', 'government_id', 'insurance_proof', 'employment_proof', 'selfie_with_id', 'credit_card'],
     },
     features: ['Leather Seats', 'Premium Sound', 'Sunroof', 'Navigation', 'Heated Seats'],
     description: 'Luxury E-Class for business meetings, special occasions, or when you want to travel in style. Impeccable condition, regularly serviced.',
@@ -307,6 +355,7 @@ const MOCK_CAR_LISTINGS: CarListing[] = [
       idRequired: true,
       backgroundCheck: false,
       customRequirements: ['UK or EU license only', 'Insurance included in price'],
+      requiredDocuments: ['drivers_license', 'government_id'],
     },
     features: ['Bluetooth', 'DAB Radio', 'Parking Sensors', 'Fuel Efficient'],
     description: 'Nimble Golf perfect for London streets. Easy to park, great on fuel. Manual transmission - must know how to drive stick!',
@@ -357,6 +406,7 @@ const MOCK_CAR_LISTINGS: CarListing[] = [
       idRequired: true,
       backgroundCheck: false,
       customRequirements: ['International license accepted', 'Passport copy required'],
+      requiredDocuments: ['drivers_license', 'passport', 'insurance_proof'],
     },
     features: ['AC', '4x4', 'Roof Rails', 'USB Charging'],
     description: 'Rugged Duster perfect for Senegal roads. Can handle sand and rough terrain. Great for trips to Saint-Louis or Casamance.',
@@ -779,6 +829,7 @@ export default function CarpoolScreen() {
     idRequired: true,
     backgroundCheck: false,
     customRequirements: '',
+    requiredDocuments: ['drivers_license'] as DocumentType[], // Documents owner requires from renters
     features: '',
     description: '',
     rules: '',
@@ -791,6 +842,134 @@ export default function CarpoolScreen() {
     bankDetails: '',
     acceptsCash: true,
   });
+
+  // Rental request state - for renters to upload documents
+  const [showRentalRequestModal, setShowRentalRequestModal] = useState(false);
+  const [uploadedDocuments, setUploadedDocuments] = useState<UploadedDocument[]>([]);
+  const [rentalMessage, setRentalMessage] = useState('');
+  const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
+
+  // Helper function to get document label
+  const getDocumentLabel = (type: DocumentType): string => {
+    const doc = AVAILABLE_DOCUMENT_TYPES.find(d => d.type === type);
+    return doc?.label || type;
+  };
+
+  // Helper function to get document description
+  const getDocumentDescription = (type: DocumentType): string => {
+    const doc = AVAILABLE_DOCUMENT_TYPES.find(d => d.type === type);
+    return doc?.description || '';
+  };
+
+  // Toggle document requirement in owner form
+  const toggleDocumentRequirement = (type: DocumentType) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setPostCarForm(prev => {
+      const current = prev.requiredDocuments;
+      if (current.includes(type)) {
+        return { ...prev, requiredDocuments: current.filter(d => d !== type) };
+      } else {
+        return { ...prev, requiredDocuments: [...current, type] };
+      }
+    });
+  };
+
+  // Handle document upload for renters
+  const handleUploadDocument = async (type: DocumentType) => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        quality: 0.8,
+        allowsEditing: true,
+      });
+
+      if (!result.canceled && result.assets.length > 0) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        const newDoc: UploadedDocument = {
+          type,
+          uri: result.assets[0].uri,
+          fileName: result.assets[0].fileName || `${type}_${Date.now()}.jpg`,
+        };
+        setUploadedDocuments(prev => {
+          // Replace if same type exists, otherwise add
+          const filtered = prev.filter(d => d.type !== type);
+          return [...filtered, newDoc];
+        });
+      }
+    } catch (error) {
+      console.log('Error picking document:', error);
+      Alert.alert('Error', 'Failed to select document. Please try again.');
+    }
+  };
+
+  // Handle camera capture for documents
+  const handleCaptureDocument = async (type: DocumentType) => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'Camera permission is needed to capture documents.');
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        quality: 0.8,
+        allowsEditing: true,
+      });
+
+      if (!result.canceled && result.assets.length > 0) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        const newDoc: UploadedDocument = {
+          type,
+          uri: result.assets[0].uri,
+          fileName: `${type}_${Date.now()}.jpg`,
+        };
+        setUploadedDocuments(prev => {
+          const filtered = prev.filter(d => d.type !== type);
+          return [...filtered, newDoc];
+        });
+      }
+    } catch (error) {
+      console.log('Error capturing document:', error);
+      Alert.alert('Error', 'Failed to capture document. Please try again.');
+    }
+  };
+
+  // Remove uploaded document
+  const removeUploadedDocument = (type: DocumentType) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setUploadedDocuments(prev => prev.filter(d => d.type !== type));
+  };
+
+  // Check if all required documents are uploaded
+  const areAllDocumentsUploaded = (requiredDocs: DocumentType[]): boolean => {
+    return requiredDocs.every(doc => uploadedDocuments.some(d => d.type === doc));
+  };
+
+  // Submit rental request
+  const handleSubmitRentalRequest = () => {
+    if (!selectedCar) return;
+
+    if (!areAllDocumentsUploaded(selectedCar.requirements.requiredDocuments)) {
+      Alert.alert('Missing Documents', 'Please upload all required documents before submitting.');
+      return;
+    }
+
+    setIsSubmittingRequest(true);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    // Simulate API call
+    setTimeout(() => {
+      setIsSubmittingRequest(false);
+      setShowRentalRequestModal(false);
+      setUploadedDocuments([]);
+      setRentalMessage('');
+      Alert.alert(
+        'Request Sent!',
+        `Your rental request and documents have been sent to ${selectedCar.owner.name}. They will review and respond soon.`,
+        [{ text: 'OK', onPress: () => setShowCarDetailModal(false) }]
+      );
+    }, 1500);
+  };
 
   // Calculate gas split per person
   const getGasSplitAmount = (ride: CarpoolRide) => {
@@ -2649,6 +2828,34 @@ export default function CarpoolScreen() {
                         </View>
                       )}
 
+                      {/* Required Documents Section */}
+                      {selectedCar.requirements.requiredDocuments.length > 0 && (
+                        <View className="mb-5">
+                          <Text className="text-white font-semibold text-lg mb-3">Documents You'll Need to Upload</Text>
+                          <View className="bg-blue-500/10 rounded-2xl p-4 border border-blue-500/30 mb-3">
+                            <View className="flex-row items-start">
+                              <Upload size={18} color="#3B82F6" />
+                              <Text className="text-blue-400/90 text-sm ml-3 flex-1 leading-5">
+                                {selectedCar.owner.name.split(' ')[0]} requires these documents to be uploaded through the app before approving your rental request.
+                              </Text>
+                            </View>
+                          </View>
+                          <View className="bg-white/5 rounded-2xl p-4 border border-white/10">
+                            {selectedCar.requirements.requiredDocuments.map((docType, idx) => (
+                              <View key={docType} className={`flex-row items-center ${idx !== selectedCar.requirements.requiredDocuments.length - 1 ? 'mb-3 pb-3 border-b border-white/10' : ''}`}>
+                                <View className="w-10 h-10 rounded-xl bg-emerald-500/20 items-center justify-center">
+                                  <FileText size={18} color="#10B981" />
+                                </View>
+                                <View className="ml-3 flex-1">
+                                  <Text className="text-white font-medium">{getDocumentLabel(docType)}</Text>
+                                  <Text className="text-gray-500 text-xs mt-0.5">{getDocumentDescription(docType)}</Text>
+                                </View>
+                              </View>
+                            ))}
+                          </View>
+                        </View>
+                      )}
+
                       {/* Rental Period */}
                       <View className="mb-5">
                         <Text className="text-white font-semibold text-lg mb-3">Rental Period</Text>
@@ -2768,8 +2975,21 @@ export default function CarpoolScreen() {
                     </View>
                   </ScrollView>
 
-                  {/* Contact Owner Button */}
+                  {/* Action Buttons */}
                   <View className="p-4 border-t border-white/10 bg-[#0A0A0A]">
+                    {/* Request to Rent Button - only show if documents are required */}
+                    {selectedCar.requirements.requiredDocuments.length > 0 && (
+                      <Pressable
+                        onPress={() => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                          setShowRentalRequestModal(true);
+                        }}
+                        className="bg-emerald-500 py-4 rounded-2xl flex-row items-center justify-center mb-3"
+                      >
+                        <Upload size={20} color="#fff" />
+                        <Text className="text-white font-bold text-base ml-2">Request to Rent</Text>
+                      </Pressable>
+                    )}
                     <Pressable
                       onPress={() => {
                         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -2777,10 +2997,214 @@ export default function CarpoolScreen() {
                         // Navigate to chat with owner
                         router.push(`/chat/${selectedCar.owner.id}` as any);
                       }}
-                      className="bg-emerald-500 py-4 rounded-2xl flex-row items-center justify-center"
+                      className={`py-4 rounded-2xl flex-row items-center justify-center ${
+                        selectedCar.requirements.requiredDocuments.length > 0
+                          ? 'bg-white/10'
+                          : 'bg-emerald-500'
+                      }`}
                     >
                       <MessageCircle size={20} color="#fff" />
                       <Text className="text-white font-bold text-base ml-2">Message {selectedCar.owner.name.split(' ')[0]}</Text>
+                    </Pressable>
+                  </View>
+                </>
+              )}
+            </Animated.View>
+          </View>
+        </Modal>
+
+        {/* Rental Request Modal - For renters to upload documents */}
+        <Modal visible={showRentalRequestModal} animationType="slide" transparent>
+          <View className="flex-1 bg-black/80">
+            <Animated.View
+              entering={FadeIn.springify()}
+              className="flex-1 bg-[#0A0A0A] mt-12 rounded-t-3xl"
+            >
+              {selectedCar && (
+                <>
+                  {/* Header */}
+                  <View className="flex-row items-center justify-between p-4 border-b border-white/10">
+                    <Pressable
+                      onPress={() => {
+                        setShowRentalRequestModal(false);
+                        setUploadedDocuments([]);
+                        setRentalMessage('');
+                      }}
+                      className="w-10 h-10 rounded-full bg-white/10 items-center justify-center"
+                    >
+                      <X size={20} color="#fff" />
+                    </Pressable>
+                    <Text className="text-white font-bold text-lg">Rental Request</Text>
+                    <View className="w-10" />
+                  </View>
+
+                  <ScrollView className="flex-1 p-5" showsVerticalScrollIndicator={false}>
+                    {/* Car Summary */}
+                    <View className="flex-row items-center bg-white/5 rounded-2xl p-4 mb-5">
+                      <Image
+                        source={{ uri: selectedCar.car.photos[0] }}
+                        style={{ width: 70, height: 70, borderRadius: 12 }}
+                        contentFit="cover"
+                      />
+                      <View className="ml-4 flex-1">
+                        <Text className="text-white font-bold text-lg">
+                          {selectedCar.car.year} {selectedCar.car.make} {selectedCar.car.model}
+                        </Text>
+                        <Text className="text-gray-400 text-sm mt-1">
+                          Owned by {selectedCar.owner.name}
+                        </Text>
+                        <Text className="text-emerald-400 font-semibold mt-1">
+                          {selectedCar.currency === 'USD' ? '$' : selectedCar.currency === 'GBP' ? '£' : ''}{selectedCar.pricePerDay.toLocaleString()}
+                          {selectedCar.currency !== 'USD' && selectedCar.currency !== 'GBP' ? ` ${selectedCar.currency}` : ''}/day
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Instructions */}
+                    <View className="bg-blue-500/10 rounded-2xl p-4 mb-5 border border-blue-500/30">
+                      <View className="flex-row items-start">
+                        <Info size={18} color="#3B82F6" />
+                        <Text className="text-blue-400/90 text-sm ml-3 flex-1 leading-5">
+                          Upload the required documents below. {selectedCar.owner.name.split(' ')[0]} will review them and respond to your request. All documents are securely stored and only shared with the owner.
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Required Documents */}
+                    <Text className="text-white font-semibold text-lg mb-4">Required Documents</Text>
+
+                    {selectedCar.requirements.requiredDocuments.map((docType) => {
+                      const uploaded = uploadedDocuments.find(d => d.type === docType);
+                      return (
+                        <View key={docType} className="bg-white/5 rounded-2xl p-4 mb-3 border border-white/10">
+                          <View className="flex-row items-center justify-between mb-3">
+                            <View className="flex-row items-center flex-1">
+                              <View className={`w-10 h-10 rounded-xl items-center justify-center ${
+                                uploaded ? 'bg-emerald-500/20' : 'bg-white/10'
+                              }`}>
+                                {uploaded ? (
+                                  <FileCheck size={18} color="#10B981" />
+                                ) : (
+                                  <FileText size={18} color="#9CA3AF" />
+                                )}
+                              </View>
+                              <View className="ml-3 flex-1">
+                                <Text className="text-white font-medium">{getDocumentLabel(docType)}</Text>
+                                <Text className="text-gray-500 text-xs mt-0.5">{getDocumentDescription(docType)}</Text>
+                              </View>
+                            </View>
+                            {uploaded && (
+                              <Pressable
+                                onPress={() => removeUploadedDocument(docType)}
+                                className="w-8 h-8 rounded-full bg-red-500/20 items-center justify-center"
+                              >
+                                <X size={14} color="#EF4444" />
+                              </Pressable>
+                            )}
+                          </View>
+
+                          {uploaded ? (
+                            <View className="flex-row items-center bg-emerald-500/10 rounded-xl p-3">
+                              <Image
+                                source={{ uri: uploaded.uri }}
+                                style={{ width: 50, height: 50, borderRadius: 8 }}
+                                contentFit="cover"
+                              />
+                              <View className="ml-3 flex-1">
+                                <Text className="text-emerald-400 font-medium text-sm">Document Uploaded</Text>
+                                <Text className="text-gray-500 text-xs mt-0.5">Tap X to remove and re-upload</Text>
+                              </View>
+                            </View>
+                          ) : (
+                            <View className="flex-row gap-3">
+                              <Pressable
+                                onPress={() => handleUploadDocument(docType)}
+                                className="flex-1 flex-row items-center justify-center py-3 rounded-xl bg-white/10"
+                              >
+                                <Upload size={16} color="#fff" />
+                                <Text className="text-white font-medium ml-2">Upload</Text>
+                              </Pressable>
+                              <Pressable
+                                onPress={() => handleCaptureDocument(docType)}
+                                className="flex-1 flex-row items-center justify-center py-3 rounded-xl bg-white/10"
+                              >
+                                <Camera size={16} color="#fff" />
+                                <Text className="text-white font-medium ml-2">Camera</Text>
+                              </Pressable>
+                            </View>
+                          )}
+                        </View>
+                      );
+                    })}
+
+                    {/* Progress Indicator */}
+                    <View className="bg-white/5 rounded-xl p-4 mb-5">
+                      <View className="flex-row items-center justify-between mb-2">
+                        <Text className="text-gray-400 text-sm">Upload Progress</Text>
+                        <Text className="text-white font-medium">
+                          {uploadedDocuments.length}/{selectedCar.requirements.requiredDocuments.length}
+                        </Text>
+                      </View>
+                      <View className="h-2 bg-white/10 rounded-full overflow-hidden">
+                        <View
+                          className="h-full bg-emerald-500 rounded-full"
+                          style={{
+                            width: `${(uploadedDocuments.length / selectedCar.requirements.requiredDocuments.length) * 100}%`,
+                          }}
+                        />
+                      </View>
+                    </View>
+
+                    {/* Optional Message */}
+                    <Text className="text-white font-semibold text-lg mb-3">Message to Owner (Optional)</Text>
+                    <TextInput
+                      placeholder="Introduce yourself, mention your rental dates, or ask questions..."
+                      placeholderTextColor="#6B7280"
+                      multiline
+                      numberOfLines={4}
+                      value={rentalMessage}
+                      onChangeText={setRentalMessage}
+                      className="bg-white/10 rounded-xl px-4 py-3 text-white min-h-[100px] mb-5"
+                      textAlignVertical="top"
+                    />
+
+                    {/* Privacy Notice */}
+                    <View className="bg-amber-500/10 rounded-2xl p-4 border border-amber-500/30 mb-6">
+                      <View className="flex-row items-start">
+                        <Shield size={18} color="#F59E0B" />
+                        <Text className="text-amber-400/90 text-xs ml-3 flex-1 leading-5">
+                          Your documents are encrypted and only visible to {selectedCar.owner.name.split(' ')[0]}. They will be automatically deleted after 30 days or upon request.
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View className="h-8" />
+                  </ScrollView>
+
+                  {/* Submit Button */}
+                  <View className="p-4 border-t border-white/10 bg-[#0A0A0A]">
+                    <Pressable
+                      onPress={handleSubmitRentalRequest}
+                      disabled={!areAllDocumentsUploaded(selectedCar.requirements.requiredDocuments) || isSubmittingRequest}
+                      className={`py-4 rounded-2xl flex-row items-center justify-center ${
+                        areAllDocumentsUploaded(selectedCar.requirements.requiredDocuments) && !isSubmittingRequest
+                          ? 'bg-emerald-500'
+                          : 'bg-white/20'
+                      }`}
+                    >
+                      {isSubmittingRequest ? (
+                        <ActivityIndicator color="#fff" />
+                      ) : (
+                        <>
+                          <Send size={20} color="#fff" />
+                          <Text className="text-white font-bold text-base ml-2">
+                            {areAllDocumentsUploaded(selectedCar.requirements.requiredDocuments)
+                              ? 'Submit Rental Request'
+                              : `Upload ${selectedCar.requirements.requiredDocuments.length - uploadedDocuments.length} more document${selectedCar.requirements.requiredDocuments.length - uploadedDocuments.length !== 1 ? 's' : ''}`
+                            }
+                          </Text>
+                        </>
+                      )}
                     </Pressable>
                   </View>
                 </>
@@ -3098,6 +3522,49 @@ export default function CarpoolScreen() {
                     textAlignVertical="top"
                   />
                 </View>
+
+                {/* Document Requirements Section */}
+                <Text className="text-white font-semibold text-lg mb-3 mt-4">Required Documents from Renters</Text>
+                <View className="bg-blue-500/10 rounded-2xl p-4 mb-4 border border-blue-500/30">
+                  <View className="flex-row items-start mb-3">
+                    <FileText size={18} color="#3B82F6" />
+                    <Text className="text-blue-400/90 text-sm ml-3 flex-1 leading-5">
+                      Select which documents renters must upload before you approve their rental. Everything is handled through the app - no need to meet first!
+                    </Text>
+                  </View>
+                </View>
+
+                <View className="bg-white/5 rounded-2xl p-4 mb-4 border border-white/10">
+                  {AVAILABLE_DOCUMENT_TYPES.map((doc, index) => (
+                    <Pressable
+                      key={doc.type}
+                      onPress={() => toggleDocumentRequirement(doc.type)}
+                      className={`flex-row items-center py-3 ${index !== AVAILABLE_DOCUMENT_TYPES.length - 1 ? 'border-b border-white/10' : ''}`}
+                    >
+                      <View className={`w-6 h-6 rounded-lg items-center justify-center mr-3 ${
+                        postCarForm.requiredDocuments.includes(doc.type)
+                          ? 'bg-emerald-500'
+                          : 'bg-white/10 border border-white/20'
+                      }`}>
+                        {postCarForm.requiredDocuments.includes(doc.type) && (
+                          <Check size={14} color="#fff" />
+                        )}
+                      </View>
+                      <View className="flex-1">
+                        <Text className="text-white font-medium">{doc.label}</Text>
+                        <Text className="text-gray-500 text-xs mt-0.5">{doc.description}</Text>
+                      </View>
+                    </Pressable>
+                  ))}
+                </View>
+
+                {postCarForm.requiredDocuments.length > 0 && (
+                  <View className="bg-emerald-500/10 rounded-xl p-3 mb-4 border border-emerald-500/30">
+                    <Text className="text-emerald-400 text-sm">
+                      <Text className="font-semibold">{postCarForm.requiredDocuments.length}</Text> document{postCarForm.requiredDocuments.length !== 1 ? 's' : ''} will be required from renters
+                    </Text>
+                  </View>
+                )}
 
                 {/* Description */}
                 <Text className="text-white font-semibold text-lg mb-4 mt-4">Description & Features</Text>
