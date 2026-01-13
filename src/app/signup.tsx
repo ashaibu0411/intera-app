@@ -51,8 +51,9 @@ export default function SignUpScreen() {
   const communityName = displayName.trim() || fullName;
   const hasRequiredName = firstName.trim().length > 0 && lastName.trim().length > 0;
 
-  // Show Apple Sign In on iOS (works in production builds)
-  const showAppleSignIn = Platform.OS === 'ios';
+  // Apple Sign In requires proper native configuration
+  // Temporarily disabled until app is rebuilt with Sign in with Apple capability
+  const showAppleSignIn = false;
 
   const handleAppleSignIn = async () => {
     console.log('[Apple Auth] Starting Apple Sign In...');
