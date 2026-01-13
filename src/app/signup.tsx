@@ -74,10 +74,16 @@ export default function SignUpScreen() {
           ? `${appleName.givenName} ${appleName.familyName}`
           : undefined;
 
-        const profile = await getOrCreateProfile(result.user.id, {
-          name: nameFromApple,
-          email: result.appleCredential?.email || result.user.email,
-        });
+        let profile = null;
+        try {
+          profile = await getOrCreateProfile(result.user.id, {
+            name: nameFromApple,
+            email: result.appleCredential?.email || result.user.email,
+          });
+        } catch (profileError) {
+          // Profile creation might fail but we can still proceed
+          console.log('[Apple Auth] Profile creation error (non-fatal):', profileError);
+        }
 
         setCurrentUser({
           id: result.user.id,
@@ -99,13 +105,25 @@ export default function SignUpScreen() {
         } else {
           router.replace('/profile-setup');
         }
+      } else {
+        // No user returned but no error - unusual case
+        console.log('[Apple Auth] No user returned from Apple Sign In');
+        setError('Sign in was not completed. Please try again.');
       }
     } catch (err: unknown) {
+      console.log('[Apple Auth] Error caught:', err);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       const errorMessage = err instanceof Error ? err.message : 'Apple sign-in failed';
       // Don't show error if user cancelled
-      if (!errorMessage.includes('canceled') && !errorMessage.includes('cancelled')) {
-        setError(errorMessage);
+      if (!errorMessage.toLowerCase().includes('cancel')) {
+        // Provide user-friendly error messages
+        if (errorMessage.includes('network') || errorMessage.includes('Network')) {
+          setError('Network error. Please check your connection and try again.');
+        } else if (errorMessage.includes('not enabled') || errorMessage.includes('not configured')) {
+          setError('Apple Sign-In is temporarily unavailable. Please try email or phone sign-in.');
+        } else {
+          setError(errorMessage);
+        }
       }
     } finally {
       setIsLoading(false);
@@ -392,7 +410,11 @@ export default function SignUpScreen() {
         <Pressable
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            router.back();
+            // Set guest mode and mark as onboarded so user can access the app
+            setIsGuest(true);
+            setIsOnboarded(true);
+            // Navigate to the main app
+            router.replace('/(tabs)');
           }}
           className="items-center py-4"
         >

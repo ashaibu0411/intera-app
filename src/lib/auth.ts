@@ -51,7 +51,7 @@ export async function signInWithApple() {
     console.log('[Apple Auth] signInAsync error:', errorCode, errorMessage);
 
     // Handle specific Apple auth errors
-    if (errorCode === 'ERR_REQUEST_CANCELED' || errorMessage.includes('canceled') || errorMessage.includes('cancelled')) {
+    if (errorCode === 'ERR_REQUEST_CANCELED' || errorMessage.includes('canceled') || errorMessage.includes('cancelled') || errorCode === 'ERR_CANCELED') {
       throw new Error('Sign in was cancelled');
     }
     if (errorCode === 'ERR_REQUEST_FAILED') {
@@ -59,6 +59,9 @@ export async function signInWithApple() {
     }
     if (errorCode === 'ERR_REQUEST_NOT_HANDLED') {
       throw new Error('Apple Sign-In is not configured properly. Please try another sign-in method.');
+    }
+    if (errorCode === 'ERR_INVALID_RESPONSE') {
+      throw new Error('Invalid response from Apple. Please try again.');
     }
 
     throw new Error(`Apple Sign-In failed: ${errorMessage}`);
@@ -73,10 +76,18 @@ export async function signInWithApple() {
   console.log('[Apple Auth] Signing in with Supabase...');
 
   // Sign in with Supabase using Apple's identity token
-  const { data, error } = await supabase.auth.signInWithIdToken({
-    provider: 'apple',
-    token: credential.identityToken,
-  });
+  let data, error;
+  try {
+    const result = await supabase.auth.signInWithIdToken({
+      provider: 'apple',
+      token: credential.identityToken,
+    });
+    data = result.data;
+    error = result.error;
+  } catch (supabaseError) {
+    console.log('[Apple Auth] Supabase network error:', supabaseError);
+    throw new Error('Network error while signing in. Please check your connection and try again.');
+  }
 
   if (error) {
     console.log('[Apple Auth] Supabase error:', error.message);
@@ -84,6 +95,9 @@ export async function signInWithApple() {
     // Provide clearer error messages for common Supabase errors
     if (error.message.includes('provider is not enabled')) {
       throw new Error('Apple Sign-In is not enabled. Please contact support.');
+    }
+    if (error.message.includes('network') || error.message.includes('fetch')) {
+      throw new Error('Network error. Please check your connection and try again.');
     }
     throw new Error(`Sign in failed: ${error.message}`);
   }
