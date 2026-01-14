@@ -14,6 +14,57 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 });
 
+// Handle auth errors globally - clear invalid sessions
+supabase.auth.onAuthStateChange(async (event, session) => {
+  if (event === 'TOKEN_REFRESHED') {
+    console.log('[Supabase] Token refreshed successfully');
+  } else if (event === 'SIGNED_OUT') {
+    console.log('[Supabase] User signed out');
+    // Clear any stale auth data from storage
+    try {
+      await AsyncStorage.removeItem('supabase.auth.token');
+    } catch (e) {
+      // Ignore storage errors
+    }
+  }
+});
+
+// Clear invalid session on startup to prevent refresh token errors
+export async function clearInvalidSession() {
+  try {
+    const { data: { session }, error } = await supabase.auth.getSession();
+
+    if (error) {
+      console.log('[Supabase] Session error, clearing invalid session:', error.message);
+      await supabase.auth.signOut();
+      return null;
+    }
+
+    // If we have a session but can't get the user, the session is invalid
+    if (session) {
+      const { error: userError } = await supabase.auth.getUser();
+      if (userError?.message?.includes('Refresh Token') ||
+          userError?.message?.includes('Invalid') ||
+          userError?.message?.includes('not found')) {
+        console.log('[Supabase] Invalid refresh token, signing out');
+        await supabase.auth.signOut();
+        return null;
+      }
+    }
+
+    return session;
+  } catch (e) {
+    console.log('[Supabase] Error checking session:', e);
+    // On any error, try to sign out to clear corrupt state
+    try {
+      await supabase.auth.signOut();
+    } catch {
+      // Ignore signout errors
+    }
+    return null;
+  }
+}
+
 // Database types
 export interface DbUser {
   id: string;

@@ -12,6 +12,7 @@ import { useMessageNotifications } from '@/lib/useMessageNotifications';
 import { useCommunityNotifications } from '@/lib/useCommunityNotifications';
 import { useStore } from '@/lib/store';
 import { markUserOnline, markUserOffline } from '@/lib/onlineStatus';
+import { clearInvalidSession } from '@/lib/supabase';
 
 export const unstable_settings = {
   initialRouteName: '(tabs)',
@@ -46,6 +47,8 @@ function RootLayoutNav() {
   // Request notification permissions on app launch
   useEffect(() => {
     requestNotificationPermissions();
+    // Clear any invalid auth sessions on startup to prevent refresh token errors
+    clearInvalidSession();
   }, []);
 
   // Track online status based on app state
