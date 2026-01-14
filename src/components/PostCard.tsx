@@ -635,14 +635,14 @@ export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
         />
         <View className="flex-1 ml-3">
           <View className="flex-row items-center">
-            <Text className="text-warmBrown font-semibold text-base">{post.author.name}</Text>
-            <Text className="ml-1.5" style={{ fontSize: 14 }}>{countryFlag}</Text>
+            <Text className="text-warmBrown font-semibold text-lg">{post.author.name}</Text>
+            <Text className="ml-1.5" style={{ fontSize: 16 }}>{countryFlag}</Text>
           </View>
           {/* Community-First Identity Headline */}
           <View className="flex-row items-center mt-0.5">
-            <Text className="text-sm text-gray-600 font-medium">{communityIdentity}</Text>
-            <Text className="text-sm text-gray-400 mx-1">·</Text>
-            <Text className="text-sm text-gray-400">{timeAgo}</Text>
+            <Text className="text-base text-gray-600 font-medium">{communityIdentity}</Text>
+            <Text className="text-base text-gray-400 mx-1">·</Text>
+            <Text className="text-base text-gray-400">{timeAgo}</Text>
           </View>
         </View>
         <DropdownMenu.Root>
@@ -686,7 +686,7 @@ export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
 
       {/* Content */}
       <View className="px-4 pb-3">
-        <Text className="text-warmBrown text-base leading-6">{post.content}</Text>
+        <Text className="text-warmBrown text-lg leading-7">{post.content}</Text>
       </View>
 
       {/* Image with double-tap to like */}
@@ -798,7 +798,7 @@ export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
                 ))}
               </View>
               {/* Impact text instead of "Liked by X people" */}
-              <Text className="text-xs text-gray-600 ml-2 font-medium">
+              <Text className="text-sm text-gray-600 ml-2 font-medium">
                 {impactText}
               </Text>
             </View>
@@ -820,7 +820,7 @@ export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
               </Text>
             </Animated.View>
             <Text
-              className="ml-2 text-sm font-medium"
+              className="ml-2 text-base font-medium"
               style={{ color: isLiked ? reactionColor : '#6B7280' }}
             >
               {likeCount}
@@ -832,18 +832,18 @@ export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
             className="flex-row items-center mr-6"
           >
             <MessageCircle size={22} color="#8B7355" />
-            <Text className="ml-2 text-sm text-gray-500">{commentCount}</Text>
+            <Text className="ml-2 text-base text-gray-500">{commentCount}</Text>
           </Pressable>
 
           <Pressable onPress={handleShare} className="flex-row items-center ml-auto">
             <Share2 size={20} color="#8B7355" />
-            <Text className="ml-1.5 text-sm text-gray-500">Share</Text>
+            <Text className="ml-1.5 text-base text-gray-500">Share</Text>
           </Pressable>
         </View>
 
         {/* Community Guidelines Reminder */}
         <View className="mt-2 pt-2 border-t border-gray-50">
-          <Text className="text-[10px] text-gray-400 text-center">
+          <Text className="text-xs text-gray-400 text-center">
             Be respectful. No vulgar language, hate speech, or inappropriate content.
           </Text>
         </View>

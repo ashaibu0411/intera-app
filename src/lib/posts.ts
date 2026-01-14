@@ -1,6 +1,7 @@
 import { supabase, DbPost, DbComment } from './supabase';
 import * as FileSystem from 'expo-file-system';
 import { decode } from 'base64-arraybuffer';
+import { notifyCommunityAboutNewPost } from './communityNotifications';
 
 // Upload image to Supabase Storage
 export async function uploadImage(uri: string, userId: string): Promise<string | null> {
@@ -139,6 +140,20 @@ export async function createPost(authorId: string, content: string, images: stri
     .single();
 
   if (error) throw error;
+
+  // Notify community members about the new post (async, don't block)
+  if (data) {
+    notifyCommunityAboutNewPost(
+      data.id,
+      authorId,
+      content,
+      communityId || null,
+      location || null
+    ).catch(err => {
+      console.error('[Posts] Error notifying community about new post:', err);
+    });
+  }
+
   return data;
 }
 

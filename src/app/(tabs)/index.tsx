@@ -299,7 +299,7 @@ export default function HomeScreen() {
               />
               <View className="ml-2">
                 <View className="flex-row items-center">
-                  <Text className="text-lg font-bold text-gray-900">
+                  <Text className="text-xl font-bold text-gray-900">
                     {displayCommunity.city}
                   </Text>
                   <ChevronDown size={18} color="#374151" />
@@ -323,11 +323,15 @@ export default function HomeScreen() {
               </Pressable>
               <Pressable
                 onPress={() => navigateTo('/messages')}
-                className="w-10 h-10 items-center justify-center"
+                className="w-10 h-10 items-center justify-center relative"
               >
                 <MessageCircle size={24} color="#374151" />
                 {unreadCount > 0 && (
-                  <View className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white" />
+                  <View className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 rounded-full border-2 border-white items-center justify-center px-1">
+                    <Text className="text-white text-[10px] font-bold leading-none">
+                      {unreadCount > 99 ? '99+' : unreadCount.toString()}
+                    </Text>
+                  </View>
                 )}
               </Pressable>
             </View>
@@ -377,7 +381,7 @@ export default function HomeScreen() {
                       isCurrentUser={true}
                     />
                   </View>
-                  <Text className="text-xs mt-1 text-gray-600">Your story</Text>
+                  <Text className="text-sm mt-1 text-gray-600">Your story</Text>
                 </Pressable>
               )}
 
@@ -403,7 +407,7 @@ export default function HomeScreen() {
                       showRing={true}
                     />
                     <Text
-                      className={`text-xs mt-1 ${userStory.hasUnseenStories ? 'text-gray-900' : 'text-gray-400'}`}
+                      className={`text-sm mt-1 ${userStory.hasUnseenStories ? 'text-gray-900' : 'text-gray-400'}`}
                       numberOfLines={1}
                       style={{ maxWidth: 64 }}
                     >
@@ -426,7 +430,7 @@ export default function HomeScreen() {
               }`}
             >
               <Users size={16} color={feedFilter === 'local' ? '#fff' : '#6B7280'} />
-              <Text className={`ml-2 font-medium text-sm ${
+              <Text className={`ml-2 font-medium text-base ${
                 feedFilter === 'local' ? 'text-white' : 'text-gray-600'
               }`}>
                 Local
@@ -440,7 +444,7 @@ export default function HomeScreen() {
               }`}
             >
               <Globe size={16} color={feedFilter === 'global' ? '#fff' : '#6B7280'} />
-              <Text className={`ml-2 font-medium text-sm ${
+              <Text className={`ml-2 font-medium text-base ${
                 feedFilter === 'global' ? 'text-white' : 'text-gray-600'
               }`}>
                 Global
@@ -456,7 +460,7 @@ export default function HomeScreen() {
 
           {/* === SECTION 3: QUICK POST PROMPTS === */}
           <View className="mt-4 px-4">
-            <Text className="text-sm font-semibold text-gray-500 mb-2">Start a conversation</Text>
+            <Text className="text-base font-semibold text-gray-500 mb-2">Start a conversation</Text>
           </View>
           <QuickPostPrompts />
 
@@ -478,7 +482,7 @@ export default function HomeScreen() {
                 </View>
                 <View className="flex-1 ml-3">
                   <Text className="text-gray-900 font-semibold">Join the community</Text>
-                  <Text className="text-gray-500 text-sm">{memberCount.toLocaleString()} members in {displayCommunity.city}</Text>
+                  <Text className="text-gray-500 text-base">{memberCount.toLocaleString()} members in {displayCommunity.city}</Text>
                 </View>
                 <ChevronRight size={20} color="#D97706" />
               </View>
@@ -493,8 +497,8 @@ export default function HomeScreen() {
 
           {/* === SECTION 6: RECENT POSTS === */}
           <View className="mt-6 px-4 mb-2">
-            <Text className="text-base font-bold text-gray-900">Recent Posts</Text>
-            <Text className="text-xs text-gray-500">From your community</Text>
+            <Text className="text-lg font-bold text-gray-900">Recent Posts</Text>
+            <Text className="text-sm text-gray-500">From your community</Text>
           </View>
 
           <View>
@@ -512,8 +516,8 @@ export default function HomeScreen() {
                 <View className="w-16 h-16 rounded-full bg-gray-100 items-center justify-center mb-4">
                   <Users size={28} color="#9CA3AF" />
                 </View>
-                <Text className="text-gray-900 font-semibold text-lg">No posts yet</Text>
-                <Text className="text-gray-500 text-center mt-1 px-8">
+                <Text className="text-gray-900 font-semibold text-xl">No posts yet</Text>
+                <Text className="text-gray-500 text-center mt-1 px-8 text-base">
                   Be the first to share something with your community
                 </Text>
                 <Pressable

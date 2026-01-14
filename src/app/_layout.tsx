@@ -9,6 +9,7 @@ import { useEffect, useState, useRef } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
 import { requestNotificationPermissions } from '@/lib/notifications';
 import { useMessageNotifications } from '@/lib/useMessageNotifications';
+import { useCommunityNotifications } from '@/lib/useCommunityNotifications';
 import { useStore } from '@/lib/store';
 import { markUserOnline, markUserOffline } from '@/lib/onlineStatus';
 
@@ -72,6 +73,9 @@ function RootLayoutNav() {
 
   // Listen for new messages and send notifications
   useMessageNotifications();
+
+  // Listen for community notifications (posts, events)
+  useCommunityNotifications();
 
   // Wait for store hydration
   useEffect(() => {

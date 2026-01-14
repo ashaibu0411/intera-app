@@ -1,5 +1,5 @@
-import { create } from 'zustand';
-import { createJSONStorage, persist } from 'zustand/middleware';
+import { create, StateCreator } from 'zustand';
+import { createJSONStorage, persist, PersistOptions } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { reportBlockedUser } from './reports';
 import { saveBlockedUser, removeBlockedUser, loadBlockedUsers } from './blockedUsers';
@@ -649,40 +649,40 @@ interface AppState {
 
 export const useStore = create<AppState>()(
   persist(
-    (set) => ({
-      currentUser: null,
+    (set, get) => ({
+      currentUser: null as User | null,
       isOnboarded: false,
       isGuest: false,
       hasSeenWelcome: false,
       hasSeenStory: false,
-      selectedLocation: null,
+      selectedLocation: null as LocationData | null,
       locationDetectionDismissed: false,
-      lastDetectedCity: null,
-      currentCommunity: null,
-      feedFilter: 'local',
-      communityMemberCounts: {},
-      userPosts: [],
-      savedPostIds: [],
-      likedPostIds: [],
-      userComments: [],
-      connections: [],
-      userListings: [],
-      userBusinesses: [],
-      userFaithEvents: [],
-      lifeEvents: [],
-      eventRsvps: [],
-      neighborProfile: null,
-      connectedNeighbors: [],
-      likedNeighbors: [],
-      userAppointments: [],
-      businessAppointments: [],
-      businessBookingSettings: [],
+      lastDetectedCity: null as string | null,
+      currentCommunity: null as Community | null,
+      feedFilter: 'local' as 'local' | 'global',
+      communityMemberCounts: {} as Record<string, number>,
+      userPosts: [] as Post[],
+      savedPostIds: [] as string[],
+      likedPostIds: [] as string[],
+      userComments: [] as Comment[],
+      connections: [] as User[],
+      userListings: [] as MarketplaceListing[],
+      userBusinesses: [] as Business[],
+      userFaithEvents: [] as FaithEvent[],
+      lifeEvents: [] as LifeEvent[],
+      eventRsvps: [] as EventRsvp[],
+      neighborProfile: null as NeighborProfile | null,
+      connectedNeighbors: [] as string[],
+      likedNeighbors: [] as string[],
+      userAppointments: [] as Appointment[],
+      businessAppointments: [] as Appointment[],
+      businessBookingSettings: [] as BusinessBookingSettings[],
       inAppSalesCount: 0,
       notificationsEnabled: true,
-      userTalentProfile: null,
-      savedTalentIds: [],
-      postReactions: {},
-      giftTransactions: [],
+      userTalentProfile: null as ServeTalent | null,
+      savedTalentIds: [] as string[],
+      postReactions: {} as Record<string, string>,
+      giftTransactions: [] as GiftTransaction[],
       dailyRewards: {
         currentStreak: 0,
         longestStreak: 0,
@@ -690,9 +690,9 @@ export const useStore = create<AppState>()(
         totalDaysClaimed: 0,
         claimedDays: [],
         weekStartDate: null,
-      },
-      userStories: MOCK_USER_STORIES,
-      storyBlockedUserIds: [],
+      } as DailyRewardsState,
+      userStories: MOCK_USER_STORIES as UserStory[],
+      storyBlockedUserIds: [] as string[],
       markStoryAsSeen: (userId) => set((state) => ({
         userStories: state.userStories.map((story) =>
           story.userId === userId ? { ...story, hasUnseenStories: false } : story
@@ -752,80 +752,75 @@ export const useStore = create<AppState>()(
       blockUserFromStories: (userId) => set((state) => ({
         storyBlockedUserIds: [...state.storyBlockedUserIds, userId],
       })),
-      unblockUserFromStories: (userId) => set((state) => ({
+      unblockUserFromStories: (userId: string) => set((state) => ({
         storyBlockedUserIds: state.storyBlockedUserIds.filter((id) => id !== userId),
       })),
 
       // Blocked users - App Store Guideline 1.2 compliance
-      blockedUserIds: [],
-      blockedUserDetails: [],
+      blockedUserIds: [] as string[],
+      blockedUserDetails: [] as { id: string; name: string; avatar: string; blockedAt: string }[],
       blockUser: (userId: string, userName: string, userAvatar: string) => {
-        const state = useStore.getState();
-        if (state.blockedUserIds.includes(userId)) return;
+        set((state) => {
+          if (state.blockedUserIds.includes(userId)) return state;
 
-        // Update local state immediately for instant UI feedback
-        set({
-          blockedUserIds: [...state.blockedUserIds, userId],
-          blockedUserDetails: [
-            ...state.blockedUserDetails,
-            { id: userId, name: userName, avatar: userAvatar, blockedAt: new Date().toISOString() },
-          ],
+          // App Store Guideline 1.2: Notify developer when user is blocked
+          const currentUser = state.currentUser;
+          if (currentUser?.id) {
+            reportBlockedUser(currentUser.id, userId, userName);
+            saveBlockedUser(currentUser.id, userId, userName, userAvatar);
+          }
+          console.log(`[Block & Report] User ${userId} (${userName}) has been blocked and reported to moderation team`);
+
+          return {
+            blockedUserIds: [...state.blockedUserIds, userId],
+            blockedUserDetails: [
+              ...state.blockedUserDetails,
+              { id: userId, name: userName, avatar: userAvatar, blockedAt: new Date().toISOString() },
+            ],
+          };
         });
-
-        // App Store Guideline 1.2: Notify developer when user is blocked
-        // Send report to database for moderation review
-        const currentUser = state.currentUser;
-        if (currentUser?.id) {
-          reportBlockedUser(currentUser.id, userId, userName);
-          // Persist block to Supabase so it survives app reinstalls
-          saveBlockedUser(currentUser.id, userId, userName, userAvatar);
-        }
-        console.log(`[Block & Report] User ${userId} (${userName}) has been blocked and reported to moderation team`);
       },
       unblockUser: (userId: string) => {
-        const state = useStore.getState();
-        // Update local state immediately
-        set({
-          blockedUserIds: state.blockedUserIds.filter((id) => id !== userId),
-          blockedUserDetails: state.blockedUserDetails.filter((u) => u.id !== userId),
+        set((state) => {
+          const currentUser = state.currentUser;
+          if (currentUser?.id) {
+            removeBlockedUser(currentUser.id, userId);
+          }
+          return {
+            blockedUserIds: state.blockedUserIds.filter((id: string) => id !== userId),
+            blockedUserDetails: state.blockedUserDetails.filter((u: { id: string }) => u.id !== userId),
+          };
         });
-        // Remove from Supabase
-        const currentUser = state.currentUser;
-        if (currentUser?.id) {
-          removeBlockedUser(currentUser.id, userId);
-        }
       },
       loadBlockedUsersFromDB: async () => {
-        const state = useStore.getState();
-        const currentUser = state.currentUser;
+        const currentUser = get().currentUser;
         if (!currentUser?.id) return;
 
         const blockedUsers = await loadBlockedUsers(currentUser.id);
         set({
-          blockedUserIds: blockedUsers.map((u) => u.id),
+          blockedUserIds: blockedUsers.map((u: { id: string }) => u.id),
           blockedUserDetails: blockedUsers,
         });
         console.log(`[BlockedUsers] Loaded ${blockedUsers.length} blocked users from database`);
       },
-      isUserBlocked: (userId) => {
-        const state = useStore.getState();
-        return state.blockedUserIds.includes(userId);
+      isUserBlocked: (userId: string): boolean => {
+        return get().blockedUserIds.includes(userId);
       },
-      reportUser: (userId, reason) => {
+      reportUser: (userId: string, reason: string) => {
         // In production, this would send to a backend API
         console.log(`[Report] User ${userId} reported for: ${reason}`);
         // For now, we just log. In production, send to moderation team.
       },
 
-      setCurrentUser: (user) => set({ currentUser: user }),
-      setIsOnboarded: (value) => set({ isOnboarded: value }),
-      setIsGuest: (value) => set({ isGuest: value }),
-      setHasSeenWelcome: (value) => set({ hasSeenWelcome: value }),
-      setHasSeenStory: (value) => set({ hasSeenStory: value }),
-      setSelectedLocation: (location) => set({ selectedLocation: location }),
-      setCurrentCommunity: (community) => set({ currentCommunity: community }),
-      setFeedFilter: (filter) => set({ feedFilter: filter }),
-      joinCommunity: (city) => set((state) => {
+      setCurrentUser: (user: User | null) => set({ currentUser: user }),
+      setIsOnboarded: (value: boolean) => set({ isOnboarded: value }),
+      setIsGuest: (value: boolean) => set({ isGuest: value }),
+      setHasSeenWelcome: (value: boolean) => set({ hasSeenWelcome: value }),
+      setHasSeenStory: (value: boolean) => set({ hasSeenStory: value }),
+      setSelectedLocation: (location: LocationData | null) => set({ selectedLocation: location }),
+      setCurrentCommunity: (community: Community | null) => set({ currentCommunity: community }),
+      setFeedFilter: (filter: 'local' | 'global') => set({ feedFilter: filter }),
+      joinCommunity: (city: string) => set((state) => {
         const currentCount = state.communityMemberCounts[city] || 0;
         // Base counts for popular cities (simulated existing members)
         const baseCounts: Record<string, number> = {
@@ -854,21 +849,21 @@ export const useStore = create<AppState>()(
           },
         };
       }),
-      addPost: (post) => set((state) => ({ userPosts: [post, ...state.userPosts] })),
-      deletePost: (postId) => set((state) => ({
+      addPost: (post: Post) => set((state) => ({ userPosts: [post, ...state.userPosts] })),
+      deletePost: (postId: string) => set((state) => ({
         userPosts: state.userPosts.filter((p) => p.id !== postId),
       })),
-      toggleSavePost: (postId) => set((state) => ({
+      toggleSavePost: (postId: string) => set((state) => ({
         savedPostIds: state.savedPostIds.includes(postId)
           ? state.savedPostIds.filter((id) => id !== postId)
           : [...state.savedPostIds, postId],
       })),
-      toggleLikePost: (postId) => set((state) => ({
+      toggleLikePost: (postId: string) => set((state) => ({
         likedPostIds: state.likedPostIds.includes(postId)
           ? state.likedPostIds.filter((id) => id !== postId)
           : [...state.likedPostIds, postId],
       })),
-      setPostReaction: (postId, emoji) => set((state) => {
+      setPostReaction: (postId: string, emoji: string | null) => set((state) => {
         const newReactions = { ...state.postReactions };
         if (emoji === null) {
           delete newReactions[postId];
@@ -877,34 +872,34 @@ export const useStore = create<AppState>()(
         }
         return { postReactions: newReactions };
       }),
-      addComment: (comment) => set((state) => ({ userComments: [...state.userComments, comment] })),
-      addConnection: (user) => set((state) => ({
+      addComment: (comment: Comment) => set((state) => ({ userComments: [...state.userComments, comment] })),
+      addConnection: (user: User) => set((state) => ({
         connections: state.connections.some((c) => c.id === user.id)
           ? state.connections
           : [...state.connections, user],
       })),
-      removeConnection: (userId) => set((state) => ({
+      removeConnection: (userId: string) => set((state) => ({
         connections: state.connections.filter((c) => c.id !== userId),
       })),
-      addMarketplaceListing: (listing) => set((state) => ({ userListings: [listing, ...state.userListings] })),
-      deleteMarketplaceListing: (listingId) => set((state) => ({
+      addMarketplaceListing: (listing: MarketplaceListing) => set((state) => ({ userListings: [listing, ...state.userListings] })),
+      deleteMarketplaceListing: (listingId: string) => set((state) => ({
         userListings: state.userListings.filter((l) => l.id !== listingId),
       })),
-      markListingAsSold: (listingId) => set((state) => ({
+      markListingAsSold: (listingId: string) => set((state) => ({
         userListings: state.userListings.map((l) =>
           l.id === listingId ? { ...l, isSold: true } : l
         ),
       })),
-      addBusiness: (business) => set((state) => ({ userBusinesses: [business, ...state.userBusinesses] })),
-      deleteBusiness: (businessId) => set((state) => ({
+      addBusiness: (business: Business) => set((state) => ({ userBusinesses: [business, ...state.userBusinesses] })),
+      deleteBusiness: (businessId: string) => set((state) => ({
         userBusinesses: state.userBusinesses.filter((b) => b.id !== businessId),
       })),
-      addFaithEvent: (event) => set((state) => ({ userFaithEvents: [event, ...state.userFaithEvents] })),
-      addLifeEvent: (event) => set((state) => ({ lifeEvents: [event, ...state.lifeEvents] })),
-      deleteLifeEvent: (eventId) => set((state) => ({
+      addFaithEvent: (event: FaithEvent) => set((state) => ({ userFaithEvents: [event, ...state.userFaithEvents] })),
+      addLifeEvent: (event: LifeEvent) => set((state) => ({ lifeEvents: [event, ...state.lifeEvents] })),
+      deleteLifeEvent: (eventId: string) => set((state) => ({
         lifeEvents: state.lifeEvents.filter((e) => e.id !== eventId),
       })),
-      setEventRsvp: (eventId, status) => set((state) => {
+      setEventRsvp: (eventId: string, status: 'interested' | 'going' | null) => set((state) => {
         if (status === null) {
           return { eventRsvps: state.eventRsvps.filter((r) => r.eventId !== eventId) };
         }
@@ -918,28 +913,28 @@ export const useStore = create<AppState>()(
         }
         return { eventRsvps: [...state.eventRsvps, { eventId, status }] };
       }),
-      setNotificationsEnabled: (enabled) => set({ notificationsEnabled: enabled }),
-      setLocationDetectionDismissed: (dismissed) => set({ locationDetectionDismissed: dismissed }),
-      setLastDetectedCity: (city) => set({ lastDetectedCity: city }),
+      setNotificationsEnabled: (enabled: boolean) => set({ notificationsEnabled: enabled }),
+      setLocationDetectionDismissed: (dismissed: boolean) => set({ locationDetectionDismissed: dismissed }),
+      setLastDetectedCity: (city: string | null) => set({ lastDetectedCity: city }),
       incrementInAppSalesCount: () => set((state) => ({ inAppSalesCount: state.inAppSalesCount + 1 })),
-      setNeighborProfile: (profile) => set({ neighborProfile: profile }),
-      toggleLikeNeighbor: (userId) => set((state) => ({
+      setNeighborProfile: (profile: NeighborProfile | null) => set({ neighborProfile: profile }),
+      toggleLikeNeighbor: (userId: string) => set((state) => ({
         likedNeighbors: state.likedNeighbors.includes(userId)
           ? state.likedNeighbors.filter((id) => id !== userId)
           : [...state.likedNeighbors, userId],
       })),
-      addConnectedNeighbor: (userId) => set((state) => ({
+      addConnectedNeighbor: (userId: string) => set((state) => ({
         connectedNeighbors: state.connectedNeighbors.includes(userId)
           ? state.connectedNeighbors
           : [...state.connectedNeighbors, userId],
       })),
-      removeConnectedNeighbor: (userId) => set((state) => ({
+      removeConnectedNeighbor: (userId: string) => set((state) => ({
         connectedNeighbors: state.connectedNeighbors.filter((id) => id !== userId),
       })),
-      addAppointment: (appointment) => set((state) => ({
+      addAppointment: (appointment: Appointment) => set((state) => ({
         userAppointments: [appointment, ...state.userAppointments],
       })),
-      updateAppointmentStatus: (appointmentId, status) => set((state) => ({
+      updateAppointmentStatus: (appointmentId: string, status: Appointment['status']) => set((state) => ({
         userAppointments: state.userAppointments.map((a) =>
           a.id === appointmentId ? { ...a, status } : a
         ),
@@ -947,7 +942,7 @@ export const useStore = create<AppState>()(
           a.id === appointmentId ? { ...a, status } : a
         ),
       })),
-      cancelAppointment: (appointmentId) => set((state) => ({
+      cancelAppointment: (appointmentId: string) => set((state) => ({
         userAppointments: state.userAppointments.map((a) =>
           a.id === appointmentId ? { ...a, status: 'cancelled' as const } : a
         ),
@@ -955,11 +950,11 @@ export const useStore = create<AppState>()(
           a.id === appointmentId ? { ...a, status: 'cancelled' as const } : a
         ),
       })),
-      addBusinessAppointment: (appointment) => set((state) => ({
+      addBusinessAppointment: (appointment: Appointment) => set((state) => ({
         businessAppointments: [appointment, ...state.businessAppointments],
       })),
       // Business booking settings actions
-      setBusinessBookingSettings: (settings) => set((state) => {
+      setBusinessBookingSettings: (settings: BusinessBookingSettings) => set((state) => {
         const existing = state.businessBookingSettings.findIndex(
           (s) => s.businessId === settings.businessId
         );
@@ -970,33 +965,33 @@ export const useStore = create<AppState>()(
         }
         return { businessBookingSettings: [...state.businessBookingSettings, settings] };
       }),
-      updateBusinessBookingSettings: (businessId, updates) => set((state) => ({
+      updateBusinessBookingSettings: (businessId: string, updates: Partial<BusinessBookingSettings>) => set((state) => ({
         businessBookingSettings: state.businessBookingSettings.map((s) =>
           s.businessId === businessId ? { ...s, ...updates } : s
         ),
       })),
-      addBlockedDate: (businessId, date) => set((state) => ({
+      addBlockedDate: (businessId: string, date: string) => set((state) => ({
         businessBookingSettings: state.businessBookingSettings.map((s) =>
           s.businessId === businessId
             ? { ...s, blockedDates: [...s.blockedDates, date] }
             : s
         ),
       })),
-      removeBlockedDate: (businessId, date) => set((state) => ({
+      removeBlockedDate: (businessId: string, date: string) => set((state) => ({
         businessBookingSettings: state.businessBookingSettings.map((s) =>
           s.businessId === businessId
             ? { ...s, blockedDates: s.blockedDates.filter((d) => d !== date) }
             : s
         ),
       })),
-      addBlockedTimeSlot: (businessId, date, time) => set((state) => ({
+      addBlockedTimeSlot: (businessId: string, date: string, time: string) => set((state) => ({
         businessBookingSettings: state.businessBookingSettings.map((s) =>
           s.businessId === businessId
             ? { ...s, blockedTimeSlots: [...s.blockedTimeSlots, { id: Date.now().toString(), date, time }] }
             : s
         ),
       })),
-      removeBlockedTimeSlot: (businessId, date, time) => set((state) => ({
+      removeBlockedTimeSlot: (businessId: string, date: string, time: string) => set((state) => ({
         businessBookingSettings: state.businessBookingSettings.map((s) =>
           s.businessId === businessId
             ? {
@@ -1008,7 +1003,7 @@ export const useStore = create<AppState>()(
             : s
         ),
       })),
-      incrementBusinessBookings: (businessId) => set((state) => ({
+      incrementBusinessBookings: (businessId: string) => set((state) => ({
         businessBookingSettings: state.businessBookingSettings.map((s) =>
           s.businessId === businessId
             ? { ...s, totalBookingsReceived: s.totalBookingsReceived + 1 }
@@ -1016,18 +1011,18 @@ export const useStore = create<AppState>()(
         ),
       })),
       // Serve & Connect - Talent Directory actions
-      setUserTalentProfile: (profile) => set({ userTalentProfile: profile }),
-      updateUserTalentProfile: (updates) => set((state) => ({
+      setUserTalentProfile: (profile: ServeTalent | null) => set({ userTalentProfile: profile }),
+      updateUserTalentProfile: (updates: Partial<ServeTalent>) => set((state) => ({
         userTalentProfile: state.userTalentProfile
           ? { ...state.userTalentProfile, ...updates }
           : null,
       })),
-      toggleSaveTalent: (talentId) => set((state) => ({
+      toggleSaveTalent: (talentId: string) => set((state) => ({
         savedTalentIds: state.savedTalentIds.includes(talentId)
           ? state.savedTalentIds.filter((id) => id !== talentId)
           : [...state.savedTalentIds, talentId],
       })),
-      addGems: (amount) => set((state) => {
+      addGems: (amount: number) => set((state) => {
         if (!state.currentUser) return state;
         return {
           currentUser: {
@@ -1036,7 +1031,7 @@ export const useStore = create<AppState>()(
           },
         };
       }),
-      deductGems: (amount) => {
+      deductGems: (amount: number) => {
         let success = false;
         set((state) => {
           if (!state.currentUser) return state;
@@ -1056,7 +1051,7 @@ export const useStore = create<AppState>()(
         });
         return success;
       },
-      sendGift: (transaction) => {
+      sendGift: (transaction: Omit<GiftTransaction, 'id' | 'timestamp'>) => {
         let success = false;
         set((state) => {
           if (!state.currentUser) return state;
@@ -1082,7 +1077,7 @@ export const useStore = create<AppState>()(
         });
         return success;
       },
-      receiveGift: (giftValue, senderName, giftName) => set((state) => {
+      receiveGift: (giftValue: number, senderName: string, giftName: string) => set((state) => {
         if (!state.currentUser) return state;
         const newTransaction: GiftTransaction = {
           id: `gift_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -1104,11 +1099,11 @@ export const useStore = create<AppState>()(
           giftTransactions: [newTransaction, ...state.giftTransactions],
         };
       }),
-      addGiftTransaction: (transaction) => set((state) => ({
+      addGiftTransaction: (transaction: GiftTransaction) => set((state) => ({
         giftTransactions: [transaction, ...state.giftTransactions],
       })),
       // Daily Rewards actions
-      claimDailyReward: (dayNumber, gemAmount) => set((state) => {
+      claimDailyReward: (dayNumber: number, gemAmount: number) => set((state) => {
         const today = new Date().toISOString().split('T')[0];
         const newClaimedDays = [...state.dailyRewards.claimedDays, dayNumber];
         const newStreak = state.dailyRewards.currentStreak + 1;

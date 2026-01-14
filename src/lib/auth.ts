@@ -28,6 +28,18 @@ export async function signInWithApple() {
 
   console.log('[Apple Auth] Requesting Apple credentials...');
 
+  // First, verify Apple Sign-In is available
+  try {
+    const isAvailable = await AppleAuthentication.isAvailableAsync();
+    if (!isAvailable) {
+      console.log('[Apple Auth] Apple Sign-In is not available on this device');
+      throw new Error('Apple Sign-In is not available on this device. This may be a configuration issue.');
+    }
+  } catch (availabilityError) {
+    console.log('[Apple Auth] Availability check failed:', availabilityError);
+    // Continue anyway - the check might fail but sign-in could still work
+  }
+
   let credential;
   try {
     credential = await AppleAuthentication.signInAsync({
@@ -37,10 +49,20 @@ export async function signInWithApple() {
       ],
     });
   } catch (signInError: unknown) {
+    // Log the full error object for debugging
+    console.log('[Apple Auth] signInAsync error (full):', JSON.stringify(signInError, null, 2));
+    
     const errorCode = (signInError as { code?: string })?.code;
     const errorMessage = signInError instanceof Error ? signInError.message : 'Unknown error';
+    const errorUserInfo = (signInError as { userInfo?: any })?.userInfo;
+    const nativeError = (signInError as { nativeError?: any })?.nativeError;
 
-    console.log('[Apple Auth] signInAsync error:', errorCode, errorMessage);
+    console.log('[Apple Auth] signInAsync error details:', {
+      errorCode,
+      errorMessage,
+      errorUserInfo,
+      nativeError,
+    });
 
     // Handle specific Apple auth errors
     if (errorCode === 'ERR_REQUEST_CANCELED' || errorMessage.includes('canceled') || errorMessage.includes('cancelled') || errorCode === 'ERR_CANCELED') {
@@ -54,6 +76,14 @@ export async function signInWithApple() {
     }
     if (errorCode === 'ERR_INVALID_RESPONSE') {
       throw new Error('Invalid response from Apple. Please try again.');
+    }
+    if (errorCode === 'ERR_NOT_AVAILABLE') {
+      throw new Error('Apple Sign-In is not available. Please ensure the capability is enabled in your Apple Developer account.');
+    }
+
+    // Handle "unknown reason" errors - typically a configuration issue
+    if (errorMessage.includes('unknown reason') || errorMessage.includes('authorization attempt failed')) {
+      throw new Error('Apple Sign-In configuration error. Please ensure "Sign in with Apple" is enabled in your Apple Developer account for this app\'s bundle ID, and that a new build has been created after enabling it.');
     }
 
     throw new Error(`Apple Sign-In failed: ${errorMessage}`);

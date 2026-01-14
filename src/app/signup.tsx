@@ -111,16 +111,22 @@ export default function SignUpScreen() {
         setError('Sign in was not completed. Please try again.');
       }
     } catch (err: unknown) {
-      console.log('[Apple Auth] Error caught:', err);
+      console.log('[Apple Auth] Error caught (full):', err);
+      console.log('[Apple Auth] Error type:', typeof err);
+      console.log('[Apple Auth] Error stringified:', JSON.stringify(err, null, 2));
+      
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       const errorMessage = err instanceof Error ? err.message : 'Apple sign-in failed';
+      
       // Don't show error if user cancelled
       if (!errorMessage.toLowerCase().includes('cancel')) {
         // Provide user-friendly error messages
         if (errorMessage.includes('network') || errorMessage.includes('Network')) {
           setError('Network error. Please check your connection and try again.');
-        } else if (errorMessage.includes('not enabled') || errorMessage.includes('not configured')) {
-          setError('Apple Sign-In is temporarily unavailable. Please try email or phone sign-in.');
+        } else if (errorMessage.includes('not enabled') || errorMessage.includes('not configured') || errorMessage.includes('configuration error')) {
+          setError('Apple Sign-In is not properly configured. Please ensure the capability is enabled in your Apple Developer account and try again.');
+        } else if (errorMessage.includes('not available')) {
+          setError('Apple Sign-In is not available on this device. Please try email or phone sign-in.');
         } else {
           setError(errorMessage);
         }
