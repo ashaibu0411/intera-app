@@ -124,11 +124,26 @@ export async function getMessages(conversationId: string) {
 
 // Send a message
 export async function sendMessage(conversationId: string, senderId: string, content: string) {
+  // Verify we have an authenticated session
+  const { data: { session } } = await supabase.auth.getSession();
+
+  if (!session?.user) {
+    throw new Error('You must be logged in to send messages. Please sign out and sign back in.');
+  }
+
+  // Use the authenticated user's ID to ensure it matches auth.uid() for RLS
+  const authenticatedUserId = session.user.id;
+
+  // Verify the senderId matches the authenticated user
+  if (senderId !== authenticatedUserId) {
+    console.warn('[Messages] senderId mismatch - using authenticated user ID');
+  }
+
   const { data, error } = await supabase
     .from('messages')
     .insert({
       conversation_id: conversationId,
-      sender_id: senderId,
+      sender_id: authenticatedUserId, // Use authenticated ID for RLS compliance
       content,
     })
     .select(`
@@ -137,7 +152,13 @@ export async function sendMessage(conversationId: string, senderId: string, cont
     `)
     .single();
 
-  if (error) throw error;
+  if (error) {
+    console.error('[Messages] Error sending message:', error);
+    if (error.code === '42501') {
+      throw new Error('Permission denied. Please sign out and sign back in to send messages.');
+    }
+    throw error;
+  }
 
   // Update conversation timestamp
   await supabase

@@ -209,6 +209,26 @@ export function LocalPulse({ city, isGlobal = false }: LocalPulseProps) {
     router.push(item.route as any);
   };
 
+  const getActionLabel = (type: PulseItem['type']) => {
+    switch (type) {
+      case 'event':
+        return 'Join';
+      case 'request':
+        return 'Offer help';
+      case 'job':
+        return 'View';
+      case 'housing':
+        return 'Message host';
+      case 'offer':
+        return 'Join';
+      case 'food':
+        return 'Go';
+      case 'alert':
+      default:
+        return 'Open';
+    }
+  };
+
   return (
     <Animated.View
       entering={FadeIn.duration(400).delay(100)}
@@ -222,10 +242,10 @@ export function LocalPulse({ city, isGlobal = false }: LocalPulseProps) {
           </View>
           <View>
             <Text className="text-lg font-bold text-gray-900">
-              {isGlobal ? 'Happening Worldwide' : "What's Happening"}
+              {isGlobal ? 'Plans worldwide' : 'Plans near you'}
             </Text>
             <Text className="text-sm text-gray-500">
-              {isGlobal ? 'Across the diaspora' : 'Near you right now'}
+              {isGlobal ? 'Across the diaspora' : 'Join in, or lend a hand'}
             </Text>
           </View>
         </View>
@@ -288,6 +308,9 @@ export function LocalPulse({ city, isGlobal = false }: LocalPulseProps) {
                     {item.responseCount} interested
                   </Text>
                 )}
+                <View className="mt-1 px-2 py-0.5 rounded-full bg-gray-100">
+                  <Text className="text-xs font-medium text-gray-600">{getActionLabel(item.type)}</Text>
+                </View>
               </View>
 
               <ChevronRight size={18} color="#D1D5DB" style={{ marginLeft: 4 }} />

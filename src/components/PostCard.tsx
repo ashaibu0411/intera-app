@@ -31,6 +31,7 @@ interface PostCardProps {
   onLike?: (postId: string) => void;
   onComment?: (postId: string) => void;
   onShare?: (postId: string) => void;
+  showGuidelines?: boolean;
 }
 
 // Afrocentric emoji reactions
@@ -73,25 +74,25 @@ const getImpactText = (postType: PostType, likes: number, comments: number): str
   switch (postType) {
     case 'question':
       if (comments > 0) {
-        return `Got ${comments} answer${comments > 1 ? 's' : ''} from the community`;
+        return `Got ${comments} answer${comments > 1 ? 's' : ''} from neighbors`;
       }
-      return `${likes} people want to help`;
+      return `${likes} neighbors want to help`;
     case 'request':
       if (comments > 0) {
-        return `${comments} people responded to help`;
+        return `${comments} neighbors responded to help`;
       }
-      return `${likes} people saw this`;
+      return `${likes} neighbors saw this`;
     case 'offer':
-      return `Helped ${Math.max(1, Math.floor(comments / 2))} people`;
+      return `Helped ${Math.max(1, Math.floor(comments / 2))} neighbors`;
     case 'invitation':
-      return `${likes + comments} interested`;
+      return `${likes + comments} joining in`;
     case 'checkin':
       if (comments > 0) {
-        return `${comments} people relate`;
+        return `${comments} neighbors relate`;
       }
       return `${likes} feel the same`;
     default:
-      return `${likes} people connected`;
+      return `${likes} neighbors reacted`;
   }
 };
 
@@ -190,7 +191,7 @@ interface BurstEmoji {
   scale: number;
 }
 
-export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
+export function PostCard({ post, onLike, onComment, onShare, showGuidelines = false }: PostCardProps) {
   const likedPostIds = useStore((s) => s.likedPostIds);
   const toggleLikePost = useStore((s) => s.toggleLikePost);
   const savedPostIds = useStore((s) => s.savedPostIds);
@@ -840,13 +841,13 @@ export function PostCard({ post, onLike, onComment, onShare }: PostCardProps) {
             <Text className="ml-1.5 text-base text-gray-500">Share</Text>
           </Pressable>
         </View>
-
-        {/* Community Guidelines Reminder */}
-        <View className="mt-2 pt-2 border-t border-gray-50">
-          <Text className="text-xs text-gray-400 text-center">
-            Be respectful. No vulgar language, hate speech, or inappropriate content.
-          </Text>
-        </View>
+        {showGuidelines && (
+          <View className="mt-2 pt-2 border-t border-gray-50">
+            <Text className="text-xs text-gray-400 text-center">
+              Respect is the vibe. We’re neighbors here.
+            </Text>
+          </View>
+        )}
       </View>
 
       {/* Reaction Picker Modal */}

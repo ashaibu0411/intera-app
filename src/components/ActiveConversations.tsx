@@ -211,10 +211,10 @@ export function ActiveConversations({ city, isGlobal = false }: ActiveConversati
           </View>
           <View>
             <Text className="text-base font-bold text-gray-900">
-              {isGlobal ? 'Global Conversations' : 'Active Conversations'}
+              {isGlobal ? 'Global conversations' : 'Community talk'}
             </Text>
             <Text className="text-xs text-gray-500">
-              {isGlobal ? 'Trending worldwide' : 'Join the discussion'}
+              {isGlobal ? 'Across the diaspora' : 'Real questions. Real answers.'}
             </Text>
           </View>
         </View>

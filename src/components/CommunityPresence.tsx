@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Pressable } from 'react-native';
+import { View, Text, Pressable, ScrollView } from 'react-native';
 import { Image } from 'expo-image';
 import Animated, {
   FadeIn,
@@ -15,7 +15,6 @@ import {
   MapPin,
   Home,
   Briefcase,
-  Sparkles,
   ChevronRight,
   Radio,
   Globe,
@@ -190,6 +189,27 @@ export function CommunityPresence({ city, memberCount, isGlobal = false }: Commu
     router.push('/(tabs)/search');
   };
 
+  const handleStartChat = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    // Open Discover > Online, so the user can message someone active now.
+    const opener = `Hey! I’m new in ${city}—what should I know first?`;
+    router.push(`/(tabs)/search?category=online&intent=message&prefill=${encodeURIComponent(opener)}` as any);
+  };
+
+  const handleRolePress = (role: 'Welcomers' | 'Connectors' | 'Mentors') => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (role === 'Mentors') {
+      router.push('/become-mentor' as any);
+      return;
+    }
+    if (role === 'Welcomers') {
+      router.push('/find-helpers' as any);
+      return;
+    }
+    // Connectors: meet people nearby
+    router.push('/(tabs)/connect' as any);
+  };
+
   const handleEventPress = (event: PresenceEvent) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (event.route) {
@@ -238,7 +258,7 @@ export function CommunityPresence({ city, memberCount, isGlobal = false }: Commu
                 <View className="w-2.5 h-2.5 rounded-full bg-green-500 mr-2" />
               </Animated.View>
               <Text className="text-lg font-bold text-gray-900">
-                {activeCount.toLocaleString()} {isGlobal ? 'online worldwide' : 'people here now'}
+                {activeCount.toLocaleString()} {isGlobal ? 'neighbors online worldwide' : 'neighbors here now'}
               </Text>
               <ChevronRight size={18} color="#6B7280" style={{ marginLeft: 4 }} />
             </View>
@@ -287,12 +307,60 @@ export function CommunityPresence({ city, memberCount, isGlobal = false }: Commu
                   <Text className="font-semibold text-gray-900">{activeMembers[0]?.name.split(' ')[0]}</Text>, <Text className="font-semibold text-gray-900">{activeMembers[1]?.name.split(' ')[0]}</Text> and {activeCount - 2} others
                 </Text>
                 <Text className="text-sm text-gray-400 mt-0.5">
-                  {isGlobal ? 'From 50+ countries' : 'Tap to see who\'s here'}
+                  {isGlobal ? 'From 50+ countries' : 'Say hello—this is how community starts'}
                 </Text>
               </View>
               <ChevronRight size={18} color="#9CA3AF" />
             </View>
           </Pressable>
+
+          {/* Action Row */}
+          <View className="mt-4">
+            <Pressable onPress={handleStartChat} className="bg-gray-900 rounded-2xl py-3 items-center">
+              <Text className="text-white font-semibold text-base">Start a chat</Text>
+              <Text className="text-white/70 text-xs mt-0.5">We’ll show people active right now.</Text>
+            </Pressable>
+
+            <View className="flex-row gap-2 mt-3">
+              {(['Welcomers', 'Connectors', 'Mentors'] as const).map((role) => (
+                <Pressable
+                  key={role}
+                  onPress={() => handleRolePress(role)}
+                  className="flex-1 bg-white rounded-full py-2.5 items-center border border-gray-100"
+                >
+                  <Text className="text-sm font-semibold text-gray-800">{role}</Text>
+                </Pressable>
+              ))}
+            </View>
+
+            {!isGlobal && (
+              <View className="mt-3">
+                <Text className="text-xs text-gray-500 mb-2">Not sure what to say? Try this:</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }}>
+                  <View className="flex-row gap-2">
+                    {[
+                      `Hey! I’m new in ${city}—what should I know first?`,
+                      "What’s the best way to meet people here?",
+                      "Any plans happening this week I should join?",
+                    ].map((line) => (
+                      <Pressable
+                        key={line}
+                        onPress={() => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          router.push(
+                            `/(tabs)/search?category=online&intent=message&prefill=${encodeURIComponent(line)}`
+                          );
+                        }}
+                        className="bg-white border border-gray-100 rounded-full px-3 py-2"
+                      >
+                        <Text className="text-xs text-gray-700">{line}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </ScrollView>
+              </View>
+            )}
+          </View>
         </View>
 
         {/* Live Activity Feed */}
@@ -300,7 +368,7 @@ export function CommunityPresence({ city, memberCount, isGlobal = false }: Commu
           <View className="px-4 py-2.5 flex-row items-center border-b border-gray-100">
             <Radio size={16} color="#EF4444" />
             <Text className="text-sm font-semibold text-gray-500 ml-1.5 uppercase tracking-wide">
-              {isGlobal ? 'Global Activity' : 'Live Activity'}
+              {isGlobal ? 'Global pulse' : `Live in ${city}`}
             </Text>
           </View>
 

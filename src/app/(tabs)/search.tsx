@@ -1,13 +1,13 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { View, Text, TextInput, ScrollView, Pressable, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
-import { Search as SearchIcon, X, Users, Calendar, Briefcase, Hash, UserCircle, Circle } from 'lucide-react-native';
+import { Search as SearchIcon, X, Users, Calendar, Briefcase, Hash, UserCircle, Circle, MessageCircle } from 'lucide-react-native';
 import Animated, { FadeIn, FadeInUp, FadeInRight } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
-import { MOCK_POSTS, MOCK_COMMUNITIES } from '@/lib/store';
+import { MOCK_POSTS, MOCK_COMMUNITIES, useStore } from '@/lib/store';
 import { supabase, DbUser } from '@/lib/supabase';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 
 type SearchCategory = 'all' | 'people' | 'online' | 'posts' | 'events' | 'businesses';
 
@@ -30,6 +30,11 @@ const DEFAULT_AVATAR = 'https://images.unsplash.com/photo-1535713875002-d1d0cf37
 
 export default function SearchScreen() {
   const router = useRouter();
+  const { category, intent, prefill } = useLocalSearchParams<{
+    category?: SearchCategory;
+    intent?: 'message';
+    prefill?: string;
+  }>();
   const [query, setQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<SearchCategory>('all');
   const [searchResults, setSearchResults] = useState<DbUser[]>([]);
@@ -38,12 +43,39 @@ export default function SearchScreen() {
   const [isSearching, setIsSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [isLoadingOnline, setIsLoadingOnline] = useState(false);
+  const [selectedOpener, setSelectedOpener] = useState('');
+
+  const isGuest = useStore((s) => s.isGuest);
+  const currentUser = useStore((s) => s.currentUser);
+
+  const decodedPrefill = useMemo(() => (prefill ? decodeURIComponent(prefill) : ''), [prefill]);
+  const openers = useMemo(
+    () => [
+      decodedPrefill || "Hey! I’m new here—what should I know first?",
+      "What’s the best way to meet people in the community?",
+      "Any plans happening this week I should join?",
+    ],
+    [decodedPrefill]
+  );
 
   // Load recent/popular users on mount
   useEffect(() => {
     loadRecentUsers();
     loadOnlineUsers();
   }, []);
+
+  // Allow deep links like "/(tabs)/search?category=online"
+  useEffect(() => {
+    if (category && CATEGORIES.some((c) => c.id === category)) {
+      setActiveCategory(category);
+    }
+  }, [category]);
+
+  useEffect(() => {
+    if (intent === 'message') {
+      setSelectedOpener(decodedPrefill || openers[0] || '');
+    }
+  }, [decodedPrefill, intent, openers]);
 
   // Reload online users when switching to online tab
   useEffect(() => {
@@ -169,8 +201,26 @@ export default function SearchScreen() {
 
   const handleUserPress = (user: DbUser) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    // Navigate to user profile
+    if (intent === 'message') {
+      handleMessageUser(user);
+      return;
+    }
     router.push(`/profile/${user.id}` as any);
+  };
+
+  const handleMessageUser = (user: DbUser) => {
+    if (isGuest || !currentUser?.id) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      router.push('/signup' as any);
+      return;
+    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const avatarUrl = user.avatar_url || DEFAULT_AVATAR;
+    const message = selectedOpener || '';
+    const route = `/chat/user_${user.id}?name=${encodeURIComponent(user.name)}&avatar=${encodeURIComponent(
+      avatarUrl
+    )}&recipientId=${user.id}${message ? `&prefill=${encodeURIComponent(message)}` : ''}`;
+    router.push(route as any);
   };
 
   const filteredPosts = MOCK_POSTS.filter((post) =>
@@ -220,6 +270,17 @@ export default function SearchScreen() {
               <Text className="text-gray-400 text-sm mt-0.5">{user.location}</Text>
             )}
           </View>
+
+          {intent === 'message' && (
+            <Pressable
+              onPress={() => handleMessageUser(user)}
+              className="bg-terracotta-500 rounded-full px-3 py-2 flex-row items-center"
+              hitSlop={8}
+            >
+              <MessageCircle size={16} color="#FFFFFF" />
+              <Text className="text-white text-xs font-semibold ml-1.5">Message</Text>
+            </Pressable>
+          )}
         </Pressable>
       </Animated.View>
     );
@@ -382,6 +443,43 @@ export default function SearchScreen() {
               {/* Online Users Section - show when on Online tab */}
               {activeCategory === 'online' && (
                 <Animated.View entering={FadeInUp.duration(400)}>
+                  {intent === 'message' && (
+                    <View className="bg-white rounded-2xl p-4 shadow-sm mb-3">
+                      <Text className="text-warmBrown font-semibold text-base">Say hello</Text>
+                      <Text className="text-gray-500 text-sm mt-0.5">
+                        Pick an opener—then tap “Message” on anyone online.
+                      </Text>
+                      <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        style={{ flexGrow: 0 }}
+                        className="mt-3"
+                      >
+                        <View className="flex-row gap-2">
+                          {openers.map((line) => {
+                            const isSelected = selectedOpener === line;
+                            return (
+                              <Pressable
+                                key={line}
+                                onPress={() => {
+                                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                  setSelectedOpener(line);
+                                }}
+                                className={`px-3 py-2 rounded-full border ${
+                                  isSelected ? 'bg-terracotta-500 border-terracotta-500' : 'bg-gray-50 border-gray-100'
+                                }`}
+                              >
+                                <Text className={`text-xs ${isSelected ? 'text-white' : 'text-gray-700'}`}>
+                                  {line}
+                                </Text>
+                              </Pressable>
+                            );
+                          })}
+                        </View>
+                      </ScrollView>
+                    </View>
+                  )}
+
                   <View className="flex-row items-center mb-3 mt-2">
                     <View className="w-2.5 h-2.5 rounded-full bg-green-500 mr-2" />
                     <Text className="text-lg font-semibold text-warmBrown">Online Now</Text>

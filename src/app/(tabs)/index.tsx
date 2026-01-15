@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useRef, useState, useMemo, useEffect, useCallback } from 'react';
 import { View, Text, ScrollView, Pressable, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -115,6 +115,9 @@ export default function HomeScreen() {
   const [detectedLocation, setDetectedLocation] = useState<DetectedLocation | null>(null);
   const [showDailyRewards, setShowDailyRewards] = useState(false);
   const [currentUser, setCurrentUser] = useState<{id: string; avatar?: string} | null>(null);
+  const [showStickyActions, setShowStickyActions] = useState(false);
+
+  const scrollRef = useRef<ScrollView>(null);
 
   const selectedLocation = useStore((s) => s.selectedLocation);
   const userPosts = useStore((s) => s.userPosts);
@@ -148,6 +151,19 @@ export default function HomeScreen() {
     return MOCK_COMMUNITIES[0];
   }, [selectedLocation]);
 
+  const messageOpener = useMemo(() => {
+    return `Hey! I’m new in ${displayCommunity.city}—what should I know first?`;
+  }, [displayCommunity.city]);
+
+  const messageNearbyRoute = useMemo(() => {
+    return `/(tabs)/search?category=online&intent=message&prefill=${encodeURIComponent(messageOpener)}`;
+  }, [messageOpener]);
+
+  const askForHelpRoute = useMemo(() => {
+    const placeholder = `I’m new in ${displayCommunity.city}. Looking for...`;
+    return `/(tabs)/create?promptType=request&placeholder=${encodeURIComponent(placeholder)}`;
+  }, [displayCommunity.city]);
+
   const communityMemberCount = useMemo(() => {
     return getCommunityMemberCount(displayCommunity.city);
   }, [displayCommunity.city]);
@@ -161,8 +177,10 @@ export default function HomeScreen() {
         displayCommunity.country
       );
       setRealCommunity(community);
+      return community;
     } catch (error) {
       console.log('Using mock community data');
+      return null;
     }
   };
 
@@ -180,11 +198,16 @@ export default function HomeScreen() {
       fetchCommunity();
       fetchDbPosts();
 
-      const unsubscribe = subscribeToCommunityUpdates(
-        displayCommunity.city,
-        (community: DbCommunity) => setRealCommunity(community)
-      );
-      return () => unsubscribe();
+      let unsubscribe: null | (() => void) = null;
+      fetchCommunity().then((community) => {
+        if (community?.id) {
+          unsubscribe = subscribeToCommunityUpdates(community.id, (c: DbCommunity) => setRealCommunity(c));
+        }
+      });
+
+      return () => {
+        unsubscribe?.();
+      };
     }, [displayCommunity.city])
   );
 
@@ -304,6 +327,7 @@ export default function HomeScreen() {
                   </Text>
                   <ChevronDown size={18} color="#374151" />
                 </View>
+                <Text className="text-xs text-gray-500 -mt-0.5">Your people are here.</Text>
               </View>
             </Pressable>
 
@@ -340,7 +364,14 @@ export default function HomeScreen() {
 
         {/* Community Presence Feed */}
         <ScrollView
+          ref={scrollRef}
           showsVerticalScrollIndicator={false}
+          scrollEventThrottle={16}
+          onScroll={(e) => {
+            const y = e.nativeEvent.contentOffset.y;
+            // After the user scrolls past the intro area, keep the 3 core actions in reach.
+            setShowStickyActions(y > 220);
+          }}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -452,22 +483,74 @@ export default function HomeScreen() {
             </Pressable>
           </View>
 
+          <View className="px-4 pb-3 bg-white border-b border-gray-100">
+            <Text className="text-xs text-gray-500">
+              Local: people and plans near you • Global: diaspora highlights
+            </Text>
+          </View>
+
+          {/* Welcome Home - Core Actions */}
+          <View className="mx-4 mt-4">
+            <LinearGradient
+              colors={['#1B4D3E', '#153D31']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={{ borderRadius: 20, overflow: 'hidden' }}
+            >
+              <View className="p-5">
+                <Text className="text-white text-2xl font-bold">Welcome home.</Text>
+                <Text className="text-white/85 text-base mt-1">
+                  Meet neighbors. Get help. Build community.
+                </Text>
+
+                <Pressable
+                  onPress={() => navigateTo(messageNearbyRoute)}
+                  className="mt-4"
+                >
+                  <View className="bg-white/15 border border-white/20 rounded-2xl px-4 py-4">
+                    <Text className="text-white text-base font-semibold">Message someone nearby</Text>
+                    <Text className="text-white/70 text-sm mt-0.5">
+                      We’ll show people active right now.
+                    </Text>
+                  </View>
+                </Pressable>
+
+                <View className="flex-row gap-3 mt-3">
+                  <Pressable onPress={() => navigateTo(askForHelpRoute)} className="flex-1">
+                    <View className="bg-white rounded-2xl px-4 py-3">
+                      <Text className="text-forest-900 font-semibold">Ask for help</Text>
+                      <Text className="text-gray-500 text-xs mt-0.5">Your community shows up.</Text>
+                    </View>
+                  </Pressable>
+                  <Pressable onPress={() => navigateTo('/(tabs)/events')} className="flex-1">
+                    <View className="bg-white rounded-2xl px-4 py-3">
+                      <Text className="text-forest-900 font-semibold">Join a plan</Text>
+                      <Text className="text-gray-500 text-xs mt-0.5">Food, rides, events.</Text>
+                    </View>
+                  </Pressable>
+                </View>
+              </View>
+            </LinearGradient>
+          </View>
+
           {/* === SECTION 1: COMMUNITY PRESENCE === */}
           <CommunityPresence city={displayCommunity.city} memberCount={memberCount} isGlobal={feedFilter === 'global'} />
 
           {/* === SECTION 2: LOCAL PULSE (What's Happening) === */}
           <LocalPulse city={displayCommunity.city} isGlobal={feedFilter === 'global'} />
 
-          {/* === SECTION 3: QUICK POST PROMPTS === */}
-          <View className="mt-4 px-4">
-            <Text className="text-base font-semibold text-gray-500 mb-2">Start a conversation</Text>
+          {/* === SECTION 3: ASK FOR HELP / START HERE === */}
+          <View className="mt-5 px-4">
+            <Text className="text-lg font-bold text-gray-900">What do you need?</Text>
+            <Text className="text-sm text-gray-500 mt-0.5">Ask clearly—your people will respond.</Text>
+            <Text className="text-xs text-gray-400 mt-1">Tip: add your neighborhood + timing (today/this week).</Text>
           </View>
           <QuickPostPrompts />
 
-          {/* === SECTION 4: ACTIVE CONVERSATIONS === */}
+          {/* === SECTION 4: COMMUNITY TALK === */}
           <ActiveConversations city={displayCommunity.city} isGlobal={feedFilter === 'global'} />
 
-          {/* === SECTION 5: MEMORY LAYER - Only show on local feed */}
+          {/* === SECTION 5: COMMUNITY MOMENTS - only on local feed */}
           {feedFilter === 'local' && <MemoryLayer city={displayCommunity.city} />}
 
           {/* Guest Sign Up Banner */}
@@ -497,13 +580,19 @@ export default function HomeScreen() {
 
           {/* === SECTION 6: RECENT POSTS === */}
           <View className="mt-6 px-4 mb-2">
-            <Text className="text-lg font-bold text-gray-900">Recent Posts</Text>
-            <Text className="text-sm text-gray-500">From your community</Text>
+            <Text className="text-lg font-bold text-gray-900">Community updates</Text>
+            <Text className="text-sm text-gray-500">From neighbors in {displayCommunity.city}</Text>
+          </View>
+
+          <View className="px-4 mb-3">
+            <Text className="text-xs text-gray-400 text-center">
+              Respect is the vibe. We’re neighbors here.
+            </Text>
           </View>
 
           <View>
             {allPosts.length > 0 ? (
-              allPosts.slice(0, 10).map((post, index) => (
+              allPosts.slice(0, 8).map((post, index) => (
                 <Animated.View
                   key={post.id}
                   entering={FadeInUp.duration(300).delay(index * 30)}
@@ -516,15 +605,15 @@ export default function HomeScreen() {
                 <View className="w-16 h-16 rounded-full bg-gray-100 items-center justify-center mb-4">
                   <Users size={28} color="#9CA3AF" />
                 </View>
-                <Text className="text-gray-900 font-semibold text-xl">No posts yet</Text>
+                <Text className="text-gray-900 font-semibold text-xl">Start the energy.</Text>
                 <Text className="text-gray-500 text-center mt-1 px-8 text-base">
-                  Be the first to share something with your community
+                  Introduce yourself, ask a question, or invite people out—{displayCommunity.city} will answer.
                 </Text>
                 <Pressable
                   onPress={() => navigateTo('/(tabs)/create')}
                   className="mt-4 bg-gray-900 px-6 py-3 rounded-full"
                 >
-                  <Text className="text-white font-semibold">Create Post</Text>
+                  <Text className="text-white font-semibold">Post to {displayCommunity.city}</Text>
                 </Pressable>
               </View>
             )}
@@ -558,6 +647,34 @@ export default function HomeScreen() {
             <Plus size={28} color="#fff" strokeWidth={2.5} />
           </LinearGradient>
         </Pressable>
+
+        {/* Sticky Core Actions */}
+        {showStickyActions && (
+          <View className="absolute left-0 right-0" style={{ top: 64 }}>
+            <View className="mx-4 bg-white rounded-2xl border border-gray-100 shadow-sm px-3 py-2">
+              <View className="flex-row items-center gap-2">
+                <Pressable
+                  onPress={() => navigateTo(messageNearbyRoute)}
+                  className="flex-1 bg-gray-900 rounded-full py-2.5 items-center"
+                >
+                  <Text className="text-white font-semibold">Message</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => navigateTo(askForHelpRoute)}
+                  className="flex-1 bg-gray-100 rounded-full py-2.5 items-center"
+                >
+                  <Text className="text-gray-800 font-semibold">Ask</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => navigateTo('/(tabs)/events')}
+                  className="flex-1 bg-gray-100 rounded-full py-2.5 items-center"
+                >
+                  <Text className="text-gray-800 font-semibold">Plans</Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        )}
       </SafeAreaView>
 
       {/* Modals */}

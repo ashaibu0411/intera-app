@@ -60,14 +60,16 @@ interface ChatMessage {
 }
 
 export default function ChatScreen() {
-  const { id, name, avatar, recipientId } = useLocalSearchParams<{
+  const { id, name, avatar, recipientId, prefill } = useLocalSearchParams<{
     id: string;
     name: string;
     avatar: string;
     recipientId: string;
+    prefill?: string;
   }>();
   const scrollViewRef = useRef<ScrollView>(null);
-  const [messageText, setMessageText] = useState('');
+  const decodedPrefill = prefill ? decodeURIComponent(prefill) : '';
+  const [messageText, setMessageText] = useState(decodedPrefill);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
@@ -89,7 +91,7 @@ export default function ChatScreen() {
 
   // Load or create conversation and messages
   useEffect(() => {
-    let pollInterval: NodeJS.Timeout | null = null;
+    let pollInterval: ReturnType<typeof setInterval> | null = null;
     let isSubscribed = true;
 
     const initializeChat = async () => {
