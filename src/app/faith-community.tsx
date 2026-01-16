@@ -31,6 +31,8 @@ import {
   type EventRsvp,
 } from '@/lib/store';
 import { getFaithEvents, rsvpToFaithEvent } from '@/lib/marketplace-api';
+import { createPost as createDbPost } from '@/lib/posts';
+import { parseEventMetadata } from '@/lib/eventMetadata';
 
 interface DbFaithEvent {
   id: string;
@@ -53,17 +55,25 @@ interface DbFaithEvent {
 }
 
 export default function FaithCommunityScreen() {
+  type FaithTab = 'discover' | 'communities' | 'announcements' | 'calendar';
+  const [activeTab, setActiveTab] = useState<FaithTab>('discover');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFaithType, setSelectedFaithType] = useState<string | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<FaithEvent | null>(null);
   const [dbEvents, setDbEvents] = useState<DbFaithEvent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
+  const [announcementOrgName, setAnnouncementOrgName] = useState('');
+  const [announcementMessage, setAnnouncementMessage] = useState('');
+  const [isPostingAnnouncement, setIsPostingAnnouncement] = useState(false);
 
   const isGuest = useStore((s) => s.isGuest);
   const currentUser = useStore((s) => s.currentUser);
   const eventRsvps = useStore((s) => s.eventRsvps);
   const setEventRsvp = useStore((s) => s.setEventRsvp);
+  const selectedLocation = useStore((s) => s.selectedLocation);
+  const currentCommunity = useStore((s) => s.currentCommunity);
 
   const fetchEvents = async () => {
     try {
@@ -87,23 +97,26 @@ export default function FaithCommunityScreen() {
   };
 
   // Convert DB events to app format
-  const supabaseEvents: FaithEvent[] = dbEvents.map((e) => ({
-    id: e.id,
-    organizationName: e.organization_name,
-    organizationLogo: e.organization_logo || 'https://images.unsplash.com/photo-1438032005730-c779502df39b?w=200&h=200&fit=crop',
-    faithType: e.faith_type,
-    title: e.title,
-    description: e.description,
-    date: e.date,
-    time: e.time,
-    location: e.location,
-    address: e.address,
-    isRecurring: e.is_recurring,
-    recurringSchedule: e.recurring_schedule || undefined,
-    contactPhone: e.contact_phone || undefined,
-    contactEmail: e.contact_email || undefined,
-    attendees: e.attendees_count,
-  }));
+  const supabaseEvents: FaithEvent[] = dbEvents.map((e) => {
+    const meta = parseEventMetadata(e.description || '');
+    return {
+      id: e.id,
+      organizationName: e.organization_name,
+      organizationLogo: meta.flyerUrl || e.organization_logo || 'https://images.unsplash.com/photo-1438032005730-c779502df39b?w=200&h=200&fit=crop',
+      faithType: e.faith_type,
+      title: e.title,
+      description: meta.cleanDescription || e.description,
+      date: e.date,
+      time: e.time,
+      location: e.location,
+      address: e.address,
+      isRecurring: e.is_recurring,
+      recurringSchedule: e.recurring_schedule || undefined,
+      contactPhone: e.contact_phone || undefined,
+      contactEmail: e.contact_email || undefined,
+      attendees: e.attendees_count,
+    };
+  });
 
   const allEvents = [...supabaseEvents, ...MOCK_FAITH_EVENTS];
 
@@ -115,6 +128,15 @@ export default function FaithCommunityScreen() {
     const matchesFaith = !selectedFaithType || event.faithType === selectedFaithType;
     return matchesSearch && matchesFaith;
   });
+
+  const orgs = Array.from(
+    new Map(
+      allEvents.map((e) => [
+        e.organizationName,
+        { name: e.organizationName, logo: e.organizationLogo, faithType: e.faithType },
+      ]),
+    ).values(),
+  );
 
   const handleFaithTypeSelect = (faithType: string | null) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -179,6 +201,53 @@ export default function FaithCommunityScreen() {
     }
   };
 
+  const openAnnouncementsComposer = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (isGuest || !currentUser) {
+      router.push('/signup');
+      return;
+    }
+    setShowAnnouncementModal(true);
+  };
+
+  const handlePostAnnouncement = async () => {
+    if (!currentUser || isPostingAnnouncement) return;
+    if (!announcementOrgName.trim() || announcementMessage.trim().length < 10) return;
+
+    setIsPostingAnnouncement(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    const location =
+      selectedLocation?.city
+        ? `${selectedLocation.city}, ${selectedLocation.state || selectedLocation.country}`
+        : currentCommunity?.city
+          ? `${currentCommunity.city}, ${currentCommunity.state || currentCommunity.country}`
+          : '';
+
+    const faithEmoji =
+      selectedFaithType?.toLowerCase().includes('muslim') ? '🕌'
+      : selectedFaithType?.toLowerCase().includes('jew') ? '🕍'
+      : selectedFaithType?.toLowerCase().includes('hindu') ? '🛕'
+      : selectedFaithType?.toLowerCase().includes('christ') ? '⛪'
+      : '🕊️';
+
+    try {
+      const content =
+        `${faithEmoji} ${announcementOrgName.trim()}\n\n` +
+        `📣 ${announcementMessage.trim()}\n\n#Announcement`;
+      await createDbPost(currentUser.id, content, [], location);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setShowAnnouncementModal(false);
+      setAnnouncementOrgName('');
+      setAnnouncementMessage('');
+      setActiveTab('announcements');
+    } catch (e) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      setIsPostingAnnouncement(false);
+    }
+  };
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', {
@@ -227,13 +296,20 @@ export default function FaithCommunityScreen() {
                 <Heart size={24} color="#C9A227" />
               </View>
               <View>
-                <Text className="text-2xl font-bold text-warmBrown">Faith & Community</Text>
-                <Text className="text-sm text-gray-500">Services, Events & Gatherings</Text>
+                <Text className="text-2xl font-bold text-warmBrown">Faith Communities</Text>
+                <Text className="text-sm text-gray-500">Churches, mosques & groups — together</Text>
               </View>
             </View>
 
             <Pressable
-              onPress={handleCreateEvent}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                if (activeTab === 'announcements') {
+                  openAnnouncementsComposer();
+                } else {
+                  handleCreateEvent();
+                }
+              }}
               className="bg-gold-500 rounded-full p-2.5"
             >
               <Plus size={22} color="#FFFFFF" />
@@ -244,13 +320,43 @@ export default function FaithCommunityScreen() {
           <View className="flex-row items-center bg-white rounded-2xl px-4 py-3 shadow-sm">
             <Search size={20} color="#8B7355" />
             <TextInput
-              placeholder="Search services, events, organizations..."
+              placeholder={activeTab === 'communities' ? 'Search communities, circles...' : 'Search events, organizations...'}
               placeholderTextColor="#9CA3AF"
               value={searchQuery}
               onChangeText={setSearchQuery}
               className="flex-1 ml-3 text-warmBrown text-base"
             />
           </View>
+
+          {/* Tabs */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            className="mt-4"
+            style={{ flexGrow: 0 }}
+          >
+            {[
+              { id: 'discover', label: 'Discover' },
+              { id: 'communities', label: 'Communities' },
+              { id: 'announcements', label: 'Announcements' },
+              { id: 'calendar', label: 'Calendar' },
+            ].map((t) => (
+              <Pressable
+                key={t.id}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setActiveTab(t.id as FaithTab);
+                }}
+                className={`px-4 py-2 rounded-full mr-2 ${
+                  activeTab === (t.id as FaithTab) ? 'bg-forest-600' : 'bg-white'
+                }`}
+              >
+                <Text className={`font-medium ${activeTab === (t.id as FaithTab) ? 'text-white' : 'text-gray-600'}`}>
+                  {t.label}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
 
           {/* Faith Type Filter */}
           <ScrollView
@@ -293,7 +399,7 @@ export default function FaithCommunityScreen() {
           </ScrollView>
         </Animated.View>
 
-        {/* Events List */}
+        {/* Body */}
         <ScrollView
           className="flex-1 px-5 pt-4"
           showsVerticalScrollIndicator={false}
@@ -308,7 +414,37 @@ export default function FaithCommunityScreen() {
             </View>
           ) : (
             <>
-              {/* Serve & Connect Banner */}
+              {activeTab === 'discover' && (
+                <>
+                  {/* Organizations row */}
+                  <Animated.View entering={FadeInUp.duration(400).delay(40)} className="mb-4">
+                    <Text className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                      Organizations
+                    </Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }}>
+                      {orgs.slice(0, 10).map((o) => (
+                        <Pressable
+                          key={o.name}
+                          onPress={() => {
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            setSearchQuery(o.name);
+                          }}
+                          className="bg-white rounded-2xl p-3 mr-3 shadow-sm"
+                          style={{ width: 180 }}
+                        >
+                          <View className="flex-row items-center">
+                            <Image source={{ uri: o.logo }} style={{ width: 40, height: 40, borderRadius: 20 }} contentFit="cover" />
+                            <View className="ml-3 flex-1">
+                              <Text className="text-warmBrown font-semibold" numberOfLines={1}>{o.name}</Text>
+                              <Text className="text-gray-500 text-xs mt-0.5" numberOfLines={1}>{o.faithType}</Text>
+                            </View>
+                          </View>
+                        </Pressable>
+                      ))}
+                    </ScrollView>
+                  </Animated.View>
+
+                  {/* Serve & Connect Banner */}
           <Animated.View
             entering={FadeInUp.duration(400).delay(50)}
             className="mb-4"
@@ -378,7 +514,7 @@ export default function FaithCommunityScreen() {
             </Pressable>
           </Animated.View>
 
-              {/* Info Banner */}
+                  {/* Info Banner */}
           <Animated.View
             entering={FadeInUp.duration(400).delay(100)}
             className="mb-4"
@@ -395,7 +531,7 @@ export default function FaithCommunityScreen() {
                     Share Your Faith Events
                   </Text>
                   <Text className="text-white/80 text-sm mt-1">
-                    Post services, gatherings, and community events for all to see.
+                    Post services, gatherings, and community events — and optionally share to the main home feed.
                   </Text>
                 </View>
                 <Pressable
@@ -408,7 +544,7 @@ export default function FaithCommunityScreen() {
             </LinearGradient>
           </Animated.View>
 
-          {/* Upcoming Events Header */}
+                  {/* Upcoming Events Header */}
           <Animated.View
             entering={FadeInUp.duration(400).delay(150)}
             className="flex-row items-center justify-between mb-3"
@@ -418,7 +554,7 @@ export default function FaithCommunityScreen() {
             </Text>
           </Animated.View>
 
-          {/* Events */}
+                  {/* Events */}
           {filteredEvents.map((event, index) => (
             <Animated.View
               key={event.id}
@@ -503,11 +639,186 @@ export default function FaithCommunityScreen() {
               </Pressable>
             </Animated.View>
           ))}
+                </>
+              )}
+
+              {activeTab === 'communities' && (
+                <>
+                  <Animated.View entering={FadeInUp.duration(400).delay(60)} className="mb-4">
+                    <LinearGradient
+                      colors={['#1B4D3E', '#153D31']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={{ borderRadius: 16, padding: 16 }}
+                    >
+                      <Text className="text-white font-bold text-lg">Groups & Circles</Text>
+                      <Text className="text-white/80 text-sm mt-1">
+                        Create public or private circles for your faith center—announcements, calendars, and support.
+                      </Text>
+                      <Pressable
+                        onPress={() => router.push('/diaspora-circles?filter=faith')}
+                        className="mt-3 bg-white/20 rounded-full px-4 py-2 self-start"
+                      >
+                        <Text className="text-white font-semibold">Explore faith circles</Text>
+                      </Pressable>
+                    </LinearGradient>
+                  </Animated.View>
+
+                  <View className="bg-white rounded-2xl p-4 shadow-sm mb-3">
+                    <Text className="text-warmBrown font-semibold">Recommended structure</Text>
+                    <Text className="text-gray-500 text-sm mt-1">
+                      Main community (public) + ministries (private): youth, women, men, choir, prayer, outreach.
+                    </Text>
+                  </View>
+
+                  <Pressable
+                    onPress={() => router.push('/faith-walls')}
+                    className="bg-white rounded-2xl p-4 shadow-sm mb-3 flex-row items-center"
+                  >
+                    <View className="bg-amber-50 rounded-full p-3">
+                      <Heart size={20} color="#C9A227" />
+                    </View>
+                    <View className="flex-1 ml-3">
+                      <Text className="text-warmBrown font-semibold">Prayer & Testimony Wall</Text>
+                      <Text className="text-gray-500 text-sm">Encouragement, prayer, support</Text>
+                    </View>
+                    <ChevronRight size={20} color="#9CA3AF" />
+                  </Pressable>
+
+                  <Pressable
+                    onPress={() => router.push('/serve-connect')}
+                    className="bg-white rounded-2xl p-4 shadow-sm mb-3 flex-row items-center"
+                  >
+                    <View className="bg-forest-50 rounded-full p-3">
+                      <Users size={20} color="#1B4D3E" />
+                    </View>
+                    <View className="flex-1 ml-3">
+                      <Text className="text-warmBrown font-semibold">Serve & Connect</Text>
+                      <Text className="text-gray-500 text-sm">Volunteers, musicians, helpers</Text>
+                    </View>
+                    <ChevronRight size={20} color="#9CA3AF" />
+                  </Pressable>
+                </>
+              )}
+
+              {activeTab === 'announcements' && (
+                <>
+                  <Animated.View entering={FadeInUp.duration(400).delay(60)} className="mb-4">
+                    <LinearGradient
+                      colors={['#0EA5E9', '#2563EB']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={{ borderRadius: 16, padding: 16 }}
+                    >
+                      <Text className="text-white font-bold text-lg">Announcements</Text>
+                      <Text className="text-white/80 text-sm mt-1">
+                        Post updates that appear on the main home feed (great for churches, mosques, and ministries).
+                      </Text>
+                      <Pressable
+                        onPress={openAnnouncementsComposer}
+                        className="mt-3 bg-white/20 rounded-full px-4 py-2 self-start"
+                      >
+                        <Text className="text-white font-semibold">Post announcement</Text>
+                      </Pressable>
+                    </LinearGradient>
+                  </Animated.View>
+
+                  <View className="bg-white rounded-2xl p-4 shadow-sm mb-3">
+                    <Text className="text-warmBrown font-semibold">Tip</Text>
+                    <Text className="text-gray-500 text-sm mt-1">
+                      When posting events, enable “Share to Community Feed” so members see it on Home.
+                    </Text>
+                  </View>
+                </>
+              )}
+
+              {activeTab === 'calendar' && (
+                <>
+                  <Animated.View entering={FadeInUp.duration(400).delay(60)} className="mb-3">
+                    <Text className="text-lg font-semibold text-warmBrown">Calendar</Text>
+                    <Text className="text-gray-500 text-sm mt-1">
+                      Upcoming events across your selected faith filters.
+                    </Text>
+                  </Animated.View>
+
+                  {filteredEvents.length === 0 ? (
+                    <View className="bg-white rounded-2xl p-6 items-center shadow-sm">
+                      <Calendar size={32} color="#9CA3AF" />
+                      <Text className="text-gray-500 mt-3 text-center">
+                        No events match your filters right now.
+                      </Text>
+                    </View>
+                  ) : (
+                    filteredEvents.map((event, index) => (
+                      <Animated.View
+                        key={event.id}
+                        entering={FadeInUp.duration(250).delay(100 + index * 30)}
+                        className="bg-white rounded-2xl p-4 mb-3 shadow-sm"
+                      >
+                        <Text className="text-warmBrown font-semibold">{event.title}</Text>
+                        <Text className="text-gray-500 text-sm mt-0.5">{event.organizationName} • {event.faithType}</Text>
+                        <Text className="text-gray-600 text-sm mt-2">{formatDate(event.date)} · {event.time}</Text>
+                        <Text className="text-gray-500 text-sm mt-1" numberOfLines={1}>{event.address}</Text>
+                      </Animated.View>
+                    ))
+                  )}
+                </>
+              )}
 
           <View className="h-8" />
             </>
           )}
         </ScrollView>
+
+        {/* Announcement composer modal */}
+        <Modal
+          visible={showAnnouncementModal}
+          animationType="slide"
+          presentationStyle="pageSheet"
+          onRequestClose={() => setShowAnnouncementModal(false)}
+        >
+          <SafeAreaView className="flex-1 bg-cream" edges={['top', 'bottom']}>
+            <View className="px-5 py-4 border-b border-gray-100 flex-row items-center justify-between">
+              <Pressable onPress={() => setShowAnnouncementModal(false)} className="bg-white rounded-full p-2">
+                <X size={20} color="#2D1F1A" />
+              </Pressable>
+              <Text className="text-lg font-bold text-warmBrown">New announcement</Text>
+              <Pressable
+                onPress={handlePostAnnouncement}
+                disabled={isPostingAnnouncement || !announcementOrgName.trim() || announcementMessage.trim().length < 10}
+                className="bg-forest-600 rounded-full px-4 py-2"
+              >
+                <Text className="text-white font-semibold">
+                  {isPostingAnnouncement ? 'Posting…' : 'Post'}
+                </Text>
+              </Pressable>
+            </View>
+            <ScrollView className="flex-1 px-5 pt-5" showsVerticalScrollIndicator={false}>
+              <Text className="text-warmBrown font-semibold mb-2">Organization name</Text>
+              <TextInput
+                placeholder="e.g., New Life Church / Masjid Al-Huda"
+                placeholderTextColor="#9CA3AF"
+                value={announcementOrgName}
+                onChangeText={setAnnouncementOrgName}
+                className="bg-white rounded-xl px-4 py-3.5 text-warmBrown mb-4"
+              />
+              <Text className="text-warmBrown font-semibold mb-2">Announcement</Text>
+              <TextInput
+                placeholder="What should members know? (time, location, info)"
+                placeholderTextColor="#9CA3AF"
+                value={announcementMessage}
+                onChangeText={setAnnouncementMessage}
+                multiline
+                className="bg-white rounded-xl px-4 py-3.5 text-warmBrown min-h-[140px]"
+                style={{ textAlignVertical: 'top' }}
+              />
+              <Text className="text-gray-400 text-xs mt-2">
+                This will appear on the main home feed as an announcement.
+              </Text>
+              <View className="h-24" />
+            </ScrollView>
+          </SafeAreaView>
+        </Modal>
 
         {/* Event Detail Modal */}
         <Modal

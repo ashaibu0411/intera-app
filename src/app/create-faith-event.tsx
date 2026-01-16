@@ -24,6 +24,9 @@ import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { useStore, FAITH_TYPES } from '@/lib/store';
 import { createFaithEvent } from '@/lib/marketplace-api';
+import { createPost as createDbPost } from '@/lib/posts';
+import { uploadImages } from '@/lib/posts';
+import { encodeEventMetadata, type EventReach } from '@/lib/eventMetadata';
 
 const RECURRING_OPTIONS = [
   'Every Sunday',
@@ -38,10 +41,12 @@ const RECURRING_OPTIONS = [
 
 export default function CreateFaithEventScreen() {
   const [organizationLogo, setOrganizationLogo] = useState<string | null>(null);
+  const [eventFlyer, setEventFlyer] = useState<string | null>(null);
   const [organizationName, setOrganizationName] = useState('');
   const [faithType, setFaithType] = useState('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [reach, setReach] = useState<EventReach>('city');
   const [date, setDate] = useState<Date>(new Date());
   const [time, setTime] = useState<Date>(new Date());
   const [address, setAddress] = useState('');
@@ -54,6 +59,7 @@ export default function CreateFaithEventScreen() {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [shareToCommunityFeed, setShareToCommunityFeed] = useState(true);
 
   const currentUser = useStore((s) => s.currentUser);
   const selectedLocation = useStore((s) => s.selectedLocation);
@@ -76,6 +82,20 @@ export default function CreateFaithEventScreen() {
 
     if (!result.canceled && result.assets.length > 0) {
       setOrganizationLogo(result.assets[0].uri);
+    }
+  };
+
+  const handlePickFlyer = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.9,
+      allowsEditing: true,
+      aspect: [4, 5],
+    });
+
+    if (!result.canceled && result.assets.length > 0) {
+      setEventFlyer(result.assets[0].uri);
     }
   };
 
@@ -127,12 +147,37 @@ export default function CreateFaithEventScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     try {
+      // Upload assets (so other users can see them)
+      let logoUrl: string | undefined;
+      if (organizationLogo) {
+        const uploaded = await uploadImages([organizationLogo], currentUser.id);
+        logoUrl = uploaded[0];
+        if (!logoUrl) {
+          throw new Error('Logo upload failed. Please try again.');
+        }
+      }
+
+      let flyerUrl: string | undefined;
+      if (eventFlyer) {
+        const uploaded = await uploadImages([eventFlyer], currentUser.id);
+        flyerUrl = uploaded[0];
+        if (!flyerUrl) {
+          throw new Error('Flyer upload failed. Please try again.');
+        }
+      }
+
+      const encodedDescription = encodeEventMetadata(description.trim(), {
+        reach,
+        flyerUrl,
+      });
+
       await createFaithEvent(currentUser.id, {
         organizationName: organizationName.trim(),
-        organizationLogo: organizationLogo || undefined,
+        // If they didn't upload a logo, fall back to flyer so listings still look great
+        organizationLogo: logoUrl || flyerUrl || undefined,
         faithType,
         title: title.trim(),
-        description: description.trim(),
+        description: encodedDescription,
         date: date.toISOString(),
         time: formatDisplayTime(time),
         location: userLocation,
@@ -142,6 +187,24 @@ export default function CreateFaithEventScreen() {
         contactPhone: contactPhone.trim() || undefined,
         contactEmail: contactEmail.trim() || undefined,
       });
+
+      if (shareToCommunityFeed) {
+        const faithEmoji =
+          faithType.toLowerCase().includes('muslim') ? '🕌'
+          : faithType.toLowerCase().includes('jew') ? '🕍'
+          : faithType.toLowerCase().includes('hindu') ? '🛕'
+          : faithType.toLowerCase().includes('christ') ? '⛪'
+          : '🕊️';
+
+        const feedContent =
+          `${faithEmoji} ${organizationName.trim()}\n\n` +
+          `📅 ${title.trim()}\n` +
+          `🗓 ${formatDisplayDate(date)} · ${formatDisplayTime(time)}\n` +
+          `📍 ${address.trim()}\n\n` +
+          `${description.trim()}\n\n#FaithEvent`;
+
+        await createDbPost(currentUser.id, feedContent, flyerUrl ? [flyerUrl] : [], userLocation);
+      }
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.back();
@@ -228,6 +291,67 @@ export default function CreateFaithEventScreen() {
                     {faithType || 'Select faith type'}
                   </Text>
                 </Pressable>
+              </View>
+            </Animated.View>
+
+            {/* Flyer */}
+            <Animated.View entering={FadeInUp.duration(400).delay(150)} className="mt-4">
+              <Text className="text-lg font-bold text-warmBrown mb-4">Event Flyer (optional)</Text>
+              <Pressable onPress={handlePickFlyer}>
+                {eventFlyer ? (
+                  <View className="rounded-2xl overflow-hidden">
+                    <Image
+                      source={{ uri: eventFlyer }}
+                      style={{ width: '100%', height: 220, borderRadius: 16 }}
+                      contentFit="cover"
+                    />
+                    <Pressable
+                      onPress={() => setEventFlyer(null)}
+                      className="absolute top-3 right-3 bg-black/50 rounded-full p-2"
+                    >
+                      <X size={18} color="#FFFFFF" />
+                    </Pressable>
+                  </View>
+                ) : (
+                  <View className="bg-white rounded-2xl h-[220px] items-center justify-center border-2 border-dashed border-gray-200">
+                    <Camera size={34} color="#9CA3AF" />
+                    <Text className="text-gray-500 font-medium mt-2">Add flyer image</Text>
+                    <Text className="text-gray-400 text-sm mt-1">Recommended: 4:5 ratio</Text>
+                  </View>
+                )}
+              </Pressable>
+            </Animated.View>
+
+            {/* Reach */}
+            <Animated.View entering={FadeInUp.duration(400).delay(175)} className="mt-4">
+              <Text className="text-lg font-bold text-warmBrown mb-4">Event Reach</Text>
+              <View className="bg-white rounded-2xl p-4 shadow-sm">
+                <Text className="text-gray-500 text-sm mb-3">
+                  Choose where this event should appear in Events.
+                </Text>
+                <View className="flex-row">
+                  {[
+                    { key: 'city', label: 'This city' },
+                    { key: 'nearby', label: 'Nearby cities' },
+                    { key: 'global', label: 'Global' },
+                  ].map((opt) => {
+                    const active = reach === (opt.key as EventReach);
+                    return (
+                      <Pressable
+                        key={opt.key}
+                        onPress={() => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          setReach(opt.key as EventReach);
+                        }}
+                        className={`flex-1 py-3 rounded-xl ${active ? 'bg-forest-600' : 'bg-gray-100'} ${opt.key === 'city' ? 'mr-2' : opt.key === 'nearby' ? 'mx-2' : 'ml-2'}`}
+                      >
+                        <Text className={`text-center font-semibold ${active ? 'text-white' : 'text-gray-700'}`}>
+                          {opt.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
               </View>
             </Animated.View>
 
@@ -376,6 +500,26 @@ export default function CreateFaithEventScreen() {
                     className="flex-1 py-3.5 ml-3 text-warmBrown"
                   />
                 </View>
+              </View>
+            </Animated.View>
+
+            {/* Share to Feed */}
+            <Animated.View entering={FadeInUp.duration(400).delay(350)} className="mt-4">
+              <Text className="text-lg font-bold text-warmBrown mb-4">Visibility</Text>
+              <View className="bg-white rounded-2xl p-4 flex-row items-center justify-between">
+                <View className="flex-row items-center flex-1 mr-4">
+                  <Users size={20} color="#1B4D3E" />
+                  <View className="ml-3">
+                    <Text className="text-warmBrown font-semibold">Share to Community Feed</Text>
+                    <Text className="text-gray-500 text-sm">Post this event as an announcement everyone can see</Text>
+                  </View>
+                </View>
+                <Switch
+                  value={shareToCommunityFeed}
+                  onValueChange={setShareToCommunityFeed}
+                  trackColor={{ false: '#D1D5DB', true: '#1B4D3E' }}
+                  thumbColor="#FFFFFF"
+                />
               </View>
             </Animated.View>
 

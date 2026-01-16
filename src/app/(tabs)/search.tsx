@@ -163,7 +163,9 @@ export default function SearchScreen() {
         queryBuilder = queryBuilder.eq('is_online', true);
       }
 
-      const { data, error } = await queryBuilder.limit(20);
+      // Use a larger limit so searches feel like they find "all real users"
+      // (If you want true "all", we can add pagination/infinite scroll.)
+      const { data, error } = await queryBuilder.limit(50);
 
       if (error) {
         console.log('[People Search] Error:', JSON.stringify(error));

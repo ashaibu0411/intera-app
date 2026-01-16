@@ -14,6 +14,8 @@ import {
   Bell,
   Search,
   Plus,
+  Heart,
+  Store,
 } from 'lucide-react-native';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -531,6 +533,42 @@ export default function HomeScreen() {
                 </View>
               </View>
             </LinearGradient>
+          </View>
+
+          {/* Quick links (makes key areas less “hidden”) */}
+          <View className="mx-4 mt-3">
+            <View className="bg-white rounded-2xl border border-gray-100 shadow-sm p-3">
+              <Text className="text-xs text-gray-500 mb-2">QUICK LINKS</Text>
+              <View className="flex-row gap-2">
+                <Pressable
+                  onPress={() => navigateTo('/faith-community')}
+                  className="flex-1 bg-amber-50 rounded-xl px-3 py-3 flex-row items-center"
+                >
+                  <View className="w-9 h-9 rounded-full bg-amber-500 items-center justify-center">
+                    <Heart size={18} color="#fff" />
+                  </View>
+                  <View className="ml-3 flex-1">
+                    <Text className="text-gray-900 font-semibold" numberOfLines={1}>Faith</Text>
+                    <Text className="text-gray-600 text-xs" numberOfLines={1}>Communities & events</Text>
+                  </View>
+                  <ChevronRight size={18} color="#D97706" />
+                </Pressable>
+
+                <Pressable
+                  onPress={() => navigateTo('/business-directory')}
+                  className="flex-1 bg-emerald-50 rounded-xl px-3 py-3 flex-row items-center"
+                >
+                  <View className="w-9 h-9 rounded-full bg-emerald-600 items-center justify-center">
+                    <Store size={18} color="#fff" />
+                  </View>
+                  <View className="ml-3 flex-1">
+                    <Text className="text-gray-900 font-semibold" numberOfLines={1}>Businesses</Text>
+                    <Text className="text-gray-600 text-xs" numberOfLines={1}>Directory & bookings</Text>
+                  </View>
+                  <ChevronRight size={18} color="#059669" />
+                </Pressable>
+              </View>
+            </View>
           </View>
 
           {/* === SECTION 1: COMMUNITY PRESENCE === */}

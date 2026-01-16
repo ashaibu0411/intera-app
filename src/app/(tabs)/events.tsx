@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, ScrollView, Pressable, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -22,6 +22,8 @@ import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { EventCard } from '@/components/EventCard';
 import { useStore, MOCK_USERS, type Event, type User } from '@/lib/store';
+import { getFaithEvents, getEvents } from '@/lib/marketplace-api';
+import { parseEventMetadata } from '@/lib/eventMetadata';
 
 type EventFilter = 'all' | 'Social Gathering' | 'Cultural Celebration' | 'Food & Dining' | 'Music & Entertainment' | 'Networking' | 'Education & Workshop';
 type FeedMode = 'local' | 'global';
@@ -228,6 +230,42 @@ export default function EventsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [feedMode, setFeedMode] = useState<FeedMode>('local');
   const [activeFilter, setActiveFilter] = useState<EventFilter>('all');
+  const [dbFaithEvents, setDbFaithEvents] = useState<Array<{
+    id: string;
+    organizer_id: string;
+    organization_name: string;
+    organization_logo: string | null;
+    faith_type: string;
+    title: string;
+    description: string;
+    date: string;
+    time: string;
+    location: string;
+    address: string;
+    is_recurring: boolean;
+    recurring_schedule: string | null;
+    contact_phone: string | null;
+    contact_email: string | null;
+    attendees_count: number;
+    created_at: string;
+  }>>([]);
+  const [dbEvents, setDbEvents] = useState<Array<{
+    id: string;
+    creator_id: string;
+    title: string;
+    description: string;
+    date: string;
+    time: string;
+    end_time: string | null;
+    location: string;
+    address: string;
+    image: string | null;
+    category: string;
+    is_public: boolean;
+    scope: 'city' | 'nearby' | 'global';
+    created_at: string;
+    creator?: any;
+  }>>([]);
 
   const selectedLocation = useStore((s) => s.selectedLocation);
   const eventRsvps = useStore((s) => s.eventRsvps);
@@ -235,16 +273,115 @@ export default function EventsScreen() {
 
   const cityName = selectedLocation?.city || 'Denver';
 
+  const mapFaithToEvent = (fe: (typeof dbFaithEvents)[number]): Event => {
+    const meta = parseEventMetadata(fe.description || '');
+    // Best-effort: use the org as "creator" (EventCard expects a User)
+    const creator: User = {
+      id: fe.organizer_id,
+      name: fe.organization_name,
+      username: 'faith-center',
+      avatar: fe.organization_logo || 'https://images.unsplash.com/photo-1438032005730-c779502df39b?w=200&h=200&fit=crop',
+      bio: fe.faith_type,
+      location: fe.location,
+      interests: ['Faith', 'Community'],
+      joinedDate: fe.created_at,
+    };
+
+    return {
+      id: `faith_${fe.id}`,
+      creator,
+      title: fe.title,
+      description: meta.cleanDescription || fe.description,
+      date: fe.date,
+      time: fe.time,
+      endTime: undefined,
+      location: fe.location,
+      address: fe.address,
+      image: meta.flyerUrl || fe.organization_logo || undefined,
+      isPublic: true,
+      attendees: [],
+      rsvpCount: fe.attendees_count || 0,
+      category: 'Social Gathering',
+      createdAt: fe.created_at,
+      scope: meta.reach,
+    };
+  };
+
+  const fetchFaithEvents = async () => {
+    try {
+      const data = await getFaithEvents();
+      setDbFaithEvents((data || []) as any);
+    } catch {
+      // Ignore; events tab should still work with mock events
+    }
+  };
+
+  const fetchEvents = async () => {
+    try {
+      const data = await getEvents(200);
+      setDbEvents((data || []) as any);
+    } catch {
+      // Ignore; events tab should still work with mock events
+    }
+  };
+
+  useEffect(() => {
+    fetchFaithEvents();
+    fetchEvents();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Filter and combine events based on mode and filter
   const filteredEvents = useMemo(() => {
     let events = feedMode === 'local' ? MOCK_EVENTS : [...MOCK_EVENTS, ...GLOBAL_EVENTS];
 
+    // Merge in DB faith events (mapped to EventCard shape)
+    const faithAsEvents = dbFaithEvents.map(mapFaithToEvent);
+    const generalDbEvents: Event[] = dbEvents.map((e) => {
+      const creator: User = {
+        id: e.creator?.id || e.creator_id,
+        name: e.creator?.name || 'Community Member',
+        username: e.creator?.username || 'member',
+        avatar: e.creator?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&h=200&fit=crop&crop=face',
+        bio: e.creator?.bio || '',
+        location: e.creator?.location || e.location,
+        interests: e.creator?.interests || [],
+        joinedDate: e.creator?.created_at || e.created_at,
+      };
+      return {
+        id: e.id,
+        creator,
+        title: e.title,
+        description: e.description,
+        date: e.date,
+        time: e.time,
+        endTime: e.end_time || undefined,
+        location: e.location,
+        address: e.address,
+        image: e.image || undefined,
+        isPublic: e.is_public,
+        attendees: [],
+        rsvpCount: 0,
+        category: e.category,
+        createdAt: e.created_at,
+        scope: e.scope,
+      };
+    });
+
+    events = [...faithAsEvents, ...generalDbEvents, ...events];
+
     // Filter by location for local mode
     if (feedMode === 'local') {
-      events = events.filter((e) =>
-        e.location.toLowerCase().includes(cityName.toLowerCase()) ||
-        e.location.toLowerCase().includes(selectedLocation?.state?.toLowerCase() || '')
-      );
+      const cityLower = cityName.toLowerCase();
+      const stateLower = (selectedLocation?.state || '').toLowerCase();
+      events = events.filter((e) => {
+        const reach = e.scope || 'city';
+        const locLower = (e.location || '').toLowerCase();
+        if (reach === 'global') return true;
+        if (locLower.includes(cityLower)) return true;
+        if (reach === 'nearby' && stateLower && locLower.includes(stateLower)) return true;
+        return false;
+      });
     }
 
     // Filter by category
@@ -254,7 +391,7 @@ export default function EventsScreen() {
 
     // Sort by date
     return events.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  }, [feedMode, activeFilter, cityName, selectedLocation?.state]);
+  }, [feedMode, activeFilter, cityName, selectedLocation?.state, dbFaithEvents]);
 
   // Get upcoming events (next 7 days) for featured section
   const upcomingEvents = useMemo(() => {
@@ -262,15 +399,18 @@ export default function EventsScreen() {
     const nextWeek = new Date();
     nextWeek.setDate(nextWeek.getDate() + 7);
 
-    return MOCK_EVENTS.filter((e) => {
+    const base = [...dbFaithEvents.map(mapFaithToEvent), ...MOCK_EVENTS];
+    return base.filter((e) => {
       const eventDate = new Date(e.date);
       return eventDate >= now && eventDate <= nextWeek;
     }).slice(0, 3);
-  }, []);
+  }, [dbFaithEvents]);
 
   const onRefresh = async () => {
     setRefreshing(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    await fetchFaithEvents();
+    await fetchEvents();
     await new Promise((resolve) => setTimeout(resolve, 1000));
     setRefreshing(false);
   };

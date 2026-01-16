@@ -191,6 +191,33 @@ export interface DbFaithEvent {
   created_at: string;
 }
 
+export interface DbEvent {
+  id: string;
+  creator_id: string;
+  title: string;
+  description: string;
+  date: string;
+  time: string;
+  end_time: string | null;
+  location: string;
+  address: string;
+  image: string | null;
+  category: string;
+  is_public: boolean;
+  scope: 'city' | 'nearby' | 'global';
+  created_at: string;
+  // Joined data
+  creator?: DbUser;
+}
+
+export interface DbEventRsvp {
+  id: string;
+  event_id: string;
+  user_id: string;
+  status: 'interested' | 'going';
+  created_at: string;
+}
+
 export interface DbUserWallet {
   id: string;
   user_id: string;

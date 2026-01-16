@@ -47,6 +47,25 @@ const REACTIONS = [
 // Post type detection for impact metrics
 type PostType = 'question' | 'request' | 'offer' | 'invitation' | 'checkin' | 'general';
 
+type OrgBadge = {
+  emoji: string;
+  name: string;
+  body: string;
+};
+
+const ORG_HEADER_RE =
+  /^(🏪|⛪|🕌|🕍|🛕|🕊️)\s+([^\n]+)\n\n([\s\S]*)$/;
+
+const parseOrgHeader = (content: string): OrgBadge | null => {
+  const match = content.match(ORG_HEADER_RE);
+  if (!match) return null;
+  const emoji = match[1] || '';
+  const name = (match[2] || '').trim();
+  const body = (match[3] || '').trim();
+  if (!emoji || !name) return null;
+  return { emoji, name, body };
+};
+
 const detectPostType = (content: string): PostType => {
   const lowerContent = content.toLowerCase();
   if (lowerContent.includes('?') || lowerContent.includes('anyone know') || lowerContent.includes('can someone') || lowerContent.includes('does anyone')) {
@@ -597,8 +616,11 @@ export function PostCard({ post, onLike, onComment, onShare, showGuidelines = fa
     communityRoles: (post.author as any).communityRoles,
   });
 
-  // Detect post type and get impact text
-  const postType = detectPostType(post.content);
+  const orgHeader = parseOrgHeader(post.content);
+  const displayContent = orgHeader?.body || post.content;
+
+  // Detect post type and get impact text (ignore org header line)
+  const postType = detectPostType(displayContent);
   const impactText = getImpactText(postType, likeCount, commentCount);
 
   return (
@@ -635,6 +657,17 @@ export function PostCard({ post, onLike, onComment, onShare, showGuidelines = fa
           size={44}
         />
         <View className="flex-1 ml-3">
+          {orgHeader && (
+            <View className="flex-row items-center mb-0.5">
+              <View className="bg-gray-100 rounded-full px-2 py-0.5 flex-row items-center">
+                <Text style={{ fontSize: 12 }}>{orgHeader.emoji}</Text>
+                <Text className="text-xs text-gray-700 font-semibold ml-1" numberOfLines={1}>
+                  {orgHeader.name}
+                </Text>
+              </View>
+              <Text className="text-xs text-gray-400 ml-2">announcement</Text>
+            </View>
+          )}
           <View className="flex-row items-center">
             <Text className="text-warmBrown font-semibold text-lg">{post.author.name}</Text>
             <Text className="ml-1.5" style={{ fontSize: 16 }}>{countryFlag}</Text>
@@ -687,7 +720,7 @@ export function PostCard({ post, onLike, onComment, onShare, showGuidelines = fa
 
       {/* Content */}
       <View className="px-4 pb-3">
-        <Text className="text-warmBrown text-lg leading-7">{post.content}</Text>
+        <Text className="text-warmBrown text-lg leading-7">{displayContent}</Text>
       </View>
 
       {/* Image with double-tap to like */}

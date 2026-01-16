@@ -187,6 +187,7 @@ export interface Event {
   rsvpCount: number;
   category: string;
   createdAt: string;
+  scope?: 'city' | 'nearby' | 'global';
 }
 
 export interface Business {

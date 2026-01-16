@@ -119,6 +119,7 @@ function RootLayoutNav() {
         <Stack.Screen name="marketplace" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="faith-community" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="business-directory" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="event/[id]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="post/[id]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="profile/[id]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="messages" options={{ animation: 'slide_from_right' }} />

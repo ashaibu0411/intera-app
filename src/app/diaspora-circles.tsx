@@ -26,7 +26,7 @@ import {
 } from 'lucide-react-native';
 import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useStore } from '@/lib/store';
 
 // Circle types
@@ -169,9 +169,14 @@ const getCategoryLabel = (category: CircleCategory): string => {
 export default function DiasporaCirclesScreen() {
   const currentUser = useStore((s) => s.currentUser);
   const selectedLocation = useStore((s) => s.selectedLocation);
+  const { filter } = useLocalSearchParams<{ filter?: string }>();
   const [circles, setCircles] = useState(DIASPORA_CIRCLES);
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeFilter, setActiveFilter] = useState<CircleCategory | 'all'>('all');
+  const initialFilter =
+    filter && ['generation', 'faith', 'profession', 'language', 'interest', 'family'].includes(filter)
+      ? (filter as CircleCategory)
+      : 'all';
+  const [activeFilter, setActiveFilter] = useState<CircleCategory | 'all'>(initialFilter);
   const [showCircleDetail, setShowCircleDetail] = useState<DiasporaCircle | null>(null);
 
   const filteredCircles = circles.filter((circle) => {

@@ -27,6 +27,9 @@ import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { useStore } from '@/lib/store';
+import { type EventReach } from '@/lib/eventMetadata';
+import { uploadImages } from '@/lib/posts';
+import { createEvent } from '@/lib/marketplace-api';
 
 const EVENT_CATEGORIES = [
   { key: 'Social Gathering', label: 'Social Gathering', icon: Users },
@@ -42,6 +45,7 @@ export default function CreateEventScreen() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('');
+  const [reach, setReach] = useState<EventReach>('city');
   const [date, setDate] = useState<Date>(new Date());
   const [startTime, setStartTime] = useState<Date>(new Date());
   const [endTime, setEndTime] = useState<Date>(() => {
@@ -138,8 +142,28 @@ export default function CreateEventScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     try {
-      // Simulate API call delay
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      let flyerUrl: string | undefined;
+      if (eventImage) {
+        const uploaded = await uploadImages([eventImage], currentUser.id);
+        flyerUrl = uploaded[0];
+        if (!flyerUrl) {
+          throw new Error('Flyer upload failed. Please try again.');
+        }
+      }
+
+      await createEvent(currentUser.id, {
+        title: title.trim(),
+        description: description.trim(),
+        date: date.toISOString(),
+        time: formatDisplayTime(startTime),
+        endTime: formatDisplayTime(endTime),
+        location: userLocation,
+        address: address.trim(),
+        image: flyerUrl,
+        category,
+        isPublic,
+        scope: reach,
+      });
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.back();
@@ -188,7 +212,7 @@ export default function CreateEventScreen() {
           <ScrollView className="flex-1 px-5" showsVerticalScrollIndicator={false}>
             {/* Event Image */}
             <Animated.View entering={FadeInUp.duration(400).delay(100)} className="mt-4">
-              <Text className="text-lg font-bold text-warmBrown mb-4">Event Cover</Text>
+              <Text className="text-lg font-bold text-warmBrown mb-4">Event Flyer / Cover</Text>
               <Pressable onPress={handlePickImage}>
                 {eventImage ? (
                   <View className="rounded-2xl overflow-hidden">
@@ -204,11 +228,44 @@ export default function CreateEventScreen() {
                 ) : (
                   <View className="bg-terracotta-50 rounded-2xl h-[180px] items-center justify-center border-2 border-dashed border-terracotta-200">
                     <ImagePlus size={40} color="#D4673A" />
-                    <Text className="text-terracotta-500 font-medium mt-2">Add Event Cover</Text>
+                    <Text className="text-terracotta-500 font-medium mt-2">Add flyer image</Text>
                     <Text className="text-gray-400 text-sm mt-1">Recommended: 16:9 ratio</Text>
                   </View>
                 )}
               </Pressable>
+            </Animated.View>
+
+            {/* Reach */}
+            <Animated.View entering={FadeInUp.duration(400).delay(150)} className="mt-6">
+              <Text className="text-lg font-bold text-warmBrown mb-4">Event Reach</Text>
+              <View className="bg-white rounded-2xl p-4 shadow-sm">
+                <Text className="text-gray-500 text-sm mb-3">
+                  Choose where this event should appear in Events.
+                </Text>
+                <View className="flex-row">
+                  {[
+                    { key: 'city', label: 'This city' },
+                    { key: 'nearby', label: 'Nearby cities' },
+                    { key: 'global', label: 'Global' },
+                  ].map((opt) => {
+                    const active = reach === (opt.key as EventReach);
+                    return (
+                      <Pressable
+                        key={opt.key}
+                        onPress={() => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          setReach(opt.key as EventReach);
+                        }}
+                        className={`flex-1 py-3 rounded-xl ${active ? 'bg-terracotta-500' : 'bg-gray-100'} ${opt.key === 'city' ? 'mr-2' : opt.key === 'nearby' ? 'mx-2' : 'ml-2'}`}
+                      >
+                        <Text className={`text-center font-semibold ${active ? 'text-white' : 'text-gray-700'}`}>
+                          {opt.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
             </Animated.View>
 
             {/* Event Details */}

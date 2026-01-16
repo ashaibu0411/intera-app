@@ -35,9 +35,11 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 export default function CreateScreen() {
   const [mode, setMode] = useState<CreateMode>('select');
+  const [postAsBusinessId, setPostAsBusinessId] = useState<string | null>(null);
   const currentUser = useStore((s) => s.currentUser);
   const isGuest = useStore((s) => s.isGuest);
   const currentCommunity = useStore((s) => s.currentCommunity);
+  const userBusinesses = useStore((s) => s.userBusinesses);
 
   const displayCommunity = currentCommunity ?? MOCK_COMMUNITIES[0];
 
@@ -78,11 +80,28 @@ export default function CreateScreen() {
   };
 
   if (mode === 'select') {
-    return <CreateSelectScreen onSelect={setMode} user={currentUser} />;
+    return (
+      <CreateSelectScreen
+        onSelect={setMode}
+        user={currentUser}
+        businesses={userBusinesses}
+        postAsBusinessId={postAsBusinessId}
+        setPostAsBusinessId={setPostAsBusinessId}
+      />
+    );
   }
 
   if (mode === 'post') {
-    return <CreatePostForm user={currentUser} community={displayCommunity} onBack={handleBack} />;
+    const business =
+      postAsBusinessId ? userBusinesses.find((b) => b.id === postAsBusinessId) : null;
+    return (
+      <CreatePostForm
+        user={currentUser}
+        community={displayCommunity}
+        onBack={handleBack}
+        business={business || null}
+      />
+    );
   }
 
   if (mode === 'sell') {
@@ -97,7 +116,19 @@ export default function CreateScreen() {
 }
 
 // Selection Screen
-function CreateSelectScreen({ onSelect, user }: { onSelect: (mode: CreateMode) => void; user: any }) {
+function CreateSelectScreen({
+  onSelect,
+  user,
+  businesses,
+  postAsBusinessId,
+  setPostAsBusinessId,
+}: {
+  onSelect: (mode: CreateMode) => void;
+  user: any;
+  businesses: any[];
+  postAsBusinessId: string | null;
+  setPostAsBusinessId: (id: string | null) => void;
+}) {
   const options = [
     {
       id: 'post',
@@ -140,9 +171,43 @@ function CreateSelectScreen({ onSelect, user }: { onSelect: (mode: CreateMode) =
             />
             <View className="ml-3">
               <Text className="text-warmBrown font-semibold text-lg">{user.name}</Text>
-              <Text className="text-gray-500 text-sm">Posting as yourself</Text>
+              <Text className="text-gray-500 text-sm">
+                {postAsBusinessId
+                  ? `Posting as ${businesses.find((b) => b.id === postAsBusinessId)?.name || 'your business'}`
+                  : 'Posting as yourself'}
+              </Text>
             </View>
           </Animated.View>
+
+          {/* Post identity */}
+          {Array.isArray(businesses) && businesses.length > 0 && (
+            <Animated.View entering={FadeInUp.duration(400).delay(140)} className="bg-white rounded-2xl p-4 mb-6 shadow-sm">
+              <Text className="text-warmBrown font-semibold">Post identity</Text>
+              <Text className="text-gray-500 text-sm mt-1">
+                If you’re making a business announcement, you can post under your business name.
+              </Text>
+              <View className="flex-row mt-3">
+                <Pressable
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setPostAsBusinessId(null);
+                  }}
+                  className={`flex-1 rounded-xl py-3 items-center mr-2 ${postAsBusinessId ? 'bg-gray-100' : 'bg-forest-600'}`}
+                >
+                  <Text className={`${postAsBusinessId ? 'text-gray-700' : 'text-white'} font-semibold`}>Personal</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setPostAsBusinessId(businesses[0]?.id || null);
+                  }}
+                  className={`flex-1 rounded-xl py-3 items-center ml-2 ${postAsBusinessId ? 'bg-forest-600' : 'bg-gray-100'}`}
+                >
+                  <Text className={`${postAsBusinessId ? 'text-white' : 'text-gray-700'} font-semibold`}>Business</Text>
+                </Pressable>
+              </View>
+            </Animated.View>
+          )}
 
           {/* Options */}
           {options.map((option, index) => (
@@ -184,7 +249,7 @@ function CreateSelectScreen({ onSelect, user }: { onSelect: (mode: CreateMode) =
 }
 
 // Post Form
-function CreatePostForm({ user, community, onBack }: { user: any; community: any; onBack: () => void }) {
+function CreatePostForm({ user, community, onBack, business }: { user: any; community: any; onBack: () => void; business: any | null }) {
   const [content, setContent] = useState('');
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
   const [selectedVideo, setSelectedVideo] = useState<string | null>(null);
@@ -233,6 +298,9 @@ function CreatePostForm({ user, community, onBack }: { user: any; community: any
   const handlePost = async () => {
     if (!content.trim()) return;
 
+    const formattedContent =
+      business?.name ? `🏪 ${business.name}\n\n${content.trim()}` : content.trim();
+
     let postId = `post_${Date.now()}`;
     let savedToDb = false;
 
@@ -249,7 +317,7 @@ function CreatePostForm({ user, community, onBack }: { user: any; community: any
 
     // Try to save to database first (so other users can see it)
     try {
-      const dbPost = await createDbPost(user.id, content.trim(), uploadedImageUrls, community.city);
+      const dbPost = await createDbPost(user.id, formattedContent, uploadedImageUrls, community.city);
       if (dbPost?.id) {
         postId = dbPost.id;
         savedToDb = true;
@@ -273,7 +341,7 @@ function CreatePostForm({ user, community, onBack }: { user: any; community: any
           interests: user.interests || [],
           joinedDate: user.joinedDate || new Date().toISOString(),
         },
-        content: content.trim(),
+        content: formattedContent,
         images: uploadedImageUrls.length > 0 ? uploadedImageUrls : selectedImages,
         video: selectedVideo ?? undefined,
         likes: 0,
@@ -289,7 +357,7 @@ function CreatePostForm({ user, community, onBack }: { user: any; community: any
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
     // Send notification to other users in the community
-    await sendNewPostNotification(user.name, content.trim(), postId);
+    await sendNewPostNotification(user.name, formattedContent, postId);
 
     router.navigate('/(tabs)');
   };
@@ -650,6 +718,7 @@ function CreateEventForm({ user, community, onBack }: { user: any; community: an
   const [category, setCategory] = useState('');
   const [isPublic, setIsPublic] = useState(true);
   const [eventImage, setEventImage] = useState<string | null>(null);
+  const [reach, setReach] = useState<'city' | 'nearby' | 'global'>('city');
   const [showCategoryModal, setShowCategoryModal] = useState(false);
 
   const handlePickImage = async () => {
@@ -695,7 +764,7 @@ function CreateEventForm({ user, community, onBack }: { user: any; community: an
           <ScrollView className="flex-1 px-5" showsVerticalScrollIndicator={false}>
             {/* Event Image */}
             <View className="py-4">
-              <Text className="text-warmBrown font-semibold mb-3">Event Image</Text>
+              <Text className="text-warmBrown font-semibold mb-3">Event Flyer / Cover (optional)</Text>
               <Pressable onPress={handlePickImage}>
                 {eventImage ? (
                   <View className="relative">
@@ -711,6 +780,36 @@ function CreateEventForm({ user, community, onBack }: { user: any; community: an
                   </View>
                 )}
               </Pressable>
+            </View>
+
+            {/* Reach */}
+            <View className="mb-4">
+              <Text className="text-warmBrown font-semibold mb-3">Event Reach</Text>
+              <View className="bg-white rounded-xl p-4">
+                <Text className="text-gray-500 text-sm mb-3">
+                  Choose where this event should appear in Events.
+                </Text>
+                <View className="flex-row">
+                  {[
+                    { key: 'city', label: 'This city' },
+                    { key: 'nearby', label: 'Nearby cities' },
+                    { key: 'global', label: 'Global' },
+                  ].map((opt) => {
+                    const active = reach === (opt.key as any);
+                    return (
+                      <Pressable
+                        key={opt.key}
+                        onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setReach(opt.key as any); }}
+                        className={`flex-1 py-3 rounded-xl ${active ? 'bg-forest-600' : 'bg-gray-100'} ${opt.key === 'city' ? 'mr-2' : opt.key === 'nearby' ? 'mx-2' : 'ml-2'}`}
+                      >
+                        <Text className={`text-center font-semibold ${active ? 'text-white' : 'text-gray-700'}`}>
+                          {opt.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
             </View>
 
             {/* Title */}

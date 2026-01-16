@@ -1,4 +1,4 @@
-import { supabase, DbMarketplaceListing, DbFaithEvent } from './supabase';
+import { supabase, DbMarketplaceListing, DbFaithEvent, DbEvent } from './supabase';
 
 // ==================== MARKETPLACE ====================
 
@@ -397,4 +397,143 @@ export async function rsvpToFaithEvent(eventId: string, userId: string) {
       .update({ attendees_count: (event.attendees_count || 0) + 1 })
       .eq('id', eventId);
   }
+}
+
+// ==================== EVENTS ====================
+
+export async function getEvents(limit = 100) {
+  const { data, error } = await supabase
+    .from('events')
+    .select(`
+      *,
+      creator:profiles(*)
+    `)
+    .order('date', { ascending: true })
+    .limit(limit);
+
+  if (error) throw error;
+  return data as unknown as DbEvent[];
+}
+
+export async function createEvent(
+  creatorId: string,
+  event: {
+    title: string;
+    description: string;
+    date: string; // ISO string
+    time: string;
+    endTime?: string;
+    location: string;
+    address: string;
+    image?: string;
+    category: string;
+    isPublic: boolean;
+    scope: 'city' | 'nearby' | 'global';
+  }
+) {
+  const { data, error } = await supabase
+    .from('events')
+    .insert({
+      creator_id: creatorId,
+      title: event.title,
+      description: event.description,
+      date: event.date,
+      time: event.time,
+      end_time: event.endTime,
+      location: event.location,
+      address: event.address,
+      image: event.image,
+      category: event.category,
+      is_public: event.isPublic,
+      scope: event.scope,
+    })
+    .select(`
+      *,
+      creator:profiles(*)
+    `)
+    .single();
+
+  if (error) throw error;
+  return data as unknown as DbEvent;
+}
+
+export async function getEvent(eventId: string) {
+  const { data, error } = await supabase
+    .from('events')
+    .select(`
+      *,
+      creator:profiles(*)
+    `)
+    .eq('id', eventId)
+    .single();
+
+  if (error) throw error;
+  return data as unknown as DbEvent;
+}
+
+export async function updateEvent(
+  eventId: string,
+  updates: Partial<{
+    title: string;
+    description: string;
+    date: string;
+    time: string;
+    end_time: string | null;
+    location: string;
+    address: string;
+    image: string | null;
+    category: string;
+    is_public: boolean;
+    scope: 'city' | 'nearby' | 'global';
+  }>
+) {
+  const { data, error } = await supabase
+    .from('events')
+    .update(updates)
+    .eq('id', eventId)
+    .select(`
+      *,
+      creator:profiles(*)
+    `)
+    .single();
+
+  if (error) throw error;
+  return data as unknown as DbEvent;
+}
+
+export async function getEventRsvpCounts(eventId: string): Promise<{ going: number; interested: number }> {
+  const { count: goingCount, error: goingError } = await supabase
+    .from('event_rsvps')
+    .select('*', { count: 'exact', head: true })
+    .eq('event_id', eventId)
+    .eq('status', 'going');
+  if (goingError) throw goingError;
+
+  const { count: interestedCount, error: interestedError } = await supabase
+    .from('event_rsvps')
+    .select('*', { count: 'exact', head: true })
+    .eq('event_id', eventId)
+    .eq('status', 'interested');
+  if (interestedError) throw interestedError;
+
+  return { going: goingCount || 0, interested: interestedCount || 0 };
+}
+
+export async function setEventRsvp(eventId: string, userId: string, status: 'interested' | 'going') {
+  const { error } = await supabase
+    .from('event_rsvps')
+    .upsert(
+      { event_id: eventId, user_id: userId, status },
+      { onConflict: 'event_id,user_id' }
+    );
+  if (error) throw error;
+}
+
+export async function removeEventRsvp(eventId: string, userId: string) {
+  const { error } = await supabase
+    .from('event_rsvps')
+    .delete()
+    .eq('event_id', eventId)
+    .eq('user_id', userId);
+  if (error) throw error;
 }
