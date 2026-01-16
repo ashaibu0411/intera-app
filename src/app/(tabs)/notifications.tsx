@@ -47,8 +47,8 @@ function NotificationItem({ notification, index }: { notification: Notification;
           markNotificationRead(notification.id);
           const fallbackRoute =
             notification.type === 'alert' ? '/safety-alerts'
-            : notification.type === 'event' ? '/(tabs)/events'
-            : '/(tabs)';
+            : notification.type === 'event' ? '/events'
+            : '/';
           router.push((notification.route || fallbackRoute) as any);
         }}
         className={`flex-row items-start p-4 mx-4 mb-3 rounded-2xl ${
@@ -90,7 +90,7 @@ function NotificationItem({ notification, index }: { notification: Notification;
 
 export default function NotificationsScreen() {
   const [activeFilter, setActiveFilter] = useState<NotificationFilter>('all');
-  const notifications = useStore((s) => s.notifications);
+  const notifications = useStore((s) => s.notifications ?? []);
   const markAllNotificationsRead = useStore((s) => s.markAllNotificationsRead);
   const clearNotifications = useStore((s) => s.clearNotifications);
 

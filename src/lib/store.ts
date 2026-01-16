@@ -2212,7 +2212,7 @@ export const MOCK_NOTIFICATIONS: Notification[] = [
     timestamp: '2024-12-30T11:00:00Z',
     read: false,
     avatar: MOCK_USERS[0].avatar,
-    route: '/(tabs)',
+    route: '/',
   },
   {
     id: '2',
@@ -2222,7 +2222,7 @@ export const MOCK_NOTIFICATIONS: Notification[] = [
     timestamp: '2024-12-30T10:45:00Z',
     read: false,
     avatar: MOCK_USERS[1].avatar,
-    route: '/(tabs)',
+    route: '/',
   },
   {
     id: '3',
@@ -2231,7 +2231,7 @@ export const MOCK_NOTIFICATIONS: Notification[] = [
     message: 'African Tech Meetup starts in 2 days',
     timestamp: '2024-12-29T09:00:00Z',
     read: true,
-    route: '/(tabs)/events',
+    route: '/events',
   },
   {
     id: '4',
