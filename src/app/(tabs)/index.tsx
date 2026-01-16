@@ -45,6 +45,7 @@ import { getPosts } from '@/lib/posts';
 import { detectCurrentLocation, isLocationDifferent, type DetectedLocation } from '@/lib/locationDetection';
 import { getCurrentUser } from '@/lib/auth';
 import { useUnreadMessages } from '@/lib/useUnreadMessages';
+import { useStore as useAppStore } from '@/lib/store';
 
 // Global posts for worldwide feed
 const GLOBAL_MOCK_POSTS = [
@@ -131,6 +132,7 @@ export default function HomeScreen() {
   const blockedUserIds = useStore((s) => s.blockedUserIds);
 
   const { unreadCount, refetch: refetchUnread } = useUnreadMessages();
+  const notificationsUnreadCount = useAppStore((s) => (s.notifications ?? []).filter((n) => !n.read).length);
 
   useEffect(() => {
     getCurrentUser().then(setCurrentUser);
@@ -356,9 +358,16 @@ export default function HomeScreen() {
               </Pressable>
               <Pressable
                 onPress={() => navigateTo('/notifications')}
-                className="w-10 h-10 items-center justify-center"
+                className="w-10 h-10 items-center justify-center relative"
               >
                 <Bell size={24} color="#2D1F1A" />
+                {notificationsUnreadCount > 0 && (
+                  <View className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-terracotta-500 rounded-full border-2 border-white items-center justify-center px-1">
+                    <Text className="text-white text-[10px] font-bold leading-none">
+                      {notificationsUnreadCount > 99 ? '99+' : notificationsUnreadCount.toString()}
+                    </Text>
+                  </View>
+                )}
               </Pressable>
               <Pressable
                 onPress={() => navigateTo('/messages')}

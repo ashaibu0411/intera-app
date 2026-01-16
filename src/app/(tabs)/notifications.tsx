@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 import { View, Text, ScrollView, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
@@ -6,7 +6,8 @@ import { Bell, Heart, MessageCircle, Calendar, AlertTriangle, Check } from 'luci
 import Animated, { FadeIn, FadeInUp, FadeInRight } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { formatDistanceToNow } from 'date-fns';
-import { MOCK_NOTIFICATIONS, type Notification } from '@/lib/store';
+import { useStore, type Notification } from '@/lib/store';
+import { router } from 'expo-router';
 
 type NotificationFilter = 'all' | 'neighborhood' | 'activity' | 'alerts';
 
@@ -34,12 +35,22 @@ function NotificationIcon({ type }: { type: Notification['type'] }) {
 
 function NotificationItem({ notification, index }: { notification: Notification; index: number }) {
   const timeAgo = formatDistanceToNow(new Date(notification.timestamp), { addSuffix: true });
+  const markNotificationRead = useStore((s) => s.markNotificationRead);
 
   return (
     <Animated.View
       entering={FadeInUp.duration(300).delay(index * 50)}
     >
       <Pressable
+        onPress={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          markNotificationRead(notification.id);
+          const fallbackRoute =
+            notification.type === 'alert' ? '/safety-alerts'
+            : notification.type === 'event' ? '/(tabs)/events'
+            : '/(tabs)';
+          router.push((notification.route || fallbackRoute) as any);
+        }}
         className={`flex-row items-start p-4 mx-4 mb-3 rounded-2xl ${
           notification.read ? 'bg-white' : 'bg-terracotta-50'
         } shadow-sm`}
@@ -79,7 +90,9 @@ function NotificationItem({ notification, index }: { notification: Notification;
 
 export default function NotificationsScreen() {
   const [activeFilter, setActiveFilter] = useState<NotificationFilter>('all');
-  const [notifications, setNotifications] = useState(MOCK_NOTIFICATIONS);
+  const notifications = useStore((s) => s.notifications);
+  const markAllNotificationsRead = useStore((s) => s.markAllNotificationsRead);
+  const clearNotifications = useStore((s) => s.clearNotifications);
 
   const handleFilterChange = (filter: NotificationFilter) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -88,18 +101,26 @@ export default function NotificationsScreen() {
 
   const markAllRead = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    markAllNotificationsRead();
   };
 
-  const filteredNotifications = notifications.filter((n) => {
+  const filteredNotifications = useMemo(() => notifications.filter((n) => {
     if (activeFilter === 'all') return true;
     if (activeFilter === 'neighborhood') return n.type === 'event' || n.type === 'alert';
     if (activeFilter === 'activity') return n.type === 'like' || n.type === 'comment';
     if (activeFilter === 'alerts') return n.type === 'alert';
     return true;
-  });
+  }), [notifications, activeFilter]);
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  const unreadCount = useMemo(() => notifications.filter((n) => !n.read).length, [notifications]);
+
+  // Clear the badge count as soon as user opens Notifications
+  useEffect(() => {
+    if (unreadCount > 0) {
+      markAllNotificationsRead();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <View className="flex-1 bg-cream">
@@ -117,13 +138,24 @@ export default function NotificationsScreen() {
             </View>
 
             {unreadCount > 0 && (
-              <Pressable
-                onPress={markAllRead}
-                className="flex-row items-center bg-forest-50 rounded-full px-3 py-1.5"
-              >
-                <Check size={14} color="#1B4D3E" />
-                <Text className="text-forest-700 text-sm font-medium ml-1">Mark all read</Text>
-              </Pressable>
+              <View className="flex-row items-center">
+                <Pressable
+                  onPress={markAllRead}
+                  className="flex-row items-center bg-forest-50 rounded-full px-3 py-1.5 mr-2"
+                >
+                  <Check size={14} color="#1B4D3E" />
+                  <Text className="text-forest-700 text-sm font-medium ml-1">Mark all read</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                    clearNotifications();
+                  }}
+                  className="flex-row items-center bg-white rounded-full px-3 py-1.5 border border-gray-200"
+                >
+                  <Text className="text-gray-700 text-sm font-medium">Clear</Text>
+                </Pressable>
+              </View>
             )}
           </View>
 

@@ -60,25 +60,29 @@ async function fetchUnreadCountFromDb(userId: string): Promise<number> {
 // Mark all messages as read in database and return the new count
 export async function markAllMessagesAsReadAndRefresh(userId: string): Promise<number> {
   try {
-    // Get all conversation IDs the user is part of
-    const { data: participations } = await supabase
-      .from('conversation_participants')
-      .select('conversation_id')
-      .eq('user_id', userId);
+    // Prefer safe RPC (works even when RLS blocks direct UPDATE)
+    const { error: rpcError } = await supabase.rpc('mark_all_messages_read');
 
-    if (!participations || participations.length === 0) {
-      return 0;
+    if (rpcError) {
+      // Fallback to direct update if RPC isn't deployed yet
+      const { data: participations } = await supabase
+        .from('conversation_participants')
+        .select('conversation_id')
+        .eq('user_id', userId);
+
+      if (!participations || participations.length === 0) {
+        return 0;
+      }
+
+      const conversationIds = participations.map((p) => p.conversation_id);
+
+      await supabase
+        .from('messages')
+        .update({ read: true })
+        .in('conversation_id', conversationIds)
+        .neq('sender_id', userId)
+        .eq('read', false);
     }
-
-    const conversationIds = participations.map((p) => p.conversation_id);
-
-    // Update all unread messages to read
-    await supabase
-      .from('messages')
-      .update({ read: true })
-      .in('conversation_id', conversationIds)
-      .neq('sender_id', userId)
-      .eq('read', false);
 
     // Wait a bit for database to sync
     await new Promise(resolve => setTimeout(resolve, 100));
@@ -102,12 +106,19 @@ export async function markAllMessagesAsReadAndRefresh(userId: string): Promise<n
 // Mark messages in a specific conversation as read
 export async function markConversationAsRead(conversationId: string, userId: string): Promise<void> {
   try {
-    await supabase
-      .from('messages')
-      .update({ read: true })
-      .eq('conversation_id', conversationId)
-      .neq('sender_id', userId)
-      .eq('read', false);
+    const { error: rpcError } = await supabase.rpc('mark_conversation_messages_read', {
+      p_conversation_id: conversationId,
+    });
+
+    if (rpcError) {
+      // Fallback if RPC isn't deployed yet
+      await supabase
+        .from('messages')
+        .update({ read: true })
+        .eq('conversation_id', conversationId)
+        .neq('sender_id', userId)
+        .eq('read', false);
+    }
 
     // Refresh the global count after marking
     const newCount = await fetchUnreadCountFromDb(userId);

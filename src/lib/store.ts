@@ -101,6 +101,10 @@ export interface Notification {
   timestamp: string;
   read: boolean;
   avatar?: string;
+  // Optional navigation target when tapped
+  route?: string;
+  // Optional extra data for deep-links
+  data?: Record<string, any>;
 }
 
 export interface MarketplaceListing {
@@ -561,6 +565,13 @@ interface AppState {
   // Settings
   notificationsEnabled: boolean;
 
+  // Notifications inbox (in-app)
+  notifications: Notification[];
+  addNotification: (notification: Notification) => void;
+  markNotificationRead: (id: string) => void;
+  markAllNotificationsRead: () => void;
+  clearNotifications: () => void;
+
   // Serve & Connect - Talent Directory
   userTalentProfile: ServeTalent | null;
   savedTalentIds: string[];
@@ -686,6 +697,17 @@ export const useStore = create<AppState>()(
       businessBookingSettings: [] as BusinessBookingSettings[],
       inAppSalesCount: 0,
       notificationsEnabled: true,
+      notifications: MOCK_NOTIFICATIONS as Notification[],
+      addNotification: (notification) => set((state) => ({
+        notifications: [notification, ...state.notifications],
+      })),
+      markNotificationRead: (id) => set((state) => ({
+        notifications: state.notifications.map((n) => (n.id === id ? { ...n, read: true } : n)),
+      })),
+      markAllNotificationsRead: () => set((state) => ({
+        notifications: state.notifications.map((n) => ({ ...n, read: true })),
+      })),
+      clearNotifications: () => set({ notifications: [] }),
       userTalentProfile: null as ServeTalent | null,
       savedTalentIds: [] as string[],
       postReactions: {} as Record<string, string>,
@@ -2190,6 +2212,7 @@ export const MOCK_NOTIFICATIONS: Notification[] = [
     timestamp: '2024-12-30T11:00:00Z',
     read: false,
     avatar: MOCK_USERS[0].avatar,
+    route: '/(tabs)',
   },
   {
     id: '2',
@@ -2199,6 +2222,7 @@ export const MOCK_NOTIFICATIONS: Notification[] = [
     timestamp: '2024-12-30T10:45:00Z',
     read: false,
     avatar: MOCK_USERS[1].avatar,
+    route: '/(tabs)',
   },
   {
     id: '3',
@@ -2207,6 +2231,7 @@ export const MOCK_NOTIFICATIONS: Notification[] = [
     message: 'African Tech Meetup starts in 2 days',
     timestamp: '2024-12-29T09:00:00Z',
     read: true,
+    route: '/(tabs)/events',
   },
   {
     id: '4',
@@ -2215,6 +2240,7 @@ export const MOCK_NOTIFICATIONS: Notification[] = [
     message: 'Welcome to Denver Expats community!',
     timestamp: '2024-12-28T12:00:00Z',
     read: true,
+    route: '/safety-alerts',
   },
 ];
 
