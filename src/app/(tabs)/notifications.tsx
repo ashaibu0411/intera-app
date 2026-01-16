@@ -11,6 +11,8 @@ import { router } from 'expo-router';
 
 type NotificationFilter = 'all' | 'neighborhood' | 'activity' | 'alerts';
 
+const EMPTY_NOTIFICATIONS: Notification[] = [];
+
 const FILTERS: { id: NotificationFilter; label: string }[] = [
   { id: 'all', label: 'All' },
   { id: 'neighborhood', label: 'Neighborhood' },
@@ -90,7 +92,7 @@ function NotificationItem({ notification, index }: { notification: Notification;
 
 export default function NotificationsScreen() {
   const [activeFilter, setActiveFilter] = useState<NotificationFilter>('all');
-  const notifications = useStore((s) => s.notifications ?? []);
+  const notifications = useStore((s) => s.notifications ?? EMPTY_NOTIFICATIONS);
   const markAllNotificationsRead = useStore((s) => s.markAllNotificationsRead);
   const clearNotifications = useStore((s) => s.clearNotifications);
 
