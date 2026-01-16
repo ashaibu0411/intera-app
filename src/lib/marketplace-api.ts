@@ -1,4 +1,21 @@
-import { supabase, DbMarketplaceListing, DbFaithEvent, DbEvent } from './supabase';
+import {
+  supabase,
+  DbMarketplaceListing,
+  DbFaithEvent,
+  DbEvent,
+  DbIncident,
+  DbIncidentSignal,
+  DbUtilityReport,
+  DbHousingListing,
+  DbHousingListingConfirmation,
+  DbHousingListingFlag,
+  DbBusinessReview,
+  DbBusinessConfirmation,
+  DbServiceProvider,
+  DbServiceProviderReview,
+  DbServiceProviderConfirmation,
+  DbServeTalent,
+} from './supabase';
 
 // ==================== MARKETPLACE ====================
 
@@ -536,4 +553,519 @@ export async function removeEventRsvp(eventId: string, userId: string) {
     .eq('event_id', eventId)
     .eq('user_id', userId);
   if (error) throw error;
+}
+
+// ==================== INCIDENTS (Safety / SOS) ====================
+
+export async function createIncident(
+  creatorId: string,
+  incident: {
+    type: string;
+    title: string;
+    description: string;
+    image?: string | null;
+    country: string;
+    admin_area?: string | null;
+    city: string;
+    neighborhood?: string | null;
+    location_label: string;
+    lat?: number | null;
+    lng?: number | null;
+    scope: 'neighborhood' | 'city' | 'global';
+  }
+) {
+  const { data, error } = await supabase
+    .from('incidents')
+    .insert({
+      creator_id: creatorId,
+      type: incident.type,
+      title: incident.title,
+      description: incident.description,
+      image: incident.image ?? null,
+      country: incident.country,
+      admin_area: incident.admin_area ?? null,
+      city: incident.city,
+      neighborhood: incident.neighborhood ?? null,
+      location_label: incident.location_label,
+      lat: incident.lat ?? null,
+      lng: incident.lng ?? null,
+      scope: incident.scope,
+      status: 'active',
+    })
+    .select(`*, creator:profiles(*)`)
+    .single();
+
+  if (error) throw error;
+  return data as unknown as DbIncident;
+}
+
+export async function getIncidents(limit = 50) {
+  const { data, error } = await supabase
+    .from('incidents')
+    .select(`*, creator:profiles(*)`)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error) throw error;
+  return (data || []) as unknown as DbIncident[];
+}
+
+export async function updateIncidentStatus(incidentId: string, status: 'active' | 'resolved') {
+  const { data, error } = await supabase
+    .from('incidents')
+    .update({ status })
+    .eq('id', incidentId)
+    .select(`*, creator:profiles(*)`)
+    .single();
+
+  if (error) throw error;
+  return data as unknown as DbIncident;
+}
+
+export async function getIncidentSignalCounts(incidentId: string): Promise<{ meToo: number; helping: number; resolved: number }> {
+  const getCount = async (kind: DbIncidentSignal['kind']) => {
+    const { count, error } = await supabase
+      .from('incident_signals')
+      .select('*', { count: 'exact', head: true })
+      .eq('incident_id', incidentId)
+      .eq('kind', kind);
+    if (error) throw error;
+    return count || 0;
+  };
+
+  const [meToo, helping, resolved] = await Promise.all([
+    getCount('me_too'),
+    getCount('helping'),
+    getCount('resolved'),
+  ]);
+
+  return { meToo, helping, resolved };
+}
+
+export async function setIncidentSignal(incidentId: string, userId: string, kind: DbIncidentSignal['kind']) {
+  const { error } = await supabase
+    .from('incident_signals')
+    .insert({ incident_id: incidentId, user_id: userId, kind });
+  if (error && error.code !== '23505') throw error;
+}
+
+export async function removeIncidentSignal(incidentId: string, userId: string, kind: DbIncidentSignal['kind']) {
+  const { error } = await supabase
+    .from('incident_signals')
+    .delete()
+    .eq('incident_id', incidentId)
+    .eq('user_id', userId)
+    .eq('kind', kind);
+  if (error) throw error;
+}
+
+// ==================== UTILITY REPORTS ====================
+
+export async function createUtilityReport(
+  creatorId: string,
+  report: {
+    utility: DbUtilityReport['utility'];
+    state: DbUtilityReport['state'];
+    note?: string | null;
+    country: string;
+    admin_area?: string | null;
+    city: string;
+    neighborhood?: string | null;
+    location_label: string;
+    lat?: number | null;
+    lng?: number | null;
+    scope: DbUtilityReport['scope'];
+  }
+) {
+  const { data, error } = await supabase
+    .from('utility_reports')
+    .insert({
+      creator_id: creatorId,
+      utility: report.utility,
+      state: report.state,
+      note: report.note ?? null,
+      country: report.country,
+      admin_area: report.admin_area ?? null,
+      city: report.city,
+      neighborhood: report.neighborhood ?? null,
+      location_label: report.location_label,
+      lat: report.lat ?? null,
+      lng: report.lng ?? null,
+      scope: report.scope,
+    })
+    .select(`*, creator:profiles(*)`)
+    .single();
+
+  if (error) throw error;
+  return data as unknown as DbUtilityReport;
+}
+
+export async function getUtilityReports(limit = 100) {
+  const { data, error } = await supabase
+    .from('utility_reports')
+    .select(`*, creator:profiles(*)`)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error) throw error;
+  return (data || []) as unknown as DbUtilityReport[];
+}
+
+// ==================== HOUSING ====================
+
+export async function getHousingListings(limit = 100) {
+  const { data, error } = await supabase
+    .from('housing_listings')
+    .select(`*, creator:profiles(*)`)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return (data || []) as unknown as DbHousingListing[];
+}
+
+export async function createHousingListing(
+  creatorId: string,
+  listing: Omit<DbHousingListing, 'id' | 'creator_id' | 'created_at' | 'creator'> & {
+    images?: string[];
+  }
+) {
+  const { data, error } = await supabase
+    .from('housing_listings')
+    .insert({
+      creator_id: creatorId,
+      type: listing.type,
+      title: listing.title,
+      description: listing.description,
+      price: listing.price,
+      currency: listing.currency,
+      price_type: listing.price_type,
+      bedrooms: listing.bedrooms,
+      bathrooms: listing.bathrooms,
+      is_furnished: listing.is_furnished,
+      utilities_included: listing.utilities_included,
+      pet_friendly: listing.pet_friendly,
+      images: listing.images ?? [],
+      country: listing.country,
+      admin_area: listing.admin_area ?? null,
+      city: listing.city,
+      neighborhood: listing.neighborhood ?? null,
+      location_label: listing.location_label,
+      address: listing.address ?? null,
+      scope: listing.scope,
+    })
+    .select(`*, creator:profiles(*)`)
+    .single();
+  if (error) throw error;
+  return data as unknown as DbHousingListing;
+}
+
+export async function getHousingListingCounts(listingId: string): Promise<{ confirmations: number; flags: number }> {
+  const { count: confirmations, error: cErr } = await supabase
+    .from('housing_listing_confirmations')
+    .select('*', { count: 'exact', head: true })
+    .eq('listing_id', listingId);
+  if (cErr) throw cErr;
+
+  const { count: flags, error: fErr } = await supabase
+    .from('housing_listing_flags')
+    .select('*', { count: 'exact', head: true })
+    .eq('listing_id', listingId);
+  if (fErr) throw fErr;
+
+  return { confirmations: confirmations || 0, flags: flags || 0 };
+}
+
+export async function setHousingListingConfirmation(listingId: string, userId: string) {
+  const { error } = await supabase
+    .from('housing_listing_confirmations')
+    .insert({ listing_id: listingId, user_id: userId });
+  if (error && error.code !== '23505') throw error;
+}
+
+export async function removeHousingListingConfirmation(listingId: string, userId: string) {
+  const { error } = await supabase
+    .from('housing_listing_confirmations')
+    .delete()
+    .eq('listing_id', listingId)
+    .eq('user_id', userId);
+  if (error) throw error;
+}
+
+export async function flagHousingListing(listingId: string, userId: string, reason = 'suspicious', note?: string | null) {
+  const { error } = await supabase
+    .from('housing_listing_flags')
+    .insert({ listing_id: listingId, user_id: userId, reason, note: note ?? null });
+  if (error && error.code !== '23505') throw error;
+}
+
+export async function unflagHousingListing(listingId: string, userId: string) {
+  const { error } = await supabase
+    .from('housing_listing_flags')
+    .delete()
+    .eq('listing_id', listingId)
+    .eq('user_id', userId);
+  if (error) throw error;
+}
+
+// ==================== SERVICE PROVIDERS (Businesses trust) ====================
+
+export async function getBusinessReviews(businessId: string, limit = 50) {
+  const { data, error } = await supabase
+    .from('business_reviews')
+    .select(`*, reviewer:profiles(*)`)
+    .eq('business_id', businessId)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return (data || []) as unknown as DbBusinessReview[];
+}
+
+export async function upsertBusinessReview(
+  businessId: string,
+  reviewerId: string,
+  rating: number,
+  review?: string | null
+) {
+  const { data, error } = await supabase
+    .from('business_reviews')
+    .upsert(
+      { business_id: businessId, reviewer_id: reviewerId, rating, review: review ?? null },
+      { onConflict: 'business_id,reviewer_id' }
+    )
+    .select(`*, reviewer:profiles(*)`)
+    .single();
+  if (error) throw error;
+  return data as unknown as DbBusinessReview;
+}
+
+export async function getBusinessTrustCounts(businessId: string): Promise<{ reviews: number; avgRating: number; workedForMe: number }> {
+  const { count: reviewCount, error: rcErr } = await supabase
+    .from('business_reviews')
+    .select('*', { count: 'exact', head: true })
+    .eq('business_id', businessId);
+  if (rcErr) throw rcErr;
+
+  const { data: ratings, error: rErr } = await supabase
+    .from('business_reviews')
+    .select('rating')
+    .eq('business_id', businessId);
+  if (rErr) throw rErr;
+  const nums = (ratings || []).map((r: any) => Number(r.rating)).filter((n) => !isNaN(n));
+  const avgRating = nums.length ? nums.reduce((a, b) => a + b, 0) / nums.length : 0;
+
+  const { count: workedForMe, error: wfErr } = await supabase
+    .from('business_confirmations')
+    .select('*', { count: 'exact', head: true })
+    .eq('business_id', businessId);
+  if (wfErr) throw wfErr;
+
+  return { reviews: reviewCount || 0, avgRating, workedForMe: workedForMe || 0 };
+}
+
+export async function setBusinessConfirmation(businessId: string, userId: string) {
+  const { error } = await supabase
+    .from('business_confirmations')
+    .insert({ business_id: businessId, user_id: userId });
+  if (error && error.code !== '23505') throw error;
+}
+
+export async function removeBusinessConfirmation(businessId: string, userId: string) {
+  const { error } = await supabase
+    .from('business_confirmations')
+    .delete()
+    .eq('business_id', businessId)
+    .eq('user_id', userId);
+  if (error) throw error;
+}
+
+// ==================== INDIVIDUAL SERVICE PROVIDERS ====================
+
+export async function getServiceProviders(limit = 100) {
+  const { data, error } = await supabase
+    .from('service_providers')
+    .select(`*, user:profiles(*)`)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return (data || []) as unknown as DbServiceProvider[];
+}
+
+export async function upsertMyServiceProviderProfile(
+  userId: string,
+  provider: {
+    category: string;
+    title: string;
+    bio: string;
+    skills: string[];
+    is_available: boolean;
+    availability_note?: string | null;
+    contact_phone?: string | null;
+    contact_email?: string | null;
+    country: string;
+    admin_area?: string | null;
+    city: string;
+    neighborhood?: string | null;
+    location_label: string;
+    scope: 'neighborhood' | 'city' | 'global';
+  }
+) {
+  const { data, error } = await supabase
+    .from('service_providers')
+    .upsert(
+      {
+        user_id: userId,
+        category: provider.category,
+        title: provider.title,
+        bio: provider.bio,
+        skills: provider.skills,
+        is_available: provider.is_available,
+        availability_note: provider.availability_note ?? null,
+        contact_phone: provider.contact_phone ?? null,
+        contact_email: provider.contact_email ?? null,
+        country: provider.country,
+        admin_area: provider.admin_area ?? null,
+        city: provider.city,
+        neighborhood: provider.neighborhood ?? null,
+        location_label: provider.location_label,
+        scope: provider.scope,
+      },
+      { onConflict: 'user_id' }
+    )
+    .select(`*, user:profiles(*)`)
+    .single();
+  if (error) throw error;
+  return data as unknown as DbServiceProvider;
+}
+
+export async function getServiceProviderReviews(providerId: string, limit = 50) {
+  const { data, error } = await supabase
+    .from('service_provider_reviews')
+    .select(`*, reviewer:profiles(*)`)
+    .eq('provider_id', providerId)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return (data || []) as unknown as DbServiceProviderReview[];
+}
+
+export async function upsertServiceProviderReview(providerId: string, reviewerId: string, rating: number, review?: string | null) {
+  const { data, error } = await supabase
+    .from('service_provider_reviews')
+    .upsert(
+      { provider_id: providerId, reviewer_id: reviewerId, rating, review: review ?? null },
+      { onConflict: 'provider_id,reviewer_id' }
+    )
+    .select(`*, reviewer:profiles(*)`)
+    .single();
+  if (error) throw error;
+  return data as unknown as DbServiceProviderReview;
+}
+
+export async function getServiceProviderTrustCounts(providerId: string): Promise<{ reviews: number; avgRating: number; workedForMe: number }> {
+  const { count: reviewCount, error: rcErr } = await supabase
+    .from('service_provider_reviews')
+    .select('*', { count: 'exact', head: true })
+    .eq('provider_id', providerId);
+  if (rcErr) throw rcErr;
+
+  const { data: ratings, error: rErr } = await supabase
+    .from('service_provider_reviews')
+    .select('rating')
+    .eq('provider_id', providerId);
+  if (rErr) throw rErr;
+  const nums = (ratings || []).map((r: any) => Number(r.rating)).filter((n) => !isNaN(n));
+  const avgRating = nums.length ? nums.reduce((a, b) => a + b, 0) / nums.length : 0;
+
+  const { count: workedForMe, error: wfErr } = await supabase
+    .from('service_provider_confirmations')
+    .select('*', { count: 'exact', head: true })
+    .eq('provider_id', providerId);
+  if (wfErr) throw wfErr;
+
+  return { reviews: reviewCount || 0, avgRating, workedForMe: workedForMe || 0 };
+}
+
+export async function setServiceProviderConfirmation(providerId: string, userId: string) {
+  const { error } = await supabase
+    .from('service_provider_confirmations')
+    .insert({ provider_id: providerId, user_id: userId });
+  if (error && error.code !== '23505') throw error;
+}
+
+export async function removeServiceProviderConfirmation(providerId: string, userId: string) {
+  const { error } = await supabase
+    .from('service_provider_confirmations')
+    .delete()
+    .eq('provider_id', providerId)
+    .eq('user_id', userId);
+  if (error) throw error;
+}
+
+// ==================== SERVE & CONNECT (Volunteers/Talents) ====================
+
+export async function getServeTalents(limit = 150) {
+  const { data, error } = await supabase
+    .from('serve_talents')
+    .select(`*, user:profiles(*)`)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return (data || []) as unknown as DbServeTalent[];
+}
+
+export async function upsertMyServeTalent(
+  userId: string,
+  talent: {
+    category: string;
+    skills: string[];
+    experience: string;
+    bio: string;
+    is_available: boolean;
+    availability_note?: string | null;
+    willing_to_travel: boolean;
+    travel_radius?: string | null;
+    faith_background?: string | null;
+    contact_phone?: string | null;
+    contact_email?: string | null;
+    portfolio_images?: string[];
+    video_link?: string | null;
+    country: string;
+    admin_area?: string | null;
+    city: string;
+    neighborhood?: string | null;
+    location_label: string;
+    scope: 'neighborhood' | 'city' | 'global';
+  }
+) {
+  const { data, error } = await supabase
+    .from('serve_talents')
+    .upsert(
+      {
+        user_id: userId,
+        category: talent.category,
+        skills: talent.skills,
+        experience: talent.experience,
+        bio: talent.bio,
+        is_available: talent.is_available,
+        availability_note: talent.availability_note ?? null,
+        willing_to_travel: talent.willing_to_travel,
+        travel_radius: talent.travel_radius ?? null,
+        faith_background: talent.faith_background ?? null,
+        contact_phone: talent.contact_phone ?? null,
+        contact_email: talent.contact_email ?? null,
+        portfolio_images: talent.portfolio_images ?? [],
+        video_link: talent.video_link ?? null,
+        country: talent.country,
+        admin_area: talent.admin_area ?? null,
+        city: talent.city,
+        neighborhood: talent.neighborhood ?? null,
+        location_label: talent.location_label,
+        scope: talent.scope,
+      },
+      { onConflict: 'user_id' }
+    )
+    .select(`*, user:profiles(*)`)
+    .single();
+  if (error) throw error;
+  return data as unknown as DbServeTalent;
 }

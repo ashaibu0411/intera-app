@@ -26,8 +26,8 @@ import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { useStore, MOCK_COMMUNITIES, MARKETPLACE_CATEGORIES, EVENT_CATEGORIES } from '@/lib/store';
 import { router } from 'expo-router';
-import { sendNewPostNotification } from '@/lib/notifications';
 import { createPost as createDbPost, uploadImages } from '@/lib/posts';
+import { sendRemotePushAlert } from '@/lib/pushAlerts';
 
 type CreateMode = 'select' | 'post' | 'sell' | 'event';
 
@@ -253,6 +253,7 @@ function CreatePostForm({ user, community, onBack, business }: { user: any; comm
   const [content, setContent] = useState('');
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
   const [selectedVideo, setSelectedVideo] = useState<string | null>(null);
+  const [sendPushToArea, setSendPushToArea] = useState(false);
   const buttonScale = useSharedValue(1);
   const addPost = useStore((s) => s.addPost);
 
@@ -304,6 +305,19 @@ function CreatePostForm({ user, community, onBack, business }: { user: any; comm
     let postId = `post_${Date.now()}`;
     let savedToDb = false;
 
+    const storeState = useStore.getState();
+    const selectedLocation = storeState.selectedLocation;
+    const feedFilter = storeState.feedFilter;
+    const city = selectedLocation?.city || community.city;
+    const country = selectedLocation?.country || 'Unknown';
+    const adminArea = selectedLocation?.state || null;
+    const neighborhood = selectedLocation?.neighborhood?.trim() || null;
+    const postLocationLabel = neighborhood
+      ? `${city}, ${adminArea || country} · ${neighborhood}`
+      : `${city}, ${adminArea || country}`;
+    const scope =
+      feedFilter === 'global' ? 'global' : feedFilter === 'neighborhood' && neighborhood ? 'neighborhood' : 'city';
+
     // Upload images to cloud storage first
     let uploadedImageUrls: string[] = [];
     if (selectedImages.length > 0) {
@@ -317,7 +331,7 @@ function CreatePostForm({ user, community, onBack, business }: { user: any; comm
 
     // Try to save to database first (so other users can see it)
     try {
-      const dbPost = await createDbPost(user.id, formattedContent, uploadedImageUrls, community.city);
+      const dbPost = await createDbPost(user.id, formattedContent, uploadedImageUrls, postLocationLabel);
       if (dbPost?.id) {
         postId = dbPost.id;
         savedToDb = true;
@@ -348,7 +362,7 @@ function CreatePostForm({ user, community, onBack, business }: { user: any; comm
         comments: 0,
         createdAt: new Date().toISOString(),
         isLiked: false,
-        location: community.city,
+        location: postLocationLabel,
       };
 
       addPost(newPost);
@@ -356,8 +370,18 @@ function CreatePostForm({ user, community, onBack, business }: { user: any; comm
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-    // Send notification to other users in the community
-    await sendNewPostNotification(user.name, formattedContent, postId);
+    // Optional true remote push to neighborhood/city (best for urgent posts)
+    if (sendPushToArea) {
+      sendRemotePushAlert({
+        title: `${user.name} posted`,
+        body: formattedContent,
+        scope: scope as any,
+        city,
+        neighborhood,
+        excludeUserId: user.id,
+        data: { type: 'post', postId },
+      }).catch(() => {});
+    }
 
     router.navigate('/(tabs)');
   };
@@ -415,6 +439,25 @@ function CreatePostForm({ user, community, onBack, business }: { user: any; comm
                 <View className="flex-row items-center mt-0.5">
                   <MapPin size={12} color="#8B7355" />
                   <Text className="text-sm text-gray-500 ml-1">{community.city}</Text>
+                </View>
+              </View>
+            </View>
+
+            <View className="px-5 pb-2">
+              <View className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+                <View className="flex-row items-center justify-between">
+                  <View className="flex-1 pr-3">
+                    <Text className="text-warmBrown font-semibold">Send push notification</Text>
+                    <Text className="text-gray-500 text-sm mt-1">
+                      Turn on only for urgent neighborhood/city updates.
+                    </Text>
+                  </View>
+                  <Switch
+                    value={sendPushToArea}
+                    onValueChange={setSendPushToArea}
+                    trackColor={{ false: '#D1D5DB', true: '#EF4444' }}
+                    thumbColor="#fff"
+                  />
                 </View>
               </View>
             </View>

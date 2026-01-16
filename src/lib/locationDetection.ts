@@ -5,6 +5,7 @@ export interface DetectedLocation {
   city: string;
   state?: string;
   country: string;
+  neighborhood?: string;
   latitude: number;
   longitude: number;
 }
@@ -69,10 +70,28 @@ export async function detectCurrentLocation(): Promise<DetectedLocation | null> 
     const state = geocode.region || undefined;
     const country = geocode.country || 'Unknown Country';
 
+    // Best-effort neighborhood extraction (varies by country/provider)
+    // expo-location doesn't guarantee "neighborhood", so we use a conservative heuristic.
+    const rawNeighborhood =
+      (geocode as any).neighborhood ||
+      geocode.district ||
+      (geocode as any).subLocality ||
+      (geocode as any).sublocality;
+
+    const normalize = (s: string) => s.toLowerCase().trim();
+    const neighborhood =
+      typeof rawNeighborhood === 'string' &&
+      rawNeighborhood.trim().length > 1 &&
+      normalize(rawNeighborhood) !== normalize(city) &&
+      !normalize(rawNeighborhood).includes('county')
+        ? rawNeighborhood.trim()
+        : undefined;
+
     return {
       city,
       state,
       country,
+      neighborhood,
       latitude,
       longitude,
     };

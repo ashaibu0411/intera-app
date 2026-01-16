@@ -462,7 +462,10 @@ export default function BusinessDirectoryScreen() {
                     entering={FadeInRight.duration(300).delay(250 + index * 100)}
                   >
                     <Pressable
-                      onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        router.push(`/business/${business.id}` as any);
+                      }}
                       className="mr-4 bg-white rounded-2xl overflow-hidden shadow-sm"
                       style={{ width: 280 }}
                     >
@@ -524,7 +527,10 @@ export default function BusinessDirectoryScreen() {
                 entering={FadeInUp.duration(300).delay(350 + index * 50)}
               >
                 <Pressable
-                  onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    router.push(`/business/${business.id}` as any);
+                  }}
                   className="bg-white rounded-2xl p-4 mb-3 shadow-sm"
                 >
                   <View className="flex-row">

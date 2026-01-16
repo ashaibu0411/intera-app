@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, Pressable } from 'react-native';
 import Animated, {
   FadeIn,
@@ -19,9 +19,12 @@ import {
   Calendar,
   Plane,
   Building2,
+  AlertTriangle,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
+import { useStore } from '@/lib/store';
+import { getIncidents, getUtilityReports } from '@/lib/marketplace-api';
 
 interface PulseItem {
   id: string;
@@ -193,14 +196,122 @@ interface LocalPulseProps {
 export function LocalPulse({ city, isGlobal = false }: LocalPulseProps) {
   const [pulseItems, setPulseItems] = useState<PulseItem[]>([]);
   const [expanded, setExpanded] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const selectedLocation = useStore((s) => s.selectedLocation);
+  const feedFilter = useStore((s) => s.feedFilter);
+
+  const neighborhood = selectedLocation?.neighborhood?.trim();
+  const mode = isGlobal ? 'global' : feedFilter; // 'neighborhood' | 'city' | 'global'
+
+  const headerLocationLabel = useMemo(() => {
+    if (mode === 'global') return 'Worldwide';
+    if (mode === 'neighborhood') return neighborhood ? `${neighborhood}, ${city}` : city;
+    return city;
+  }, [mode, neighborhood, city]);
 
   useEffect(() => {
-    if (isGlobal) {
-      setPulseItems(generateGlobalPulseItems());
-    } else {
-      setPulseItems(generateLocalPulseItems(city));
-    }
-  }, [city, isGlobal]);
+    let cancelled = false;
+
+    const load = async () => {
+      if (mode === 'global') {
+        setPulseItems(generateGlobalPulseItems());
+        return;
+      }
+
+      setIsLoading(true);
+      try {
+        const [incidents, utilities] = await Promise.all([
+          getIncidents(25),
+          getUtilityReports(40),
+        ]);
+
+        const cityLower = city.toLowerCase();
+        const neighborhoodLower = (neighborhood || '').toLowerCase();
+
+        const matchesArea = (label: string, rowCity?: string | null, rowNeighborhood?: string | null) => {
+          const blob = `${label || ''} ${rowCity || ''} ${rowNeighborhood || ''}`.toLowerCase();
+          const cityMatch = blob.includes(cityLower);
+          if (mode === 'city') return cityMatch;
+          // neighborhood mode includes neighborhood + city
+          if (!neighborhoodLower) return cityMatch;
+          return blob.includes(neighborhoodLower) || cityMatch;
+        };
+
+        const activeIncidents = incidents
+          .filter((i) => i.status === 'active')
+          .filter((i) => matchesArea(i.location_label, i.city, i.neighborhood))
+          .slice(0, 3);
+
+        const latestUtilityByType = new Map<string, (typeof utilities)[number]>();
+        for (const u of utilities) {
+          if (!matchesArea(u.location_label, u.city, u.neighborhood)) continue;
+          const existing = latestUtilityByType.get(u.utility);
+          if (!existing || new Date(u.created_at).getTime() > new Date(existing.created_at).getTime()) {
+            latestUtilityByType.set(u.utility, u);
+          }
+        }
+
+        const utilityItems: PulseItem[] = Array.from(latestUtilityByType.values()).map((u) => {
+          const isOutage = u.state === 'outage';
+          const iconNode =
+            u.utility === 'power' ? <Zap size={18} color={isOutage ? '#EF4444' : '#10B981'} /> :
+            u.utility === 'water' ? <Heart size={18} color={isOutage ? '#EF4444' : '#10B981'} /> :
+            u.utility === 'internet' ? <Globe size={18} color={isOutage ? '#EF4444' : '#10B981'} /> :
+            <Home size={18} color={isOutage ? '#EF4444' : '#10B981'} />;
+
+          const title =
+            u.utility === 'power' ? 'Power' :
+            u.utility === 'water' ? 'Water' :
+            u.utility === 'internet' ? 'Internet' : 'Road';
+
+          return {
+            id: `util_${u.id}`,
+            type: 'alert',
+            title: `${title}: ${u.state === 'outage' ? 'outage' : u.state === 'restored' ? 'restored' : 'degraded'}`,
+            subtitle: u.note || u.location_label,
+            timeAgo: 'now',
+            urgent: u.state === 'outage',
+            icon: iconNode,
+            color: u.state === 'outage' ? '#EF4444' : '#10B981',
+            bgColor: u.state === 'outage' ? '#FEE2E2' : '#D1FAE5',
+            route: '/utility-status',
+          };
+        });
+
+        const incidentItems: PulseItem[] = activeIncidents.map((i) => ({
+          id: `inc_${i.id}`,
+          type: 'alert',
+          title: i.title,
+          subtitle: i.location_label,
+          timeAgo: 'now',
+          urgent: true,
+          icon: <AlertTriangle size={18} color="#EF4444" />,
+          color: '#EF4444',
+          bgColor: '#FEE2E2',
+          route: '/safety-alerts',
+        }));
+
+        const combined = [
+          ...incidentItems,
+          ...utilityItems,
+          ...generateLocalPulseItems(city),
+        ];
+
+        if (!cancelled) setPulseItems(combined.slice(0, 8));
+      } catch {
+        // Fallback to mock pulse if Supabase fails
+        if (!cancelled) setPulseItems(generateLocalPulseItems(city));
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    };
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [city, mode, neighborhood]);
 
   const displayItems = expanded ? pulseItems : pulseItems.slice(0, 4);
 
@@ -242,17 +353,29 @@ export function LocalPulse({ city, isGlobal = false }: LocalPulseProps) {
           </View>
           <View>
             <Text className="text-lg font-bold text-gray-900">
-              {isGlobal ? 'Plans worldwide' : 'Plans near you'}
+              {mode === 'global' ? 'Plans worldwide' : 'Local pulse'}
             </Text>
             <Text className="text-sm text-gray-500">
-              {isGlobal ? 'Across the diaspora' : 'Join in, or lend a hand'}
+              {mode === 'global' ? 'Across the diaspora' : (isLoading ? 'Updating now…' : 'Safety, utilities, and plans')}
             </Text>
           </View>
         </View>
-        {!isGlobal && (
+        {mode !== 'global' && (
           <View className="flex-row items-center">
-            <MapPin size={14} color="#9CA3AF" />
-            <Text className="text-sm text-gray-400 ml-1">{city}</Text>
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push('/safety-alerts' as any);
+              }}
+              className="bg-red-50 border border-red-100 rounded-full px-3 py-1.5 flex-row items-center mr-2"
+            >
+              <AlertTriangle size={14} color="#EF4444" />
+              <Text className="text-red-600 font-semibold text-sm ml-2">Alerts</Text>
+            </Pressable>
+            <View className="flex-row items-center">
+              <MapPin size={14} color="#9CA3AF" />
+              <Text className="text-sm text-gray-400 ml-1">{headerLocationLabel}</Text>
+            </View>
           </View>
         )}
       </View>

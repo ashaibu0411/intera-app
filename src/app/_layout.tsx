@@ -8,6 +8,7 @@ import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { useEffect, useState, useRef } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
 import { requestNotificationPermissions } from '@/lib/notifications';
+import { syncPushTokenFromStore } from '@/lib/pushTokens';
 import { useMessageNotifications } from '@/lib/useMessageNotifications';
 import { useCommunityNotifications } from '@/lib/useCommunityNotifications';
 import { useStore } from '@/lib/store';
@@ -39,6 +40,9 @@ const DiasporaTheme = {
 
 function RootLayoutNav() {
   const hasSeenStory = useStore((s) => s.hasSeenStory);
+  const currentUser = useStore((s) => s.currentUser);
+  const selectedLocation = useStore((s) => s.selectedLocation);
+  const notificationsEnabled = useStore((s) => s.notificationsEnabled);
   const [isHydrated, setIsHydrated] = useState(false);
   const [hasNavigated, setHasNavigated] = useState(false);
   const segments = useSegments();
@@ -50,6 +54,14 @@ function RootLayoutNav() {
     // Clear any invalid auth sessions on startup to prevent refresh token errors
     clearInvalidSession();
   }, []);
+
+  // Best-effort sync of remote push token whenever user/location/notification pref changes
+  useEffect(() => {
+    if (!isHydrated) return;
+    if (!currentUser?.id) return;
+    // Do not block UI
+    syncPushTokenFromStore().catch(() => {});
+  }, [isHydrated, currentUser?.id, selectedLocation?.city, selectedLocation?.neighborhood, notificationsEnabled]);
 
   // Track online status based on app state
   useEffect(() => {
@@ -119,6 +131,7 @@ function RootLayoutNav() {
         <Stack.Screen name="marketplace" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="faith-community" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="business-directory" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="business/[id]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="event/[id]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="post/[id]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="profile/[id]" options={{ animation: 'slide_from_right' }} />
@@ -133,6 +146,9 @@ function RootLayoutNav() {
         <Stack.Screen name="create-faith-event" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="serve-connect" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="register-talent" options={{ animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="trusted-providers" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="register-provider" options={{ animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="provider/[id]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="create-event" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="my-posts" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="saved-posts" options={{ animation: 'slide_from_right' }} />
@@ -150,6 +166,9 @@ function RootLayoutNav() {
         <Stack.Screen name="voice-rooms" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="heritage-hub" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="safety-network" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="safety-alerts" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="utility-status" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="create-utility-report" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="support-circles" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="gamification" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="advanced-events" options={{ animation: 'slide_from_right' }} />
@@ -188,6 +207,7 @@ function RootLayoutNav() {
         <Stack.Screen name="pet-connect" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="memory-capsules" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="housing-board" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="create-housing-listing" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="lost-found" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="appreciation-wall" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="proverbs-wisdom" options={{ animation: 'slide_from_right' }} />

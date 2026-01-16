@@ -143,6 +143,7 @@ export interface LocationData {
   country: string;
   state?: string;
   city: string;
+  neighborhood?: string;
 }
 
 export interface Comment {
@@ -511,8 +512,11 @@ interface AppState {
 
   // Community state
   currentCommunity: Community | null;
-  feedFilter: 'local' | 'global';
+  feedFilter: 'neighborhood' | 'city' | 'global';
   communityMemberCounts: Record<string, number>; // city -> member count
+
+  // Neighborhood suggestions (per city)
+  recentNeighborhoodsByCity: Record<string, string[]>;
 
   // Posts state
   userPosts: Post[];
@@ -593,7 +597,8 @@ interface AppState {
   setHasSeenStory: (value: boolean) => void;
   setSelectedLocation: (location: LocationData | null) => void;
   setCurrentCommunity: (community: Community | null) => void;
-  setFeedFilter: (filter: 'local' | 'global') => void;
+  setFeedFilter: (filter: 'neighborhood' | 'city' | 'global') => void;
+  addRecentNeighborhood: (city: string, neighborhood: string) => void;
   joinCommunity: (city: string) => void;
   addPost: (post: Post) => void;
   deletePost: (postId: string) => void;
@@ -660,8 +665,9 @@ export const useStore = create<AppState>()(
       locationDetectionDismissed: false,
       lastDetectedCity: null as string | null,
       currentCommunity: null as Community | null,
-      feedFilter: 'local' as 'local' | 'global',
+      feedFilter: 'city' as 'neighborhood' | 'city' | 'global',
       communityMemberCounts: {} as Record<string, number>,
+      recentNeighborhoodsByCity: {} as Record<string, string[]>,
       userPosts: [] as Post[],
       savedPostIds: [] as string[],
       likedPostIds: [] as string[],
@@ -820,7 +826,26 @@ export const useStore = create<AppState>()(
       setHasSeenStory: (value: boolean) => set({ hasSeenStory: value }),
       setSelectedLocation: (location: LocationData | null) => set({ selectedLocation: location }),
       setCurrentCommunity: (community: Community | null) => set({ currentCommunity: community }),
-      setFeedFilter: (filter: 'local' | 'global') => set({ feedFilter: filter }),
+      setFeedFilter: (filter: 'neighborhood' | 'city' | 'global') => set({ feedFilter: filter }),
+      addRecentNeighborhood: (city: string, neighborhood: string) =>
+        set((state) => {
+          const cleanCity = (city || '').trim();
+          const cleanNeighborhood = (neighborhood || '').trim();
+          if (!cleanCity || !cleanNeighborhood) return state;
+
+          const current = state.recentNeighborhoodsByCity[cleanCity] || [];
+          const next = [
+            cleanNeighborhood,
+            ...current.filter((n) => n.toLowerCase() !== cleanNeighborhood.toLowerCase()),
+          ].slice(0, 12);
+
+          return {
+            recentNeighborhoodsByCity: {
+              ...state.recentNeighborhoodsByCity,
+              [cleanCity]: next,
+            },
+          };
+        }),
       joinCommunity: (city: string) => set((state) => {
         const currentCount = state.communityMemberCounts[city] || 0;
         // Base counts for popular cities (simulated existing members)
@@ -1141,6 +1166,19 @@ export const useStore = create<AppState>()(
     {
       name: 'diaspora-storage',
       storage: createJSONStorage(() => AsyncStorage),
+      version: 2,
+      migrate: (persistedState: any, version: number) => {
+        // Backwards compatibility:
+        // - feedFilter used to be 'local' | 'global'
+        // - now it's 'neighborhood' | 'city' | 'global'
+        if (version < 2 && persistedState?.feedFilter) {
+          if (persistedState.feedFilter === 'local') persistedState.feedFilter = 'city';
+        }
+        // Ensure defaults
+        if (!persistedState?.feedFilter) persistedState.feedFilter = 'city';
+        if (!persistedState?.recentNeighborhoodsByCity) persistedState.recentNeighborhoodsByCity = {};
+        return persistedState;
+      },
       partialize: (state) => ({
         currentUser: state.currentUser,
         isOnboarded: state.isOnboarded,
@@ -1151,6 +1189,7 @@ export const useStore = create<AppState>()(
         locationDetectionDismissed: state.locationDetectionDismissed,
         lastDetectedCity: state.lastDetectedCity,
         currentCommunity: state.currentCommunity,
+        feedFilter: state.feedFilter,
         userPosts: state.userPosts,
         savedPostIds: state.savedPostIds,
         likedPostIds: state.likedPostIds,
@@ -1169,6 +1208,7 @@ export const useStore = create<AppState>()(
         businessAppointments: state.businessAppointments,
         businessBookingSettings: state.businessBookingSettings,
         communityMemberCounts: state.communityMemberCounts,
+        recentNeighborhoodsByCity: state.recentNeighborhoodsByCity,
         giftTransactions: state.giftTransactions,
         dailyRewards: state.dailyRewards,
       }),

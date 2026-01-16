@@ -62,8 +62,16 @@ Object.entries(CITIES_BY_STATE).forEach(([state, cities]) => {
   });
 });
 
+// Seed suggestions so "pick from a list" works even on first launch.
+// This stays global-friendly: start with a few well-known neighborhoods per city and expand over time.
+const SUGGESTED_NEIGHBORHOODS_BY_CITY: Record<string, string[]> = {
+  Aurora: ['Southshore', 'Copperleaf', 'Sky Ranch'],
+};
+
 export default function LocationSelectScreen() {
   const selectedLocation = useStore((s) => s.selectedLocation);
+  const recentNeighborhoodsByCity = useStore((s) => s.recentNeighborhoodsByCity);
+  const addRecentNeighborhood = useStore((s) => s.addRecentNeighborhood);
 
   // Check if user already has a location (coming from home to change location)
   const isChangingLocation = !!selectedLocation;
@@ -73,96 +81,59 @@ export default function LocationSelectScreen() {
   const [selectedCountry, setSelectedCountry] = useState<string | null>(null);
   const [selectedState, setSelectedState] = useState<string | null>(null);
   const [selectedCity, setSelectedCity] = useState<string | null>(null);
+  const [selectedNeighborhood, setSelectedNeighborhood] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
   const [isDetecting, setIsDetecting] = useState(false);
 
   const setSelectedLocation = useStore((s) => s.setSelectedLocation);
   const setCurrentCommunity = useStore((s) => s.setCurrentCommunity);
 
-  // Auto-detect location using GPS
-  const handleAutoDetect = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setIsDetecting(true);
-
-    try {
-      const detected = await detectCurrentLocation();
-
-      if (detected) {
-        // Use the detected location directly
-        setSelectedLocation({
-          country: detected.country,
-          state: detected.state || undefined,
-          city: detected.city,
-        });
-
-        // Try to get or create the community
-        const dbCommunity = await getOrCreateCommunity(
-          detected.city,
-          detected.state || null,
-          detected.country
-        );
-
-        if (dbCommunity) {
-          const user = await getCurrentUser();
-          if (user) {
-            await joinCommunity(user.id, dbCommunity.id);
-          }
-
-          setCurrentCommunity({
-            id: dbCommunity.id,
-            name: dbCommunity.name,
-            city: dbCommunity.city,
-            state: dbCommunity.state ?? undefined,
-            country: dbCommunity.country,
-            memberCount: dbCommunity.member_count,
-            image: dbCommunity.image_url || 'https://images.unsplash.com/photo-1489392191049-fc10c97e64b6?w=400&h=300&fit=crop',
-          });
-        } else {
-          setCurrentCommunity({
-            id: 'custom',
-            name: `${detected.city} Community`,
-            city: detected.city,
-            state: detected.state ?? undefined,
-            country: detected.country,
-            memberCount: 1,
-            image: 'https://images.unsplash.com/photo-1489392191049-fc10c97e64b6?w=400&h=300&fit=crop',
-          });
-        }
-
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        // Send to signup after location selection
-        router.replace('/signup');
-      } else {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      }
-    } catch (error) {
-      console.log('[Location] Auto-detect error:', error);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-    } finally {
-      setIsDetecting(false);
+  const finishNavigation = () => {
+    if (isChangingLocation) {
+      router.back();
+    } else {
+      router.replace('/signup');
     }
   };
 
-  // Handle custom city entry (when user types a city not in the list)
-  const handleCustomCitySelect = async (cityName: string) => {
-    if (!cityName.trim()) return;
+  const neighborhoodChips = useMemo(() => {
+    const cityKey = selectedCity || selectedLocation?.city || '';
+    if (!cityKey) return [];
+    // Case-insensitive match for seeded suggestions
+    const suggestionKey =
+      Object.keys(SUGGESTED_NEIGHBORHOODS_BY_CITY).find((k) => k.toLowerCase() === cityKey.toLowerCase()) ||
+      cityKey;
+    const suggested = SUGGESTED_NEIGHBORHOODS_BY_CITY[suggestionKey] || [];
+    const recent = recentNeighborhoodsByCity[cityKey] || [];
 
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const merged: string[] = [];
+    for (const n of [...suggested, ...recent]) {
+      const clean = (n || '').trim();
+      if (!clean) continue;
+      if (merged.some((m) => m.toLowerCase() === clean.toLowerCase())) continue;
+      merged.push(clean);
+    }
+    return merged.slice(0, 12);
+  }, [recentNeighborhoodsByCity, selectedCity, selectedLocation?.city]);
 
-    // Default to "Unknown" for country if we don't know
-    const country = 'Unknown';
+  const applyNeighborhoodToLocation = (base: { country: string; state?: string; city: string }) => {
+    const n = selectedNeighborhood.trim();
+    if (n) {
+      addRecentNeighborhood(base.city, n);
+      return { ...base, neighborhood: n };
+    }
+    return base;
+  };
 
-    setSelectedLocation({
-      country,
-      state: undefined,
-      city: cityName.trim(),
-    });
+  const finalizeLocation = async (base: { country: string; state?: string; city: string }) => {
+    const finalLoc = applyNeighborhoodToLocation(base);
+    setSelectedLocation(finalLoc);
 
-    // Try to create the community
+    // Try to get or create the community (city-level)
     const dbCommunity = await getOrCreateCommunity(
-      cityName.trim(),
-      null,
-      country
+      base.city,
+      base.state || null,
+      base.country
     );
 
     if (dbCommunity) {
@@ -183,17 +154,67 @@ export default function LocationSelectScreen() {
     } else {
       setCurrentCommunity({
         id: 'custom',
-        name: `${cityName.trim()} Community`,
-        city: cityName.trim(),
-        state: undefined,
-        country,
+        name: `${base.city} Community`,
+        city: base.city,
+        state: base.state,
+        country: base.country,
         memberCount: 1,
         image: 'https://images.unsplash.com/photo-1489392191049-fc10c97e64b6?w=400&h=300&fit=crop',
       });
     }
 
-    // Send to signup after location selection
-    router.replace('/signup');
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    finishNavigation();
+  };
+
+  // Auto-detect location using GPS
+  const handleAutoDetect = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setIsDetecting(true);
+
+    try {
+      const detected = await detectCurrentLocation();
+
+      if (detected) {
+        // Set base fields and move to neighborhood step (optional)
+        setSelectedCountry(null);
+        setSelectedState(detected.state || null);
+        setSelectedCity(detected.city);
+        setSelectedNeighborhood(detected.neighborhood || '');
+        // Store the detected fields temporarily in selected* state; continue will finalize
+        setSelectedLocation({
+          country: detected.country,
+          state: detected.state || undefined,
+          city: detected.city,
+          neighborhood: detected.neighborhood || undefined,
+        });
+        setStep('city');
+      } else {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      }
+    } catch (error) {
+      console.log('[Location] Auto-detect error:', error);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      setIsDetecting(false);
+    }
+  };
+
+  // Handle custom city entry (when user types a city not in the list)
+  const handleCustomCitySelect = async (cityName: string) => {
+    if (!cityName.trim()) return;
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    // Default to "Unknown" for country if we don't know
+    const country = 'Unknown';
+
+    setSelectedCountry(null);
+    setSelectedState(null);
+    setSelectedCity(cityName.trim());
+    setSelectedNeighborhood('');
+    setSelectedLocation({ country, state: undefined, city: cityName.trim() });
+    setStep('city');
   };
 
   const selectedCountryData = useMemo(
@@ -277,56 +298,16 @@ export default function LocationSelectScreen() {
   const handleQuickCitySelect = async (cityOption: CityOption) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
+    setSelectedCountry(cityOption.countryCode || null);
+    setSelectedState(cityOption.state || null);
+    setSelectedCity(cityOption.city);
+    setSelectedNeighborhood('');
     setSelectedLocation({
       country: cityOption.country,
       state: cityOption.state || undefined,
       city: cityOption.city,
     });
-
-    // Try to get or create the community in Supabase
-    const dbCommunity = await getOrCreateCommunity(
-      cityOption.city,
-      cityOption.state || null,
-      cityOption.country
-    );
-
-    if (dbCommunity) {
-      const user = await getCurrentUser();
-      if (user) {
-        await joinCommunity(user.id, dbCommunity.id);
-      }
-
-      setCurrentCommunity({
-        id: dbCommunity.id,
-        name: dbCommunity.name,
-        city: dbCommunity.city,
-        state: dbCommunity.state ?? undefined,
-        country: dbCommunity.country,
-        memberCount: dbCommunity.member_count,
-        image: dbCommunity.image_url || 'https://images.unsplash.com/photo-1489392191049-fc10c97e64b6?w=400&h=300&fit=crop',
-      });
-    } else {
-      const matchingCommunity = MOCK_COMMUNITIES.find(
-        (c) => c.city.toLowerCase() === cityOption.city.toLowerCase()
-      );
-
-      if (matchingCommunity) {
-        setCurrentCommunity(matchingCommunity);
-      } else {
-        setCurrentCommunity({
-          id: 'custom',
-          name: `${cityOption.city} Expats`,
-          city: cityOption.city,
-          state: cityOption.state ?? undefined,
-          country: cityOption.country,
-          memberCount: 1,
-          image: 'https://images.unsplash.com/photo-1489392191049-fc10c97e64b6?w=400&h=300&fit=crop',
-        });
-      }
-    }
-
-    // Send to signup after location selection
-    router.replace('/signup');
+    setStep('city');
   };
 
   const handleBack = () => {
@@ -351,59 +332,14 @@ export default function LocationSelectScreen() {
 
     const countryName = selectedCountryData?.name || '';
 
-    setSelectedLocation({
-      country: countryName,
-      state: selectedState || undefined,
-      city: selectedCity || '',
-    });
+    const base = {
+      country: countryName || selectedLocation?.country || 'Unknown',
+      state: selectedState || selectedLocation?.state,
+      city: selectedCity || selectedLocation?.city || '',
+    };
 
-    // Try to get or create the community in Supabase
-    const dbCommunity = await getOrCreateCommunity(
-      selectedCity || '',
-      selectedState || null,
-      countryName
-    );
-
-    if (dbCommunity) {
-      // If user is logged in, join the community
-      const user = await getCurrentUser();
-      if (user) {
-        await joinCommunity(user.id, dbCommunity.id);
-      }
-
-      // Set the community with real data
-      setCurrentCommunity({
-        id: dbCommunity.id,
-        name: dbCommunity.name,
-        city: dbCommunity.city,
-        state: dbCommunity.state ?? undefined,
-        country: dbCommunity.country,
-        memberCount: dbCommunity.member_count,
-        image: dbCommunity.image_url || 'https://images.unsplash.com/photo-1489392191049-fc10c97e64b6?w=400&h=300&fit=crop',
-      });
-    } else {
-      // Fallback to mock community if Supabase fails
-      const matchingCommunity = MOCK_COMMUNITIES.find(
-        (c) => c.city.toLowerCase() === selectedCity?.toLowerCase()
-      );
-
-      if (matchingCommunity) {
-        setCurrentCommunity(matchingCommunity);
-      } else {
-        setCurrentCommunity({
-          id: 'custom',
-          name: `${selectedCity} Expats`,
-          city: selectedCity || '',
-          state: selectedState ?? undefined,
-          country: countryName,
-          memberCount: 1,
-          image: 'https://images.unsplash.com/photo-1489392191049-fc10c97e64b6?w=400&h=300&fit=crop',
-        });
-      }
-    }
-
-    // Send to signup after location selection
-    router.replace('/signup');
+    if (!base.city) return;
+    await finalizeLocation(base);
   };
 
   const canContinue = selectedCountry && selectedCity;
@@ -665,38 +601,100 @@ export default function LocationSelectScreen() {
         ));
 
       case 'city':
-        return filteredCities.map((city, index) => (
-          <Animated.View
-            key={city}
-            entering={FadeInUp.duration(300).delay(index * 30)}
-          >
-            <Pressable
-              onPress={() => handleCitySelect(city)}
-              className={`flex-row items-center p-4 rounded-2xl mb-2 ${
-                selectedCity === city ? 'bg-terracotta-500' : 'bg-white'
-              }`}
-            >
-              <View
-                className={`w-10 h-10 rounded-full items-center justify-center mr-3 ${
-                  selectedCity === city ? 'bg-white/20' : 'bg-gold-50'
-                }`}
+        return (
+          <>
+            {filteredCities.map((city, index) => (
+              <Animated.View
+                key={city}
+                entering={FadeInUp.duration(300).delay(index * 30)}
               >
-                <MapPin
-                  size={20}
-                  color={selectedCity === city ? '#FFFFFF' : '#C9A227'}
-                />
-              </View>
-              <Text
-                className={`flex-1 font-medium text-base ${
-                  selectedCity === city ? 'text-white' : 'text-warmBrown'
-                }`}
-              >
-                {city}
-              </Text>
-              {selectedCity === city && <Check size={20} color="#FFFFFF" />}
-            </Pressable>
-          </Animated.View>
-        ));
+                <Pressable
+                  onPress={() => handleCitySelect(city)}
+                  className={`flex-row items-center p-4 rounded-2xl mb-2 ${
+                    selectedCity === city ? 'bg-terracotta-500' : 'bg-white'
+                  }`}
+                >
+                  <View
+                    className={`w-10 h-10 rounded-full items-center justify-center mr-3 ${
+                      selectedCity === city ? 'bg-white/20' : 'bg-gold-50'
+                    }`}
+                  >
+                    <MapPin
+                      size={20}
+                      color={selectedCity === city ? '#FFFFFF' : '#C9A227'}
+                    />
+                  </View>
+                  <Text
+                    className={`flex-1 font-medium text-base ${
+                      selectedCity === city ? 'text-white' : 'text-warmBrown'
+                    }`}
+                  >
+                    {city}
+                  </Text>
+                  {selectedCity === city && <Check size={20} color="#FFFFFF" />}
+                </Pressable>
+              </Animated.View>
+            ))}
+
+            {/* Neighborhood (optional) */}
+            {selectedCity && (
+              <Animated.View entering={FadeInUp.duration(300)} className="mt-4">
+                <View className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+                  <Text className="text-warmBrown font-semibold text-base">Neighborhood (optional)</Text>
+                  <Text className="text-gray-500 text-sm mt-1">
+                    Add your neighborhood to unlock a hyper-local feed. You can skip this.
+                  </Text>
+
+                  <View className="flex-row items-center bg-gray-50 rounded-xl px-4 py-3 mt-3">
+                    <MapPin size={18} color="#8B7355" />
+                    <TextInput
+                      placeholder={`e.g. Southshore`}
+                      placeholderTextColor="#9CA3AF"
+                      value={selectedNeighborhood}
+                      onChangeText={setSelectedNeighborhood}
+                      className="flex-1 ml-3 text-warmBrown text-base"
+                    />
+                    {selectedNeighborhood.length > 0 && (
+                      <Pressable onPress={() => setSelectedNeighborhood('')} className="p-1">
+                        <X size={18} color="#9CA3AF" />
+                      </Pressable>
+                    )}
+                  </View>
+
+                  {neighborhoodChips.length > 0 && (
+                    <View className="mt-3">
+                      <Text className="text-gray-400 text-xs font-medium mb-2">PICK FROM RECENT</Text>
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }}>
+                        <View className="flex-row">
+                          {neighborhoodChips.map((n) => {
+                            const active =
+                              selectedNeighborhood.trim().toLowerCase() === n.trim().toLowerCase();
+                            return (
+                              <Pressable
+                                key={n}
+                                onPress={() => {
+                                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                  setSelectedNeighborhood(n);
+                                }}
+                                className={`px-3 py-2 rounded-full mr-2 ${
+                                  active ? 'bg-forest-600' : 'bg-forest-50'
+                                }`}
+                              >
+                                <Text className={`${active ? 'text-white' : 'text-forest-700'} font-semibold`}>
+                                  {n}
+                                </Text>
+                              </Pressable>
+                            );
+                          })}
+                        </View>
+                      </ScrollView>
+                    </View>
+                  )}
+                </View>
+              </Animated.View>
+            )}
+          </>
+        );
     }
   };
 

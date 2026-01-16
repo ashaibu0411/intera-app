@@ -26,7 +26,7 @@ import { getFaithEvents, getEvents } from '@/lib/marketplace-api';
 import { parseEventMetadata } from '@/lib/eventMetadata';
 
 type EventFilter = 'all' | 'Social Gathering' | 'Cultural Celebration' | 'Food & Dining' | 'Music & Entertainment' | 'Networking' | 'Education & Workshop';
-type FeedMode = 'local' | 'global';
+type FeedMode = 'neighborhood' | 'city' | 'global';
 
 // Mock events data
 const MOCK_EVENTS: Event[] = [
@@ -228,7 +228,7 @@ const FILTER_OPTIONS: Array<{ key: EventFilter; label: string; icon: React.Eleme
 
 export default function EventsScreen() {
   const [refreshing, setRefreshing] = useState(false);
-  const [feedMode, setFeedMode] = useState<FeedMode>('local');
+  const [feedMode, setFeedMode] = useState<FeedMode>('city');
   const [activeFilter, setActiveFilter] = useState<EventFilter>('all');
   const [dbFaithEvents, setDbFaithEvents] = useState<Array<{
     id: string;
@@ -272,6 +272,7 @@ export default function EventsScreen() {
   const setEventRsvp = useStore((s) => s.setEventRsvp);
 
   const cityName = selectedLocation?.city || 'Denver';
+  const neighborhoodName = selectedLocation?.neighborhood?.trim();
 
   const mapFaithToEvent = (fe: (typeof dbFaithEvents)[number]): Event => {
     const meta = parseEventMetadata(fe.description || '');
@@ -333,7 +334,7 @@ export default function EventsScreen() {
 
   // Filter and combine events based on mode and filter
   const filteredEvents = useMemo(() => {
-    let events = feedMode === 'local' ? MOCK_EVENTS : [...MOCK_EVENTS, ...GLOBAL_EVENTS];
+    let events = feedMode === 'global' ? [...MOCK_EVENTS, ...GLOBAL_EVENTS] : MOCK_EVENTS;
 
     // Merge in DB faith events (mapped to EventCard shape)
     const faithAsEvents = dbFaithEvents.map(mapFaithToEvent);
@@ -370,16 +371,28 @@ export default function EventsScreen() {
 
     events = [...faithAsEvents, ...generalDbEvents, ...events];
 
-    // Filter by location for local mode
-    if (feedMode === 'local') {
+    // Filter by location for neighborhood/city modes
+    if (feedMode === 'neighborhood' || feedMode === 'city') {
       const cityLower = cityName.toLowerCase();
       const stateLower = (selectedLocation?.state || '').toLowerCase();
+      const neighborhoodLower = (neighborhoodName || '').toLowerCase();
       events = events.filter((e) => {
         const reach = e.scope || 'city';
         const locLower = (e.location || '').toLowerCase();
+        const addrLower = (e.address || '').toLowerCase();
+        const blob = `${locLower} ${addrLower}`;
         if (reach === 'global') return true;
-        if (locLower.includes(cityLower)) return true;
-        if (reach === 'nearby' && stateLower && locLower.includes(stateLower)) return true;
+        const cityMatch = blob.includes(cityLower);
+        if (feedMode === 'city') {
+          if (cityMatch) return true;
+          if (reach === 'nearby' && stateLower && blob.includes(stateLower)) return true;
+          return false;
+        }
+
+        // Neighborhood view includes both neighborhood + city content
+        if (neighborhoodLower && blob.includes(neighborhoodLower)) return true;
+        if (cityMatch) return true;
+        if (reach === 'nearby' && stateLower && blob.includes(stateLower)) return true;
         return false;
       });
     }
@@ -391,7 +404,7 @@ export default function EventsScreen() {
 
     // Sort by date
     return events.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  }, [feedMode, activeFilter, cityName, selectedLocation?.state, dbFaithEvents]);
+  }, [feedMode, activeFilter, cityName, selectedLocation?.state, dbFaithEvents, dbEvents]);
 
   // Get upcoming events (next 7 days) for featured section
   const upcomingEvents = useMemo(() => {
@@ -399,12 +412,45 @@ export default function EventsScreen() {
     const nextWeek = new Date();
     nextWeek.setDate(nextWeek.getDate() + 7);
 
-    const base = [...dbFaithEvents.map(mapFaithToEvent), ...MOCK_EVENTS];
+    const generalDbEvents: Event[] = dbEvents.map((e) => {
+      const creator: User = {
+        id: e.creator?.id || e.creator_id,
+        name: e.creator?.name || 'Community Member',
+        username: e.creator?.username || 'member',
+        avatar:
+          e.creator?.avatar_url ||
+          'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&h=200&fit=crop&crop=face',
+        bio: e.creator?.bio || '',
+        location: e.creator?.location || e.location,
+        interests: e.creator?.interests || [],
+        joinedDate: e.creator?.created_at || e.created_at,
+      };
+      return {
+        id: e.id,
+        creator,
+        title: e.title,
+        description: e.description,
+        date: e.date,
+        time: e.time,
+        endTime: e.end_time || undefined,
+        location: e.location,
+        address: e.address,
+        image: e.image || undefined,
+        isPublic: e.is_public,
+        attendees: [],
+        rsvpCount: 0,
+        category: e.category,
+        createdAt: e.created_at,
+        scope: e.scope,
+      };
+    });
+
+    const base = [...dbFaithEvents.map(mapFaithToEvent), ...generalDbEvents, ...MOCK_EVENTS];
     return base.filter((e) => {
       const eventDate = new Date(e.date);
       return eventDate >= now && eventDate <= nextWeek;
     }).slice(0, 3);
-  }, [dbFaithEvents]);
+  }, [dbFaithEvents, dbEvents]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -460,7 +506,11 @@ export default function EventsScreen() {
               <View className="flex-row items-center mt-1">
                 <MapPin size={14} color="#D4673A" />
                 <Text className="text-gray-500 ml-1">
-                  {feedMode === 'local' ? `In ${cityName}` : 'Worldwide'}
+                  {feedMode === 'global'
+                    ? 'Worldwide'
+                    : feedMode === 'neighborhood'
+                    ? `In ${neighborhoodName ? `${neighborhoodName}, ` : ''}${cityName}`
+                    : `In ${cityName}`}
                 </Text>
               </View>
             </View>
@@ -473,21 +523,37 @@ export default function EventsScreen() {
             </Pressable>
           </View>
 
-          {/* Local/Global Toggle */}
+          {/* Neighborhood/City/Global Toggle */}
           <View className="flex-row mt-4 bg-white rounded-full p-1 shadow-sm">
             <Pressable
-              onPress={() => handleFeedModeToggle('local')}
+              onPress={() => handleFeedModeToggle('neighborhood')}
               className={`flex-1 flex-row items-center justify-center py-2.5 rounded-full ${
-                feedMode === 'local' ? 'bg-terracotta-500' : ''
+                feedMode === 'neighborhood' ? 'bg-terracotta-500' : ''
               }`}
             >
-              <Users size={16} color={feedMode === 'local' ? '#FFFFFF' : '#8B7355'} />
+              <MapPin size={16} color={feedMode === 'neighborhood' ? '#FFFFFF' : '#8B7355'} />
               <Text
                 className={`ml-2 font-medium ${
-                  feedMode === 'local' ? 'text-white' : 'text-gray-500'
+                  feedMode === 'neighborhood' ? 'text-white' : 'text-gray-500'
                 }`}
               >
-                Local
+                Neighborhood
+              </Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => handleFeedModeToggle('city')}
+              className={`flex-1 flex-row items-center justify-center py-2.5 rounded-full ${
+                feedMode === 'city' ? 'bg-forest-700' : ''
+              }`}
+            >
+              <Users size={16} color={feedMode === 'city' ? '#FFFFFF' : '#8B7355'} />
+              <Text
+                className={`ml-2 font-medium ${
+                  feedMode === 'city' ? 'text-white' : 'text-gray-500'
+                }`}
+              >
+                City
               </Text>
             </Pressable>
 
@@ -558,8 +624,8 @@ export default function EventsScreen() {
           }
           contentContainerStyle={{ paddingBottom: 20 }}
         >
-          {/* Upcoming This Week - Only show in local mode with "all" filter */}
-          {feedMode === 'local' && activeFilter === 'all' && upcomingEvents.length > 0 && (
+          {/* Upcoming This Week - Only show in neighborhood/city mode with "all" filter */}
+          {(feedMode === 'neighborhood' || feedMode === 'city') && activeFilter === 'all' && upcomingEvents.length > 0 && (
             <Animated.View
               entering={FadeInUp.duration(500).delay(250)}
               className="mb-4"
@@ -628,7 +694,7 @@ export default function EventsScreen() {
             className="px-5 mb-3"
           >
             <Text className="text-warmBrown font-bold text-lg">
-              {feedMode === 'local' ? 'Events Near You' : 'Events Worldwide'}
+              {feedMode === 'global' ? 'Events Worldwide' : 'Events Near You'}
             </Text>
           </Animated.View>
 
@@ -660,11 +726,11 @@ export default function EventsScreen() {
               <Text className="text-gray-500 text-center mt-2">
                 {activeFilter !== 'all'
                   ? 'Try a different category filter'
-                  : feedMode === 'local'
+                  : (feedMode === 'neighborhood' || feedMode === 'city')
                   ? 'Be the first to create an event!'
                   : 'Check back soon for more events'}
               </Text>
-              {feedMode === 'local' && (
+              {(feedMode === 'neighborhood' || feedMode === 'city') && (
                 <Pressable
                   onPress={handleCreateEvent}
                   className="mt-4 bg-terracotta-500 px-6 py-3 rounded-full flex-row items-center"

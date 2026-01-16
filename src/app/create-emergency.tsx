@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, Pressable, TextInput } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { View, Text, ScrollView, Pressable, TextInput, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
@@ -18,6 +18,10 @@ import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { useStore } from '@/lib/store';
+import * as ImagePicker from 'expo-image-picker';
+import { uploadImages } from '@/lib/posts';
+import { createIncident } from '@/lib/marketplace-api';
+import { sendRemotePushAlert } from '@/lib/pushAlerts';
 
 // Emergency types
 const EMERGENCY_TYPES = [
@@ -39,19 +43,87 @@ export default function CreateEmergencyScreen() {
   const [location, setLocation] = useState(selectedLocation?.city || '');
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [photo, setPhoto] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = () => {
-    if (!selectedType || !title.trim() || !description.trim()) {
+  const loc = useMemo(() => {
+    const city = selectedLocation?.city || location || 'Unknown';
+    const country = selectedLocation?.country || 'Unknown';
+    const adminArea = selectedLocation?.state || null;
+    const neighborhood = selectedLocation?.neighborhood?.trim() || null;
+    const locationLabel = neighborhood ? `${city}, ${adminArea || country} · ${neighborhood}` : `${city}, ${adminArea || country}`;
+    const scope = selectedLocation?.neighborhood ? 'neighborhood' : 'city';
+    return { city, country, adminArea, neighborhood, locationLabel, scope };
+  }, [selectedLocation, location]);
+
+  const handlePickPhoto = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.85,
+      allowsEditing: true,
+    });
+    if (!result.canceled && result.assets?.length) {
+      setPhoto(result.assets[0].uri);
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!selectedType || !title.trim() || !description.trim() || !currentUser?.id || isSubmitting) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       return;
     }
 
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setShowSuccess(true);
+    setIsSubmitting(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-    setTimeout(() => {
-      router.back();
-    }, 2500);
+    try {
+      let imageUrl: string | null = null;
+      if (photo) {
+        const uploaded = await uploadImages([photo], currentUser.id);
+        imageUrl = uploaded[0] || null;
+      }
+
+      const extra =
+        selectedType === 'financial' && amount.trim()
+          ? `\n\nAmount needed: ${amount.trim()}`
+          : '';
+
+      await createIncident(currentUser.id, {
+        type: selectedType,
+        title: title.trim(),
+        description: `${description.trim()}${extra}${isAnonymous ? '\n\nPosted anonymously' : ''}`,
+        image: imageUrl,
+        country: loc.country,
+        admin_area: loc.adminArea,
+        city: loc.city,
+        neighborhood: loc.neighborhood,
+        location_label: loc.locationLabel,
+        scope: loc.scope as any,
+      });
+
+      // True remote push alert to neighborhood/city (best-effort; non-blocking)
+      sendRemotePushAlert({
+        title: `Emergency: ${EMERGENCY_TYPES.find((t) => t.id === selectedType)?.label || selectedType}`,
+        body: title.trim(),
+        scope: loc.scope as any,
+        city: loc.city,
+        neighborhood: loc.neighborhood,
+        excludeUserId: currentUser.id,
+        data: { type: 'emergency', screen: '/safety-alerts' },
+      }).catch(() => {});
+
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setShowSuccess(true);
+
+      setTimeout(() => {
+        router.back();
+      }, 1200);
+    } catch {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (showSuccess) {
@@ -236,13 +308,15 @@ export default function CreateEmergencyScreen() {
 
             {/* Add Photo */}
             <Pressable
-              onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
+              onPress={handlePickPhoto}
               className="bg-white rounded-xl p-4 flex-row items-center"
             >
               <View className="w-10 h-10 rounded-full bg-gray-100 items-center justify-center">
                 <Camera size={20} color="#6B7280" />
               </View>
-              <Text className="text-gray-600 ml-3">Add supporting photo (optional)</Text>
+              <Text className="text-gray-600 ml-3">
+                {photo ? 'Photo added (tap to change)' : 'Add supporting photo (optional)'}
+              </Text>
             </Pressable>
           </Animated.View>
 
@@ -283,10 +357,16 @@ export default function CreateEmergencyScreen() {
                 style={{ borderRadius: 16, paddingVertical: 16, alignItems: 'center' }}
               >
                 <View className="flex-row items-center">
-                  <AlertTriangle size={20} color="#FFFFFF" />
-                  <Text className="text-white font-bold text-lg ml-2">
-                    Submit Emergency Request
-                  </Text>
+                  {isSubmitting ? (
+                    <ActivityIndicator color="#FFFFFF" />
+                  ) : (
+                    <>
+                      <AlertTriangle size={20} color="#FFFFFF" />
+                      <Text className="text-white font-bold text-lg ml-2">
+                        Submit Emergency Request
+                      </Text>
+                    </>
+                  )}
                 </View>
               </LinearGradient>
             </Pressable>

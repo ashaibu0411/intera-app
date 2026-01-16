@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, Pressable, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, ScrollView, Pressable, TextInput, KeyboardAvoidingView, Platform, Switch } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
@@ -34,6 +34,8 @@ import {
   FAITH_TYPES,
   type ServeTalent,
 } from '@/lib/store';
+import { upsertMyServeTalent } from '@/lib/marketplace-api';
+import { createPost } from '@/lib/posts';
 
 const CATEGORY_ICONS: Record<string, React.ReactNode> = {
   musician: <Music size={24} color="#1B4D3E" />,
@@ -74,13 +76,17 @@ export default function RegisterTalentScreen() {
   const [faithBackground, setFaithBackground] = useState('');
   const [contactPhone, setContactPhone] = useState('');
   const [contactEmail, setContactEmail] = useState('');
+  const [announceToFeed, setAnnounceToFeed] = useState(true);
 
   const currentUser = useStore((s) => s.currentUser);
   const selectedLocation = useStore((s) => s.selectedLocation);
   const setUserTalentProfile = useStore((s) => s.setUserTalentProfile);
+  const currentCommunity = useStore((s) => s.currentCommunity);
 
   const locationString = selectedLocation
-    ? `${selectedLocation.city}, ${selectedLocation.state ?? selectedLocation.country}`
+    ? `${selectedLocation.city}, ${selectedLocation.state ?? selectedLocation.country}${
+        selectedLocation.neighborhood ? ` · ${selectedLocation.neighborhood}` : ''
+      }`
     : 'Denver, CO';
 
   const handleCategorySelect = (categoryId: string) => {
@@ -116,7 +122,7 @@ export default function RegisterTalentScreen() {
     }
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!currentUser || !selectedCategory) return;
 
     const newTalentProfile: ServeTalent = {
@@ -140,9 +146,54 @@ export default function RegisterTalentScreen() {
       lastActive: new Date().toISOString(),
     };
 
-    setUserTalentProfile(newTalentProfile);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    router.replace('/serve-connect');
+    try {
+      const city = selectedLocation?.city || 'Denver';
+      const country = selectedLocation?.country || 'Unknown';
+      const adminArea = selectedLocation?.state || null;
+      const neighborhood = selectedLocation?.neighborhood?.trim() || null;
+      const base = `${city}, ${adminArea || country}`;
+      const locationLabel = neighborhood ? `${base} · ${neighborhood}` : base;
+      const scope = neighborhood ? 'neighborhood' : 'city';
+
+      await upsertMyServeTalent(currentUser.id, {
+        category: selectedCategory,
+        skills: selectedSkills,
+        experience,
+        bio,
+        is_available: isAvailable,
+        availability_note: availabilityNote || null,
+        willing_to_travel: willingToTravel,
+        travel_radius: willingToTravel ? travelRadius || null : null,
+        faith_background: faithBackground || null,
+        contact_phone: contactPhone || null,
+        contact_email: contactEmail || currentUser.email || null,
+        country,
+        admin_area: adminArea,
+        city,
+        neighborhood,
+        location_label: locationLabel,
+        scope: scope as any,
+      });
+
+      if (announceToFeed) {
+        const parts = [
+          city,
+          neighborhood || null,
+          adminArea || null,
+          country,
+        ].filter(Boolean) as string[];
+        const postLocation = parts.join(', ');
+        const categoryLabel = getCategoryLabel(selectedCategory);
+        const content = `New volunteer available: ${currentUser.name} (${categoryLabel})\n\nOpen Serve & Connect → Volunteers to view profile and contact info.`;
+        await createPost(currentUser.id, content, [], postLocation, currentCommunity?.id || undefined);
+      }
+
+      setUserTalentProfile(newTalentProfile);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      router.replace('/serve-connect');
+    } catch {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    }
   };
 
   const canProceedStep1 = selectedCategory !== null;
@@ -424,6 +475,21 @@ export default function RegisterTalentScreen() {
             keyboardType="email-address"
             autoCapitalize="none"
             className="flex-1 ml-3 text-warmBrown text-base"
+          />
+        </View>
+
+        <View className="bg-white rounded-2xl p-4 mb-4 flex-row items-center justify-between border border-gray-200">
+          <View className="flex-1 pr-3">
+            <Text className="text-warmBrown font-medium">Announce to community feed</Text>
+            <Text className="text-gray-500 text-sm mt-1">
+              Posts a short update in your neighborhood/city so churches can find you faster.
+            </Text>
+          </View>
+          <Switch
+            value={announceToFeed}
+            onValueChange={setAnnounceToFeed}
+            trackColor={{ false: '#D1D5DB', true: '#1B4D3E' }}
+            thumbColor="#fff"
           />
         </View>
 

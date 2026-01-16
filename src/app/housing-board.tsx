@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, Pressable, TextInput, Modal } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { View, Text, ScrollView, Pressable, TextInput, Modal, RefreshControl, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
-import { ArrowLeft, Search, Home, DollarSign, Users, MapPin, Calendar, Bed, Bath, Car, Wifi, Check, X, Plus, MessageCircle, Heart, Filter } from 'lucide-react-native';
+import { ArrowLeft, Search, Home, DollarSign, Users, MapPin, Calendar, Bed, Bath, Wifi, Check, X, Plus, MessageCircle, Heart, Filter, ShieldAlert } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import Animated, { FadeInDown } from 'react-native-reanimated';
+import { useStore } from '@/lib/store';
+import { getHousingListings, getHousingListingCounts, flagHousingListing, setHousingListingConfirmation } from '@/lib/marketplace-api';
 
 interface HousingListing {
   id: string;
@@ -18,20 +20,18 @@ interface HousingListing {
   images: string[];
   bedrooms: number;
   bathrooms: number;
-  sqft: string;
-  availableDate: string;
-  amenities: string[];
   poster: {
     name: string;
     avatar: string;
     isVerified: boolean;
   };
   description: string;
-  preferences: string[];
   isFurnished: boolean;
   utilitiesIncluded: boolean;
   petFriendly: boolean;
   isSaved: boolean;
+  confirmations?: number;
+  flags?: number;
 }
 
 const MOCK_LISTINGS: HousingListing[] = [
@@ -188,8 +188,102 @@ export default function HousingBoardScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [listings, setListings] = useState(MOCK_LISTINGS);
   const [showPostModal, setShowPostModal] = useState(false);
+  const [dbListings, setDbListings] = useState<any[]>([]);
+  const [countsById, setCountsById] = useState<Record<string, { confirmations: number; flags: number }>>({});
+  const [isLoading, setIsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const filteredListings = listings.filter(listing => {
+  const selectedLocation = useStore((s) => s.selectedLocation);
+  const feedFilter = useStore((s) => s.feedFilter);
+  const currentUser = useStore((s) => s.currentUser);
+
+  const city = selectedLocation?.city || 'Denver';
+  const neighborhood = selectedLocation?.neighborhood?.trim();
+  const mode = feedFilter; // neighborhood | city | global
+
+  const fetchDb = async () => {
+    try {
+      if (!currentUser?.id) {
+        setDbListings([]);
+        setCountsById({});
+        return;
+      }
+      const rows = await getHousingListings(80);
+      setDbListings(rows as any);
+
+      const countsEntries = await Promise.all(
+        (rows || []).slice(0, 30).map(async (r) => [r.id, await getHousingListingCounts(r.id)] as const)
+      );
+      const next: Record<string, { confirmations: number; flags: number }> = {};
+      for (const [id, c] of countsEntries) next[id] = c;
+      setCountsById(next);
+    } catch {
+      // keep mock
+    }
+  };
+
+  useEffect(() => {
+    fetchDb().finally(() => setIsLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.id]);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      await fetchDb();
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const mappedDbListings: HousingListing[] = useMemo(() => {
+    return (dbListings || []).map((l: any) => {
+      const counts = countsById[l.id] || { confirmations: 0, flags: 0 };
+      return {
+        id: l.id,
+        type: l.type,
+        title: l.title,
+        price: `$${Number(l.price).toLocaleString()}`,
+        priceType: l.price_type === 'week' ? 'week' : 'month',
+        location: l.location_label || l.city,
+        neighborhood: l.neighborhood || '',
+        images: Array.isArray(l.images) && l.images.length > 0 ? l.images : ['https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=400'],
+        bedrooms: l.bedrooms || 0,
+        bathrooms: l.bathrooms || 0,
+        poster: {
+          name: l.creator?.name || 'Community Member',
+          avatar: l.creator?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&h=200&fit=crop&crop=face',
+          isVerified: true,
+        },
+        description: l.description,
+        isFurnished: !!l.is_furnished,
+        utilitiesIncluded: !!l.utilities_included,
+        petFriendly: !!l.pet_friendly,
+        isSaved: false,
+        confirmations: counts.confirmations,
+        flags: counts.flags,
+      };
+    });
+  }, [dbListings, countsById]);
+
+  const scopedListings = useMemo(() => {
+    if (mode === 'global') return mappedDbListings.length > 0 ? [...mappedDbListings, ...listings] : listings;
+    const cityLower = city.toLowerCase();
+    const neighborhoodLower = (neighborhood || '').toLowerCase();
+    const matches = (l: HousingListing) => {
+      const blob = `${l.location} ${l.neighborhood}`.toLowerCase();
+      const cityMatch = blob.includes(cityLower);
+      if (mode === 'city') return cityMatch;
+      if (!neighborhoodLower) return cityMatch;
+      return blob.includes(neighborhoodLower) || cityMatch;
+    };
+    const fromDb = mappedDbListings.filter(matches);
+    const fromMock = listings.filter(matches);
+    return [...fromDb, ...fromMock];
+  }, [mode, mappedDbListings, listings, city, neighborhood]);
+
+  const filteredListings = scopedListings.filter(listing => {
     const matchesType = selectedType === 'all' || listing.type === selectedType;
     const matchesSearch = searchQuery === '' ||
       listing.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -230,7 +324,11 @@ export default function HousingBoardScreen() {
             <Pressable
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                setShowPostModal(true);
+                if (!currentUser?.id) {
+                  router.push('/signup');
+                } else {
+                  router.push('/create-housing-listing');
+                }
               }}
               className="w-10 h-10 rounded-full bg-blue-500 items-center justify-center"
             >
@@ -281,7 +379,17 @@ export default function HousingBoardScreen() {
         </View>
 
         {/* Listings */}
-        <ScrollView className="flex-1 px-5 pt-4" showsVerticalScrollIndicator={false}>
+        <ScrollView
+          className="flex-1 px-5 pt-4"
+          showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        >
+          {isLoading ? (
+            <View className="py-10 items-center">
+              <ActivityIndicator />
+              <Text className="text-gray-500 mt-3">Loading housing…</Text>
+            </View>
+          ) : null}
           {filteredListings.map((listing, index) => (
             <Animated.View
               key={listing.id}
@@ -396,13 +504,61 @@ export default function HousingBoardScreen() {
                         <Text className="text-gray-400 text-xs">Posted by</Text>
                       </View>
                     </View>
-                    <Pressable
-                      onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)}
-                      className="flex-row items-center bg-blue-500 px-4 py-2.5 rounded-full"
-                    >
-                      <MessageCircle size={16} color="#fff" />
-                      <Text className="text-white font-semibold ml-2">Message</Text>
-                    </Pressable>
+                    <View className="flex-row items-center">
+                      <Pressable
+                        onPress={async () => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                          if (!currentUser?.id) {
+                            router.push('/signup');
+                            return;
+                          }
+                          try {
+                            await setHousingListingConfirmation(listing.id, currentUser.id);
+                            const c = await getHousingListingCounts(listing.id);
+                            setCountsById((prev) => ({ ...prev, [listing.id]: c }));
+                          } catch {}
+                        }}
+                        className="bg-emerald-600 px-3 py-2.5 rounded-full mr-2 flex-row items-center"
+                      >
+                        <Check size={14} color="#fff" />
+                        <Text className="text-white font-semibold ml-1">
+                          Seen {listing.confirmations ?? 0}
+                        </Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={() => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                          if (!currentUser?.id) {
+                            router.push('/signup');
+                            return;
+                          }
+                          Alert.alert(
+                            'Flag listing?',
+                            'Report this listing as suspicious so the community can be warned.',
+                            [
+                              { text: 'Cancel', style: 'cancel' },
+                              {
+                                text: 'Flag',
+                                style: 'destructive',
+                                onPress: async () => {
+                                  try {
+                                    await flagHousingListing(listing.id, currentUser.id, 'suspicious');
+                                    const c = await getHousingListingCounts(listing.id);
+                                    setCountsById((prev) => ({ ...prev, [listing.id]: c }));
+                                  } catch {}
+                                },
+                              },
+                            ]
+                          );
+                        }}
+                        className="bg-red-500 px-3 py-2.5 rounded-full flex-row items-center"
+                      >
+                        <ShieldAlert size={14} color="#fff" />
+                        <Text className="text-white font-semibold ml-1">
+                          Flag {listing.flags ?? 0}
+                        </Text>
+                      </Pressable>
+                    </View>
                   </View>
                 </View>
               </Pressable>
@@ -412,88 +568,9 @@ export default function HousingBoardScreen() {
           <View className="h-32" />
         </ScrollView>
 
-        {/* Post Modal */}
-        <Modal visible={showPostModal} animationType="slide" transparent>
-          <View className="flex-1 bg-black/50 justify-end">
-            <View className="bg-white rounded-t-3xl p-6">
-              <View className="flex-row items-center justify-between mb-6">
-                <Text className="text-gray-800 text-xl font-bold">Post a Listing</Text>
-                <Pressable
-                  onPress={() => setShowPostModal(false)}
-                  className="w-8 h-8 rounded-full bg-gray-100 items-center justify-center"
-                >
-                  <X size={18} color="#6B7280" />
-                </Pressable>
-              </View>
-
-              <View className="mb-4">
-                <Text className="text-gray-600 text-sm mb-2">Listing Type</Text>
-                <View className="flex-row gap-2">
-                  {LISTING_TYPES.slice(1).map((type) => (
-                    <Pressable
-                      key={type.key}
-                      className="flex-1 py-2.5 rounded-xl bg-gray-100 items-center"
-                    >
-                      <Text className="text-gray-600 font-medium">{type.label}</Text>
-                    </Pressable>
-                  ))}
-                </View>
-              </View>
-
-              <View className="mb-4">
-                <Text className="text-gray-600 text-sm mb-2">Title</Text>
-                <TextInput
-                  placeholder="e.g., Sunny Room in Brooklyn"
-                  placeholderTextColor="#9CA3AF"
-                  className="bg-gray-100 rounded-xl px-4 py-3 text-gray-800"
-                />
-              </View>
-
-              <View className="flex-row gap-3 mb-4">
-                <View className="flex-1">
-                  <Text className="text-gray-600 text-sm mb-2">Price</Text>
-                  <TextInput
-                    placeholder="$0"
-                    placeholderTextColor="#9CA3AF"
-                    keyboardType="number-pad"
-                    className="bg-gray-100 rounded-xl px-4 py-3 text-gray-800"
-                  />
-                </View>
-                <View className="flex-1">
-                  <Text className="text-gray-600 text-sm mb-2">Available Date</Text>
-                  <TextInput
-                    placeholder="Date"
-                    placeholderTextColor="#9CA3AF"
-                    className="bg-gray-100 rounded-xl px-4 py-3 text-gray-800"
-                  />
-                </View>
-              </View>
-
-              <View className="mb-6">
-                <Text className="text-gray-600 text-sm mb-2">Description</Text>
-                <TextInput
-                  placeholder="Describe your space..."
-                  placeholderTextColor="#9CA3AF"
-                  multiline
-                  numberOfLines={3}
-                  className="bg-gray-100 rounded-xl px-4 py-3 text-gray-800 h-20"
-                  textAlignVertical="top"
-                />
-              </View>
-
-              <Pressable
-                onPress={() => {
-                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                  setShowPostModal(false);
-                }}
-                className="bg-blue-500 rounded-xl py-4 items-center"
-              >
-                <Text className="text-white font-bold text-lg">Post Listing</Text>
-              </Pressable>
-
-              <View className="h-8" />
-            </View>
-          </View>
+        {/* Legacy Post Modal (unused) */}
+        <Modal visible={showPostModal} transparent animationType="fade">
+          <View />
         </Modal>
       </SafeAreaView>
     </View>

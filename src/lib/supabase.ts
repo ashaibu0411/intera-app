@@ -218,6 +218,180 @@ export interface DbEventRsvp {
   created_at: string;
 }
 
+export interface DbIncident {
+  id: string;
+  creator_id: string;
+  type: string;
+  title: string;
+  description: string;
+  image: string | null;
+  country: string;
+  admin_area: string | null;
+  city: string;
+  neighborhood: string | null;
+  location_label: string;
+  lat: number | null;
+  lng: number | null;
+  scope: 'neighborhood' | 'city' | 'global';
+  status: 'active' | 'resolved';
+  created_at: string;
+  creator?: DbUser;
+}
+
+export interface DbIncidentSignal {
+  id: string;
+  incident_id: string;
+  user_id: string;
+  kind: 'me_too' | 'helping' | 'resolved';
+  created_at: string;
+}
+
+export interface DbUtilityReport {
+  id: string;
+  creator_id: string;
+  utility: 'power' | 'water' | 'internet' | 'road';
+  state: 'outage' | 'restored' | 'degraded';
+  note: string | null;
+  country: string;
+  admin_area: string | null;
+  city: string;
+  neighborhood: string | null;
+  location_label: string;
+  lat: number | null;
+  lng: number | null;
+  scope: 'neighborhood' | 'city' | 'global';
+  created_at: string;
+  creator?: DbUser;
+}
+
+export interface DbHousingListing {
+  id: string;
+  creator_id: string;
+  type: 'room' | 'apartment' | 'house' | 'sublet';
+  title: string;
+  description: string;
+  price: number;
+  currency: string;
+  price_type: 'month' | 'week' | 'day';
+  bedrooms: number;
+  bathrooms: number;
+  is_furnished: boolean;
+  utilities_included: boolean;
+  pet_friendly: boolean;
+  images: string[];
+  country: string;
+  admin_area: string | null;
+  city: string;
+  neighborhood: string | null;
+  location_label: string;
+  address: string | null;
+  scope: 'neighborhood' | 'city' | 'global';
+  created_at: string;
+  creator?: DbUser;
+}
+
+export interface DbHousingListingConfirmation {
+  id: string;
+  listing_id: string;
+  user_id: string;
+  created_at: string;
+}
+
+export interface DbHousingListingFlag {
+  id: string;
+  listing_id: string;
+  user_id: string;
+  reason: string;
+  note: string | null;
+  created_at: string;
+}
+
+export interface DbBusinessReview {
+  id: string;
+  business_id: string;
+  reviewer_id: string;
+  rating: number;
+  review: string | null;
+  created_at: string;
+  updated_at: string;
+  reviewer?: DbUser;
+}
+
+export interface DbBusinessConfirmation {
+  id: string;
+  business_id: string;
+  user_id: string;
+  created_at: string;
+}
+
+export interface DbServiceProvider {
+  id: string;
+  user_id: string;
+  category: string;
+  title: string;
+  bio: string;
+  skills: string[];
+  is_available: boolean;
+  availability_note: string | null;
+  contact_phone: string | null;
+  contact_email: string | null;
+  country: string;
+  admin_area: string | null;
+  city: string;
+  neighborhood: string | null;
+  location_label: string;
+  scope: 'neighborhood' | 'city' | 'global';
+  created_at: string;
+  updated_at: string;
+  user?: DbUser;
+}
+
+export interface DbServiceProviderReview {
+  id: string;
+  provider_id: string;
+  reviewer_id: string;
+  rating: number;
+  review: string | null;
+  created_at: string;
+  updated_at: string;
+  reviewer?: DbUser;
+}
+
+export interface DbServiceProviderConfirmation {
+  id: string;
+  provider_id: string;
+  user_id: string;
+  created_at: string;
+}
+
+export interface DbServeTalent {
+  id: string;
+  user_id: string;
+  category: string;
+  skills: string[];
+  experience: string;
+  bio: string;
+  is_available: boolean;
+  availability_note: string | null;
+  willing_to_travel: boolean;
+  travel_radius: string | null;
+  faith_background: string | null;
+  contact_phone: string | null;
+  contact_email: string | null;
+  portfolio_images: string[];
+  video_link: string | null;
+  country: string;
+  admin_area: string | null;
+  city: string;
+  neighborhood: string | null;
+  location_label: string;
+  scope: 'neighborhood' | 'city' | 'global';
+  created_at: string;
+  updated_at: string;
+  last_active: string;
+  user?: DbUser;
+}
+
 export interface DbUserWallet {
   id: string;
   user_id: string;

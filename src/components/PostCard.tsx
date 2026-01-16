@@ -117,9 +117,15 @@ const getImpactText = (postType: PostType, likes: number, comments: number): str
 
 // Get community identity headline
 const getCommunityIdentity = (user: { location: string; bio?: string; communityRoles?: Array<{ role: string }> }): string => {
-  // Extract city from location (format: "City, Country" or "City, State, Country")
-  const locationParts = user.location.split(',').map(s => s.trim());
-  const city = locationParts[0] || 'Community';
+  // Extract city from location
+  // Supports:
+  // - "City, State, Country"
+  // - "City, Country"
+  // - "City · Neighborhood"
+  const raw = (user.location || '').trim();
+  const cityFromDot = raw.includes('·') ? raw.split('·')[0]?.trim() : '';
+  const cityFromComma = raw.split(',').map(s => s.trim())[0] || '';
+  const city = cityFromDot || cityFromComma || 'Community';
 
   // Check for roles
   if (user.communityRoles && user.communityRoles.length > 0) {

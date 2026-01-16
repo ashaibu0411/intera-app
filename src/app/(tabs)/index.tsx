@@ -16,6 +16,7 @@ import {
   Plus,
   Heart,
   Store,
+  UserCheck,
 } from 'lucide-react-native';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -148,6 +149,7 @@ export default function HomeScreen() {
         city: selectedLocation.city,
         country: selectedLocation.country,
         state: selectedLocation.state,
+        neighborhood: selectedLocation.neighborhood,
       };
     }
     return MOCK_COMMUNITIES[0];
@@ -264,15 +266,26 @@ export default function HomeScreen() {
       (post) => !blockedUserIds.includes(post.author.id)
     );
 
-    if (feedFilter === 'local') {
+    if (feedFilter === 'neighborhood' || feedFilter === 'city') {
       const userCity = selectedLocation?.city || displayCommunity.city;
-      const localPosts = nonBlockedPosts.filter(post => {
+      const userNeighborhood = selectedLocation?.neighborhood?.trim();
+
+      const localPosts = nonBlockedPosts.filter((post) => {
         const isDbPost = dbPosts.some(dbPost => dbPost.id === post.id);
         if (isDbPost) return true;
         const isUserPost = userPosts.some(userPost => userPost.id === post.id);
         if (isUserPost) return true;
         if (!post.location) return true;
-        return post.location.toLowerCase().includes(userCity.toLowerCase());
+
+        const locLower = post.location.toLowerCase();
+        const cityMatch = locLower.includes(userCity.toLowerCase());
+        if (feedFilter === 'city') return cityMatch;
+
+        // Neighborhood view includes both neighborhood + city content (never empty)
+        if (!userNeighborhood) return cityMatch;
+        const neighLower = userNeighborhood.toLowerCase();
+        const neighMatch = locLower.includes(neighLower);
+        return neighMatch || cityMatch;
       });
       return localPosts.sort((a, b) =>
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
@@ -294,7 +307,7 @@ export default function HomeScreen() {
     setRefreshing(false);
   };
 
-  const handleToggleFilter = (filter: 'local' | 'global') => {
+  const handleToggleFilter = (filter: 'neighborhood' | 'city' | 'global') => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setFeedFilter(filter);
   };
@@ -307,10 +320,10 @@ export default function HomeScreen() {
   const LOGO_IMAGE = require('../../../assets/icon.png');
 
   return (
-    <View className="flex-1 bg-gray-50">
+    <View className="flex-1 bg-cream">
       <SafeAreaView edges={['top']} className="flex-1">
         {/* Clean Header */}
-        <View className="px-4 py-2 bg-white border-b border-gray-100">
+        <View className="px-4 py-2 bg-cream border-b border-cream">
           <View className="flex-row items-center justify-between">
             {/* Logo & Location */}
             <Pressable
@@ -324,7 +337,7 @@ export default function HomeScreen() {
               />
               <View className="ml-2">
                 <View className="flex-row items-center">
-                  <Text className="text-xl font-bold text-gray-900">
+                  <Text className="text-xl font-bold text-warmBrown">
                     {displayCommunity.city}
                   </Text>
                   <ChevronDown size={18} color="#374151" />
@@ -339,19 +352,19 @@ export default function HomeScreen() {
                 onPress={() => navigateTo('/app-search')}
                 className="w-10 h-10 items-center justify-center"
               >
-                <Search size={24} color="#374151" />
+                <Search size={24} color="#2D1F1A" />
               </Pressable>
               <Pressable
                 onPress={() => navigateTo('/notifications')}
                 className="w-10 h-10 items-center justify-center"
               >
-                <Bell size={24} color="#374151" />
+                <Bell size={24} color="#2D1F1A" />
               </Pressable>
               <Pressable
                 onPress={() => navigateTo('/messages')}
                 className="w-10 h-10 items-center justify-center relative"
               >
-                <MessageCircle size={24} color="#374151" />
+                <MessageCircle size={24} color="#2D1F1A" />
                 {unreadCount > 0 && (
                   <View className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 rounded-full border-2 border-white items-center justify-center px-1">
                     <Text className="text-white text-[10px] font-bold leading-none">
@@ -455,25 +468,39 @@ export default function HomeScreen() {
           <WeatherSignal city={displayCommunity.city} country={displayCommunity.country} />
 
           {/* Feed Filter Toggle */}
-          <View className="flex-row px-4 py-3 gap-2 bg-white border-b border-gray-100">
+          <View className="flex-row px-4 py-3 gap-2 bg-cream">
             <Pressable
-              onPress={() => handleToggleFilter('local')}
+              onPress={() => handleToggleFilter('neighborhood')}
               className={`flex-row items-center px-4 py-2 rounded-full ${
-                feedFilter === 'local' ? 'bg-gray-900' : 'bg-gray-100'
+                feedFilter === 'neighborhood' ? 'bg-warmBrown' : 'bg-white'
               }`}
             >
-              <Users size={16} color={feedFilter === 'local' ? '#fff' : '#6B7280'} />
+              <MapPin size={16} color={feedFilter === 'neighborhood' ? '#fff' : '#6B7280'} />
               <Text className={`ml-2 font-medium text-base ${
-                feedFilter === 'local' ? 'text-white' : 'text-gray-600'
+                feedFilter === 'neighborhood' ? 'text-white' : 'text-gray-600'
               }`}>
-                Local
+                Neighborhood
+              </Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => handleToggleFilter('city')}
+              className={`flex-row items-center px-4 py-2 rounded-full ${
+                feedFilter === 'city' ? 'bg-warmBrown' : 'bg-white'
+              }`}
+            >
+              <Users size={16} color={feedFilter === 'city' ? '#fff' : '#6B7280'} />
+              <Text className={`ml-2 font-medium text-base ${
+                feedFilter === 'city' ? 'text-white' : 'text-gray-600'
+              }`}>
+                City
               </Text>
             </Pressable>
 
             <Pressable
               onPress={() => handleToggleFilter('global')}
               className={`flex-row items-center px-4 py-2 rounded-full ${
-                feedFilter === 'global' ? 'bg-gray-900' : 'bg-gray-100'
+                feedFilter === 'global' ? 'bg-warmBrown' : 'bg-white'
               }`}
             >
               <Globe size={16} color={feedFilter === 'global' ? '#fff' : '#6B7280'} />
@@ -485,9 +512,9 @@ export default function HomeScreen() {
             </Pressable>
           </View>
 
-          <View className="px-4 pb-3 bg-white border-b border-gray-100">
+          <View className="px-4 pb-3 bg-cream">
             <Text className="text-xs text-gray-500">
-              Local: people and plans near you • Global: diaspora highlights
+              Neighborhood: hyper-local • City: near you • Global: diaspora highlights
             </Text>
           </View>
 
@@ -568,6 +595,22 @@ export default function HomeScreen() {
                   <ChevronRight size={18} color="#059669" />
                 </Pressable>
               </View>
+
+              <View className="flex-row gap-2 mt-2">
+                <Pressable
+                  onPress={() => navigateTo('/trusted-providers')}
+                  className="flex-1 bg-forest-50 rounded-xl px-3 py-3 flex-row items-center"
+                >
+                  <View className="w-9 h-9 rounded-full bg-forest-700 items-center justify-center">
+                    <UserCheck size={18} color="#fff" />
+                  </View>
+                  <View className="ml-3 flex-1">
+                    <Text className="text-gray-900 font-semibold" numberOfLines={1}>Trusted helpers</Text>
+                    <Text className="text-gray-600 text-xs" numberOfLines={1}>Cooks, house helps, plumbers</Text>
+                  </View>
+                  <ChevronRight size={18} color="#1B4D3E" />
+                </Pressable>
+              </View>
             </View>
           </View>
 
@@ -588,8 +631,8 @@ export default function HomeScreen() {
           {/* === SECTION 4: COMMUNITY TALK === */}
           <ActiveConversations city={displayCommunity.city} isGlobal={feedFilter === 'global'} />
 
-          {/* === SECTION 5: COMMUNITY MOMENTS - only on local feed */}
-          {feedFilter === 'local' && <MemoryLayer city={displayCommunity.city} />}
+          {/* === SECTION 5: COMMUNITY MOMENTS - only on neighborhood/city feeds */}
+          {(feedFilter === 'neighborhood' || feedFilter === 'city') && <MemoryLayer city={displayCommunity.city} />}
 
           {/* Guest Sign Up Banner */}
           {(isGuest || !currentUser) && (

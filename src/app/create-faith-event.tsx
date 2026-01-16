@@ -65,11 +65,13 @@ export default function CreateFaithEventScreen() {
   const selectedLocation = useStore((s) => s.selectedLocation);
   const currentCommunity = useStore((s) => s.currentCommunity);
 
-  const userLocation = selectedLocation?.city
-    ? `${selectedLocation.city}, ${selectedLocation.state || selectedLocation.country}`
-    : currentCommunity?.city
-      ? `${currentCommunity.city}, ${currentCommunity.state || currentCommunity.country}`
-      : 'Denver, CO';
+  const userLocation = (() => {
+    const city = selectedLocation?.city || currentCommunity?.city || 'Denver';
+    const region = selectedLocation?.state || currentCommunity?.state || selectedLocation?.country || currentCommunity?.country || 'CO';
+    const base = `${city}, ${region}`;
+    const neighborhood = selectedLocation?.neighborhood?.trim();
+    return neighborhood ? `${base} · ${neighborhood}` : base;
+  })();
 
   const handlePickLogo = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);

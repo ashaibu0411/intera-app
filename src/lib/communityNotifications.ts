@@ -29,10 +29,12 @@ export async function getCommunityUserIds(communityId: string): Promise<string[]
  */
 export async function getCityUserIds(city: string, country: string): Promise<string[]> {
   try {
-    // First, try to get community ID
-    const community = await getCommunityByLocation(city, country);
-    if (community) {
-      return await getCommunityUserIds(community.id);
+    // First, try to get community ID (only if country is available)
+    if (country) {
+      const community = await getCommunityByLocation(city, country);
+      if (community) {
+        return await getCommunityUserIds(community.id);
+      }
     }
 
     // Fallback: Get users by location string match
@@ -100,19 +102,29 @@ export async function notifyCommunityAboutNewPost(
     if (communityId) {
       userIds = await getCommunityUserIds(communityId);
     } else if (location) {
-      // Extract city from location string (format: "City, State, Country" or "City, Country")
-      const locationParts = location.split(',');
-      const city = locationParts[0]?.trim() || '';
-      const country = locationParts[locationParts.length - 1]?.trim() || '';
-      
-      if (city && country) {
-        // Try to get community first
-        const community = await getCommunityByLocation(city, country);
-        if (community) {
-          userIds = await getCommunityUserIds(community.id);
+      // Extract city/country from location label.
+      // Common formats in this app:
+      // - "City"
+      // - "City, State"
+      // - "City, State · Neighborhood"
+      // - "City, Country"
+      // - "City, State, Country"
+      const [beforeDot] = location.split('·').map((s) => s.trim());
+      const parts = beforeDot.split(',').map((s) => s.trim()).filter(Boolean);
+      const city = parts[0] || '';
+      const country = parts.length >= 3 ? parts[parts.length - 1] : ''; // best-effort
+
+      if (city) {
+        // Prefer community membership if possible; otherwise fallback to city match
+        if (country) {
+          const community = await getCommunityByLocation(city, country);
+          if (community) {
+            userIds = await getCommunityUserIds(community.id);
+          } else {
+            userIds = await getCityUserIds(city, country);
+          }
         } else {
-          // Fallback to location string matching
-          userIds = await getCityUserIds(city, country);
+          userIds = await getCityUserIds(city, '');
         }
       }
     }
