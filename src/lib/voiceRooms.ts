@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import type { DbVoiceRoom, DbVoiceRoomParticipant, DbVoiceRoomHandRaise } from '@/lib/supabase';
+import { v4 as uuidv4 } from 'uuid';
 
 export type VoiceRole = DbVoiceRoomParticipant['role'];
 
@@ -25,7 +26,7 @@ export async function createVoiceRoom(input: {
   neighborhood?: string | null;
   scope?: DbVoiceRoom['scope'];
 }): Promise<DbVoiceRoom> {
-  const providerRoomName = `room_${crypto.randomUUID()}`;
+  const providerRoomName = `room_${uuidv4()}`;
 
   const { data, error } = await supabase
     .from('voice_rooms')

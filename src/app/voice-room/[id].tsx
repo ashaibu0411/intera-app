@@ -4,11 +4,11 @@ import { Stack, useLocalSearchParams, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { Mic, MicOff, Hand, Gift, Crown, UserPlus, X } from 'lucide-react-native';
-import { LiveKitRoom } from '@livekit/react-native';
+import { LiveKitRoom, useRoomContext } from '@livekit/react-native';
 import { useStore } from '@/lib/store';
 import { supabase } from '@/lib/supabase';
 import type { DbVoiceRoom, DbVoiceRoomParticipant, DbVoiceRoomHandRaise, DbGiftTransaction } from '@/lib/supabase';
-import { getLiveKitToken, lowerHand, raiseHand, upsertParticipant, updateParticipantRole } from '@/lib/voiceRooms';
+import { getLiveKitToken, leaveRoom, lowerHand, raiseHand, upsertParticipant, updateParticipantRole } from '@/lib/voiceRooms';
 import { sendGift } from '@/lib/giftService';
 
 const GIFTS = [
@@ -22,10 +22,17 @@ const GIFTS = [
 
 type Tab = 'room' | 'gifts';
 
+function MicSync({ enabled }: { enabled: boolean }) {
+  const room = useRoomContext();
+  useEffect(() => {
+    room?.localParticipant?.setMicrophoneEnabled(enabled).catch(() => null);
+  }, [enabled, room]);
+  return null;
+}
+
 export default function VoiceRoomScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const currentUser = useStore((s) => s.currentUser);
-  const selectedLocation = useStore((s) => s.selectedLocation);
 
   const [room, setRoom] = useState<DbVoiceRoom | null>(null);
   const [participants, setParticipants] = useState<DbVoiceRoomParticipant[]>([]);
@@ -141,7 +148,7 @@ export default function VoiceRoomScreen() {
         roomName: room.provider_room_name,
         identity: currentUser.id,
         name: currentUser.name ?? undefined,
-        canPublish: role === 'host' || role === 'moderator' || role === 'speaker',
+        canPublish: role !== 'listener',
       });
 
       if (cancelled) return;
@@ -157,6 +164,39 @@ export default function VoiceRoomScreen() {
       cancelled = true;
     };
   }, [currentUser?.id, currentUser?.name, id, room]);
+
+  // If your role changes (host promotes you), refresh token so you can publish audio.
+  useEffect(() => {
+    if (!id || !currentUser?.id || !room || !me?.role) return;
+    let cancelled = false;
+    (async () => {
+      const tokenResp = await getLiveKitToken({
+        roomName: room.provider_room_name,
+        identity: currentUser.id,
+        name: currentUser.name ?? undefined,
+        canPublish: me.role === 'host' || me.role === 'moderator' || me.role === 'speaker',
+      });
+      if (cancelled) return;
+      setLkUrl(tokenResp.url);
+      setLkToken(tokenResp.token);
+
+      // If you got demoted, make sure mic is off.
+      if (!(me.role === 'host' || me.role === 'moderator' || me.role === 'speaker')) {
+        setMicEnabled(false);
+      }
+    })().catch(() => null);
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser?.id, currentUser?.name, id, me?.role, room]);
+
+  // Ensure we clean up participant row on unmount.
+  useEffect(() => {
+    if (!id || !currentUser?.id) return;
+    return () => {
+      leaveRoom(id, currentUser.id).catch(() => null);
+    };
+  }, [currentUser?.id, id]);
 
   const toggleHand = async () => {
     if (!id || !currentUser?.id) return;
@@ -178,7 +218,7 @@ export default function VoiceRoomScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     const recipientId = room.creator_id;
-    const recipientName = participants.find((p) => p.user_id === recipientId)?.user_id || 'Host';
+    const recipientName = 'Host';
 
     await sendGift({
       senderId: currentUser.id,
@@ -235,16 +275,18 @@ export default function VoiceRoomScreen() {
             {/* LiveKit audio connection */}
             {lkUrl && lkToken ? (
               <LiveKitRoom
+                key={lkToken}
                 serverUrl={lkUrl}
                 token={lkToken}
                 connect={true}
-                audio={true}
+                audio={false}
                 video={false}
                 options={{
                   // keep defaults; can tune later
                 }}
               >
                 {/* We keep UI custom; LiveKitRoom handles actual media */}
+                <MicSync enabled={!!(canSpeak && micEnabled)} />
                 <View className="h-0 w-0" />
               </LiveKitRoom>
             ) : (
