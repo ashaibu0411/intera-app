@@ -56,7 +56,7 @@ export default function OnboardingScreen() {
       const mockUser = { ...MOCK_USERS[0], interests: selectedInterests };
       setCurrentUser(mockUser);
       setIsOnboarded(true);
-      router.replace('/(tabs)');
+      router.replace('/');
     }
   };
 

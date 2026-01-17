@@ -68,6 +68,12 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="community"
+        options={{
+          href: null, // Hidden from tab bar (opened from Home hub)
+        }}
+      />
+      <Tabs.Screen
         name="connect"
         options={{
           tabBarIcon: ({ color, focused }) => (

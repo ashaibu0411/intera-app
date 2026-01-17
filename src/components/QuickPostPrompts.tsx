@@ -82,7 +82,7 @@ export function QuickPostPrompts({ onPromptSelect }: QuickPostPromptsProps) {
     }
     // Navigate to create screen with pre-filled prompt type
     router.push({
-      pathname: '/(tabs)/create',
+      pathname: '/create',
       params: { promptType: prompt.type, placeholder: prompt.placeholder },
     });
   };

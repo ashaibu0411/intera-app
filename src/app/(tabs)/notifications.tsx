@@ -50,7 +50,7 @@ function NotificationItem({ notification, index }: { notification: Notification;
           const fallbackRoute =
             notification.type === 'alert' ? '/safety-alerts'
             : notification.type === 'event' ? '/events'
-            : '/';
+            : '/community';
           router.push((notification.route || fallbackRoute) as any);
         }}
         className={`flex-row items-start p-4 mx-4 mb-3 rounded-2xl ${

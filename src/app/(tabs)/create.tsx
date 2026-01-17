@@ -24,9 +24,11 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeIn, FadeInUp, FadeInDown, useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
+import * as MediaLibrary from 'expo-media-library';
+import * as FileSystem from 'expo-file-system';
 import { useStore, MOCK_COMMUNITIES, MARKETPLACE_CATEGORIES, EVENT_CATEGORIES } from '@/lib/store';
 import { router } from 'expo-router';
-import { createPost as createDbPost, uploadImages } from '@/lib/posts';
+import { createPost as createDbPost, uploadImages, uploadVideo } from '@/lib/posts';
 import { sendRemotePushAlert } from '@/lib/pushAlerts';
 
 type CreateMode = 'select' | 'post' | 'sell' | 'event';
@@ -280,7 +282,33 @@ function CreatePostForm({ user, community, onBack, business }: { user: any; comm
     });
 
     if (!result.canceled && result.assets.length > 0) {
-      setSelectedVideo(result.assets[0].uri);
+      const asset = result.assets[0];
+      let uri = asset.uri;
+
+      // iOS can return ph:// URIs which Video (expo-av) can't play.
+      // Prefer localUri when available via MediaLibrary.
+      if (asset.assetId) {
+        try {
+          const info = await MediaLibrary.getAssetInfoAsync(asset.assetId);
+          uri = info.localUri || info.uri || uri;
+        } catch (e) {
+          // ignore, fall back to asset.uri
+        }
+      }
+
+      // Ensure we have a stable file:// URI for playback + uploads (best-effort)
+      if (uri && !uri.startsWith('file://')) {
+        try {
+          const ext = uri.split('.').pop()?.toLowerCase() || 'mp4';
+          const dest = `${FileSystem.cacheDirectory}picked_${Date.now()}.${ext}`;
+          await FileSystem.copyAsync({ from: uri, to: dest });
+          uri = dest;
+        } catch (e) {
+          // ignore, some URIs can't be copied
+        }
+      }
+
+      setSelectedVideo(uri);
       // Clear images if video is selected (can't have both)
       setSelectedImages([]);
     }
@@ -329,9 +357,27 @@ function CreatePostForm({ user, community, onBack, business }: { user: any; comm
       }
     }
 
+    // Upload video (optional)
+    let uploadedVideoUrl: string | null = null;
+    if (selectedVideo) {
+      try {
+        uploadedVideoUrl = await uploadVideo(selectedVideo, user.id);
+      } catch (uploadError) {
+        console.log('Video upload failed:', uploadError);
+        uploadedVideoUrl = null;
+      }
+    }
+
     // Try to save to database first (so other users can see it)
     try {
-      const dbPost = await createDbPost(user.id, formattedContent, uploadedImageUrls, postLocationLabel);
+      const dbPost = await createDbPost(
+        user.id,
+        formattedContent,
+        uploadedImageUrls,
+        postLocationLabel,
+        undefined,
+        uploadedVideoUrl
+      );
       if (dbPost?.id) {
         postId = dbPost.id;
         savedToDb = true;
@@ -383,7 +429,7 @@ function CreatePostForm({ user, community, onBack, business }: { user: any; comm
       }).catch(() => {});
     }
 
-    router.navigate('/(tabs)');
+    router.navigate('/community');
   };
 
   const buttonAnimatedStyle = useAnimatedStyle(() => ({
@@ -599,7 +645,7 @@ function CreateListingForm({ user, community, onBack }: { user: any; community: 
     addMarketplaceListing(newListing);
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    router.navigate('/(tabs)');
+    router.navigate('/');
   };
 
   const canSubmit = title.trim().length > 0 && price.length > 0 && category.length > 0 && selectedImages.length > 0;
@@ -779,7 +825,7 @@ function CreateEventForm({ user, community, onBack }: { user: any; community: an
   const handleSubmit = () => {
     if (!title.trim() || !date || !time || !address.trim()) return;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    router.navigate('/(tabs)');
+    router.navigate('/');
   };
 
   const canSubmit = title.trim().length > 0 && date.length > 0 && time.length > 0 && address.trim().length > 0;

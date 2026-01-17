@@ -87,6 +87,7 @@ export interface DbPost {
   author_id: string;
   content: string;
   images: string[];
+  video?: string | null;
   location: string | null;
   community_id: string | null;
   created_at: string;

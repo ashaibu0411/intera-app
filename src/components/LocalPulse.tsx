@@ -52,7 +52,7 @@ const generateLocalPulseItems = (city: string): PulseItem[] => [
     color: '#F59E0B',
     bgColor: '#FEF3C7',
     responseCount: 23,
-    route: '/(tabs)/events',
+    route: '/events',
   },
   {
     id: '2',
@@ -110,7 +110,7 @@ const generateLocalPulseItems = (city: string): PulseItem[] => [
     color: '#EF4444',
     bgColor: '#FEE2E2',
     responseCount: 15,
-    route: '/(tabs)/events',
+    route: '/events',
   },
 ];
 
@@ -126,7 +126,7 @@ const generateGlobalPulseItems = (): PulseItem[] => [
     color: '#3B82F6',
     bgColor: '#DBEAFE',
     responseCount: 342,
-    route: '/(tabs)/events',
+    route: '/events',
   },
   {
     id: 'g2',
@@ -161,7 +161,7 @@ const generateGlobalPulseItems = (): PulseItem[] => [
     color: '#F59E0B',
     bgColor: '#FEF3C7',
     responseCount: 156,
-    route: '/(tabs)/events',
+    route: '/events',
   },
   {
     id: 'g5',

@@ -124,7 +124,7 @@ export default function ProfileSetupScreen() {
       });
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      router.replace('/(tabs)');
+      router.replace('/');
     } catch (error) {
       console.error('Error updating profile:', error);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -135,7 +135,7 @@ export default function ProfileSetupScreen() {
 
   const handleSkip = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.replace('/(tabs)');
+    router.replace('/');
   };
 
   return (

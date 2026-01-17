@@ -101,7 +101,7 @@ export default function SignUpScreen() {
 
         // Go to profile setup for new users, home for returning
         if (profile?.bio || profile?.interests?.length) {
-          router.replace('/(tabs)');
+          router.replace('/');
         } else {
           router.replace('/profile-setup');
         }
@@ -189,7 +189,7 @@ export default function SignUpScreen() {
           });
           setIsGuest(false);
           setIsOnboarded(true);
-          router.replace('/(tabs)');
+          router.replace('/');
         }
       }
     } catch (err: unknown) {
@@ -254,7 +254,7 @@ export default function SignUpScreen() {
 
         // For login, go to home. For signup, go to profile setup.
         if (authMode === 'signin') {
-          router.replace('/(tabs)');
+          router.replace('/');
         } else {
           router.replace('/profile-setup');
         }
@@ -420,7 +420,7 @@ export default function SignUpScreen() {
             setIsGuest(true);
             setIsOnboarded(true);
             // Navigate to the main app
-            router.replace('/(tabs)');
+            router.replace('/');
           }}
           className="items-center py-4"
         >

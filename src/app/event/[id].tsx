@@ -189,7 +189,7 @@ export default function EventDetailScreen() {
               It may be a sample event, or it was removed.
             </Text>
             <Pressable
-              onPress={() => router.replace('/(tabs)')}
+              onPress={() => router.replace('/')}
               className="mt-5 bg-terracotta-500 px-6 py-3 rounded-full"
             >
               <Text className="text-white font-semibold">Go to Home</Text>

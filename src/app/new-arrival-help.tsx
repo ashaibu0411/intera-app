@@ -160,7 +160,7 @@ export default function NewArrivalHelpScreen() {
 
   const handleAskCommunity = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    router.push('/(tabs)/create');
+    router.push('/create');
   };
 
   return (

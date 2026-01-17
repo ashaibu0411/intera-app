@@ -41,6 +41,54 @@ export async function uploadImage(uri: string, userId: string): Promise<string |
   }
 }
 
+// Upload video to Supabase Storage
+export async function uploadVideo(uri: string, userId: string): Promise<string | null> {
+  try {
+    // Skip if already a remote URL
+    if (uri.startsWith('http://') || uri.startsWith('https://')) {
+      return uri;
+    }
+
+    // Guardrail: videos can be large; avoid OOM by capping size
+    const info = await FileSystem.getInfoAsync(uri, { size: true });
+    const sizeBytes = typeof info.size === 'number' ? info.size : 0;
+    const MAX_BYTES = 20 * 1024 * 1024; // 20MB
+    if (sizeBytes > MAX_BYTES) {
+      console.log(`[Posts] Video too large to upload (${sizeBytes} bytes).`);
+      return null;
+    }
+
+    const base64 = await FileSystem.readAsStringAsync(uri, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+
+    const fileExt = uri.split('.').pop()?.toLowerCase() || 'mp4';
+    const fileName = `${userId}/${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+    const contentType =
+      fileExt === 'mov' ? 'video/quicktime'
+      : fileExt === 'webm' ? 'video/webm'
+      : 'video/mp4';
+
+    const { error } = await supabase.storage
+      .from('post-videos')
+      .upload(fileName, decode(base64), {
+        contentType,
+        upsert: false,
+      });
+
+    if (error) {
+      console.log('Video upload error:', error);
+      return null;
+    }
+
+    const { data: urlData } = supabase.storage.from('post-videos').getPublicUrl(fileName);
+    return urlData.publicUrl;
+  } catch (error) {
+    console.log('Video upload failed:', error);
+    return null;
+  }
+}
+
 // Upload multiple images
 export async function uploadImages(uris: string[], userId: string): Promise<string[]> {
   const uploadedUrls: string[] = [];
@@ -123,13 +171,21 @@ export async function getPost(postId: string) {
   return data;
 }
 
-export async function createPost(authorId: string, content: string, images: string[] = [], location?: string, communityId?: string) {
+export async function createPost(
+  authorId: string,
+  content: string,
+  images: string[] = [],
+  location?: string,
+  communityId?: string,
+  video?: string | null
+) {
   const { data, error } = await supabase
     .from('posts')
     .insert({
       author_id: authorId,
       content,
       images,
+      video: video ?? null,
       location,
       community_id: communityId,
     })

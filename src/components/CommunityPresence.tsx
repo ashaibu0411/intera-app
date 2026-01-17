@@ -85,7 +85,7 @@ const generateLocalPresenceEvents = (city: string): PresenceEvent[] => [
     type: 'event',
     text: 'Community dinner starting in 2 hours',
     timestamp: new Date(Date.now() - 1000 * 60 * 30),
-    route: '/(tabs)/events',
+    route: '/events',
   },
   {
     id: '4',
@@ -112,7 +112,7 @@ const generateGlobalPresenceEvents = (): PresenceEvent[] => [
     type: 'event',
     text: 'Cultural festival happening in London',
     timestamp: new Date(Date.now() - 1000 * 60 * 10),
-    route: '/(tabs)/events',
+    route: '/events',
   },
   {
     id: 'g2',
@@ -142,7 +142,7 @@ const generateGlobalPresenceEvents = (): PresenceEvent[] => [
     type: 'event',
     text: 'African Business Summit in Dubai - 500+ attending',
     timestamp: new Date(Date.now() - 1000 * 60 * 70),
-    route: '/(tabs)/events',
+    route: '/events',
   },
 ];
 
@@ -186,14 +186,14 @@ export function CommunityPresence({ city, memberCount, isGlobal = false }: Commu
 
   const handleViewMembers = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push('/(tabs)/search');
+    router.push('/search');
   };
 
   const handleStartChat = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     // Open Discover > Online, so the user can message someone active now.
     const opener = `Hey! I’m new in ${city}—what should I know first?`;
-    router.push(`/(tabs)/search?category=online&intent=message&prefill=${encodeURIComponent(opener)}` as any);
+    router.push(`/search?category=online&intent=message&prefill=${encodeURIComponent(opener)}` as any);
   };
 
   const handleRolePress = (role: 'Welcomers' | 'Connectors' | 'Mentors') => {
@@ -207,7 +207,7 @@ export function CommunityPresence({ city, memberCount, isGlobal = false }: Commu
       return;
     }
     // Connectors: meet people nearby
-    router.push('/(tabs)/connect' as any);
+    router.push('/connect' as any);
   };
 
   const handleEventPress = (event: PresenceEvent) => {
@@ -348,7 +348,7 @@ export function CommunityPresence({ city, memberCount, isGlobal = false }: Commu
                         onPress={() => {
                           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                           router.push(
-                            `/(tabs)/search?category=online&intent=message&prefill=${encodeURIComponent(line)}`
+                            `/search?category=online&intent=message&prefill=${encodeURIComponent(line)}`
                           );
                         }}
                         className="bg-white border border-gray-100 rounded-full px-3 py-2"
