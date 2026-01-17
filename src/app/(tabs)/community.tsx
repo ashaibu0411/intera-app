@@ -319,8 +319,6 @@ export default function HomeScreen() {
     router.push(route as never);
   };
 
-  const LOGO_IMAGE = require('../../../assets/icon.png');
-
   return (
     <View className="flex-1 bg-cream">
       <SafeAreaView edges={['top']} className="flex-1">
@@ -332,11 +330,11 @@ export default function HomeScreen() {
               onPress={() => navigateTo('/location-select')}
               className="flex-row items-center"
             >
-              <Image
-                source={LOGO_IMAGE}
-                style={{ width: 32, height: 32, borderRadius: 8 }}
-                contentFit="cover"
-              />
+              <View
+                style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: '#4A7C59', alignItems: 'center', justifyContent: 'center' }}
+              >
+                <Users size={18} color="#FFF8F0" />
+              </View>
               <View className="ml-2">
                 <View className="flex-row items-center">
                   <Text className="text-xl font-bold text-warmBrown">
