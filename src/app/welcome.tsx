@@ -5,7 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Image } from 'expo-image';
 
 // Logo image
-const LOGO_IMAGE = { uri: '/image-1768608072.png' };
+const LOGO_IMAGE = { uri: '/icon.png' };
 import {
   Users,
   ShoppingBag,

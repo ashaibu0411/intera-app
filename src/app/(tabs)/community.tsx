@@ -331,7 +331,7 @@ export default function HomeScreen() {
               className="flex-row items-center"
             >
               <Image
-                source={{ uri: '/image-1768608072.png' }}
+                source={{ uri: '/icon.png' }}
                 style={{ width: 32, height: 32, borderRadius: 8 }}
                 contentFit="cover"
               />
