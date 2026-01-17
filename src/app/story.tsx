@@ -22,7 +22,7 @@ import { useStore } from '@/lib/store';
 import { Globe, Heart, Users, ArrowRight, ChevronDown, Sparkles } from 'lucide-react-native';
 
 const { width, height } = Dimensions.get('window');
-const LOGO_IMAGE = require('../../assets/icon.png');
+const LOGO_IMAGE = { uri: '/image-1768608072.png' };
 
 // Story content broken into digestible parts
 const STORY_SECTIONS = [
