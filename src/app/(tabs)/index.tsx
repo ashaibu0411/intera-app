@@ -5,17 +5,27 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { AlertTriangle, ChevronRight, CloudLightning, MapPin } from 'lucide-react-native';
+import {
+  AlertTriangle,
+  ChevronRight,
+  CloudLightning,
+  Heart,
+  Home,
+  MapPin,
+  ShoppingBag,
+  Store,
+  UserCheck,
+  Users,
+} from 'lucide-react-native';
 import { useStore } from '@/lib/store';
 import { getIncidents, getUtilityReports } from '@/lib/marketplace-api';
 import type { DbIncident, DbUtilityReport } from '@/lib/supabase';
 
-type HubCard = {
+type HubTile = {
   title: string;
-  subtitle: string;
   route: string;
-  image: string;
-  gradient: [string, string];
+  icon: React.ComponentType<{ size?: number; color?: string }>;
+  colors: readonly [string, string];
 };
 
 export default function HomeHubScreen() {
@@ -104,39 +114,43 @@ export default function HomeHubScreen() {
     };
   }, [matchesFeedScope]);
 
-  const cards: HubCard[] = useMemo(
+  const tiles: HubTile[] = useMemo(
     () => [
       {
-        title: 'Community feed',
-        subtitle: 'All neighborhood + city conversations',
+        title: 'Community',
         route: '/community',
-        image:
-          'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=1200&h=800&fit=crop',
-        gradient: ['#1B4D3E', '#062A1E'],
+        icon: Users,
+        colors: ['#1B4D3E', '#062A1E'] as const,
       },
       {
         title: 'Marketplace',
-        subtitle: 'Buy & sell locally',
         route: '/marketplace',
-        image:
-          'https://images.unsplash.com/photo-1520975916090-3105956dac38?w=1200&h=800&fit=crop',
-        gradient: ['#D4673A', '#B85430'],
+        icon: ShoppingBag,
+        colors: ['#D4673A', '#B85430'] as const,
       },
       {
         title: 'Businesses',
-        subtitle: 'Directory + reviews',
         route: '/business-directory',
-        image:
-          'https://images.unsplash.com/photo-1520607162513-77705c0f0d4a?w=1200&h=800&fit=crop',
-        gradient: ['#0EA5E9', '#2563EB'],
+        icon: Store,
+        colors: ['#0EA5E9', '#2563EB'] as const,
       },
       {
-        title: 'Faith & community',
-        subtitle: 'Faith groups + events',
+        title: 'Faith',
         route: '/faith-community',
-        image:
-          'https://images.unsplash.com/photo-1520975958225-b74b16f7f2f6?w=1200&h=800&fit=crop',
-        gradient: ['#8B5CF6', '#EC4899'],
+        icon: Heart,
+        colors: ['#8B5CF6', '#EC4899'] as const,
+      },
+      {
+        title: 'Helpers',
+        route: '/serve-connect',
+        icon: UserCheck,
+        colors: ['#0F766E', '#115E59'] as const,
+      },
+      {
+        title: 'Housing',
+        route: '/housing-board',
+        icon: Home,
+        colors: ['#EC4899', '#B91C1C'] as const,
       },
     ],
     []
@@ -191,149 +205,129 @@ export default function HomeHubScreen() {
             </View>
           </View>
 
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8 }}
-            style={{ flexGrow: 0 }}
-          >
-            <Pressable
-              onPress={() => go('/safety-alerts')}
-              className="mr-3 bg-white rounded-2xl border border-gray-100 px-4 py-3"
-              style={{ width: 240 }}
-            >
-              <View className="flex-row items-center justify-between">
-                <View className="flex-row items-center">
-                  <View className="w-9 h-9 rounded-xl items-center justify-center" style={{ backgroundColor: '#FEE2E2' }}>
-                    <AlertTriangle size={18} color="#DC2626" />
+          {/* 4 compact tiles (2x2) */}
+          <View className="px-4 mt-3">
+            <View className="flex-row flex-wrap" style={{ gap: 12 }}>
+              <Pressable
+                onPress={() => go('/safety-alerts')}
+                className="bg-white rounded-2xl border border-gray-100 px-4 py-3"
+                style={{ width: '48%' }}
+              >
+                <View className="flex-row items-center justify-between">
+                  <View className="flex-row items-center">
+                    <View className="w-9 h-9 rounded-xl items-center justify-center" style={{ backgroundColor: '#FEE2E2' }}>
+                      <AlertTriangle size={18} color="#DC2626" />
+                    </View>
+                    <View className="ml-3">
+                      <Text className="text-gray-900 font-semibold">Safety</Text>
+                      <Text className="text-gray-500 text-xs mt-0.5">Alerts</Text>
+                    </View>
                   </View>
-                  <View className="ml-3">
-                    <Text className="text-gray-900 font-semibold">Safety alerts</Text>
-                    <Text className="text-gray-500 text-xs mt-0.5">SOS + incidents</Text>
-                  </View>
+                  {incidentCount > 0 ? (
+                    <View className="bg-red-600 px-2 py-1 rounded-full">
+                      <Text className="text-white text-xs font-bold">{incidentCount}</Text>
+                    </View>
+                  ) : (
+                    <Text className="text-gray-400 text-xs">0</Text>
+                  )}
                 </View>
-                {incidentCount > 0 ? (
-                  <View className="bg-red-600 px-2 py-1 rounded-full">
-                    <Text className="text-white text-xs font-bold">{incidentCount}</Text>
-                  </View>
-                ) : (
-                  <Text className="text-gray-400 text-xs">0</Text>
-                )}
-              </View>
-            </Pressable>
+              </Pressable>
 
-            <Pressable
-              onPress={() => go('/utility-status')}
-              className="mr-3 bg-white rounded-2xl border border-gray-100 px-4 py-3"
-              style={{ width: 240 }}
-            >
-              <View className="flex-row items-center justify-between">
-                <View className="flex-row items-center">
-                  <View className="w-9 h-9 rounded-xl items-center justify-center" style={{ backgroundColor: '#FEF3C7' }}>
-                    <CloudLightning size={18} color="#D97706" />
+              <Pressable
+                onPress={() => go('/utility-status')}
+                className="bg-white rounded-2xl border border-gray-100 px-4 py-3"
+                style={{ width: '48%' }}
+              >
+                <View className="flex-row items-center justify-between">
+                  <View className="flex-row items-center">
+                    <View className="w-9 h-9 rounded-xl items-center justify-center" style={{ backgroundColor: '#FEF3C7' }}>
+                      <CloudLightning size={18} color="#D97706" />
+                    </View>
+                    <View className="ml-3">
+                      <Text className="text-gray-900 font-semibold">Utilities</Text>
+                      <Text className="text-gray-500 text-xs mt-0.5">Status</Text>
+                    </View>
                   </View>
-                  <View className="ml-3">
-                    <Text className="text-gray-900 font-semibold">Utilities</Text>
-                    <Text className="text-gray-500 text-xs mt-0.5">Power · Water · Internet</Text>
-                  </View>
+                  {utilityIssueCount > 0 ? (
+                    <View className="bg-amber-600 px-2 py-1 rounded-full">
+                      <Text className="text-white text-xs font-bold">{utilityIssueCount}</Text>
+                    </View>
+                  ) : (
+                    <Text className="text-gray-400 text-xs">0</Text>
+                  )}
                 </View>
-                {utilityIssueCount > 0 ? (
-                  <View className="bg-amber-600 px-2 py-1 rounded-full">
-                    <Text className="text-white text-xs font-bold">{utilityIssueCount}</Text>
-                  </View>
-                ) : (
-                  <Text className="text-gray-400 text-xs">0</Text>
-                )}
-              </View>
-            </Pressable>
+              </Pressable>
 
-            <Pressable
-              onPress={() => go('/events')}
-              className="bg-white rounded-2xl border border-gray-100 px-4 py-3"
-              style={{ width: 240 }}
-            >
-              <View className="flex-row items-center justify-between">
+              <Pressable
+                onPress={() => go('/events')}
+                className="bg-white rounded-2xl border border-gray-100 px-4 py-3"
+                style={{ width: '48%' }}
+              >
                 <View className="flex-row items-center">
                   <View className="w-9 h-9 rounded-xl items-center justify-center" style={{ backgroundColor: '#DBEAFE' }}>
                     <ChevronRight size={18} color="#2563EB" />
                   </View>
                   <View className="ml-3">
                     <Text className="text-gray-900 font-semibold">Events</Text>
-                    <Text className="text-gray-500 text-xs mt-0.5">Plans in your area</Text>
+                    <Text className="text-gray-500 text-xs mt-0.5">Plans</Text>
                   </View>
                 </View>
-                <Text className="text-terracotta-500 font-semibold text-sm">Open</Text>
-              </View>
-            </Pressable>
-          </ScrollView>
+              </Pressable>
+
+              <Pressable
+                onPress={() => go('/community')}
+                className="bg-white rounded-2xl border border-gray-100 px-4 py-3"
+                style={{ width: '48%' }}
+              >
+                <View className="flex-row items-center">
+                  <View className="w-9 h-9 rounded-xl items-center justify-center" style={{ backgroundColor: '#DCFCE7' }}>
+                    <Users size={18} color="#166534" />
+                  </View>
+                  <View className="ml-3">
+                    <Text className="text-gray-900 font-semibold">Feed</Text>
+                    <Text className="text-gray-500 text-xs mt-0.5">Community</Text>
+                  </View>
+                </View>
+              </Pressable>
+            </View>
+          </View>
 
           <View className="px-4">
-            <Text className="text-2xl font-bold text-gray-900">What do you need?</Text>
-            <Text className="text-gray-500 mt-1">Tap a card to jump into that world.</Text>
+            <Text className="text-2xl font-bold text-gray-900 mt-4">Explore</Text>
+            <Text className="text-gray-500 mt-1">6 quick tiles — no scrolling maze.</Text>
           </View>
 
           <View className="px-4 mt-4">
             <View className="flex-row flex-wrap" style={{ gap: 12 }}>
-              {cards.map((c) => (
-                <Pressable
-                  key={c.title}
-                  onPress={() => go(c.route)}
-                  className="rounded-3xl overflow-hidden border border-gray-100"
-                  style={{ width: '48%', minHeight: 170, backgroundColor: '#fff' }}
-                >
-                  <Image source={{ uri: c.image }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
-                  <LinearGradient
-                    colors={[`${c.gradient[0]}00`, `${c.gradient[1]}CC`]}
-                    start={{ x: 0.5, y: 0 }}
-                    end={{ x: 0.5, y: 1 }}
-                    style={{ position: 'absolute', left: 0, right: 0, bottom: 0, top: 0 }}
-                  />
-                  <View style={{ position: 'absolute', left: 14, right: 14, bottom: 14 }}>
-                    <Text className="text-white font-bold text-lg">{c.title}</Text>
-                    <Text className="text-white/80 text-xs mt-0.5">{c.subtitle}</Text>
-                  </View>
-                </Pressable>
-              ))}
+              {tiles.map((t) => {
+                const Icon = t.icon;
+                return (
+                  <Pressable
+                    key={t.title}
+                    onPress={() => go(t.route)}
+                    className="rounded-2xl overflow-hidden border border-gray-100"
+                    style={{ width: '48%', minHeight: 110 }}
+                  >
+                    <LinearGradient
+                      colors={t.colors as any}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={{ flex: 1, padding: 14, justifyContent: 'space-between' }}
+                    >
+                      <View className="flex-row items-center justify-between">
+                        <View className="w-10 h-10 rounded-2xl bg-white/20 items-center justify-center">
+                          <Icon size={20} color="#FFFFFF" />
+                        </View>
+                      </View>
+                      <View>
+                        <Text className="text-white font-bold text-lg">{t.title}</Text>
+                        <Text className="text-white/80 text-xs mt-0.5">Tap to open</Text>
+                      </View>
+                    </LinearGradient>
+                  </Pressable>
+                );
+              })}
             </View>
-          </View>
-
-          <View className="px-4 mt-5">
-            <Pressable
-              onPress={() => go('/serve-connect')}
-              className="bg-white rounded-2xl border border-gray-100 p-4 flex-row items-center justify-between"
-            >
-              <View>
-                <Text className="text-gray-900 font-semibold">Services & helpers</Text>
-                <Text className="text-gray-500 text-sm mt-0.5">Volunteers + trusted helpers (house helps, cooks, plumbers)</Text>
-              </View>
-              <ChevronRight size={20} color="#9CA3AF" />
-            </Pressable>
-          </View>
-
-          <View className="px-4 mt-3">
-            <Pressable
-              onPress={() => go('/housing-board')}
-              className="bg-white rounded-2xl border border-gray-100 p-4 flex-row items-center justify-between"
-            >
-              <View>
-                <Text className="text-gray-900 font-semibold">Housing board</Text>
-                <Text className="text-gray-500 text-sm mt-0.5">Anti-scam listings + confirmations</Text>
-              </View>
-              <ChevronRight size={20} color="#9CA3AF" />
-            </Pressable>
-          </View>
-
-          <View className="px-4 mt-3">
-            <Pressable
-              onPress={() => go('/safety-alerts')}
-              className="bg-white rounded-2xl border border-gray-100 p-4 flex-row items-center justify-between"
-            >
-              <View>
-                <Text className="text-gray-900 font-semibold">Safety alerts</Text>
-                <Text className="text-gray-500 text-sm mt-0.5">SOS + neighborhood incident updates</Text>
-              </View>
-              <ChevronRight size={20} color="#9CA3AF" />
-            </Pressable>
           </View>
         </ScrollView>
       </SafeAreaView>
