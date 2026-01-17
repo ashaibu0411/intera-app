@@ -330,11 +330,11 @@ export default function HomeScreen() {
               onPress={() => navigateTo('/location-select')}
               className="flex-row items-center"
             >
-              <View
-                style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: '#4A7C59', alignItems: 'center', justifyContent: 'center' }}
-              >
-                <Users size={18} color="#FFF8F0" />
-              </View>
+              <Image
+                source={{ uri: '/image-1768608072.png' }}
+                style={{ width: 32, height: 32, borderRadius: 8 }}
+                contentFit="cover"
+              />
               <View className="ml-2">
                 <View className="flex-row items-center">
                   <Text className="text-xl font-bold text-warmBrown">
