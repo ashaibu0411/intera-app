@@ -416,3 +416,41 @@ export interface DbGiftTransaction {
   room_title: string | null;
   created_at: string;
 }
+
+export interface DbVoiceRoom {
+  id: string;
+  creator_id: string;
+  title: string;
+  description: string | null;
+  topic: string | null;
+  country: string;
+  admin_area: string | null;
+  city: string;
+  neighborhood: string | null;
+  scope: 'neighborhood' | 'city' | 'global';
+  status: 'scheduled' | 'live' | 'ended';
+  starts_at: string | null;
+  ended_at: string | null;
+  provider: string;
+  provider_room_name: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DbVoiceRoomParticipant {
+  id: string;
+  room_id: string;
+  user_id: string;
+  role: 'host' | 'moderator' | 'speaker' | 'listener';
+  is_muted: boolean;
+  hand_raised: boolean;
+  joined_at: string;
+  last_seen: string;
+}
+
+export interface DbVoiceRoomHandRaise {
+  id: string;
+  room_id: string;
+  user_id: string;
+  created_at: string;
+}

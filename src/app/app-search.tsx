@@ -18,6 +18,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useStore } from '@/lib/store';
 import { supabase, DbUser } from '@/lib/supabase';
+import { PhotoTile } from '@/components/PhotoTile';
 
 type SearchTab = 'features' | 'people';
 type PeopleFilter = 'all' | 'local' | 'global';
@@ -852,24 +853,78 @@ export default function AppSearchScreen() {
         <ScrollView className="flex-1 px-5" showsVerticalScrollIndicator={false}>
           {activeTab === 'features' ? (
             <>
-              {/* Quick Access - Popular Features */}
+              {/* "Extra tiles" (photo tiles like your reference) */}
               {!searchQuery && selectedCategory === 'All' && (
                 <View className="mb-6">
-                  <Text className="text-gray-400 text-sm mb-3">POPULAR</Text>
-                  <View className="flex-row flex-wrap gap-2">
-                    {['Pet Connect', 'Cultural Music', 'Carpool', 'Marketplace', 'Voice Rooms', 'Money Transfer'].map((name) => {
-                      const feature = APP_FEATURES.find(f => f.name === name);
-                      if (!feature) return null;
-                      return (
+                  <Text className="text-gray-400 text-sm mb-3">TRENDING</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }}>
+                    <View className="flex-row gap-2 pr-2">
+                      {[
+                        'Handyman',
+                        'Babysitter',
+                        'Electrician',
+                        'Plumber',
+                        'House help',
+                        'Cooks',
+                        'Housing',
+                        'Marketplace',
+                        'Events',
+                        'Safety alerts',
+                      ].map((q) => (
                         <Pressable
-                          key={feature.id}
-                          onPress={() => handleFeaturePress(feature.route)}
+                          key={q}
+                          onPress={() => {
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            setSearchQuery(q);
+                          }}
                           className="bg-white/5 border border-white/10 px-4 py-2 rounded-full"
                         >
-                          <Text className="text-white">{feature.name}</Text>
+                          <Text className="text-white">{q}</Text>
                         </Pressable>
-                      );
-                    })}
+                      ))}
+                    </View>
+                  </ScrollView>
+
+                  <Text className="text-gray-400 text-sm mt-5 mb-3">START BROWSING</Text>
+                  <View className="flex-row flex-wrap" style={{ gap: 12 }}>
+                    <PhotoTile
+                      title="For Sale & Free"
+                      subtitle="Marketplace"
+                      imageUri="https://images.unsplash.com/photo-1520975916090-3105956dac38?w=1200&h=800&fit=crop"
+                      onPress={() => handleFeaturePress('/marketplace')}
+                      size="lg"
+                    />
+                    <PhotoTile
+                      title="Hire a Pro"
+                      subtitle="Trusted helpers"
+                      imageUri="https://images.unsplash.com/photo-1581579185169-7a5b2a36b1aa?w=1200&h=800&fit=crop"
+                      onPress={() => handleFeaturePress('/trusted-providers')}
+                      size="lg"
+                    />
+                    <PhotoTile
+                      title="Groups"
+                      subtitle="Connect"
+                      imageUri="https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=1200&h=800&fit=crop"
+                      onPress={() => handleFeaturePress('/connect')}
+                    />
+                    <PhotoTile
+                      title="Housing"
+                      subtitle="Board"
+                      imageUri="https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=1200&h=800&fit=crop"
+                      onPress={() => handleFeaturePress('/housing-board')}
+                    />
+                    <PhotoTile
+                      title="Events"
+                      subtitle="Near you"
+                      imageUri="https://images.unsplash.com/photo-1527529482837-4698179dc6ce?w=1200&h=800&fit=crop"
+                      onPress={() => handleFeaturePress('/events')}
+                    />
+                    <PhotoTile
+                      title="Alerts"
+                      subtitle="Safety"
+                      imageUri="https://images.unsplash.com/photo-1457732815361-daa98277e9c8?w=1200&h=800&fit=crop"
+                      onPress={() => handleFeaturePress('/safety-alerts')}
+                    />
                   </View>
                 </View>
               )}
