@@ -173,7 +173,7 @@ export default function HomeHubScreen() {
             <View className="flex-row items-center">
               <View className="w-9 h-9 rounded-xl overflow-hidden bg-gray-100">
                 <Image
-                  source={require('../../../assets/icon.png')}
+                  source={{ uri: '/image-1768608072.png' }}
                   style={{ width: '100%', height: '100%' }}
                   contentFit="cover"
                 />
