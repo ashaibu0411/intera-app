@@ -123,6 +123,60 @@ export async function createClip(clip: {
   return data;
 }
 
+function extractClipsObjectPathFromPublicUrl(url: string): string | null {
+  try {
+    const marker = '/storage/v1/object/public/clips/';
+    const idx = url.indexOf(marker);
+    if (idx === -1) return null;
+    const raw = url.slice(idx + marker.length);
+    // Supabase public URLs are typically safe to decode; if not, fall back to raw.
+    try {
+      return decodeURIComponent(raw);
+    } catch {
+      return raw;
+    }
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Resolve a `clips.video_url` value into a playable URL.
+ *
+ * Supports:
+ * - full `https://.../storage/v1/object/public/clips/<path>` URLs
+ * - raw storage object paths like `<userId>/<ts>.mp4`
+ *
+ * Behavior:
+ * - try a signed URL first (works for private buckets when user has read access)
+ * - fall back to a public URL
+ */
+export async function resolveClipVideoUrl(
+  videoUrlOrPath: string,
+  opts?: { expiresInSeconds?: number }
+): Promise<string> {
+  const raw = String(videoUrlOrPath || '').trim();
+  if (!raw) return '';
+
+  const isHttp = raw.startsWith('http://') || raw.startsWith('https://');
+  const objectPath = isHttp ? extractClipsObjectPathFromPublicUrl(raw) : raw;
+  const expiresInSeconds = Math.max(60, Math.floor(opts?.expiresInSeconds ?? 60 * 60));
+
+  if (objectPath) {
+    // Prefer signed URL (handles private buckets). Falls back to public URL.
+    const { data: signed, error: signedError } = await supabase.storage
+      .from('clips')
+      .createSignedUrl(objectPath, expiresInSeconds);
+
+    if (!signedError && signed?.signedUrl) return signed.signedUrl;
+
+    const { data: publicUrl } = supabase.storage.from('clips').getPublicUrl(objectPath);
+    return publicUrl.publicUrl;
+  }
+
+  return raw;
+}
+
 // Upload video to Supabase Storage
 export async function uploadClipVideo(
   userId: string,
@@ -130,11 +184,17 @@ export async function uploadClipVideo(
 ): Promise<string | null> {
   try {
     const uriLower = (videoUri || '').toLowerCase();
-    const ext = uriLower.split('.').pop()?.split('?')[0]?.split('#')[0] || 'mp4';
-    const fileName = `${userId}/${Date.now()}.${ext === 'mov' ? 'mov' : 'mp4'}`;
+    // Only trust a real .mp4/.mov extension at the end of the URI; otherwise default.
+    const extMatch = uriLower.match(/\.(mp4|mov)(?:$|\?|#)/);
+    const ext = extMatch?.[1] || 'mp4';
+    const fileName = `${userId}/${Date.now()}.${ext}`;
 
     // Fetch the video file
     const response = await fetch(videoUri);
+    if (!response.ok) {
+      console.error('Error fetching video for upload:', response.status, response.statusText);
+      return null;
+    }
     const blob = await response.blob();
     const contentType =
       blob.type ||
@@ -152,12 +212,8 @@ export async function uploadClipVideo(
       return null;
     }
 
-    // Get public URL
-    const { data: publicUrl } = supabase.storage
-      .from('clips')
-      .getPublicUrl(fileName);
-
-    return publicUrl.publicUrl;
+    // Store the object path in DB (more robust than storing a public URL).
+    return fileName;
   } catch (error) {
     console.error('Error in uploadClipVideo:', error);
     return null;

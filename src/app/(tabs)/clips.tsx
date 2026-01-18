@@ -50,7 +50,7 @@ import * as DropdownMenu from 'zeego/dropdown-menu';
 import { useStore } from '@/lib/store';
 import { reportBlockedUser } from '@/lib/reports';
 import type { ViolationType } from '@/lib/contentModeration';
-import { getClips } from '@/lib/clips-api';
+import { getClips, resolveClipVideoUrl } from '@/lib/clips-api';
 
 // Report reasons for App Store Guideline 1.2 compliance
 const REPORT_REASONS: { id: ViolationType | 'other'; label: string; description: string }[] = [
@@ -260,6 +260,7 @@ function ClipItem({ clip, isActive, isMuted, onToggleMute, onBlockUser, onReport
   const [duration, setDuration] = useState(clip.duration || 0);
   const [isFollowing, setIsFollowing] = useState(clip.user.isFollowing || false);
   const videoRef = useRef<ExpoVideo>(null);
+  const hasProbedRef = useRef(false);
 
   const heartScale = useSharedValue(1);
   const doubleTapHeart = useSharedValue(0);
@@ -275,11 +276,27 @@ function ClipItem({ clip, isActive, isMuted, onToggleMute, onBlockUser, onReport
       setIsLoading(true);
       setVideoFailed(false);
       setVideoError(null);
+      hasProbedRef.current = false;
       videoRef.current?.playAsync().catch(() => null);
     } else {
       videoRef.current?.pauseAsync().catch(() => null);
     }
   }, [isActive, clip.videoUrl]);
+
+  const probeVideoUrlOnce = useCallback(async (url: string) => {
+    if (!url) return;
+    if (hasProbedRef.current) return;
+    hasProbedRef.current = true;
+    try {
+      const res = await fetch(url, { method: 'GET', headers: { Range: 'bytes=0-1' } });
+      const ct = res.headers.get('content-type');
+      const info = `HTTP ${res.status}${ct ? ` • ${ct}` : ''}`;
+      setVideoError((prev) => (prev ? `${prev}\n${info}` : info));
+    } catch (e: any) {
+      const info = `Probe failed: ${String(e?.message ?? e)}`;
+      setVideoError((prev) => (prev ? `${prev}\n${info}` : info));
+    }
+  }, []);
 
   // Preload next/previous videos for smoother experience
   useEffect(() => {
@@ -392,6 +409,7 @@ function ClipItem({ clip, isActive, isMuted, onToggleMute, onBlockUser, onReport
       setVideoFailed(true);
       setIsLoading(false);
       setVideoError(String(status.error));
+      if (clip.videoUrl) void probeVideoUrlOnce(clip.videoUrl);
     }
   };
 
@@ -441,6 +459,7 @@ function ClipItem({ clip, isActive, isMuted, onToggleMute, onBlockUser, onReport
                 } catch {
                   setVideoError('Unknown video error');
                 }
+                if (clip.videoUrl) void probeVideoUrlOnce(clip.videoUrl);
               }}
               onPlaybackStatusUpdate={onPlaybackStatusUpdate}
               useNativeControls={false}
@@ -838,35 +857,43 @@ export default function ClipsTabScreen() {
         const db = await getClips(50, 0);
         if (cancelled) return;
 
-        const mapped: Clip[] = (db ?? [])
+        const mapped: Clip[] = await Promise.all((db ?? [])
           // Skip bad local-only URIs that won't load after upload
           .filter((c) => !String(c.video_url || '').startsWith('file://') && !String(c.video_url || '').startsWith('ph://'))
-          .map((c) => ({
-          id: c.id,
-          user: {
-            id: c.user_id,
-            name: c.user?.name ?? 'Someone',
-            username: c.user?.username ?? 'user',
-            avatar:
-              c.user?.avatar_url ??
-              'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&h=200&fit=crop&crop=face',
-            isVerified: false,
-            isFollowing: false,
-          },
-          videoUrl: c.video_url,
-          thumbnail:
-            c.thumbnail_url ??
-            'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=800&h=1400&fit=crop',
-          description: c.description,
-          music: c.music_tag ? `Original Audio • ${c.music_tag}` : 'Original Audio',
-          likes: c.likes_count ?? 0,
-          comments: c.comments_count ?? 0,
-          shares: c.shares_count ?? 0,
-          views: c.views_count ?? 0,
-          isLiked: false,
-          isSaved: false,
-          createdAt: c.created_at,
-        }));
+          .map(async (c) => {
+            let resolved = '';
+            try {
+              resolved = await resolveClipVideoUrl(c.video_url, { expiresInSeconds: 60 * 60 });
+            } catch {
+              resolved = String(c.video_url || '');
+            }
+            return {
+              id: c.id,
+              user: {
+                id: c.user_id,
+                name: c.user?.name ?? 'Someone',
+                username: c.user?.username ?? 'user',
+                avatar:
+                  c.user?.avatar_url ??
+                  'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&h=200&fit=crop&crop=face',
+                isVerified: false,
+                isFollowing: false,
+              },
+              videoUrl: resolved || undefined,
+              thumbnail:
+                c.thumbnail_url ??
+                'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=800&h=1400&fit=crop',
+              description: c.description,
+              music: c.music_tag ? `Original Audio • ${c.music_tag}` : 'Original Audio',
+              likes: c.likes_count ?? 0,
+              comments: c.comments_count ?? 0,
+              shares: c.shares_count ?? 0,
+              views: c.views_count ?? 0,
+              isLiked: false,
+              isSaved: false,
+              createdAt: c.created_at,
+            };
+          }));
 
         setFeedClips(mapped.length ? mapped : MOCK_CLIPS);
       } catch (e: any) {

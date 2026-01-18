@@ -40,11 +40,11 @@ const DiasporaTheme = {
 
 function RootLayoutNav() {
   const hasSeenStory = useStore((s) => s.hasSeenStory);
+  const hasSeenWelcome = useStore((s) => s.hasSeenWelcome);
   const currentUser = useStore((s) => s.currentUser);
   const selectedLocation = useStore((s) => s.selectedLocation);
   const notificationsEnabled = useStore((s) => s.notificationsEnabled);
   const [isHydrated, setIsHydrated] = useState(false);
-  const [hasNavigated, setHasNavigated] = useState(false);
   const segments = useSegments();
   const appState = useRef<AppStateStatus>(AppState.currentState);
 
@@ -108,14 +108,22 @@ function RootLayoutNav() {
     return unsubscribe;
   }, []);
 
-  // Navigate to story screen if user hasn't seen it
-  // Using segments to confirm router is mounted
+  // Route new/guest users to Welcome first (product tour), then Story, then the main tabs.
+  // Using segments to confirm router is mounted and to prevent redirect loops.
   useEffect(() => {
-    if (isHydrated && !hasSeenStory && !hasNavigated && segments.length > 0) {
-      router.replace('/story');
-      setHasNavigated(true);
-    }
-  }, [isHydrated, hasSeenStory, hasNavigated, segments]);
+    if (!isHydrated) return;
+    if (segments.length === 0) return;
+
+    const isLoggedIn = !!currentUser?.id;
+    const needsWelcome = !isLoggedIn && !hasSeenWelcome;
+    const needsStory = !hasSeenStory;
+    const target = needsWelcome ? 'welcome' : needsStory ? 'story' : null;
+
+    if (!target) return;
+    if (segments[0] === target) return;
+
+    router.replace(`/${target}` as any);
+  }, [isHydrated, segments, currentUser?.id, hasSeenWelcome, hasSeenStory]);
 
   return (
     <ThemeProvider value={DiasporaTheme}>

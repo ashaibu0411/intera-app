@@ -202,11 +202,11 @@ export default function CreateClipScreen() {
     try {
       // Step 1: Upload video (simulated progress)
       setUploadProgress(10);
-      const videoUrl = await uploadClipVideo(currentUser.id, videoUri!);
+      const videoPath = await uploadClipVideo(currentUser.id, videoUri!);
 
-      if (!videoUrl) {
+      if (!videoPath) {
         throw new Error(
-          "Upload failed. Please make sure your Supabase Storage bucket 'clips' exists and is public/readable, then try again."
+          "Upload failed. Please make sure your Supabase Storage bucket 'clips' exists and your Storage policies allow uploads, then try again."
         );
       }
 
@@ -222,7 +222,7 @@ export default function CreateClipScreen() {
       // Step 3: Create clip record
       const clip = await createClip({
         user_id: currentUser.id,
-        video_url: videoUrl,
+        video_url: videoPath,
         thumbnail_url: thumbnailUrl || undefined,
         description: description.trim(),
         music_tag: musicTag.trim() || undefined,

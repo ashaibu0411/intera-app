@@ -107,6 +107,49 @@ export interface Notification {
   data?: Record<string, any>;
 }
 
+// NOTE: Keep initial store state free of references to mock constants declared later in this file.
+// Otherwise Metro can throw "Cannot access '<CONST>' before initialization" during module eval.
+const INITIAL_NOTIFICATIONS: Notification[] = [
+  {
+    id: '1',
+    type: 'like',
+    title: 'Someone liked your post',
+    message: 'Tap to see what’s new in your community.',
+    timestamp: '2024-12-30T11:00:00Z',
+    read: false,
+    avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&h=200&fit=crop&crop=face',
+    route: '/community',
+  },
+  {
+    id: '2',
+    type: 'comment',
+    title: 'New comment',
+    message: 'You have new activity on a post you follow.',
+    timestamp: '2024-12-30T10:45:00Z',
+    read: false,
+    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop&crop=face',
+    route: '/community',
+  },
+  {
+    id: '3',
+    type: 'event',
+    title: 'Upcoming event',
+    message: 'Don’t miss events near you.',
+    timestamp: '2024-12-29T09:00:00Z',
+    read: true,
+    route: '/events',
+  },
+  {
+    id: '4',
+    type: 'alert',
+    title: 'Welcome!',
+    message: 'Your notifications will show up here.',
+    timestamp: '2024-12-28T12:00:00Z',
+    read: true,
+    route: '/safety-alerts',
+  },
+];
+
 export interface MarketplaceListing {
   id: string;
   seller: User;
@@ -697,7 +740,7 @@ export const useStore = create<AppState>()(
       businessBookingSettings: [] as BusinessBookingSettings[],
       inAppSalesCount: 0,
       notificationsEnabled: true,
-      notifications: MOCK_NOTIFICATIONS as Notification[],
+      notifications: INITIAL_NOTIFICATIONS as Notification[],
       addNotification: (notification) => set((state) => ({
         notifications: [notification, ...state.notifications],
       })),
