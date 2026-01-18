@@ -252,6 +252,7 @@ function ClipItem({ clip, isActive, isMuted, onToggleMute, onBlockUser, onReport
   const [likeCount, setLikeCount] = useState(clip.likes);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [videoFailed, setVideoFailed] = useState(false);
   const [playbackPosition, setPlaybackPosition] = useState(0);
   const [duration, setDuration] = useState(clip.duration || 0);
   const [isFollowing, setIsFollowing] = useState(clip.user.isFollowing || false);
@@ -377,7 +378,9 @@ function ClipItem({ clip, isActive, isMuted, onToggleMute, onBlockUser, onReport
         setPlaybackPosition(status.positionMillis / 1000);
       }
     } else if (status.error) {
-      console.error('Video playback error:', status.error);
+      // Video failed to load - fall back to thumbnail display
+      // This commonly happens with incompatible video URLs or server config issues
+      setVideoFailed(true);
       setIsLoading(false);
     }
   };
@@ -409,7 +412,7 @@ function ClipItem({ clip, isActive, isMuted, onToggleMute, onBlockUser, onReport
         className="relative"
       >
         {/* Video or Thumbnail Background */}
-        {clip.videoUrl ? (
+        {clip.videoUrl && !videoFailed ? (
           <>
             <ExpoVideo
               ref={videoRef}
@@ -424,8 +427,8 @@ function ClipItem({ clip, isActive, isMuted, onToggleMute, onBlockUser, onReport
               useNativeControls={false}
               progressUpdateIntervalMillis={100}
             />
-            {/* Thumbnail while loading */}
-            {isLoading && (
+            {/* Thumbnail while loading or if video failed */}
+            {(isLoading || videoFailed) && (
               <Image
                 source={{ uri: clip.thumbnail }}
                 style={{ position: 'absolute', width: '100%', height: '100%' }}
