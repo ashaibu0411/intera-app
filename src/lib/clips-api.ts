@@ -129,16 +129,21 @@ export async function uploadClipVideo(
   videoUri: string
 ): Promise<string | null> {
   try {
-    const fileName = `${userId}/${Date.now()}.mp4`;
+    const uriLower = (videoUri || '').toLowerCase();
+    const ext = uriLower.split('.').pop()?.split('?')[0]?.split('#')[0] || 'mp4';
+    const fileName = `${userId}/${Date.now()}.${ext === 'mov' ? 'mov' : 'mp4'}`;
 
     // Fetch the video file
     const response = await fetch(videoUri);
     const blob = await response.blob();
+    const contentType =
+      blob.type ||
+      (ext === 'mov' || ext === 'qt' ? 'video/quicktime' : 'video/mp4');
 
     const { data, error } = await supabase.storage
       .from('clips')
       .upload(fileName, blob, {
-        contentType: 'video/mp4',
+        contentType,
         upsert: false,
       });
 

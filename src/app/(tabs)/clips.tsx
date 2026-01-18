@@ -41,6 +41,7 @@ import Animated, {
   withRepeat,
   interpolate,
   Extrapolate,
+  runOnJS,
 } from 'react-native-reanimated';
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import * as Haptics from 'expo-haptics';
@@ -253,6 +254,8 @@ function ClipItem({ clip, isActive, isMuted, onToggleMute, onBlockUser, onReport
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [videoFailed, setVideoFailed] = useState(false);
+  const [videoError, setVideoError] = useState<string | null>(null);
+  const [reloadNonce, setReloadNonce] = useState(0);
   const [playbackPosition, setPlaybackPosition] = useState(0);
   const [duration, setDuration] = useState(clip.duration || 0);
   const [isFollowing, setIsFollowing] = useState(clip.user.isFollowing || false);
@@ -268,6 +271,10 @@ function ClipItem({ clip, isActive, isMuted, onToggleMute, onBlockUser, onReport
   useEffect(() => {
     if (!clip.videoUrl) return;
     if (isActive) {
+      // reset state when becoming active
+      setIsLoading(true);
+      setVideoFailed(false);
+      setVideoError(null);
       videoRef.current?.playAsync().catch(() => null);
     } else {
       videoRef.current?.pauseAsync().catch(() => null);
@@ -367,6 +374,8 @@ function ClipItem({ clip, isActive, isMuted, onToggleMute, onBlockUser, onReport
     if (status.isLoaded) {
       setIsPlaying(status.isPlaying);
       setIsLoading(false);
+      setVideoFailed(false);
+      setVideoError(null);
 
       if (status.durationMillis) {
         setDuration(status.durationMillis / 1000);
@@ -382,6 +391,7 @@ function ClipItem({ clip, isActive, isMuted, onToggleMute, onBlockUser, onReport
       // This commonly happens with incompatible video URLs or server config issues
       setVideoFailed(true);
       setIsLoading(false);
+      setVideoError(String(status.error));
     }
   };
 
@@ -394,15 +404,13 @@ function ClipItem({ clip, isActive, isMuted, onToggleMute, onBlockUser, onReport
     .onEnd((event) => {
       'worklet';
       // Swipe left: comments, swipe right: profile
-      // These callbacks run on the UI thread, so we schedule JS execution
       if (event.translationX < -70) {
-        // Can't call onComment directly from worklet - handled via tap instead
+        runOnJS(onComment)();
       }
       if (event.translationX > 70) {
-        // Can't call router.push directly from worklet - handled via tap instead
+        runOnJS(() => router.push(`/profile/${clip.user.id}`))();
       }
-    })
-    .runOnJS(true); // Force callbacks to run on JS thread
+    });
 
   return (
     <GestureDetector gesture={panGesture}>
@@ -416,6 +424,7 @@ function ClipItem({ clip, isActive, isMuted, onToggleMute, onBlockUser, onReport
           <>
             <ExpoVideo
               ref={videoRef}
+              key={`${clip.id}:${reloadNonce}`}
               source={{ uri: clip.videoUrl }}
               style={{ position: 'absolute', width: '100%', height: '100%' }}
               resizeMode={ResizeMode.COVER}
@@ -423,6 +432,16 @@ function ClipItem({ clip, isActive, isMuted, onToggleMute, onBlockUser, onReport
               shouldPlay={isActive}
               isMuted={isMuted}
               volume={1.0}
+              onError={(e) => {
+                // Some failures don't populate status.error reliably, so capture the event too.
+                setVideoFailed(true);
+                setIsLoading(false);
+                try {
+                  setVideoError(JSON.stringify(e));
+                } catch {
+                  setVideoError('Unknown video error');
+                }
+              }}
               onPlaybackStatusUpdate={onPlaybackStatusUpdate}
               useNativeControls={false}
               progressUpdateIntervalMillis={100}
@@ -445,6 +464,41 @@ function ClipItem({ clip, isActive, isMuted, onToggleMute, onBlockUser, onReport
             cachePolicy="memory-disk"
           />
         )}
+
+        {/* Playback error overlay + retry */}
+        {videoFailed ? (
+          <View style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18 }}>
+            <View style={{ backgroundColor: 'rgba(0,0,0,0.65)', borderRadius: 18, padding: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)', width: '100%' }}>
+              <Text style={{ color: '#fff', fontWeight: '900', fontSize: 16 }}>Video failed to load</Text>
+              <Text style={{ color: 'rgba(255,255,255,0.85)', marginTop: 6 }}>
+                This is usually a Supabase Storage permission issue (403) or a bad URL.
+              </Text>
+              <Text style={{ color: 'rgba(255,255,255,0.70)', marginTop: 8 }} numberOfLines={2}>
+                URL: {clip.videoUrl || '(missing)'}
+              </Text>
+              {videoError ? (
+                <Text style={{ color: 'rgba(255,255,255,0.70)', marginTop: 8 }} numberOfLines={3}>
+                  {videoError}
+                </Text>
+              ) : null}
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setVideoFailed(false);
+                  setVideoError(null);
+                  setIsLoading(true);
+                  setReloadNonce((n) => n + 1);
+                }}
+                className="active:opacity-90"
+                style={{ marginTop: 12, alignSelf: 'flex-start' }}
+              >
+                <View style={{ backgroundColor: '#fff', borderRadius: 999, paddingHorizontal: 14, paddingVertical: 10 }}>
+                  <Text style={{ color: '#000', fontWeight: '900' }}>Retry</Text>
+                </View>
+              </Pressable>
+            </View>
+          </View>
+        ) : null}
 
         {/* Gradient Overlays - Enhanced */}
         <LinearGradient
@@ -784,7 +838,10 @@ export default function ClipsTabScreen() {
         const db = await getClips(50, 0);
         if (cancelled) return;
 
-        const mapped: Clip[] = (db ?? []).map((c) => ({
+        const mapped: Clip[] = (db ?? [])
+          // Skip bad local-only URIs that won't load after upload
+          .filter((c) => !String(c.video_url || '').startsWith('file://') && !String(c.video_url || '').startsWith('ph://'))
+          .map((c) => ({
           id: c.id,
           user: {
             id: c.user_id,
