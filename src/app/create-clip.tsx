@@ -30,6 +30,8 @@ import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { useStore } from '@/lib/store';
 import { createClip, uploadClipVideo, uploadClipThumbnail } from '@/lib/clips-api';
+import * as MediaLibrary from 'expo-media-library';
+import * as FileSystem from 'expo-file-system';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -87,7 +89,32 @@ export default function CreateClipScreen() {
     });
 
     if (!result.canceled && result.assets[0]) {
-      setVideoUri(result.assets[0].uri);
+      const asset = result.assets[0];
+      let uri = asset.uri;
+
+      // iOS can return ph:// URIs; prefer a stable file:// localUri when possible.
+      if (asset.assetId) {
+        try {
+          const info = await MediaLibrary.getAssetInfoAsync(asset.assetId);
+          uri = info.localUri || info.uri || uri;
+        } catch {
+          // ignore
+        }
+      }
+
+      // Best-effort: ensure we have a file:// URI for playback + upload.
+      if (uri && !uri.startsWith('file://')) {
+        try {
+          const ext = uri.split('.').pop()?.toLowerCase() || 'mp4';
+          const dest = `${FileSystem.cacheDirectory}clip_${Date.now()}.${ext}`;
+          await FileSystem.copyAsync({ from: uri, to: dest });
+          uri = dest;
+        } catch {
+          // ignore
+        }
+      }
+
+      setVideoUri(uri);
       // Auto-generate thumbnail from first frame (in real app, use video-thumbnails library)
       setThumbnailUri(null);
     }
@@ -110,7 +137,22 @@ export default function CreateClipScreen() {
     });
 
     if (!result.canceled && result.assets[0]) {
-      setVideoUri(result.assets[0].uri);
+      const asset = result.assets[0];
+      let uri = asset.uri;
+
+      // Best-effort: ensure we have a file:// URI for playback + upload.
+      if (uri && !uri.startsWith('file://')) {
+        try {
+          const ext = uri.split('.').pop()?.toLowerCase() || 'mp4';
+          const dest = `${FileSystem.cacheDirectory}clip_${Date.now()}.${ext}`;
+          await FileSystem.copyAsync({ from: uri, to: dest });
+          uri = dest;
+        } catch {
+          // ignore
+        }
+      }
+
+      setVideoUri(uri);
       setThumbnailUri(null);
     }
   };
@@ -163,8 +205,9 @@ export default function CreateClipScreen() {
       const videoUrl = await uploadClipVideo(currentUser.id, videoUri!);
 
       if (!videoUrl) {
-        // For now, use the local URI if upload fails (for demo purposes)
-        console.log('Using local video URI for demo');
+        throw new Error(
+          "Upload failed. Please make sure your Supabase Storage bucket 'clips' exists and is public/readable, then try again."
+        );
       }
 
       setUploadProgress(60);
@@ -179,7 +222,7 @@ export default function CreateClipScreen() {
       // Step 3: Create clip record
       const clip = await createClip({
         user_id: currentUser.id,
-        video_url: videoUrl || videoUri!,
+        video_url: videoUrl,
         thumbnail_url: thumbnailUrl || undefined,
         description: description.trim(),
         music_tag: musicTag.trim() || undefined,
@@ -193,16 +236,12 @@ export default function CreateClipScreen() {
           { text: 'OK', onPress: () => router.back() },
         ]);
       } else {
-        // Demo mode - still show success
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        Alert.alert('Clip Created!', 'Your clip is ready (demo mode).', [
-          { text: 'OK', onPress: () => router.back() },
-        ]);
+        throw new Error("Clip was uploaded but couldn't be saved. Please ensure the `clips` table exists in Supabase and RLS allows inserts.");
       }
     } catch (error) {
       console.error('Error creating clip:', error);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert('Error', 'Failed to upload clip. Please try again.');
+      Alert.alert('Error', String((error as any)?.message ?? 'Failed to upload clip. Please try again.'));
     } finally {
       setIsUploading(false);
     }

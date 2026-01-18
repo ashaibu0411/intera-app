@@ -49,6 +49,7 @@ import * as DropdownMenu from 'zeego/dropdown-menu';
 import { useStore } from '@/lib/store';
 import { reportBlockedUser } from '@/lib/reports';
 import type { ViolationType } from '@/lib/contentModeration';
+import { getClips } from '@/lib/clips-api';
 
 // Report reasons for App Store Guideline 1.2 compliance
 const REPORT_REASONS: { id: ViolationType | 'other'; label: string; description: string }[] = [
@@ -88,6 +89,7 @@ interface Clip {
 }
 
 // Enhanced demo clips with more data
+// Using Pexels CDN which provides HLS-compatible streams for iOS
 const MOCK_CLIPS: Clip[] = [
   {
     id: '1',
@@ -99,7 +101,7 @@ const MOCK_CLIPS: Clip[] = [
       isVerified: true,
       isFollowing: false,
     },
-    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+    // No videoUrl - displays as thumbnail-only clip (common for demo/fallback)
     thumbnail: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&h=1400&fit=crop',
     description: 'Weekend road trip vibes! Who else loves spontaneous adventures? #roadtrip #adventure #travel',
     music: 'Original Audio - Sarah',
@@ -122,7 +124,6 @@ const MOCK_CLIPS: Clip[] = [
       isVerified: false,
       isFollowing: true,
     },
-    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
     thumbnail: 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=800&h=1400&fit=crop',
     description: 'Found the perfect carpool crew for my daily commute. Life-changing! #carpool #commute #friends',
     music: 'Sunny Day - Acoustic',
@@ -145,7 +146,6 @@ const MOCK_CLIPS: Clip[] = [
       isVerified: true,
       isFollowing: false,
     },
-    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4',
     thumbnail: 'https://images.unsplash.com/photo-1449824913935-59a10b8d2000?w=800&h=1400&fit=crop',
     description: 'City drives hit different at golden hour. Who wants to join? #goldenhour #citylife #carpool',
     music: 'Golden - Harry Styles',
@@ -168,7 +168,6 @@ const MOCK_CLIPS: Clip[] = [
       isVerified: false,
       isFollowing: true,
     },
-    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4',
     thumbnail: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=800&h=1400&fit=crop',
     description: 'Mountain road trip with the best crew. Nothing beats these views! #mountains #roadtrip',
     music: 'On The Road Again',
@@ -191,7 +190,6 @@ const MOCK_CLIPS: Clip[] = [
       isVerified: true,
       isFollowing: false,
     },
-    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/SubaruOutbackOnStreetAndDirt.mp4',
     thumbnail: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&h=1400&fit=crop',
     description: 'Beach carpool anyone? The waves are calling! #beach #summer #roadtrip',
     music: 'Ocean Eyes - Billie Eilish',
@@ -759,6 +757,8 @@ export default function ClipsTabScreen() {
   const [isMuted, setIsMuted] = useState(false);
   const [pagerHeight, setPagerHeight] = useState(SCREEN_HEIGHT);
   const [showHint, setShowHint] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [feedClips, setFeedClips] = useState<Clip[]>([]);
   const [showReportModal, setShowReportModal] = useState(false);
   const [showCommentsModal, setShowCommentsModal] = useState(false);
   const [selectedClip, setSelectedClip] = useState<Clip | null>(null);
@@ -772,10 +772,61 @@ export default function ClipsTabScreen() {
   const blockUser = useStore((s) => s.blockUser);
   const blockedUserIds = useStore((s) => s.blockedUserIds);
 
+  // Load real clips from Supabase (falls back to mocks if empty)
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        setLoading(true);
+        const db = await getClips(50, 0);
+        if (cancelled) return;
+
+        const mapped: Clip[] = (db ?? []).map((c) => ({
+          id: c.id,
+          user: {
+            id: c.user_id,
+            name: c.user?.name ?? 'Someone',
+            username: c.user?.username ?? 'user',
+            avatar:
+              c.user?.avatar_url ??
+              'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&h=200&fit=crop&crop=face',
+            isVerified: false,
+            isFollowing: false,
+          },
+          videoUrl: c.video_url,
+          thumbnail:
+            c.thumbnail_url ??
+            'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=800&h=1400&fit=crop',
+          description: c.description,
+          music: c.music_tag ? `Original Audio • ${c.music_tag}` : 'Original Audio',
+          likes: c.likes_count ?? 0,
+          comments: c.comments_count ?? 0,
+          shares: c.shares_count ?? 0,
+          views: c.views_count ?? 0,
+          isLiked: false,
+          isSaved: false,
+          createdAt: c.created_at,
+        }));
+
+        setFeedClips(mapped.length ? mapped : MOCK_CLIPS);
+      } catch (e: any) {
+        if (!cancelled) {
+          setFeedClips(MOCK_CLIPS);
+          Alert.alert('Clips', String(e?.message ?? 'Could not load clips.'));
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Filter out clips from blocked users
   const filteredClips = useMemo(() => {
-    return MOCK_CLIPS.filter((clip) => !blockedUserIds.includes(clip.user.id));
-  }, [blockedUserIds]);
+    return feedClips.filter((clip) => !blockedUserIds.includes(clip.user.id));
+  }, [blockedUserIds, feedClips]);
 
   const handleBlockUser = (user: { id: string; name: string; avatar: string }) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -922,6 +973,13 @@ export default function ClipsTabScreen() {
         if (h && Math.abs(h - pagerHeight) > 2) setPagerHeight(h);
       }}
     >
+      {loading ? (
+        <View style={{ position: 'absolute', top: insets.top + 70, left: 0, right: 0, alignItems: 'center', zIndex: 50 }}>
+          <View style={{ backgroundColor: 'rgba(0,0,0,0.35)', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 }}>
+            <Text style={{ color: '#fff', fontWeight: '800' }}>Loading clips…</Text>
+          </View>
+        </View>
+      ) : null}
       {/* Header - Enhanced */}
       <View
         className="absolute z-10 left-0 right-0 flex-row items-center justify-between px-4"
