@@ -173,6 +173,18 @@ export default function HomeHubScreen() {
                 size="lg"
               />
               <PhotoTile
+                title="Voice Rooms"
+                subtitle="Live chats"
+                imageUri="https://images.unsplash.com/photo-1521737604893-d14cc237f11d?w=1200&h=800&fit=crop"
+                onPress={() => go('/voice-rooms')}
+              />
+              <PhotoTile
+                title="Student Hub"
+                subtitle="Guides & tools"
+                imageUri="https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=1200&h=800&fit=crop"
+                onPress={() => go('/student-hub')}
+              />
+              <PhotoTile
                 title="Community"
                 subtitle="Feed"
                 imageUri="https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=1200&h=800&fit=crop"

@@ -38,14 +38,22 @@ export function PhotoTile(props: {
         height,
         borderRadius: 22,
         overflow: 'hidden',
-        backgroundColor: '#111827',
+        backgroundColor: '#FFFFFF',
+        borderWidth: 1,
+        borderColor: 'rgba(17, 24, 39, 0.08)',
       }}
     >
       <Image source={{ uri: props.imageUri }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
 
-      {/* Dark overlay for readability */}
+      {/* Brighten + improve readability (less dark than before) */}
       <LinearGradient
-        colors={['rgba(0,0,0,0.05)', 'rgba(0,0,0,0.70)']}
+        colors={['rgba(255,255,255,0.14)', 'rgba(255,255,255,0.00)']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0.9 }}
+        style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}
+      />
+      <LinearGradient
+        colors={['rgba(0,0,0,0.02)', 'rgba(0,0,0,0.42)']}
         start={{ x: 0.5, y: 0 }}
         end={{ x: 0.5, y: 1 }}
         style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}

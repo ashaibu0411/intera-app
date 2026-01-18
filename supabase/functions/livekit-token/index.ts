@@ -9,7 +9,7 @@
 // Client calls:
 //   supabase.functions.invoke('livekit-token', { body: { roomName, identity, name, canPublish } })
 
-import { AccessToken } from 'npm:livekit-server-sdk@2.15.4';
+import { AccessToken } from 'npm:livekit-server-sdk@2.15.0';
 
 type Body = {
   roomName: string;
