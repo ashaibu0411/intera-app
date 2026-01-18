@@ -5,14 +5,29 @@ import { v4 as uuidv4 } from 'uuid';
 export type VoiceRole = DbVoiceRoomParticipant['role'];
 
 export async function listLiveVoiceRooms(limit: number = 50): Promise<DbVoiceRoom[]> {
+  const nowIso = new Date().toISOString();
   const { data, error } = await supabase
     .from('voice_rooms')
     .select('*')
     .neq('status', 'ended')
+    .or(`expires_at.is.null,expires_at.gt.${nowIso}`)
     .order('created_at', { ascending: false })
     .limit(limit);
-  if (error) throw error;
-  return (data ?? []) as DbVoiceRoom[];
+  if (!error) return (data ?? []) as DbVoiceRoom[];
+
+  // Backward-compatible fallback: if the DB doesn't have expires_at yet, retry without it.
+  if (String(error.message || '').includes('expires_at')) {
+    const retry = await supabase
+      .from('voice_rooms')
+      .select('*')
+      .neq('status', 'ended')
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (retry.error) throw retry.error;
+    return (retry.data ?? []) as DbVoiceRoom[];
+  }
+
+  throw error;
 }
 
 export async function createVoiceRoom(input: {
@@ -27,28 +42,39 @@ export async function createVoiceRoom(input: {
   scope?: DbVoiceRoom['scope'];
 }): Promise<DbVoiceRoom> {
   const providerRoomName = `room_${uuidv4()}`;
+  const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(); // 2 hours
 
-  const { data, error } = await supabase
+  const payloadBase = {
+    creator_id: input.creatorId,
+    title: input.title,
+    description: input.description ?? null,
+    topic: input.topic ?? null,
+    country: input.country ?? '',
+    admin_area: input.admin_area ?? null,
+    city: input.city ?? '',
+    neighborhood: input.neighborhood ?? null,
+    scope: input.scope ?? 'global',
+    status: 'live',
+    provider: 'livekit',
+    provider_room_name: providerRoomName,
+  } as const;
+
+  // Try with expires_at (new schema), then fallback if column doesn't exist yet.
+  const first = await supabase
     .from('voice_rooms')
-    .insert({
-      creator_id: input.creatorId,
-      title: input.title,
-      description: input.description ?? null,
-      topic: input.topic ?? null,
-      country: input.country ?? '',
-      admin_area: input.admin_area ?? null,
-      city: input.city ?? '',
-      neighborhood: input.neighborhood ?? null,
-      scope: input.scope ?? 'global',
-      status: 'live',
-      provider: 'livekit',
-      provider_room_name: providerRoomName,
-    })
+    .insert({ ...payloadBase, expires_at: expiresAt })
     .select('*')
     .single();
 
-  if (error) throw error;
-  return data as DbVoiceRoom;
+  if (!first.error) return first.data as DbVoiceRoom;
+
+  if (String(first.error.message || '').includes('expires_at')) {
+    const retry = await supabase.from('voice_rooms').insert(payloadBase).select('*').single();
+    if (retry.error) throw retry.error;
+    return retry.data as DbVoiceRoom;
+  }
+
+  throw first.error;
 }
 
 export async function endVoiceRoom(roomId: string): Promise<void> {
@@ -56,6 +82,11 @@ export async function endVoiceRoom(roomId: string): Promise<void> {
     .from('voice_rooms')
     .update({ status: 'ended', ended_at: new Date().toISOString() })
     .eq('id', roomId);
+  if (error) throw error;
+}
+
+export async function deleteVoiceRoom(roomId: string): Promise<void> {
+  const { error } = await supabase.from('voice_rooms').delete().eq('id', roomId);
   if (error) throw error;
 }
 

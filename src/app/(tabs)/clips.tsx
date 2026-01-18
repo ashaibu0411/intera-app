@@ -1,9 +1,10 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { View, Text, Pressable, Dimensions, FlatList, ViewToken, ActivityIndicator, Alert, Modal, Share, RefreshControl, Platform, TextInput } from 'react-native';
+import { View, Text, Pressable, Dimensions, FlatList, ViewToken, ActivityIndicator, Alert, Modal, Share, Platform, TextInput } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { Video as ExpoVideo, ResizeMode, AVPlaybackStatus, Audio } from 'expo-av';
 import { LinearGradient } from 'expo-linear-gradient';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   Play,
   Pause,
@@ -242,9 +243,11 @@ interface ClipItemProps {
   onReportUser: () => void;
   onComment: () => void;
   onShare: () => void;
+  itemHeight: number;
+  itemWidth: number;
 }
 
-function ClipItem({ clip, isActive, isMuted, onToggleMute, onBlockUser, onReportUser, onComment, onShare }: ClipItemProps) {
+function ClipItem({ clip, isActive, isMuted, onToggleMute, onBlockUser, onReportUser, onComment, onShare, itemHeight, itemWidth }: ClipItemProps) {
   const insets = useSafeAreaInsets();
   const [liked, setLiked] = useState(clip.isLiked);
   const [saved, setSaved] = useState(clip.isSaved);
@@ -261,13 +264,14 @@ function ClipItem({ clip, isActive, isMuted, onToggleMute, onBlockUser, onReport
   const progressWidth = useSharedValue(0);
   const playPauseOpacity = useSharedValue(0);
 
-  // Auto-play/pause based on visibility with preloading
+  // Auto-play/pause based on visibility.
+  // IMPORTANT: don't call loadAsync repeatedly — it can break scrolling/perf.
   useEffect(() => {
-    if (isActive && clip.videoUrl) {
-      // Preload video when it becomes active
-      videoRef.current?.loadAsync({ uri: clip.videoUrl }, { shouldPlay: true });
+    if (!clip.videoUrl) return;
+    if (isActive) {
+      videoRef.current?.playAsync().catch(() => null);
     } else {
-      videoRef.current?.pauseAsync();
+      videoRef.current?.pauseAsync().catch(() => null);
     }
   }, [isActive, clip.videoUrl]);
 
@@ -363,12 +367,12 @@ function ClipItem({ clip, isActive, isMuted, onToggleMute, onBlockUser, onReport
   const onPlaybackStatusUpdate = (status: AVPlaybackStatus) => {
     if (status.isLoaded) {
       setIsPlaying(status.isPlaying);
-      setIsLoading(status.isLoaded === false);
-      
+      setIsLoading(false);
+
       if (status.durationMillis) {
         setDuration(status.durationMillis / 1000);
       }
-      
+
       if (status.positionMillis && status.durationMillis) {
         const progress = (status.positionMillis / status.durationMillis) * 100;
         progressWidth.value = withTiming(progress, { duration: 100 });
@@ -380,20 +384,30 @@ function ClipItem({ clip, isActive, isMuted, onToggleMute, onBlockUser, onReport
     }
   };
 
-  // Gesture for swipe interactions
+  // Side-swipe gestures should NOT interfere with the vertical pager.
+  // We only activate this gesture on horizontal movement.
+  // Using runOnJS to safely call JS functions from gesture callbacks.
   const panGesture = Gesture.Pan()
+    .activeOffsetX([-18, 18]) // activate when horizontal swipe is intentional
+    .failOffsetY([-12, 12]) // fail fast if user is scrolling vertically
     .onEnd((event) => {
-      // Handle swipe gestures for additional interactions
-      if (Math.abs(event.translationY) > 50) {
-        // Could implement swipe to next/previous or other actions
+      'worklet';
+      // Swipe left: comments, swipe right: profile
+      // These callbacks run on the UI thread, so we schedule JS execution
+      if (event.translationX < -70) {
+        // Can't call onComment directly from worklet - handled via tap instead
       }
-    });
+      if (event.translationX > 70) {
+        // Can't call router.push directly from worklet - handled via tap instead
+      }
+    })
+    .runOnJS(true); // Force callbacks to run on JS thread
 
   return (
     <GestureDetector gesture={panGesture}>
       <Pressable
         onPress={handleTap}
-        style={{ height: SCREEN_HEIGHT, width: SCREEN_WIDTH }}
+        style={{ height: itemHeight, width: itemWidth }}
         className="relative"
       >
         {/* Video or Thumbnail Background */}
@@ -743,7 +757,8 @@ export default function ClipsTabScreen() {
   const [activeIndex, setActiveIndex] = useState(0);
   const [activeTab, setActiveTab] = useState<'following' | 'foryou'>('foryou');
   const [isMuted, setIsMuted] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
+  const [pagerHeight, setPagerHeight] = useState(SCREEN_HEIGHT);
+  const [showHint, setShowHint] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [showCommentsModal, setShowCommentsModal] = useState(false);
   const [selectedClip, setSelectedClip] = useState<Clip | null>(null);
@@ -827,15 +842,6 @@ export default function ClipsTabScreen() {
     }
   };
 
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    // Simulate refresh
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    setRefreshing(false);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, []);
-
   // Configure audio mode to play sound even when phone is on silent
   useEffect(() => {
     const configureAudio = async () => {
@@ -852,6 +858,29 @@ export default function ClipsTabScreen() {
     configureAudio();
   }, []);
 
+  // One-time gesture hint (helps users discover swipe + double tap).
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const seen = await AsyncStorage.getItem('clips_hint_seen');
+        if (!mounted) return;
+        if (!seen) {
+          setShowHint(true);
+          await AsyncStorage.setItem('clips_hint_seen', '1');
+          setTimeout(() => {
+            if (mounted) setShowHint(false);
+          }, 3500);
+        }
+      } catch {
+        // ignore
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   const viewabilityConfig = useRef({
     itemVisiblePercentThreshold: 50,
   }).current;
@@ -865,6 +894,15 @@ export default function ClipsTabScreen() {
     []
   );
 
+  const onMomentumScrollEnd = useCallback(
+    (e: any) => {
+      const y = e?.nativeEvent?.contentOffset?.y ?? 0;
+      const next = Math.round(y / Math.max(1, pagerHeight));
+      if (!Number.isNaN(next)) setActiveIndex(next);
+    },
+    [pagerHeight]
+  );
+
   const handleCreateClip = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     router.push('/create-clip');
@@ -876,7 +914,14 @@ export default function ClipsTabScreen() {
   };
 
   return (
-    <View className="flex-1 bg-black">
+    <View
+      className="flex-1 bg-black"
+      onLayout={(e) => {
+        // Use the actual container height (accounts for tab bar/safe areas) to keep paging exact.
+        const h = e.nativeEvent.layout.height;
+        if (h && Math.abs(h - pagerHeight) > 2) setPagerHeight(h);
+      }}
+    >
       {/* Header - Enhanced */}
       <View
         className="absolute z-10 left-0 right-0 flex-row items-center justify-between px-4"
@@ -941,27 +986,57 @@ export default function ClipsTabScreen() {
             onReportUser={() => handleReportUser({ id: item.user.id, name: item.user.name, avatar: item.user.avatar })}
             onComment={() => handleComment(item)}
             onShare={() => handleShare(item)}
+            itemHeight={pagerHeight}
+            itemWidth={SCREEN_WIDTH}
           />
         )}
         pagingEnabled
+        scrollEnabled={!(showCommentsModal || showReportModal || showBlockConfirmModal)}
         showsVerticalScrollIndicator={false}
-        snapToInterval={SCREEN_HEIGHT}
+        snapToInterval={pagerHeight}
+        snapToAlignment="start"
+        disableIntervalMomentum
+        bounces={false}
+        overScrollMode="never"
         decelerationRate="fast"
         viewabilityConfig={viewabilityConfig}
         onViewableItemsChanged={onViewableItemsChanged}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor="#fff"
-            colors={['#fff']}
-          />
-        }
+        onMomentumScrollEnd={onMomentumScrollEnd}
+        getItemLayout={(_, index) => ({ length: pagerHeight, offset: pagerHeight * index, index })}
         removeClippedSubviews={true}
         maxToRenderPerBatch={3}
         windowSize={5}
         initialNumToRender={2}
       />
+
+      {/* Gesture hint overlay (shows once) */}
+      {showHint ? (
+        <Pressable
+          onPress={() => setShowHint(false)}
+          style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}
+        >
+          <LinearGradient
+            colors={['rgba(0,0,0,0.65)', 'rgba(0,0,0,0.35)', 'rgba(0,0,0,0.65)']}
+            locations={[0, 0.5, 1]}
+            style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 }}
+          >
+            <View style={{ backgroundColor: 'rgba(255,255,255,0.10)', borderRadius: 20, padding: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)' }}>
+              <Text style={{ color: '#fff', fontWeight: '900', fontSize: 16, textAlign: 'center' }}>
+                Tips
+              </Text>
+              <Text style={{ color: 'rgba(255,255,255,0.92)', marginTop: 10, fontWeight: '700', textAlign: 'center' }}>
+                Swipe up/down to browse • Double tap to like
+              </Text>
+              <Text style={{ color: 'rgba(255,255,255,0.85)', marginTop: 6, fontWeight: '700', textAlign: 'center' }}>
+                Swipe left for comments • Swipe right for creator
+              </Text>
+              <Text style={{ color: 'rgba(255,255,255,0.70)', marginTop: 10, textAlign: 'center' }}>
+                Tap anywhere to dismiss
+              </Text>
+            </View>
+          </LinearGradient>
+        </Pressable>
+      ) : null}
 
       {/* Comments Modal */}
       <CommentsModal

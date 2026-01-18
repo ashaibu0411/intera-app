@@ -431,6 +431,7 @@ export interface DbVoiceRoom {
   status: 'scheduled' | 'live' | 'ended';
   starts_at: string | null;
   ended_at: string | null;
+  expires_at?: string | null;
   provider: string;
   provider_room_name: string;
   created_at: string;

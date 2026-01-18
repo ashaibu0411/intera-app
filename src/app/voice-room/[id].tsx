@@ -1,15 +1,17 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, Pressable, ActivityIndicator, ScrollView, Modal } from 'react-native';
+import { View, Text, Pressable, ActivityIndicator, ScrollView, Modal, Alert, Linking } from 'react-native';
 import { Stack, useLocalSearchParams, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { Mic, MicOff, Hand, Gift, Crown, UserPlus, X, Sparkles, Users } from 'lucide-react-native';
+import { Mic, MicOff, Hand, Gift, Crown, UserPlus, X, Sparkles, Users, AudioLines, Trash2, Square } from 'lucide-react-native';
 import { LiveKitRoom, useRoomContext } from '@livekit/react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Audio } from 'expo-av';
+import * as Sharing from 'expo-sharing';
 import { useStore } from '@/lib/store';
 import { supabase } from '@/lib/supabase';
 import type { DbVoiceRoom, DbVoiceRoomParticipant, DbVoiceRoomHandRaise, DbGiftTransaction } from '@/lib/supabase';
-import { getLiveKitToken, leaveRoom, lowerHand, raiseHand, upsertParticipant, updateParticipantRole } from '@/lib/voiceRooms';
+import { deleteVoiceRoom, endVoiceRoom, getLiveKitToken, leaveRoom, lowerHand, raiseHand, upsertParticipant, updateParticipantRole } from '@/lib/voiceRooms';
 import { sendGift } from '@/lib/giftService';
 
 const GIFTS = [
@@ -28,6 +30,27 @@ function MicSync({ enabled }: { enabled: boolean }) {
   useEffect(() => {
     room?.localParticipant?.setMicrophoneEnabled(enabled).catch(() => null);
   }, [enabled, room]);
+  return null;
+}
+
+function LiveKitSpeakingBridge({ onSpeakingChange }: { onSpeakingChange: (speaking: boolean) => void }) {
+  const room = useRoomContext();
+  useEffect(() => {
+    if (!room?.localParticipant) return;
+    const lp = room.localParticipant;
+    const sync = () => onSpeakingChange(!!lp.isSpeaking);
+    sync();
+
+    const onSpeaking = () => sync();
+    const onActiveSpeakers = () => sync();
+
+    lp.on?.('isSpeakingChanged', onSpeaking);
+    room.on?.('activeSpeakersChanged', onActiveSpeakers);
+    return () => {
+      lp.off?.('isSpeakingChanged', onSpeaking);
+      room.off?.('activeSpeakersChanged', onActiveSpeakers);
+    };
+  }, [onSpeakingChange, room]);
   return null;
 }
 
@@ -78,9 +101,11 @@ function LocalMicSignalInner({ micEnabled }: { micEnabled: boolean }) {
 }
 
 // Fallback component when not inside LiveKitRoom
-function LocalMicSignalFallback({ micEnabled }: { micEnabled: boolean }) {
-  const dot = micEnabled ? '#F59E0B' : '#9CA3AF';
-  const label = micEnabled ? 'No voice' : 'Mic off';
+function LocalMicSignalFallback({ micEnabled, speaking }: { micEnabled: boolean; speaking?: boolean | null }) {
+  const resolvedSpeaking = speaking === undefined ? null : speaking;
+  const tone = !micEnabled ? 'off' : resolvedSpeaking ? 'on' : 'idle';
+  const dot = tone === 'on' ? '#22C55E' : tone === 'idle' ? '#F59E0B' : '#9CA3AF';
+  const label = tone === 'on' ? 'Speaking' : tone === 'idle' ? 'No voice' : 'Mic off';
 
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -168,6 +193,19 @@ export default function VoiceRoomScreen() {
   const [tab, setTab] = useState<Tab>('room'); // kept for backward state; UI now uses sheets
   const [giftsOpen, setGiftsOpen] = useState(false);
   const [peopleOpen, setPeopleOpen] = useState(false);
+  const [testMicOpen, setTestMicOpen] = useState(false);
+  const [lkSpeaking, setLkSpeaking] = useState<boolean | null>(null);
+
+  const [testRecording, setTestRecording] = useState<Audio.Recording | null>(null);
+  const [testRecordingUri, setTestRecordingUri] = useState<string | null>(null);
+  const [testSound, setTestSound] = useState<Audio.Sound | null>(null);
+  const [testBusy, setTestBusy] = useState(false);
+  const [testSeconds, setTestSeconds] = useState(0);
+  const [pauseLiveKitForTest, setPauseLiveKitForTest] = useState(false);
+  const [testPermGranted, setTestPermGranted] = useState<boolean | null>(null);
+  const [testUiStatus, setTestUiStatus] = useState<string>('Ready');
+  const [testTapCount, setTestTapCount] = useState(0);
+  const [testMeterDb, setTestMeterDb] = useState<number | null>(null);
 
   const [lkUrl, setLkUrl] = useState<string | null>(null);
   const [lkToken, setLkToken] = useState<string | null>(null);
@@ -184,7 +222,9 @@ export default function VoiceRoomScreen() {
     return room.creator_id === currentUser.id || me?.role === 'host' || me?.role === 'moderator';
   }, [currentUser?.id, me?.role, room]);
 
+  // Important: don't rely only on `me` because it can be null briefly while realtime rows load.
   const canSpeak = me?.role === 'host' || me?.role === 'moderator' || me?.role === 'speaker';
+  const canSpeakEffective = isHost || canSpeak;
 
   useEffect(() => {
     if (!id) return;
@@ -195,7 +235,13 @@ export default function VoiceRoomScreen() {
         setLoading(true);
         const { data } = await supabase.from('voice_rooms').select('*').eq('id', id).single();
         if (cancelled) return;
-        setRoom(data as DbVoiceRoom);
+        const r = data as DbVoiceRoom;
+        // If room is expired, treat it as ended (best-effort UX guard; the host can also end it explicitly).
+        if (r?.expires_at && new Date(r.expires_at).getTime() <= Date.now()) {
+          setRoom({ ...r, status: 'ended' } as DbVoiceRoom);
+        } else {
+          setRoom(r);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -266,6 +312,7 @@ export default function VoiceRoomScreen() {
 
   useEffect(() => {
     if (!id || !currentUser?.id || !room) return;
+    if (room.status === 'ended') return;
     let cancelled = false;
 
     const join = async () => {
@@ -327,6 +374,30 @@ export default function VoiceRoomScreen() {
     };
   }, [currentUser?.id, id]);
 
+  // Track test recording duration and metering
+  useEffect(() => {
+    if (!testRecording) {
+      setTestSeconds(0);
+      setTestMeterDb(null);
+      return;
+    }
+    const t = setInterval(async () => {
+      try {
+        const s = await testRecording.getStatusAsync();
+        if ('durationMillis' in s && typeof s.durationMillis === 'number') {
+          setTestSeconds(Math.floor(s.durationMillis / 1000));
+        }
+        // iOS-only when metering is enabled
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const metering = (s as any)?.metering;
+        if (typeof metering === 'number') setTestMeterDb(metering);
+      } catch {
+        // ignore
+      }
+    }, 350);
+    return () => clearInterval(t);
+  }, [testRecording]);
+
   const toggleHand = async () => {
     if (!id || !currentUser?.id) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -367,6 +438,200 @@ export default function VoiceRoomScreen() {
   const stage = participants.filter((p) => p.role === 'host' || p.role === 'moderator' || p.role === 'speaker');
   const audienceCount = participants.filter((p) => p.role === 'listener').length;
   const iRaised = !!hands.find((h) => h.user_id === currentUser?.id);
+
+  const cleanupTestAudio = async () => {
+    try {
+      await testSound?.unloadAsync();
+    } catch {
+      // ignore
+    }
+    setTestSound(null);
+  };
+
+  const cleanupTestRecording = async () => {
+    try {
+      if (testRecording) {
+        const status = await testRecording.getStatusAsync().catch(() => null as any);
+        if (status?.isRecording) {
+          await testRecording.stopAndUnloadAsync().catch(() => null);
+        }
+      }
+    } catch {
+      // ignore
+    }
+    setTestRecording(null);
+  };
+
+  const startTestRecording = async () => {
+    if (testBusy) return;
+    if (testRecording) return;
+    setTestBusy(true);
+    try {
+      setTestUiStatus('Starting…');
+      // Avoid mic conflicts with LiveKit: pause LiveKit while recording a local test.
+      setMicEnabled(false);
+      setPauseLiveKitForTest(true);
+
+      await cleanupTestAudio();
+      await cleanupTestRecording();
+      setTestRecordingUri(null);
+
+      setTestUiStatus('Requesting mic permission…');
+      const perm = await Audio.requestPermissionsAsync();
+      setTestPermGranted(!!perm.granted);
+      if (!perm.granted) {
+        setTestUiStatus('Mic permission denied');
+        Alert.alert(
+          'Microphone permission denied',
+          'Enable microphone access: iPhone Settings → Privacy & Security → Microphone → turn ON for this app (or Settings → this app → Microphone).',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Open Settings',
+              onPress: () => {
+                Linking.openSettings().catch(() => null);
+              },
+            },
+          ]
+        );
+        return;
+      }
+
+      setTestUiStatus('Preparing recorder…');
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
+        shouldDuckAndroid: true,
+        playThroughEarpieceAndroid: false,
+      });
+
+      setTestUiStatus('Recording…');
+      // Enable metering (iOS) so we can show if the input is loud enough.
+      const preset = Audio.RecordingOptionsPresets.HIGH_QUALITY;
+      const options: Audio.RecordingOptions = {
+        ...preset,
+        ios: {
+          ...preset.ios,
+          isMeteringEnabled: true,
+        },
+      };
+      const { recording } = await Audio.Recording.createAsync(options);
+      setTestRecording(recording);
+    } catch (e: any) {
+      setTestUiStatus('Failed');
+      Alert.alert('Mic test failed to start', String(e?.message ?? e ?? 'Unknown error'));
+    } finally {
+      setTestBusy(false);
+    }
+  };
+
+  const stopTestRecording = async () => {
+    if (testBusy) return;
+    if (!testRecording) return;
+    setTestBusy(true);
+    try {
+      setTestUiStatus('Stopping…');
+      await testRecording.stopAndUnloadAsync();
+      const uri = testRecording.getURI();
+      setTestRecording(null);
+      setTestRecordingUri(uri ?? null);
+      if (!uri) {
+        setTestUiStatus('Stopped (no file)');
+        Alert.alert('Recording saved, but no file URI', 'Please try again.');
+      } else {
+        setTestUiStatus('Recorded ✓');
+      }
+    } catch (e: any) {
+      setTestUiStatus('Stop failed');
+      Alert.alert('Could not stop recording', String(e?.message ?? e ?? 'Unknown error'));
+    } finally {
+      setTestBusy(false);
+    }
+  };
+
+  const playTestRecording = async () => {
+    if (!testRecordingUri) return;
+    if (testBusy) return;
+    setTestBusy(true);
+    try {
+      await cleanupTestAudio();
+      // Switch to playback-friendly mode
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
+        shouldDuckAndroid: true,
+        playThroughEarpieceAndroid: false,
+      });
+      const { sound } = await Audio.Sound.createAsync({ uri: testRecordingUri }, { shouldPlay: true });
+      await sound.setVolumeAsync(1.0);
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (!status.isLoaded) return;
+        if (status.didJustFinish) {
+          sound.unloadAsync().catch(() => null);
+          setTestSound(null);
+        }
+      });
+      setTestSound(sound);
+    } catch (e: any) {
+      Alert.alert('Could not play recording', String(e?.message ?? e ?? 'Unknown error'));
+    } finally {
+      setTestBusy(false);
+    }
+  };
+
+  const shareTestRecording = async () => {
+    if (!testRecordingUri) return;
+    if (!(await Sharing.isAvailableAsync())) {
+      Alert.alert('Sharing not available', 'Sharing is not available on this device.');
+      return;
+    }
+    await Sharing.shareAsync(testRecordingUri);
+  };
+
+  const hostEndRoom = async () => {
+    if (!room?.id) return;
+    Alert.alert('End room?', 'This will end the room for everyone.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'End room',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await endVoiceRoom(room.id);
+          } finally {
+            router.back();
+          }
+        },
+      },
+    ]);
+  };
+
+  const hostDeleteRoom = async () => {
+    if (!room?.id) return;
+    Alert.alert('Delete room?', 'This permanently deletes the room (and participants). This cannot be undone.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await deleteVoiceRoom(room.id);
+          } finally {
+            router.back();
+          }
+        },
+      },
+    ]);
+  };
+
+  const hostRecordingInfo = () => {
+    Alert.alert(
+      'Room recording (setup required)',
+      'To record the full room and download it later, we need LiveKit server-side egress recording. See SUPABASE_LIVEKIT_SETUP.md → “Room recording”.'
+    );
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: '#F7F7FF' }}>
@@ -451,18 +716,20 @@ export default function VoiceRoomScreen() {
             {/* LiveKit audio connection */}
             {lkUrl && lkToken ? (
               <LiveKitRoom
-                key={lkToken}
+                key={`${lkToken}:${pauseLiveKitForTest ? 'paused' : 'on'}`}
                 serverUrl={lkUrl}
                 token={lkToken}
-                connect={true}
-                audio={false}
+                connect={!pauseLiveKitForTest}
+                // Must be enabled so the SDK sets up the audio pipeline; MicSync controls actual mic publishing.
+                audio={true}
                 video={false}
                 options={{
                   // keep defaults; can tune later
                 }}
               >
                 {/* We keep UI custom; LiveKitRoom handles actual media */}
-                <MicSync enabled={!!(canSpeak && micEnabled)} />
+                <MicSync enabled={!!(canSpeakEffective && micEnabled)} />
+                <LiveKitSpeakingBridge onSpeakingChange={setLkSpeaking} />
                 <View className="h-0 w-0" />
               </LiveKitRoom>
             ) : (
@@ -566,8 +833,9 @@ export default function VoiceRoomScreen() {
                 {/* Big mic button */}
                 <Pressable
                   onPress={() => {
-                    if (!canSpeak) {
+                    if (!canSpeakEffective) {
                       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      Alert.alert('Listener mode', 'Raise your hand and get promoted to speaker to unmute.');
                       return;
                     }
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -577,7 +845,7 @@ export default function VoiceRoomScreen() {
                 >
                   <LinearGradient
                     colors={
-                      canSpeak
+                      canSpeakEffective
                         ? micEnabled
                           ? ['#EF4444', '#F97316']
                           : ['#7C3AED', '#EC4899']
@@ -589,7 +857,7 @@ export default function VoiceRoomScreen() {
                   >
                     {micEnabled ? <Mic size={22} color="#fff" /> : <MicOff size={22} color="#fff" />}
                     <Text style={{ marginTop: 6, color: '#fff', fontWeight: '900', fontSize: 12 }}>
-                      {canSpeak ? (micEnabled ? 'Mute' : 'Unmute') : 'Listener'}
+                      {canSpeakEffective ? (micEnabled ? 'Mute' : 'Unmute') : 'Listener'}
                     </Text>
                   </LinearGradient>
                 </Pressable>
@@ -610,10 +878,33 @@ export default function VoiceRoomScreen() {
               {isHost ? (
                 <View style={{ marginTop: 10, alignItems: 'center' }}>
                   <View style={{ borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: 'rgba(17,24,39,0.92)' }}>
-                    <LocalMicSignalFallback micEnabled={!!(canSpeak && micEnabled)} />
+                    <LocalMicSignalFallback micEnabled={!!(canSpeakEffective && micEnabled)} speaking={lkSpeaking} />
                   </View>
                 </View>
               ) : null}
+
+              <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 10 }}>
+                <Pressable
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setTestMicOpen(true);
+                  }}
+                  className="active:opacity-90"
+                  style={{ width: '100%' }}
+                >
+                  <LinearGradient
+                    colors={['rgba(124,58,237,0.16)', 'rgba(236,72,153,0.12)']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={{ borderRadius: 18, paddingVertical: 12, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(17,24,39,0.08)' }}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <AudioLines size={16} color="#111827" />
+                      <Text style={{ color: '#111827', fontWeight: '900', marginLeft: 8 }}>Test Mic (record & playback)</Text>
+                    </View>
+                  </LinearGradient>
+                </Pressable>
+              </View>
 
               <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 10 }}>
                 <Pressable onPress={toggleHand} className="active:opacity-90" style={{ width: '100%' }}>
@@ -702,6 +993,62 @@ export default function VoiceRoomScreen() {
                   <Text style={{ color: '#6B7280', marginTop: 6, fontWeight: '700' }}>
                     {stage.length} on stage • {audienceCount} listening
                   </Text>
+
+                  {/* Host actions */}
+                  {isHost ? (
+                    <View style={{ marginTop: 12, gap: 10 }}>
+                      <Pressable onPress={hostEndRoom} className="active:opacity-90">
+                        <LinearGradient
+                          colors={['#F97316', '#EF4444']}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 1 }}
+                          style={{ borderRadius: 18, paddingVertical: 12, paddingHorizontal: 12 }}
+                        >
+                          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+                            <Square size={16} color="#fff" />
+                            <Text style={{ color: '#fff', fontWeight: '900', marginLeft: 8 }}>End room now</Text>
+                          </View>
+                        </LinearGradient>
+                      </Pressable>
+
+                      <Pressable onPress={hostDeleteRoom} className="active:opacity-90">
+                        <View
+                          style={{
+                            borderRadius: 18,
+                            paddingVertical: 12,
+                            paddingHorizontal: 12,
+                            backgroundColor: 'rgba(239,68,68,0.10)',
+                            borderWidth: 1,
+                            borderColor: 'rgba(239,68,68,0.25)',
+                          }}
+                        >
+                          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+                            <Trash2 size={16} color="#EF4444" />
+                            <Text style={{ color: '#991B1B', fontWeight: '900', marginLeft: 8 }}>Delete room (permanent)</Text>
+                          </View>
+                        </View>
+                      </Pressable>
+
+                      <Pressable onPress={hostRecordingInfo} className="active:opacity-90">
+                        <View
+                          style={{
+                            borderRadius: 18,
+                            paddingVertical: 12,
+                            paddingHorizontal: 12,
+                            backgroundColor: 'rgba(124,58,237,0.10)',
+                            borderWidth: 1,
+                            borderColor: 'rgba(124,58,237,0.18)',
+                          }}
+                        >
+                          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+                            <AudioLines size={16} color="#5B21B6" />
+                            <Text style={{ color: '#4C1D95', fontWeight: '900', marginLeft: 8 }}>Record room (setup)</Text>
+                          </View>
+                        </View>
+                      </Pressable>
+                    </View>
+                  ) : null}
+
                   <View style={{ marginTop: 12, gap: 8 }}>
                     {stage.slice(0, 8).map((p) => (
                       <View key={p.id} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -710,6 +1057,131 @@ export default function VoiceRoomScreen() {
                       </View>
                     ))}
                   </View>
+                  <View style={{ height: 14 }} />
+                </View>
+              </View>
+            </Modal>
+
+            {/* Test mic modal */}
+            <Modal
+              visible={testMicOpen}
+              transparent
+              animationType="fade"
+              onRequestClose={() => {
+                // best-effort cleanup; modal close can be triggered by Android back button
+                cleanupTestAudio().catch(() => null);
+                cleanupTestRecording().catch(() => null);
+                setPauseLiveKitForTest(false);
+                setTestMicOpen(false);
+              }}
+            >
+              <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'flex-end' }}>
+                <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 16, borderWidth: 1, borderColor: 'rgba(17,24,39,0.08)' }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Text style={{ color: '#111827', fontWeight: '900', fontSize: 16 }}>Test Mic</Text>
+                    <Pressable
+                      onPress={async () => {
+                        await cleanupTestAudio();
+                        await cleanupTestRecording();
+                        setPauseLiveKitForTest(false);
+                        setTestMicOpen(false);
+                      }}
+                      className="active:opacity-80"
+                    >
+                      <X size={18} color="#111827" />
+                    </Pressable>
+                  </View>
+
+                {pauseLiveKitForTest ? (
+                  <View style={{ marginTop: 10, backgroundColor: 'rgba(245,158,11,0.10)', borderRadius: 16, padding: 10, borderWidth: 1, borderColor: 'rgba(17,24,39,0.08)' }}>
+                    <Text style={{ color: '#92400E', fontWeight: '900' }}>
+                      Room audio paused while testing mic
+                    </Text>
+                    <Text style={{ color: '#92400E', marginTop: 4, fontWeight: '700' }}>
+                      Close this sheet to reconnect to the room.
+                    </Text>
+                  </View>
+                ) : null}
+
+                  <View style={{ marginTop: 10, backgroundColor: 'rgba(124,58,237,0.08)', borderRadius: 16, padding: 12, borderWidth: 1, borderColor: 'rgba(17,24,39,0.08)' }}>
+                    <Text style={{ color: '#111827', fontWeight: '900' }}>Live check (in-room)</Text>
+                    <Text style={{ color: '#6B7280', marginTop: 6 }}>
+                      Turn on your mic, then talk. The signal should switch to “Speaking”.
+                    </Text>
+                    <View style={{ marginTop: 10, alignSelf: 'flex-start', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: 'rgba(17,24,39,0.92)' }}>
+                      <LocalMicSignalFallback micEnabled={!!(canSpeakEffective && micEnabled)} speaking={lkSpeaking} />
+                    </View>
+                  </View>
+
+                  <View style={{ marginTop: 12, backgroundColor: 'rgba(34,197,94,0.08)', borderRadius: 16, padding: 12, borderWidth: 1, borderColor: 'rgba(17,24,39,0.08)' }}>
+                    <Text style={{ color: '#111827', fontWeight: '900' }}>Hear yourself (record & playback)</Text>
+                    <Text style={{ color: '#6B7280', marginTop: 6 }}>
+                      Record a short clip and play it back. Use headphones to avoid feedback.
+                    </Text>
+
+                    <Text style={{ color: '#6B7280', marginTop: 8, fontWeight: '700' }}>
+                      Mic permission: {testPermGranted === null ? 'unknown' : testPermGranted ? 'granted' : 'denied'} • File:{' '}
+                      {testRecordingUri ? 'saved' : 'none'}
+                    </Text>
+
+                    <Text style={{ color: '#111827', marginTop: 10, fontWeight: '800' }}>
+                      {testRecording ? `Recording… ${testSeconds}s` : testRecordingUri ? 'Recorded ✓ (tap Play)' : testUiStatus}
+                    </Text>
+
+                    <Text style={{ color: '#6B7280', marginTop: 4, fontWeight: '700' }}>
+                      Input level: {typeof testMeterDb === 'number' ? `${Math.round(testMeterDb)} dB` : '—'}
+                      {typeof testMeterDb === 'number' && testMeterDb < -40 ? ' (too quiet)' : ''}
+                    </Text>
+
+                    <Text style={{ color: '#6B7280', marginTop: 4, fontWeight: '700' }}>Tap count: {testTapCount}</Text>
+
+                    <View style={{ flexDirection: 'row', marginTop: 12, gap: 10 }}>
+                      <Pressable
+                        onPress={() => {
+                          setTestTapCount((c) => c + 1);
+                          if (testRecording) stopTestRecording();
+                          else startTestRecording();
+                        }}
+                        disabled={testBusy}
+                        className="active:opacity-90"
+                        style={{ flex: 1 }}
+                      >
+                        <LinearGradient
+                          colors={testRecording ? ['#EF4444', '#F97316'] : ['#7C3AED', '#EC4899']}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 1 }}
+                          style={{ borderRadius: 16, paddingVertical: 12, alignItems: 'center' }}
+                        >
+                          <Text style={{ color: '#fff', fontWeight: '900' }}>
+                            {testBusy && !testRecording ? 'Starting…' : testRecording ? 'Stop recording' : 'Start recording'}
+                          </Text>
+                        </LinearGradient>
+                      </Pressable>
+
+                      <Pressable onPress={playTestRecording} disabled={!testRecordingUri || testBusy} className="active:opacity-90" style={{ flex: 1 }}>
+                        <View
+                          style={{
+                            borderRadius: 16,
+                            paddingVertical: 12,
+                            alignItems: 'center',
+                            backgroundColor: testRecordingUri ? 'rgba(17,24,39,0.06)' : 'rgba(17,24,39,0.04)',
+                            borderWidth: 1,
+                            borderColor: 'rgba(17,24,39,0.08)',
+                            opacity: testRecordingUri ? 1 : 0.55,
+                          }}
+                        >
+                          <Text style={{ color: '#111827', fontWeight: '900' }}>Play</Text>
+                        </View>
+                      </Pressable>
+                    </View>
+
+                    <Pressable onPress={shareTestRecording} disabled={!testRecordingUri} className="active:opacity-90" style={{ marginTop: 10, opacity: testRecordingUri ? 1 : 0.55 }}>
+                      <View style={{ borderRadius: 16, paddingVertical: 12, alignItems: 'center', backgroundColor: 'rgba(59,130,246,0.10)', borderWidth: 1, borderColor: 'rgba(59,130,246,0.18)' }}>
+                        <Text style={{ color: '#1D4ED8', fontWeight: '900' }}>Save/Share recording</Text>
+                      </View>
+                    </Pressable>
+                  </View>
+
                   <View style={{ height: 14 }} />
                 </View>
               </View>

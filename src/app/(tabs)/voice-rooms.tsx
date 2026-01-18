@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, Pressable, TextInput, ScrollView, RefreshControl, Modal } from 'react-native';
+import { View, Text, Pressable, TextInput, ScrollView, RefreshControl, Modal, Alert, ActivityIndicator } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
@@ -38,6 +38,7 @@ export default function VoiceRoomsScreen() {
   const [createOpen, setCreateOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [topic, setTopic] = useState('');
+  const [creating, setCreating] = useState(false);
 
   const canCreate = useMemo(() => !!currentUser?.id && title.trim().length >= 3, [currentUser?.id, title]);
   const setFeedFilter = useStore((s) => s.setFeedFilter);
@@ -62,29 +63,47 @@ export default function VoiceRoomsScreen() {
 
   const openCreate = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (!currentUser?.id) {
+      Alert.alert('Sign in required', 'Please sign in to start a room.');
+      return;
+    }
     setTitle('');
     setTopic('');
     setCreateOpen(true);
   };
 
   const handleCreate = async () => {
-    if (!currentUser?.id) return;
-    if (!canCreate) return;
+    if (!currentUser?.id) {
+      Alert.alert('Sign in required', 'Please sign in to start a room.');
+      return;
+    }
+    if (!canCreate) {
+      Alert.alert('Room title too short', 'Please enter a title (at least 3 characters).');
+      return;
+    }
+    if (creating) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-    const room = await createVoiceRoom({
-      creatorId: currentUser.id,
-      title: title.trim(),
-      topic: topic.trim() ? topic.trim() : undefined,
-      country: selectedLocation?.country ?? '',
-      admin_area: selectedLocation?.admin_area ?? null,
-      city: selectedLocation?.city ?? '',
-      neighborhood: selectedLocation?.neighborhood ?? null,
-      scope: selectedLocation?.neighborhood ? 'neighborhood' : selectedLocation?.city ? 'city' : 'global',
-    });
+    try {
+      setCreating(true);
+      const room = await createVoiceRoom({
+        creatorId: currentUser.id,
+        title: title.trim(),
+        topic: topic.trim() ? topic.trim() : undefined,
+        country: selectedLocation?.country ?? '',
+        admin_area: selectedLocation?.admin_area ?? null,
+        city: selectedLocation?.city ?? '',
+        neighborhood: selectedLocation?.neighborhood ?? null,
+        scope: selectedLocation?.neighborhood ? 'neighborhood' : selectedLocation?.city ? 'city' : 'global',
+      });
 
-    setCreateOpen(false);
-    router.push(`/voice-room/${room.id}`);
+      setCreateOpen(false);
+      router.push(`/voice-room/${room.id}`);
+    } catch (e: any) {
+      Alert.alert('Could not start room', String(e?.message ?? e ?? 'Unknown error'));
+    } finally {
+      setCreating(false);
+    }
   };
 
   return (
@@ -372,7 +391,12 @@ export default function VoiceRoomsScreen() {
                       end={{ x: 1, y: 1 }}
                       style={{ borderRadius: 16, paddingVertical: 12, alignItems: 'center' }}
                     >
-                      <Text style={{ color: '#fff', fontWeight: '900' }}>Go live</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      {creating ? <ActivityIndicator color="#fff" /> : null}
+                      <Text style={{ color: '#fff', fontWeight: '900', marginLeft: creating ? 8 : 0 }}>
+                        {creating ? 'Going live…' : 'Go live'}
+                      </Text>
+                    </View>
                     </LinearGradient>
                   </Pressable>
                 </View>
