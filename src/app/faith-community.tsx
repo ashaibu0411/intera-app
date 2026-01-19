@@ -651,25 +651,80 @@ export default function FaithCommunityScreen() {
                       end={{ x: 1, y: 1 }}
                       style={{ borderRadius: 16, padding: 16 }}
                     >
-                      <Text className="text-white font-bold text-lg">Groups & Circles</Text>
+                      <Text className="text-white font-bold text-lg">Groups & Communities</Text>
                       <Text className="text-white/80 text-sm mt-1">
-                        Create public or private circles for your faith center—announcements, calendars, and support.
+                        Create or join faith groups for your church, mosque, temple, or community association.
                       </Text>
                       <Pressable
-                        onPress={() => router.push('/diaspora-circles?filter=faith')}
+                        onPress={() => router.push('/create-group')}
                         className="mt-3 bg-white/20 rounded-full px-4 py-2 self-start"
                       >
-                        <Text className="text-white font-semibold">Explore faith circles</Text>
+                        <Text className="text-white font-semibold">Create a Group</Text>
                       </Pressable>
                     </LinearGradient>
                   </Animated.View>
 
-                  <View className="bg-white rounded-2xl p-4 shadow-sm mb-3">
-                    <Text className="text-warmBrown font-semibold">Recommended structure</Text>
-                    <Text className="text-gray-500 text-sm mt-1">
-                      Main community (public) + ministries (private): youth, women, men, choir, prayer, outreach.
+                  {/* Sample Groups - will be replaced with real data */}
+                  <Animated.View entering={FadeInUp.duration(400).delay(100)} className="mb-3">
+                    <Text className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                      Featured Groups
                     </Text>
-                  </View>
+                  </Animated.View>
+
+                  {/* Mock Group Cards */}
+                  <Pressable
+                    onPress={() => router.push('/group/mock-group-1')}
+                    className="bg-white rounded-2xl p-4 shadow-sm mb-3 flex-row items-center"
+                  >
+                    <Image
+                      source={{ uri: 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=200&h=200&fit=crop' }}
+                      style={{ width: 56, height: 56, borderRadius: 12 }}
+                      contentFit="cover"
+                    />
+                    <View className="flex-1 ml-3">
+                      <Text className="text-warmBrown font-semibold">Praying for the City of Aurora</Text>
+                      <Text className="text-gray-500 text-sm">127 members • Public</Text>
+                    </View>
+                    <ChevronRight size={20} color="#9CA3AF" />
+                  </Pressable>
+
+                  <Pressable
+                    onPress={() => router.push('/group/mock-group-2')}
+                    className="bg-white rounded-2xl p-4 shadow-sm mb-3 flex-row items-center"
+                  >
+                    <Image
+                      source={{ uri: 'https://images.unsplash.com/photo-1438232992991-995b7058bbb3?w=200&h=200&fit=crop' }}
+                      style={{ width: 56, height: 56, borderRadius: 12 }}
+                      contentFit="cover"
+                    />
+                    <View className="flex-1 ml-3">
+                      <Text className="text-warmBrown font-semibold">New Life Community Church</Text>
+                      <Text className="text-gray-500 text-sm">89 members • Public</Text>
+                    </View>
+                    <ChevronRight size={20} color="#9CA3AF" />
+                  </Pressable>
+
+                  <Pressable
+                    onPress={() => router.push('/group/mock-group-3')}
+                    className="bg-white rounded-2xl p-4 shadow-sm mb-3 flex-row items-center"
+                  >
+                    <Image
+                      source={{ uri: 'https://images.unsplash.com/photo-1564769625905-50e93615e769?w=200&h=200&fit=crop' }}
+                      style={{ width: 56, height: 56, borderRadius: 12 }}
+                      contentFit="cover"
+                    />
+                    <View className="flex-1 ml-3">
+                      <Text className="text-warmBrown font-semibold">Aurora Islamic Center</Text>
+                      <Text className="text-gray-500 text-sm">156 members • Public</Text>
+                    </View>
+                    <ChevronRight size={20} color="#9CA3AF" />
+                  </Pressable>
+
+                  <View className="h-4" />
+
+                  <Text className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                    Quick Links
+                  </Text>
 
                   <Pressable
                     onPress={() => router.push('/faith-walls')}

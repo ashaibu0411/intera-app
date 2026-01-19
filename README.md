@@ -197,6 +197,42 @@ Instead of showing posts first, your home feed now shows:
     - Add experience, bio, and faith background
     - Set availability, travel preferences, and contact information
 
+### Groups & Community Associations (NEW!)
+- **Create Group** (`/create-group`): Churches, mosques, temples, and community associations can create their own groups
+  - 7 category types: Church, Mosque, Temple, Synagogue, Community, Association, Other
+  - Faith type selection for religious groups
+  - Public or Private visibility settings
+  - Location and contact information
+  - Group logo/image upload
+- **Group Detail Page** (`/group/[id]`): Full-featured group pages inspired by Facebook Groups
+  - **4-Tab Interface**:
+    - **Home**: About section, notices, files, contact info
+    - **Posts**: Member posts with images, likes, comments
+    - **Events**: Group events with RSVP system
+    - **Albums**: Photo albums with grid gallery view
+  - **Member Features**:
+    - Join/Leave groups
+    - Create posts with images
+    - Like and comment on posts
+    - RSVP to events
+    - View photo albums
+  - **Admin Features**:
+    - Post announcements and notices
+    - Pin important posts
+    - Create events
+    - Create photo albums
+    - Invite members
+    - Manage group settings
+  - **Group Info**:
+    - Member count and admin info
+    - Public/Private visibility badge
+    - Notification settings
+    - Invite link sharing
+- **Faith Community** (`/faith-community`): Browse and discover groups
+  - Featured groups section
+  - Create a Group button
+  - Quick links to Prayer Wall and Serve & Connect
+
 ### Student Hub
 - Scholarships discovery with deadlines and amounts
 - Study groups with member counts and meeting times

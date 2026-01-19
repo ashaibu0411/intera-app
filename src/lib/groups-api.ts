@@ -1,0 +1,566 @@
+import { supabase } from './supabase';
+import type {
+  DbGroup,
+  DbGroupMember,
+  DbGroupPost,
+  DbGroupPostComment,
+  DbGroupEvent,
+  DbGroupAlbum,
+  DbGroupPhoto,
+  DbGroupFile,
+} from './supabase';
+
+// ============ GROUPS ============
+
+export async function getGroups(limit = 50): Promise<DbGroup[]> {
+  const { data, error } = await supabase
+    .from('groups')
+    .select('*, creator:users!creator_id(*)')
+    .order('member_count', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    console.error('Error fetching groups:', error);
+    return [];
+  }
+  return (data || []) as DbGroup[];
+}
+
+export async function getGroupsByCategory(category: string, limit = 50): Promise<DbGroup[]> {
+  const { data, error } = await supabase
+    .from('groups')
+    .select('*, creator:users!creator_id(*)')
+    .eq('category', category)
+    .order('member_count', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    console.error('Error fetching groups by category:', error);
+    return [];
+  }
+  return (data || []) as DbGroup[];
+}
+
+export async function getGroupsByCity(city: string, limit = 50): Promise<DbGroup[]> {
+  const { data, error } = await supabase
+    .from('groups')
+    .select('*, creator:users!creator_id(*)')
+    .ilike('city', `%${city}%`)
+    .order('member_count', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    console.error('Error fetching groups by city:', error);
+    return [];
+  }
+  return (data || []) as DbGroup[];
+}
+
+export async function getGroup(groupId: string): Promise<DbGroup | null> {
+  const { data, error } = await supabase
+    .from('groups')
+    .select('*, creator:users!creator_id(*)')
+    .eq('id', groupId)
+    .single();
+
+  if (error) {
+    console.error('Error fetching group:', error);
+    return null;
+  }
+  return data as DbGroup;
+}
+
+export async function createGroup(group: Omit<DbGroup, 'id' | 'member_count' | 'created_at' | 'updated_at' | 'creator'>): Promise<DbGroup | null> {
+  const { data, error } = await supabase
+    .from('groups')
+    .insert({
+      ...group,
+      member_count: 1,
+    })
+    .select('*, creator:users!creator_id(*)')
+    .single();
+
+  if (error) {
+    console.error('Error creating group:', error);
+    return null;
+  }
+
+  // Add creator as admin member
+  if (data) {
+    await joinGroup(data.id, group.creator_id, 'admin');
+  }
+
+  return data as DbGroup;
+}
+
+export async function updateGroup(groupId: string, updates: Partial<DbGroup>): Promise<DbGroup | null> {
+  const { data, error } = await supabase
+    .from('groups')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', groupId)
+    .select('*, creator:users!creator_id(*)')
+    .single();
+
+  if (error) {
+    console.error('Error updating group:', error);
+    return null;
+  }
+  return data as DbGroup;
+}
+
+export async function deleteGroup(groupId: string): Promise<boolean> {
+  const { error } = await supabase
+    .from('groups')
+    .delete()
+    .eq('id', groupId);
+
+  if (error) {
+    console.error('Error deleting group:', error);
+    return false;
+  }
+  return true;
+}
+
+// ============ MEMBERS ============
+
+export async function getGroupMembers(groupId: string, limit = 100): Promise<DbGroupMember[]> {
+  const { data, error } = await supabase
+    .from('group_members')
+    .select('*, user:users!user_id(*)')
+    .eq('group_id', groupId)
+    .order('joined_at', { ascending: true })
+    .limit(limit);
+
+  if (error) {
+    console.error('Error fetching group members:', error);
+    return [];
+  }
+  return (data || []) as DbGroupMember[];
+}
+
+export async function getGroupMember(groupId: string, userId: string): Promise<DbGroupMember | null> {
+  const { data, error } = await supabase
+    .from('group_members')
+    .select('*, user:users!user_id(*)')
+    .eq('group_id', groupId)
+    .eq('user_id', userId)
+    .single();
+
+  if (error && error.code !== 'PGRST116') {
+    console.error('Error fetching group member:', error);
+  }
+  return data as DbGroupMember | null;
+}
+
+export async function joinGroup(groupId: string, userId: string, role: 'admin' | 'moderator' | 'member' = 'member'): Promise<DbGroupMember | null> {
+  const { data, error } = await supabase
+    .from('group_members')
+    .insert({
+      group_id: groupId,
+      user_id: userId,
+      role,
+    })
+    .select('*, user:users!user_id(*)')
+    .single();
+
+  if (error) {
+    console.error('Error joining group:', error);
+    return null;
+  }
+
+  // Update member count
+  await supabase.rpc('increment_group_member_count', { group_id: groupId });
+
+  return data as DbGroupMember;
+}
+
+export async function leaveGroup(groupId: string, userId: string): Promise<boolean> {
+  const { error } = await supabase
+    .from('group_members')
+    .delete()
+    .eq('group_id', groupId)
+    .eq('user_id', userId);
+
+  if (error) {
+    console.error('Error leaving group:', error);
+    return false;
+  }
+
+  // Update member count
+  await supabase.rpc('decrement_group_member_count', { group_id: groupId });
+
+  return true;
+}
+
+export async function updateMemberRole(groupId: string, userId: string, role: 'admin' | 'moderator' | 'member'): Promise<boolean> {
+  const { error } = await supabase
+    .from('group_members')
+    .update({ role })
+    .eq('group_id', groupId)
+    .eq('user_id', userId);
+
+  if (error) {
+    console.error('Error updating member role:', error);
+    return false;
+  }
+  return true;
+}
+
+export async function getUserGroups(userId: string): Promise<DbGroup[]> {
+  const { data, error } = await supabase
+    .from('group_members')
+    .select('group:groups!group_id(*, creator:users!creator_id(*))')
+    .eq('user_id', userId);
+
+  if (error) {
+    console.error('Error fetching user groups:', error);
+    return [];
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (data || []).map((d: any) => d.group).filter(Boolean) as DbGroup[];
+}
+
+// ============ POSTS ============
+
+export async function getGroupPosts(groupId: string, limit = 50): Promise<DbGroupPost[]> {
+  const { data, error } = await supabase
+    .from('group_posts')
+    .select('*, author:users!author_id(*)')
+    .eq('group_id', groupId)
+    .order('is_pinned', { ascending: false })
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    console.error('Error fetching group posts:', error);
+    return [];
+  }
+  return (data || []) as DbGroupPost[];
+}
+
+export async function getGroupNotices(groupId: string, limit = 10): Promise<DbGroupPost[]> {
+  const { data, error } = await supabase
+    .from('group_posts')
+    .select('*, author:users!author_id(*)')
+    .eq('group_id', groupId)
+    .eq('is_notice', true)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    console.error('Error fetching group notices:', error);
+    return [];
+  }
+  return (data || []) as DbGroupPost[];
+}
+
+export async function createGroupPost(post: Omit<DbGroupPost, 'id' | 'likes_count' | 'comments_count' | 'created_at' | 'updated_at' | 'author'>): Promise<DbGroupPost | null> {
+  const { data, error } = await supabase
+    .from('group_posts')
+    .insert({
+      ...post,
+      likes_count: 0,
+      comments_count: 0,
+    })
+    .select('*, author:users!author_id(*)')
+    .single();
+
+  if (error) {
+    console.error('Error creating group post:', error);
+    return null;
+  }
+  return data as DbGroupPost;
+}
+
+export async function deleteGroupPost(postId: string): Promise<boolean> {
+  const { error } = await supabase
+    .from('group_posts')
+    .delete()
+    .eq('id', postId);
+
+  if (error) {
+    console.error('Error deleting group post:', error);
+    return false;
+  }
+  return true;
+}
+
+export async function togglePinPost(postId: string, isPinned: boolean): Promise<boolean> {
+  const { error } = await supabase
+    .from('group_posts')
+    .update({ is_pinned: isPinned })
+    .eq('id', postId);
+
+  if (error) {
+    console.error('Error toggling pin:', error);
+    return false;
+  }
+  return true;
+}
+
+export async function likeGroupPost(postId: string, userId: string): Promise<boolean> {
+  const { error } = await supabase
+    .from('group_post_likes')
+    .insert({ post_id: postId, user_id: userId });
+
+  if (error) {
+    if (error.code === '23505') return true; // Already liked
+    console.error('Error liking post:', error);
+    return false;
+  }
+
+  await supabase.rpc('increment_group_post_likes', { post_id: postId });
+  return true;
+}
+
+export async function unlikeGroupPost(postId: string, userId: string): Promise<boolean> {
+  const { error } = await supabase
+    .from('group_post_likes')
+    .delete()
+    .eq('post_id', postId)
+    .eq('user_id', userId);
+
+  if (error) {
+    console.error('Error unliking post:', error);
+    return false;
+  }
+
+  await supabase.rpc('decrement_group_post_likes', { post_id: postId });
+  return true;
+}
+
+export async function getPostComments(postId: string): Promise<DbGroupPostComment[]> {
+  const { data, error } = await supabase
+    .from('group_post_comments')
+    .select('*, author:users!author_id(*)')
+    .eq('post_id', postId)
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    console.error('Error fetching post comments:', error);
+    return [];
+  }
+  return (data || []) as DbGroupPostComment[];
+}
+
+export async function addPostComment(postId: string, authorId: string, content: string): Promise<DbGroupPostComment | null> {
+  const { data, error } = await supabase
+    .from('group_post_comments')
+    .insert({ post_id: postId, author_id: authorId, content })
+    .select('*, author:users!author_id(*)')
+    .single();
+
+  if (error) {
+    console.error('Error adding comment:', error);
+    return null;
+  }
+
+  await supabase.rpc('increment_group_post_comments', { post_id: postId });
+  return data as DbGroupPostComment;
+}
+
+// ============ EVENTS ============
+
+export async function getGroupEvents(groupId: string, limit = 50): Promise<DbGroupEvent[]> {
+  const { data, error } = await supabase
+    .from('group_events')
+    .select('*, creator:users!creator_id(*)')
+    .eq('group_id', groupId)
+    .gte('date', new Date().toISOString().split('T')[0])
+    .order('date', { ascending: true })
+    .limit(limit);
+
+  if (error) {
+    console.error('Error fetching group events:', error);
+    return [];
+  }
+  return (data || []) as DbGroupEvent[];
+}
+
+export async function createGroupEvent(event: Omit<DbGroupEvent, 'id' | 'attendees_count' | 'created_at' | 'creator'>): Promise<DbGroupEvent | null> {
+  const { data, error } = await supabase
+    .from('group_events')
+    .insert({ ...event, attendees_count: 0 })
+    .select('*, creator:users!creator_id(*)')
+    .single();
+
+  if (error) {
+    console.error('Error creating group event:', error);
+    return null;
+  }
+  return data as DbGroupEvent;
+}
+
+export async function deleteGroupEvent(eventId: string): Promise<boolean> {
+  const { error } = await supabase
+    .from('group_events')
+    .delete()
+    .eq('id', eventId);
+
+  if (error) {
+    console.error('Error deleting group event:', error);
+    return false;
+  }
+  return true;
+}
+
+export async function rsvpToGroupEvent(eventId: string, userId: string, status: 'interested' | 'going'): Promise<boolean> {
+  const { error } = await supabase
+    .from('group_event_rsvps')
+    .upsert({ event_id: eventId, user_id: userId, status }, { onConflict: 'event_id,user_id' });
+
+  if (error) {
+    console.error('Error RSVPing to event:', error);
+    return false;
+  }
+  return true;
+}
+
+// ============ ALBUMS & PHOTOS ============
+
+export async function getGroupAlbums(groupId: string): Promise<DbGroupAlbum[]> {
+  const { data, error } = await supabase
+    .from('group_albums')
+    .select('*, creator:users!creator_id(*)')
+    .eq('group_id', groupId)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching group albums:', error);
+    return [];
+  }
+  return (data || []) as DbGroupAlbum[];
+}
+
+export async function createGroupAlbum(album: Omit<DbGroupAlbum, 'id' | 'photo_count' | 'created_at' | 'updated_at' | 'creator'>): Promise<DbGroupAlbum | null> {
+  const { data, error } = await supabase
+    .from('group_albums')
+    .insert({ ...album, photo_count: 0 })
+    .select('*, creator:users!creator_id(*)')
+    .single();
+
+  if (error) {
+    console.error('Error creating group album:', error);
+    return null;
+  }
+  return data as DbGroupAlbum;
+}
+
+export async function deleteGroupAlbum(albumId: string): Promise<boolean> {
+  const { error } = await supabase
+    .from('group_albums')
+    .delete()
+    .eq('id', albumId);
+
+  if (error) {
+    console.error('Error deleting group album:', error);
+    return false;
+  }
+  return true;
+}
+
+export async function getAlbumPhotos(albumId: string): Promise<DbGroupPhoto[]> {
+  const { data, error } = await supabase
+    .from('group_photos')
+    .select('*, uploader:users!uploader_id(*)')
+    .eq('album_id', albumId)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching album photos:', error);
+    return [];
+  }
+  return (data || []) as DbGroupPhoto[];
+}
+
+export async function addPhotoToAlbum(photo: Omit<DbGroupPhoto, 'id' | 'created_at' | 'uploader'>): Promise<DbGroupPhoto | null> {
+  const { data, error } = await supabase
+    .from('group_photos')
+    .insert(photo)
+    .select('*, uploader:users!uploader_id(*)')
+    .single();
+
+  if (error) {
+    console.error('Error adding photo:', error);
+    return null;
+  }
+
+  await supabase.rpc('increment_album_photo_count', { album_id: photo.album_id });
+  return data as DbGroupPhoto;
+}
+
+export async function deletePhoto(photoId: string, albumId: string): Promise<boolean> {
+  const { error } = await supabase
+    .from('group_photos')
+    .delete()
+    .eq('id', photoId);
+
+  if (error) {
+    console.error('Error deleting photo:', error);
+    return false;
+  }
+
+  await supabase.rpc('decrement_album_photo_count', { album_id: albumId });
+  return true;
+}
+
+// ============ FILES ============
+
+export async function getGroupFiles(groupId: string): Promise<DbGroupFile[]> {
+  const { data, error } = await supabase
+    .from('group_files')
+    .select('*, uploader:users!uploader_id(*)')
+    .eq('group_id', groupId)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching group files:', error);
+    return [];
+  }
+  return (data || []) as DbGroupFile[];
+}
+
+export async function uploadGroupFile(file: Omit<DbGroupFile, 'id' | 'created_at' | 'uploader'>): Promise<DbGroupFile | null> {
+  const { data, error } = await supabase
+    .from('group_files')
+    .insert(file)
+    .select('*, uploader:users!uploader_id(*)')
+    .single();
+
+  if (error) {
+    console.error('Error uploading file:', error);
+    return null;
+  }
+  return data as DbGroupFile;
+}
+
+export async function deleteGroupFile(fileId: string): Promise<boolean> {
+  const { error } = await supabase
+    .from('group_files')
+    .delete()
+    .eq('id', fileId);
+
+  if (error) {
+    console.error('Error deleting file:', error);
+    return false;
+  }
+  return true;
+}
+
+// ============ SEARCH ============
+
+export async function searchGroups(query: string, limit = 20): Promise<DbGroup[]> {
+  const { data, error } = await supabase
+    .from('groups')
+    .select('*, creator:users!creator_id(*)')
+    .or(`name.ilike.%${query}%,description.ilike.%${query}%`)
+    .order('member_count', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    console.error('Error searching groups:', error);
+    return [];
+  }
+  return (data || []) as DbGroup[];
+}

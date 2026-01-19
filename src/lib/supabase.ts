@@ -455,3 +455,139 @@ export interface DbVoiceRoomHandRaise {
   user_id: string;
   created_at: string;
 }
+
+// Community Groups (Churches, Associations, etc.)
+export interface DbGroup {
+  id: string;
+  creator_id: string;
+  name: string;
+  description: string | null;
+  image_url: string | null;
+  cover_url: string | null;
+  category: 'church' | 'mosque' | 'temple' | 'synagogue' | 'community' | 'association' | 'other';
+  faith_type: string | null;
+  visibility: 'public' | 'private';
+  country: string;
+  admin_area: string | null;
+  city: string;
+  neighborhood: string | null;
+  location_label: string;
+  contact_phone: string | null;
+  contact_email: string | null;
+  website: string | null;
+  member_count: number;
+  created_at: string;
+  updated_at: string;
+  creator?: DbUser;
+}
+
+export interface DbGroupMember {
+  id: string;
+  group_id: string;
+  user_id: string;
+  role: 'admin' | 'moderator' | 'member';
+  joined_at: string;
+  user?: DbUser;
+}
+
+export interface DbGroupPost {
+  id: string;
+  group_id: string;
+  author_id: string;
+  content: string;
+  images: string[];
+  is_notice: boolean;
+  is_pinned: boolean;
+  likes_count: number;
+  comments_count: number;
+  created_at: string;
+  updated_at: string;
+  author?: DbUser;
+}
+
+export interface DbGroupPostComment {
+  id: string;
+  post_id: string;
+  author_id: string;
+  content: string;
+  created_at: string;
+  author?: DbUser;
+}
+
+export interface DbGroupPostLike {
+  id: string;
+  post_id: string;
+  user_id: string;
+  created_at: string;
+}
+
+export interface DbGroupEvent {
+  id: string;
+  group_id: string;
+  creator_id: string;
+  title: string;
+  description: string | null;
+  date: string;
+  time: string;
+  end_time: string | null;
+  location: string | null;
+  address: string | null;
+  image: string | null;
+  attendees_count: number;
+  created_at: string;
+  creator?: DbUser;
+}
+
+export interface DbGroupEventRsvp {
+  id: string;
+  event_id: string;
+  user_id: string;
+  status: 'interested' | 'going';
+  created_at: string;
+}
+
+export interface DbGroupAlbum {
+  id: string;
+  group_id: string;
+  creator_id: string;
+  name: string;
+  description: string | null;
+  cover_url: string | null;
+  photo_count: number;
+  created_at: string;
+  updated_at: string;
+  creator?: DbUser;
+}
+
+export interface DbGroupPhoto {
+  id: string;
+  album_id: string;
+  uploader_id: string;
+  url: string;
+  caption: string | null;
+  created_at: string;
+  uploader?: DbUser;
+}
+
+export interface DbGroupFile {
+  id: string;
+  group_id: string;
+  uploader_id: string;
+  name: string;
+  url: string;
+  file_type: string;
+  size_bytes: number;
+  created_at: string;
+  uploader?: DbUser;
+}
+
+export interface DbGroupInvite {
+  id: string;
+  group_id: string;
+  inviter_id: string;
+  invitee_id: string | null;
+  invite_code: string;
+  status: 'pending' | 'accepted' | 'declined';
+  created_at: string;
+  expires_at: string;
+}
