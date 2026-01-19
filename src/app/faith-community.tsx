@@ -33,6 +33,8 @@ import {
 import { getFaithEvents, rsvpToFaithEvent } from '@/lib/marketplace-api';
 import { createPost as createDbPost } from '@/lib/posts';
 import { parseEventMetadata } from '@/lib/eventMetadata';
+import { getGroupsByCategory } from '@/lib/groups-api';
+import type { DbGroup } from '@/lib/supabase';
 
 interface DbFaithEvent {
   id: string;
@@ -61,6 +63,7 @@ export default function FaithCommunityScreen() {
   const [selectedFaithType, setSelectedFaithType] = useState<string | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<FaithEvent | null>(null);
   const [dbEvents, setDbEvents] = useState<DbFaithEvent[]>([]);
+  const [faithGroups, setFaithGroups] = useState<DbGroup[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
@@ -75,12 +78,16 @@ export default function FaithCommunityScreen() {
   const selectedLocation = useStore((s) => s.selectedLocation);
   const currentCommunity = useStore((s) => s.currentCommunity);
 
-  const fetchEvents = async () => {
+  const fetchData = async () => {
     try {
-      const data = await getFaithEvents();
-      setDbEvents(data || []);
+      const [eventsData, groupsData] = await Promise.all([
+        getFaithEvents(),
+        getGroupsByCategory('church'),
+      ]);
+      setDbEvents(eventsData || []);
+      setFaithGroups(groupsData || []);
     } catch (error) {
-      console.error('Error fetching faith events:', error);
+      console.error('Error fetching faith data:', error);
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -88,12 +95,12 @@ export default function FaithCommunityScreen() {
   };
 
   useEffect(() => {
-    fetchEvents();
+    fetchData();
   }, []);
 
   const handleRefresh = () => {
     setIsRefreshing(true);
-    fetchEvents();
+    fetchData();
   };
 
   // Convert DB events to app format
@@ -664,61 +671,50 @@ export default function FaithCommunityScreen() {
                     </LinearGradient>
                   </Animated.View>
 
-                  {/* Sample Groups - will be replaced with real data */}
+                  {/* Groups from Database */}
                   <Animated.View entering={FadeInUp.duration(400).delay(100)} className="mb-3">
                     <Text className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">
                       Featured Groups
                     </Text>
                   </Animated.View>
 
-                  {/* Mock Group Cards */}
-                  <Pressable
-                    onPress={() => router.push('/group/mock-group-1')}
-                    className="bg-white rounded-2xl p-4 shadow-sm mb-3 flex-row items-center"
-                  >
-                    <Image
-                      source={{ uri: 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=200&h=200&fit=crop' }}
-                      style={{ width: 56, height: 56, borderRadius: 12 }}
-                      contentFit="cover"
-                    />
-                    <View className="flex-1 ml-3">
-                      <Text className="text-warmBrown font-semibold">Praying for the City of Aurora</Text>
-                      <Text className="text-gray-500 text-sm">127 members • Public</Text>
+                  {isLoading ? (
+                    <View className="bg-white rounded-2xl p-8 items-center">
+                      <ActivityIndicator size="small" color="#C9A227" />
+                      <Text className="text-gray-500 mt-2">Loading groups...</Text>
                     </View>
-                    <ChevronRight size={20} color="#9CA3AF" />
-                  </Pressable>
-
-                  <Pressable
-                    onPress={() => router.push('/group/mock-group-2')}
-                    className="bg-white rounded-2xl p-4 shadow-sm mb-3 flex-row items-center"
-                  >
-                    <Image
-                      source={{ uri: 'https://images.unsplash.com/photo-1438232992991-995b7058bbb3?w=200&h=200&fit=crop' }}
-                      style={{ width: 56, height: 56, borderRadius: 12 }}
-                      contentFit="cover"
-                    />
-                    <View className="flex-1 ml-3">
-                      <Text className="text-warmBrown font-semibold">New Life Community Church</Text>
-                      <Text className="text-gray-500 text-sm">89 members • Public</Text>
+                  ) : faithGroups.length > 0 ? (
+                    faithGroups.map((group, index) => (
+                      <Animated.View key={group.id} entering={FadeInUp.duration(300).delay(index * 50)}>
+                        <Pressable
+                          onPress={() => router.push(`/group/${group.id}` as never)}
+                          className="bg-white rounded-2xl p-4 shadow-sm mb-3 flex-row items-center"
+                        >
+                          <Image
+                            source={{ uri: group.image_url || 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=200&h=200&fit=crop' }}
+                            style={{ width: 56, height: 56, borderRadius: 12 }}
+                            contentFit="cover"
+                          />
+                          <View className="flex-1 ml-3">
+                            <Text className="text-warmBrown font-semibold" numberOfLines={1}>{group.name}</Text>
+                            <Text className="text-gray-500 text-sm">{group.member_count || 0} members • {group.visibility === 'public' ? 'Public' : 'Private'}</Text>
+                          </View>
+                          <ChevronRight size={20} color="#9CA3AF" />
+                        </Pressable>
+                      </Animated.View>
+                    ))
+                  ) : (
+                    <View className="bg-white rounded-2xl p-6 items-center">
+                      <Users size={32} color="#9CA3AF" />
+                      <Text className="text-gray-500 mt-2 text-center">No groups yet</Text>
+                      <Pressable
+                        onPress={() => router.push('/create-group')}
+                        className="mt-3 bg-forest-600 rounded-full px-4 py-2"
+                      >
+                        <Text className="text-white font-semibold">Create the first group</Text>
+                      </Pressable>
                     </View>
-                    <ChevronRight size={20} color="#9CA3AF" />
-                  </Pressable>
-
-                  <Pressable
-                    onPress={() => router.push('/group/mock-group-3')}
-                    className="bg-white rounded-2xl p-4 shadow-sm mb-3 flex-row items-center"
-                  >
-                    <Image
-                      source={{ uri: 'https://images.unsplash.com/photo-1564769625905-50e93615e769?w=200&h=200&fit=crop' }}
-                      style={{ width: 56, height: 56, borderRadius: 12 }}
-                      contentFit="cover"
-                    />
-                    <View className="flex-1 ml-3">
-                      <Text className="text-warmBrown font-semibold">Aurora Islamic Center</Text>
-                      <Text className="text-gray-500 text-sm">156 members • Public</Text>
-                    </View>
-                    <ChevronRight size={20} color="#9CA3AF" />
-                  </Pressable>
+                  )}
 
                   <View className="h-4" />
 

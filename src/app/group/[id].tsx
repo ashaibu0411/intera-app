@@ -262,25 +262,31 @@ export default function GroupDetailScreen() {
       if (groupData) {
         setGroup(groupData);
       }
-      setPosts(postsData);
-      setEvents(eventsData);
-      setAlbums(albumsData);
+      setPosts(postsData || []);
+      setEvents(eventsData || []);
+      setAlbums(albumsData || []);
       setFiles([]); // Files API to be implemented
-      setMembers(membersData);
+      setMembers(membersData || []);
 
       // Fetch group settings
       try {
         const settings = await getGroupSettings(id);
-        setGroupSettings(settings);
+        if (settings) {
+          setGroupSettings(settings);
+        }
       } catch (e) {
         console.log('Using default group settings');
       }
 
       // Check if current user is member/admin
       if (currentUser) {
-        const membership = await getGroupMember(id, currentUser.id);
-        setIsMember(!!membership);
-        setIsAdmin(membership?.role === 'admin');
+        try {
+          const membership = await getGroupMember(id, currentUser.id);
+          setIsMember(!!membership);
+          setIsAdmin(membership?.role === 'admin');
+        } catch (e) {
+          console.log('Error checking membership');
+        }
       }
     } catch (error) {
       console.error('Error loading group:', error);
@@ -1351,11 +1357,11 @@ export default function GroupDetailScreen() {
               {searchQuery.trim() ? (
                 <>
                   {/* Search Results */}
-                  {posts.filter(p => p.content.toLowerCase().includes(searchQuery.toLowerCase())).length > 0 && (
+                  {posts.filter(p => p.content?.toLowerCase().includes(searchQuery.toLowerCase())).length > 0 && (
                     <View className="mb-6">
                       <Text className="text-sm font-semibold text-gray-500 mb-3">POSTS</Text>
                       {posts
-                        .filter(p => p.content.toLowerCase().includes(searchQuery.toLowerCase()))
+                        .filter(p => p.content?.toLowerCase().includes(searchQuery.toLowerCase()))
                         .slice(0, 5)
                         .map(post => (
                           <Pressable
@@ -1373,11 +1379,11 @@ export default function GroupDetailScreen() {
                     </View>
                   )}
 
-                  {events.filter(e => e.title.toLowerCase().includes(searchQuery.toLowerCase())).length > 0 && (
+                  {events.filter(e => e.title?.toLowerCase().includes(searchQuery.toLowerCase())).length > 0 && (
                     <View className="mb-6">
                       <Text className="text-sm font-semibold text-gray-500 mb-3">EVENTS</Text>
                       {events
-                        .filter(e => e.title.toLowerCase().includes(searchQuery.toLowerCase()))
+                        .filter(e => e.title?.toLowerCase().includes(searchQuery.toLowerCase()))
                         .slice(0, 5)
                         .map(event => (
                           <Pressable
@@ -1395,11 +1401,11 @@ export default function GroupDetailScreen() {
                     </View>
                   )}
 
-                  {members.filter(m => m.user?.name?.toLowerCase().includes(searchQuery.toLowerCase())).length > 0 && (
+                  {members.filter(m => m.user?.name?.toLowerCase()?.includes(searchQuery.toLowerCase())).length > 0 && (
                     <View className="mb-6">
                       <Text className="text-sm font-semibold text-gray-500 mb-3">MEMBERS</Text>
                       {members
-                        .filter(m => m.user?.name?.toLowerCase().includes(searchQuery.toLowerCase()))
+                        .filter(m => m.user?.name?.toLowerCase()?.includes(searchQuery.toLowerCase()))
                         .slice(0, 5)
                         .map(member => (
                           <Pressable
@@ -1415,7 +1421,7 @@ export default function GroupDetailScreen() {
                               style={{ width: 40, height: 40, borderRadius: 20 }}
                             />
                             <View className="ml-3">
-                              <Text className="text-gray-900 font-medium">{member.user?.name}</Text>
+                              <Text className="text-gray-900 font-medium">{member.user?.name || 'Unknown'}</Text>
                               <Text className="text-gray-500 text-sm capitalize">{member.role}</Text>
                             </View>
                           </Pressable>
@@ -1423,9 +1429,9 @@ export default function GroupDetailScreen() {
                     </View>
                   )}
 
-                  {posts.filter(p => p.content.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 &&
-                   events.filter(e => e.title.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 &&
-                   members.filter(m => m.user?.name?.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 && (
+                  {posts.filter(p => p.content?.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 &&
+                   events.filter(e => e.title?.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 &&
+                   members.filter(m => m.user?.name?.toLowerCase()?.includes(searchQuery.toLowerCase())).length === 0 && (
                     <View className="items-center py-12">
                       <Search size={32} color="#9CA3AF" />
                       <Text className="text-gray-500 mt-3">No results found</Text>
