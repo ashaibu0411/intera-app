@@ -75,6 +75,9 @@ interface Clip {
     isVerified: boolean;
     isFollowing?: boolean;
   };
+  // The raw `clips.video_url` value from DB (object path or full storage URL).
+  // We keep it so we can re-resolve a signed URL on retry.
+  rawVideoUrl?: string;
   videoUrl?: string;
   thumbnail: string;
   description: string;
@@ -246,6 +249,49 @@ interface ClipItemProps {
   itemWidth: number;
 }
 
+class ClipsErrorBoundary extends React.Component<
+  { children: React.ReactNode; onReset: () => void },
+  { error: unknown | null }
+> {
+  state: { error: unknown | null } = { error: null };
+
+  static getDerivedStateFromError(error: unknown) {
+    return { error };
+  }
+
+  componentDidCatch(error: unknown) {
+    console.error('[Clips] Render crashed:', error);
+  }
+
+  render() {
+    if (!this.state.error) return this.props.children;
+
+    return (
+      <View style={{ flex: 1, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 22 }}>
+        <Text style={{ color: '#fff', fontWeight: '900', fontSize: 18, textAlign: 'center' }}>Clips crashed</Text>
+        <Text style={{ color: 'rgba(255,255,255,0.75)', marginTop: 10, textAlign: 'center' }}>
+          This is usually caused by a native module mismatch, an invalid video URL, or a misconfigured Supabase env.
+        </Text>
+        <Text style={{ color: 'rgba(255,255,255,0.65)', marginTop: 10 }} numberOfLines={6}>
+          {String((this.state.error as any)?.message ?? this.state.error)}
+        </Text>
+        <Pressable
+          onPress={() => {
+            this.setState({ error: null });
+            this.props.onReset();
+          }}
+          style={{ marginTop: 16 }}
+          className="active:opacity-90"
+        >
+          <View style={{ backgroundColor: '#fff', borderRadius: 999, paddingHorizontal: 16, paddingVertical: 12 }}>
+            <Text style={{ color: '#000', fontWeight: '900' }}>Try again</Text>
+          </View>
+        </Pressable>
+      </View>
+    );
+  }
+}
+
 function ClipItem({ clip, isActive, isMuted, onToggleMute, onBlockUser, onReportUser, onComment, onShare, itemHeight, itemWidth }: ClipItemProps) {
   const insets = useSafeAreaInsets();
   const [liked, setLiked] = useState(clip.isLiked);
@@ -256,6 +302,8 @@ function ClipItem({ clip, isActive, isMuted, onToggleMute, onBlockUser, onReport
   const [videoFailed, setVideoFailed] = useState(false);
   const [videoError, setVideoError] = useState<string | null>(null);
   const [reloadNonce, setReloadNonce] = useState(0);
+  const [playUrl, setPlayUrl] = useState<string | undefined>(clip.videoUrl);
+  const hasRetriedWithFreshUrl = useRef(false);
   const [playbackPosition, setPlaybackPosition] = useState(0);
   const [duration, setDuration] = useState(clip.duration || 0);
   const [isFollowing, setIsFollowing] = useState(clip.user.isFollowing || false);
@@ -267,21 +315,28 @@ function ClipItem({ clip, isActive, isMuted, onToggleMute, onBlockUser, onReport
   const progressWidth = useSharedValue(0);
   const playPauseOpacity = useSharedValue(0);
 
+  // Keep local playback URL in sync if feed refreshes/reorders.
+  useEffect(() => {
+    setPlayUrl(clip.videoUrl);
+    hasRetriedWithFreshUrl.current = false;
+  }, [clip.videoUrl, clip.id]);
+
   // Auto-play/pause based on visibility.
   // IMPORTANT: don't call loadAsync repeatedly — it can break scrolling/perf.
   useEffect(() => {
-    if (!clip.videoUrl) return;
+    if (!playUrl) return;
     if (isActive) {
       // reset state when becoming active
       setIsLoading(true);
       setVideoFailed(false);
       setVideoError(null);
       hasProbedRef.current = false;
+      hasRetriedWithFreshUrl.current = false;
       videoRef.current?.playAsync().catch(() => null);
     } else {
       videoRef.current?.pauseAsync().catch(() => null);
     }
-  }, [isActive, clip.videoUrl]);
+  }, [isActive, playUrl]);
 
   const probeVideoUrlOnce = useCallback(async (url: string) => {
     if (!url) return;
@@ -297,6 +352,27 @@ function ClipItem({ clip, isActive, isMuted, onToggleMute, onBlockUser, onReport
       setVideoError((prev) => (prev ? `${prev}\n${info}` : info));
     }
   }, []);
+
+  const refreshToSignedUrl = useCallback(async () => {
+    // Only do this once per clip activation to avoid loops.
+    if (hasRetriedWithFreshUrl.current) return false;
+    hasRetriedWithFreshUrl.current = true;
+
+    const raw = String(clip.rawVideoUrl || clip.videoUrl || '').trim();
+    if (!raw) return false;
+
+    try {
+      const next = await resolveClipVideoUrl(raw, { expiresInSeconds: 60 * 60 });
+      if (next && next !== playUrl) {
+        setPlayUrl(next);
+        setReloadNonce((n) => n + 1);
+        return true;
+      }
+    } catch (e: any) {
+      setVideoError((prev) => (prev ? `${prev}\nRe-resolve failed: ${String(e?.message ?? e)}` : `Re-resolve failed: ${String(e?.message ?? e)}`));
+    }
+    return false;
+  }, [clip.rawVideoUrl, clip.videoUrl, playUrl]);
 
   // Preload next/previous videos for smoother experience
   useEffect(() => {
@@ -438,12 +514,12 @@ function ClipItem({ clip, isActive, isMuted, onToggleMute, onBlockUser, onReport
         className="relative"
       >
         {/* Video or Thumbnail Background */}
-        {clip.videoUrl && !videoFailed ? (
+        {playUrl && !videoFailed ? (
           <>
             <ExpoVideo
               ref={videoRef}
               key={`${clip.id}:${reloadNonce}`}
-              source={{ uri: clip.videoUrl }}
+              source={{ uri: playUrl }}
               style={{ position: 'absolute', width: '100%', height: '100%' }}
               resizeMode={ResizeMode.COVER}
               isLooping
@@ -459,7 +535,9 @@ function ClipItem({ clip, isActive, isMuted, onToggleMute, onBlockUser, onReport
                 } catch {
                   setVideoError('Unknown video error');
                 }
-                if (clip.videoUrl) void probeVideoUrlOnce(clip.videoUrl);
+                if (playUrl) void probeVideoUrlOnce(playUrl);
+                // Best-effort: if this was a 403/public URL, try to re-resolve via signed URL.
+                void refreshToSignedUrl();
               }}
               onPlaybackStatusUpdate={onPlaybackStatusUpdate}
               useNativeControls={false}
@@ -835,6 +913,7 @@ export default function ClipsTabScreen() {
   const [showHint, setShowHint] = useState(false);
   const [loading, setLoading] = useState(true);
   const [feedClips, setFeedClips] = useState<Clip[]>([]);
+  const [renderNonce, setRenderNonce] = useState(0);
   const [showReportModal, setShowReportModal] = useState(false);
   const [showCommentsModal, setShowCommentsModal] = useState(false);
   const [selectedClip, setSelectedClip] = useState<Clip | null>(null);
@@ -879,6 +958,7 @@ export default function ClipsTabScreen() {
                 isVerified: false,
                 isFollowing: false,
               },
+              rawVideoUrl: String(c.video_url || ''),
               videoUrl: resolved || undefined,
               thumbnail:
                 c.thumbnail_url ??
@@ -1060,99 +1140,108 @@ export default function ClipsTabScreen() {
         if (h && Math.abs(h - pagerHeight) > 2) setPagerHeight(h);
       }}
     >
-      {loading ? (
-        <View style={{ position: 'absolute', top: insets.top + 70, left: 0, right: 0, alignItems: 'center', zIndex: 50 }}>
-          <View style={{ backgroundColor: 'rgba(0,0,0,0.35)', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 }}>
-            <Text style={{ color: '#fff', fontWeight: '800' }}>Loading clips…</Text>
-          </View>
-        </View>
-      ) : null}
-      {/* Header - Enhanced */}
-      <View
-        className="absolute z-10 left-0 right-0 flex-row items-center justify-between px-4"
-        style={{ top: insets.top + 8 }}
+      <ClipsErrorBoundary
+        key={renderNonce}
+        onReset={() => {
+          setRenderNonce((n) => n + 1);
+          setActiveIndex(0);
+        }}
       >
-        {/* Spacer for balance */}
-        <View style={{ width: 44 }} />
+        {loading ? (
+          <View style={{ position: 'absolute', top: insets.top + 70, left: 0, right: 0, alignItems: 'center', zIndex: 50 }}>
+            <View style={{ backgroundColor: 'rgba(0,0,0,0.35)', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 }}>
+              <Text style={{ color: '#fff', fontWeight: '800' }}>Loading clips…</Text>
+            </View>
+          </View>
+        ) : null}
 
-        {/* Tab Switcher - Enhanced */}
-        <Animated.View entering={FadeIn.duration(400)} className="flex-row items-center bg-black/30 rounded-full px-1 py-1 backdrop-blur-sm">
-          <Pressable 
-            onPress={() => handleTabChange('following')} 
-            className={`px-5 py-2 rounded-full ${activeTab === 'following' ? 'bg-white' : ''}`}
-          >
-            <Text
-              className={`font-semibold text-sm ${
-                activeTab === 'following' ? 'text-black' : 'text-white'
-              }`}
+        {/* Header - Enhanced */}
+        <View
+          className="absolute z-10 left-0 right-0 flex-row items-center justify-between px-4"
+          style={{ top: insets.top + 8 }}
+        >
+          {/* Spacer for balance */}
+          <View style={{ width: 44 }} />
+
+          {/* Tab Switcher - Enhanced */}
+          <Animated.View entering={FadeIn.duration(400)} className="flex-row items-center bg-black/30 rounded-full px-1 py-1 backdrop-blur-sm">
+            <Pressable
+              onPress={() => handleTabChange('following')}
+              className={`px-5 py-2 rounded-full ${activeTab === 'following' ? 'bg-white' : ''}`}
             >
-              Following
-            </Text>
-          </Pressable>
-          <Pressable 
-            onPress={() => handleTabChange('foryou')} 
-            className={`px-5 py-2 rounded-full ${activeTab === 'foryou' ? 'bg-white' : ''}`}
-          >
-            <View className="flex-row items-center">
               <Text
                 className={`font-semibold text-sm ${
-                  activeTab === 'foryou' ? 'text-black' : 'text-white'
+                  activeTab === 'following' ? 'text-black' : 'text-white'
                 }`}
               >
-                For You
+                Following
               </Text>
-              {activeTab === 'foryou' && (
-                <TrendingUp size={14} color="#000" style={{ marginLeft: 4 }} />
-              )}
-            </View>
+            </Pressable>
+            <Pressable
+              onPress={() => handleTabChange('foryou')}
+              className={`px-5 py-2 rounded-full ${activeTab === 'foryou' ? 'bg-white' : ''}`}
+            >
+              <View className="flex-row items-center">
+                <Text
+                  className={`font-semibold text-sm ${
+                    activeTab === 'foryou' ? 'text-black' : 'text-white'
+                  }`}
+                >
+                  For You
+                </Text>
+                {activeTab === 'foryou' && (
+                  <TrendingUp size={14} color="#000" style={{ marginLeft: 4 }} />
+                )}
+              </View>
+            </Pressable>
+          </Animated.View>
+
+          {/* Create Button - Enhanced */}
+          <Pressable
+            onPress={handleCreateClip}
+            className="bg-white rounded-full w-10 h-10 items-center justify-center shadow-lg"
+          >
+            <Plus size={22} color="#000" strokeWidth={3} />
           </Pressable>
-        </Animated.View>
+        </View>
 
-        {/* Create Button - Enhanced */}
-        <Pressable
-          onPress={handleCreateClip}
-          className="bg-white rounded-full w-10 h-10 items-center justify-center shadow-lg"
-        >
-          <Plus size={22} color="#000" strokeWidth={3} />
-        </Pressable>
-      </View>
-
-      {/* Clips Feed - Enhanced with Pull to Refresh */}
-      <FlatList
-        data={filteredClips}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item, index }) => (
-          <ClipItem
-            clip={item}
-            isActive={index === activeIndex}
-            isMuted={isMuted}
-            onToggleMute={toggleMute}
-            onBlockUser={() => handleBlockUser({ id: item.user.id, name: item.user.name, avatar: item.user.avatar })}
-            onReportUser={() => handleReportUser({ id: item.user.id, name: item.user.name, avatar: item.user.avatar })}
-            onComment={() => handleComment(item)}
-            onShare={() => handleShare(item)}
-            itemHeight={pagerHeight}
-            itemWidth={SCREEN_WIDTH}
-          />
-        )}
-        pagingEnabled
-        scrollEnabled={!(showCommentsModal || showReportModal || showBlockConfirmModal)}
-        showsVerticalScrollIndicator={false}
-        snapToInterval={pagerHeight}
-        snapToAlignment="start"
-        disableIntervalMomentum
-        bounces={false}
-        overScrollMode="never"
-        decelerationRate="fast"
-        viewabilityConfig={viewabilityConfig}
-        onViewableItemsChanged={onViewableItemsChanged}
-        onMomentumScrollEnd={onMomentumScrollEnd}
-        getItemLayout={(_, index) => ({ length: pagerHeight, offset: pagerHeight * index, index })}
-        removeClippedSubviews={true}
-        maxToRenderPerBatch={3}
-        windowSize={5}
-        initialNumToRender={2}
-      />
+        {/* Clips Feed - Enhanced with Pull to Refresh */}
+        <FlatList
+          data={filteredClips}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item, index }) => (
+            <ClipItem
+              clip={item}
+              isActive={index === activeIndex}
+              isMuted={isMuted}
+              onToggleMute={toggleMute}
+              onBlockUser={() => handleBlockUser({ id: item.user.id, name: item.user.name, avatar: item.user.avatar })}
+              onReportUser={() => handleReportUser({ id: item.user.id, name: item.user.name, avatar: item.user.avatar })}
+              onComment={() => handleComment(item)}
+              onShare={() => handleShare(item)}
+              itemHeight={pagerHeight}
+              itemWidth={SCREEN_WIDTH}
+            />
+          )}
+          pagingEnabled
+          scrollEnabled={!(showCommentsModal || showReportModal || showBlockConfirmModal)}
+          showsVerticalScrollIndicator={false}
+          snapToInterval={pagerHeight}
+          snapToAlignment="start"
+          disableIntervalMomentum
+          bounces={false}
+          overScrollMode="never"
+          decelerationRate="fast"
+          viewabilityConfig={viewabilityConfig}
+          onViewableItemsChanged={onViewableItemsChanged}
+          onMomentumScrollEnd={onMomentumScrollEnd}
+          getItemLayout={(_, index) => ({ length: pagerHeight, offset: pagerHeight * index, index })}
+          removeClippedSubviews={true}
+          maxToRenderPerBatch={3}
+          windowSize={5}
+          initialNumToRender={2}
+        />
+      </ClipsErrorBoundary>
 
       {/* Gesture hint overlay (shows once) */}
       {showHint ? (

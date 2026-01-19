@@ -123,12 +123,26 @@ export async function createClip(clip: {
   return data;
 }
 
-function extractClipsObjectPathFromPublicUrl(url: string): string | null {
+function extractClipsObjectPathFromStorageUrl(url: string): string | null {
   try {
-    const marker = '/storage/v1/object/public/clips/';
+    const markers = [
+      // Public bucket/object URL
+      '/storage/v1/object/public/clips/',
+      // Signed URL base (requires `?token=...`)
+      '/storage/v1/object/sign/clips/',
+      // Authenticated object URL (served with auth header/cookie)
+      '/storage/v1/object/authenticated/clips/',
+    ] as const;
+
+    const marker = markers.find((m) => url.includes(m));
+    if (!marker) return null;
+
     const idx = url.indexOf(marker);
     if (idx === -1) return null;
-    const raw = url.slice(idx + marker.length);
+
+    // Strip query params/fragments if present.
+    const after = url.slice(idx + marker.length);
+    const raw = after.split('?')[0]?.split('#')[0] ?? after;
     // Supabase public URLs are typically safe to decode; if not, fall back to raw.
     try {
       return decodeURIComponent(raw);
@@ -158,8 +172,14 @@ export async function resolveClipVideoUrl(
   const raw = String(videoUrlOrPath || '').trim();
   if (!raw) return '';
 
+  // If this is already a signed URL with a token, keep it (it may still be valid).
+  // We still support re-signing elsewhere (Clips tab) when playback fails.
+  if ((raw.includes('/storage/v1/object/sign/clips/') || raw.includes('/storage/v1/object/sign/')) && raw.includes('token=')) {
+    return raw;
+  }
+
   const isHttp = raw.startsWith('http://') || raw.startsWith('https://');
-  const objectPath = isHttp ? extractClipsObjectPathFromPublicUrl(raw) : raw;
+  const objectPath = isHttp ? extractClipsObjectPathFromStorageUrl(raw) : raw;
   const expiresInSeconds = Math.max(60, Math.floor(opts?.expiresInSeconds ?? 60 * 60));
 
   if (objectPath) {
