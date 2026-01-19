@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, Pressable, ActivityIndicator, ScrollView, Modal, Alert, Linking } from 'react-native';
-import { Stack, useLocalSearchParams, router, useNavigation } from 'expo-router';
+import { Stack, useLocalSearchParams, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import * as Haptics from 'expo-haptics';
@@ -1061,26 +1061,32 @@ function VoiceRoomScreenContent() {
   );
 }
 
-export default function VoiceRoomScreen() {
-  // Check if navigation is ready before rendering
-  const navigation = useNavigation();
-  const [isReady, setIsReady] = useState(false);
+// Simple wrapper that handles the navigation context check
+function NavigationReady({ children }: { children: React.ReactNode }) {
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    // Navigation context is ready if we can access the navigation object
-    if (navigation) {
-      setIsReady(true);
-    }
-  }, [navigation]);
+    // Small delay to ensure navigation context is mounted
+    const timer = setTimeout(() => setReady(true), 50);
+    return () => clearTimeout(timer);
+  }, []);
 
-  if (!isReady) {
+  if (!ready) {
     return (
-      <View className="flex-1 bg-cream items-center justify-center">
+      <View style={{ flex: 1, backgroundColor: '#FBF9F7', alignItems: 'center', justifyContent: 'center' }}>
         <ActivityIndicator size="large" color="#1B4D3E" />
-        <Text className="text-warmBrown mt-4">Loading room...</Text>
+        <Text style={{ color: '#2D1F1A', marginTop: 16 }}>Loading room...</Text>
       </View>
     );
   }
 
-  return <VoiceRoomScreenContent />;
+  return <>{children}</>;
+}
+
+export default function VoiceRoomScreen() {
+  return (
+    <NavigationReady>
+      <VoiceRoomScreenContent />
+    </NavigationReady>
+  );
 }
