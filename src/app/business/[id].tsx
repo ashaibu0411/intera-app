@@ -1,12 +1,25 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, ScrollView, Pressable, TextInput, Modal, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, ScrollView, Pressable, TextInput, Modal, ActivityIndicator, Alert, FlatList } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
-import { ChevronLeft, MapPin, Star, CheckCircle, ShieldCheck, Phone, MessageCircle, Navigation, Plus } from 'lucide-react-native';
+import { ChevronLeft, MapPin, Star, CheckCircle, ShieldCheck, Phone, MessageCircle, Navigation, Plus, Package, ShoppingBag, CheckCircle2 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useStore } from '@/lib/store';
-import { getBusiness, getBusinessReviews, getBusinessTrustCounts, removeBusinessConfirmation, setBusinessConfirmation, upsertBusinessReview } from '@/lib/marketplace-api';
+import { getBusiness, getBusinessReviews, getBusinessTrustCounts, removeBusinessConfirmation, setBusinessConfirmation, upsertBusinessReview, getBusinessInventory } from '@/lib/marketplace-api';
+import { getOrCreateConversation } from '@/lib/messages';
+import Animated, { FadeInUp } from 'react-native-reanimated';
+
+interface InventoryItem {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  image: string;
+  category: string;
+  in_stock: boolean;
+  quantity?: number;
+}
 
 export default function BusinessDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -23,19 +36,25 @@ export default function BusinessDetailScreen() {
   const [rating, setRating] = useState(5);
   const [reviewText, setReviewText] = useState('');
   const [savingReview, setSavingReview] = useState(false);
+  const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [loadingInventory, setLoadingInventory] = useState(true);
+  const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
 
   const canInteract = !!currentUser?.id && !isGuest;
 
   const load = async () => {
     if (!businessId) return;
     const b = await getBusiness(businessId);
-    const [r, t] = await Promise.all([
+    const [r, t, inv] = await Promise.all([
       getBusinessReviews(businessId, 50),
       getBusinessTrustCounts(businessId),
+      getBusinessInventory(businessId),
     ]);
     setBusiness(b);
     setReviews(r as any);
     setTrust(t);
+    setInventory((inv || []) as InventoryItem[]);
+    setLoadingInventory(false);
   };
 
   useEffect(() => {
@@ -84,6 +103,65 @@ export default function BusinessDetailScreen() {
       setSavingReview(false);
     }
   };
+
+  const handleMessageBusiness = async () => {
+    if (!canInteract || !currentUser?.id) {
+      router.push('/signup');
+      return;
+    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const ownerId = business?.owner_id;
+    if (!ownerId) {
+      Alert.alert('Unable to message', 'This business has no registered owner.');
+      return;
+    }
+    try {
+      const conversationId = await getOrCreateConversation(currentUser.id, ownerId);
+      router.push({
+        pathname: '/conversation/[id]',
+        params: {
+          id: conversationId,
+          otherUserName: business?.name || 'Business',
+          otherUserAvatar: business?.logo || business?.image,
+        },
+      } as any);
+    } catch (error) {
+      console.error('Error creating conversation:', error);
+      Alert.alert('Error', 'Could not start conversation. Please try again.');
+    }
+  };
+
+  const handleContactAboutItem = async (item: InventoryItem) => {
+    if (!canInteract || !currentUser?.id) {
+      router.push('/signup');
+      return;
+    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setSelectedItem(null);
+    const ownerId = business?.owner_id;
+    if (!ownerId) {
+      Alert.alert('Unable to message', 'This business has no registered owner.');
+      return;
+    }
+    try {
+      const conversationId = await getOrCreateConversation(currentUser.id, ownerId);
+      router.push({
+        pathname: '/conversation/[id]',
+        params: {
+          id: conversationId,
+          otherUserName: business?.name || 'Business',
+          otherUserAvatar: business?.logo || business?.image,
+          initialMessage: `Hi! I'm interested in "${item.name}" ($${item.price.toFixed(2)}). Is it still available?`,
+        },
+      } as any);
+    } catch (error) {
+      console.error('Error creating conversation:', error);
+      Alert.alert('Error', 'Could not start conversation. Please try again.');
+    }
+  };
+
+  const inStockItems = inventory.filter(item => item.in_stock);
+  const outOfStockItems = inventory.filter(item => !item.in_stock);
 
   if (loading) {
     return (
@@ -184,11 +262,7 @@ export default function BusinessDetailScreen() {
                   <Text className="text-forest-700 font-semibold ml-2">Call</Text>
                 </Pressable>
                 <Pressable
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    if (!canInteract) router.push('/signup');
-                    else router.push({ pathname: '/messages', params: { businessId: business.id, businessName: business.name } } as any);
-                  }}
+                  onPress={handleMessageBusiness}
                   className="flex-1 flex-row items-center"
                 >
                   <MessageCircle size={16} color="#C9A227" />
@@ -206,6 +280,111 @@ export default function BusinessDetailScreen() {
                 </Pressable>
               </View>
             </View>
+          </View>
+
+          {/* Inventory Section */}
+          <View className="mx-5 mt-4">
+            <View className="flex-row items-center justify-between mb-3">
+              <View className="flex-row items-center">
+                <Package size={20} color="#2D1F1A" />
+                <Text className="text-warmBrown font-bold text-lg ml-2">What's In Store</Text>
+              </View>
+              {inventory.length > 0 && (
+                <Text className="text-gray-500 text-sm">{inStockItems.length} in stock</Text>
+              )}
+            </View>
+
+            {loadingInventory ? (
+              <View className="bg-white rounded-2xl p-6 items-center">
+                <ActivityIndicator color="#1B4D3E" />
+                <Text className="text-gray-500 mt-2">Loading inventory...</Text>
+              </View>
+            ) : inventory.length === 0 ? (
+              <View className="bg-white rounded-2xl p-6 items-center">
+                <ShoppingBag size={32} color="#9CA3AF" />
+                <Text className="text-warmBrown font-semibold mt-3">No items listed</Text>
+                <Text className="text-gray-500 text-center mt-1">This business hasn't added their inventory yet.</Text>
+              </View>
+            ) : (
+              <View>
+                {/* In Stock Items */}
+                {inStockItems.length > 0 && (
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={{ flexGrow: 0 }}
+                    className="mb-3"
+                  >
+                    {inStockItems.map((item, index) => (
+                      <Animated.View
+                        key={item.id}
+                        entering={FadeInUp.duration(300).delay(index * 50)}
+                      >
+                        <Pressable
+                          onPress={() => {
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            setSelectedItem(item);
+                          }}
+                          className="bg-white rounded-2xl mr-3 overflow-hidden shadow-sm"
+                          style={{ width: 160 }}
+                        >
+                          <Image
+                            source={{ uri: item.image || 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=300' }}
+                            style={{ width: 160, height: 120 }}
+                            contentFit="cover"
+                          />
+                          <View className="p-3">
+                            <Text className="text-warmBrown font-semibold" numberOfLines={1}>{item.name}</Text>
+                            <Text className="text-forest-600 font-bold mt-1">${item.price.toFixed(2)}</Text>
+                            <View className="flex-row items-center mt-2">
+                              <CheckCircle2 size={12} color="#10B981" />
+                              <Text className="text-emerald-600 text-xs ml-1">In Stock</Text>
+                              {item.quantity && (
+                                <Text className="text-gray-400 text-xs ml-1">({item.quantity})</Text>
+                              )}
+                            </View>
+                          </View>
+                        </Pressable>
+                      </Animated.View>
+                    ))}
+                  </ScrollView>
+                )}
+
+                {/* Out of Stock Items */}
+                {outOfStockItems.length > 0 && (
+                  <View>
+                    <Text className="text-gray-500 text-sm mb-2">Out of Stock</Text>
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      style={{ flexGrow: 0 }}
+                    >
+                      {outOfStockItems.map((item) => (
+                        <Pressable
+                          key={item.id}
+                          onPress={() => {
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            setSelectedItem(item);
+                          }}
+                          className="bg-white rounded-2xl mr-3 overflow-hidden shadow-sm opacity-60"
+                          style={{ width: 140 }}
+                        >
+                          <Image
+                            source={{ uri: item.image || 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=300' }}
+                            style={{ width: 140, height: 100 }}
+                            contentFit="cover"
+                          />
+                          <View className="p-2">
+                            <Text className="text-warmBrown font-medium text-sm" numberOfLines={1}>{item.name}</Text>
+                            <Text className="text-gray-400 text-xs mt-1">Out of stock</Text>
+                          </View>
+                        </Pressable>
+                      ))}
+                    </ScrollView>
+                  </View>
+                )}
+              </View>
+            )}
           </View>
 
           <View className="mx-5 mt-4 mb-10">
@@ -273,6 +452,110 @@ export default function BusinessDetailScreen() {
               <View className="h-20" />
             </ScrollView>
           </SafeAreaView>
+        </Modal>
+
+        {/* Item Detail Modal */}
+        <Modal visible={!!selectedItem} animationType="slide" transparent>
+          <View className="flex-1 bg-black/50 justify-end">
+            <View className="bg-cream rounded-t-3xl max-h-[80%]">
+              <View className="flex-row items-center justify-between px-5 py-4 border-b border-gray-100">
+                <Pressable
+                  onPress={() => setSelectedItem(null)}
+                  className="bg-white rounded-full p-2 shadow-sm"
+                >
+                  <ChevronLeft size={22} color="#2D1F1A" />
+                </Pressable>
+                <Text className="text-lg font-bold text-warmBrown">Item Details</Text>
+                <View style={{ width: 40 }} />
+              </View>
+
+              {selectedItem && (
+                <ScrollView className="px-5 py-4" showsVerticalScrollIndicator={false}>
+                  <Image
+                    source={{ uri: selectedItem.image || 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=400' }}
+                    style={{ width: '100%', height: 220, borderRadius: 16 }}
+                    contentFit="cover"
+                  />
+
+                  <View className="mt-4">
+                    <View className="flex-row items-start justify-between">
+                      <Text className="text-warmBrown font-bold text-xl flex-1">{selectedItem.name}</Text>
+                      <Text className="text-forest-600 font-bold text-xl">${selectedItem.price.toFixed(2)}</Text>
+                    </View>
+
+                    {selectedItem.category && (
+                      <Text className="text-gray-500 mt-1">{selectedItem.category}</Text>
+                    )}
+
+                    <View className="flex-row items-center mt-3">
+                      {selectedItem.in_stock ? (
+                        <>
+                          <CheckCircle2 size={16} color="#10B981" />
+                          <Text className="text-emerald-600 font-medium ml-2">In Stock</Text>
+                          {selectedItem.quantity && (
+                            <Text className="text-gray-500 ml-2">({selectedItem.quantity} available)</Text>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <Package size={16} color="#9CA3AF" />
+                          <Text className="text-gray-500 font-medium ml-2">Out of Stock</Text>
+                        </>
+                      )}
+                    </View>
+
+                    {selectedItem.description && (
+                      <View className="mt-4 bg-white rounded-xl p-4">
+                        <Text className="text-warmBrown font-semibold mb-2">Description</Text>
+                        <Text className="text-gray-600 leading-6">{selectedItem.description}</Text>
+                      </View>
+                    )}
+
+                    <View className="mt-4 bg-white rounded-xl p-4">
+                      <Text className="text-warmBrown font-semibold mb-2">Sold by</Text>
+                      <View className="flex-row items-center">
+                        <Image
+                          source={{ uri: business?.logo || business?.image }}
+                          style={{ width: 40, height: 40, borderRadius: 20 }}
+                          contentFit="cover"
+                        />
+                        <View className="ml-3 flex-1">
+                          <Text className="text-warmBrown font-medium">{business?.name}</Text>
+                          <Text className="text-gray-500 text-sm">{business?.location}</Text>
+                        </View>
+                      </View>
+                    </View>
+
+                    {selectedItem.in_stock && (
+                      <Pressable
+                        onPress={() => handleContactAboutItem(selectedItem)}
+                        className="mt-4 bg-forest-600 rounded-xl py-4 flex-row items-center justify-center"
+                      >
+                        <MessageCircle size={20} color="#fff" />
+                        <Text className="text-white font-semibold ml-2">Contact About This Item</Text>
+                      </Pressable>
+                    )}
+
+                    {!selectedItem.in_stock && (
+                      <View className="mt-4 bg-gray-100 rounded-xl py-4 items-center">
+                        <Text className="text-gray-500 font-medium">Currently Unavailable</Text>
+                        <Text className="text-gray-400 text-sm mt-1">Check back later or message the seller</Text>
+                        <Pressable
+                          onPress={handleMessageBusiness}
+                          className="mt-3 bg-white rounded-full px-4 py-2 flex-row items-center"
+                        >
+                          <MessageCircle size={16} color="#1B4D3E" />
+                          <Text className="text-forest-700 font-medium ml-2">Ask About Availability</Text>
+                        </Pressable>
+                      </View>
+                    )}
+
+                    <View className="h-8" />
+                  </View>
+                </ScrollView>
+              )}
+            </View>
+          </View>
         </Modal>
       </SafeAreaView>
     </View>

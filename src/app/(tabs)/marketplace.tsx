@@ -24,11 +24,11 @@ import { router } from 'expo-router';
 import { formatDistanceToNow } from 'date-fns';
 import {
   useStore,
-  MOCK_MARKETPLACE,
   MARKETPLACE_CATEGORIES,
   type MarketplaceListing,
 } from '@/lib/store';
 import { getMarketplaceListings, deleteMarketplaceListing as deleteMarketplaceListingApi } from '@/lib/marketplace-api';
+import { getOrCreateConversation } from '@/lib/messages';
 import { purchaseMarketplaceListing, priceToGems, calculateFeeBreakdown } from '@/lib/marketplacePayments';
 import { getGemBalance } from '@/lib/giftService';
 
@@ -176,7 +176,8 @@ export default function MarketplaceTabScreen() {
     views: listing.views,
   }));
 
-  const allListings = [...userListings, ...supabaseListings, ...MOCK_MARKETPLACE];
+  // Use only real data from database - no mock data
+  const allListings = [...userListings, ...supabaseListings];
 
   const filteredListings = allListings.filter((listing) => {
     const matchesSearch =
@@ -196,12 +197,30 @@ export default function MarketplaceTabScreen() {
     setSelectedListing(listing);
   };
 
-  const handleContactSeller = () => {
+  const handleContactSeller = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     if (isGuest || !currentUser) {
       router.push('/signup');
-    } else {
+      return;
+    }
+    if (!selectedListing) return;
+
+    try {
+      // Create or get existing conversation with seller
+      const conversationId = await getOrCreateConversation(currentUser.id, selectedListing.seller.id);
       setSelectedListing(null);
+      // Navigate to the conversation
+      router.push({
+        pathname: '/conversation/[id]',
+        params: {
+          id: conversationId,
+          otherUserName: selectedListing.seller.name,
+          otherUserAvatar: selectedListing.seller.avatar,
+        },
+      } as any);
+    } catch (error) {
+      console.error('Error creating conversation:', error);
+      Alert.alert('Error', 'Could not start conversation. Please try again.');
     }
   };
 

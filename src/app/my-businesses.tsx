@@ -19,6 +19,7 @@ import {
   CheckCircle,
   Calendar,
   CalendarCheck,
+  Package,
 } from 'lucide-react-native';
 import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -221,30 +222,46 @@ export default function MyBusinessesScreen() {
                             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                             setSelectedBusiness(null);
                             router.push({
-                              pathname: '/business-appointments',
+                              pathname: '/manage-inventory',
                               params: { businessId: selectedBusiness.id, businessName: selectedBusiness.name },
                             });
                           }}
-                          className="flex-1 mr-2 bg-emerald-50 rounded-xl py-4 flex-row items-center justify-center"
+                          className="flex-1 mr-2 bg-purple-50 rounded-xl py-4 flex-row items-center justify-center"
                         >
-                          <CalendarCheck size={18} color="#10B981" />
-                          <Text className="text-emerald-600 font-semibold ml-2">Appointments</Text>
+                          <Package size={18} color="#8B5CF6" />
+                          <Text className="text-purple-600 font-semibold ml-2">Inventory</Text>
                         </Pressable>
                         <Pressable
                           onPress={() => {
                             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                             setSelectedBusiness(null);
                             router.push({
-                              pathname: '/manage-booking-calendar',
+                              pathname: '/business-appointments',
                               params: { businessId: selectedBusiness.id, businessName: selectedBusiness.name },
                             });
                           }}
-                          className="flex-1 ml-2 bg-blue-50 rounded-xl py-4 flex-row items-center justify-center"
+                          className="flex-1 ml-2 bg-emerald-50 rounded-xl py-4 flex-row items-center justify-center"
                         >
-                          <Calendar size={18} color="#2563EB" />
-                          <Text className="text-blue-600 font-semibold ml-2">Calendar</Text>
+                          <CalendarCheck size={18} color="#10B981" />
+                          <Text className="text-emerald-600 font-semibold ml-2">Appointments</Text>
                         </Pressable>
                       </View>
+
+                      {/* Calendar Button */}
+                      <Pressable
+                        onPress={() => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                          setSelectedBusiness(null);
+                          router.push({
+                            pathname: '/manage-booking-calendar',
+                            params: { businessId: selectedBusiness.id, businessName: selectedBusiness.name },
+                          });
+                        }}
+                        className="mb-3 bg-blue-50 rounded-xl py-4 flex-row items-center justify-center"
+                      >
+                        <Calendar size={18} color="#2563EB" />
+                        <Text className="text-blue-600 font-semibold ml-2">Manage Booking Calendar</Text>
+                      </Pressable>
 
                       {/* Edit/Delete Buttons */}
                       <View className="flex-row">

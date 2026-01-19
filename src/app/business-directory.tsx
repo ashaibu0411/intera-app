@@ -32,6 +32,7 @@ import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { useStore, MOCK_COMMUNITIES } from '@/lib/store';
 import { getBusinesses } from '@/lib/marketplace-api';
+import { getOrCreateConversation } from '@/lib/messages';
 
 // Business categories
 const CATEGORIES = [
@@ -44,132 +45,7 @@ const CATEGORIES = [
   { id: 'education', label: 'Education', icon: GraduationCap },
   { id: 'auto', label: 'Auto', icon: Car },
   { id: 'realestate', label: 'Real Estate', icon: Home },
-];
-
-// Mock businesses
-const MOCK_BUSINESSES = [
-  {
-    id: '1',
-    name: "Amara's African Kitchen",
-    category: 'food',
-    description: 'Authentic West African cuisine with a modern twist. Specializing in Senegalese and Nigerian dishes.',
-    image: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800&h=600&fit=crop',
-    logo: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=200&h=200&fit=crop',
-    rating: 4.8,
-    reviews: 124,
-    location: 'Denver, CO',
-    address: '1234 Five Points, Denver, CO 80205',
-    phone: '+1 (303) 555-0123',
-    website: 'www.amaraskitchen.com',
-    hours: 'Mon-Sat: 11AM-10PM',
-    isVerified: true,
-    isFeatured: true,
-    acceptsBookings: false,
-  },
-  {
-    id: '2',
-    name: 'African Braids & Beauty',
-    category: 'beauty',
-    description: 'Professional African hair braiding, styling, and beauty services. Walk-ins welcome!',
-    image: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=800&h=600&fit=crop',
-    logo: 'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=200&h=200&fit=crop',
-    rating: 4.9,
-    reviews: 89,
-    location: 'Denver, CO',
-    address: '567 Colfax Ave, Denver, CO 80203',
-    phone: '+1 (303) 555-0456',
-    hours: 'Tue-Sun: 9AM-7PM',
-    isVerified: true,
-    isFeatured: true,
-    acceptsBookings: true,
-  },
-  {
-    id: '3',
-    name: 'Kente Clothiers',
-    category: 'retail',
-    description: 'Traditional African clothing, fabrics, and accessories. Custom tailoring available.',
-    image: 'https://images.unsplash.com/photo-1590735213920-68192a487bc2?w=800&h=600&fit=crop',
-    logo: 'https://images.unsplash.com/photo-1558171813-4c088753af8f?w=200&h=200&fit=crop',
-    rating: 4.7,
-    reviews: 56,
-    location: 'Denver, CO',
-    address: '890 Martin Luther King Blvd, Denver, CO 80205',
-    phone: '+1 (303) 555-0789',
-    hours: 'Mon-Sat: 10AM-6PM',
-    isVerified: true,
-    isFeatured: false,
-    acceptsBookings: false,
-  },
-  {
-    id: '4',
-    name: 'Ubuntu Tax Services',
-    category: 'services',
-    description: 'Professional tax preparation, bookkeeping, and financial consulting for individuals and businesses.',
-    image: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=800&h=600&fit=crop',
-    logo: 'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=200&h=200&fit=crop',
-    rating: 4.9,
-    reviews: 78,
-    location: 'Denver, CO',
-    address: '123 Business Park, Denver, CO 80202',
-    phone: '+1 (303) 555-0321',
-    website: 'www.ubuntutax.com',
-    hours: 'Mon-Fri: 9AM-5PM',
-    isVerified: true,
-    isFeatured: false,
-    acceptsBookings: false,
-  },
-  {
-    id: '5',
-    name: 'Nkrumah Auto Repair',
-    category: 'auto',
-    description: 'Reliable auto repair and maintenance. Honest pricing and quality service guaranteed.',
-    image: 'https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?w=800&h=600&fit=crop',
-    logo: 'https://images.unsplash.com/photo-1530046339160-ce3e530c7d2f?w=200&h=200&fit=crop',
-    rating: 4.6,
-    reviews: 42,
-    location: 'Denver, CO',
-    address: '456 Industrial Blvd, Aurora, CO 80011',
-    phone: '+1 (303) 555-0654',
-    hours: 'Mon-Sat: 8AM-6PM',
-    isVerified: false,
-    isFeatured: false,
-    acceptsBookings: false,
-  },
-  {
-    id: '6',
-    name: 'Dr. Okonkwo Family Medicine',
-    category: 'health',
-    description: 'Comprehensive family healthcare with a culturally sensitive approach. Accepting new patients.',
-    image: 'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=800&h=600&fit=crop',
-    logo: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=200&h=200&fit=crop',
-    rating: 4.9,
-    reviews: 156,
-    location: 'Denver, CO',
-    address: '789 Medical Center Dr, Denver, CO 80206',
-    phone: '+1 (303) 555-0987',
-    website: 'www.drokonkwo.com',
-    hours: 'Mon-Fri: 8AM-5PM',
-    isVerified: true,
-    isFeatured: true,
-    acceptsBookings: true,
-  },
-  {
-    id: '7',
-    name: "King's Kutz Barbershop",
-    category: 'beauty',
-    description: 'Premium barbershop specializing in fades, lineups, and beard grooming. Book online!',
-    image: 'https://images.unsplash.com/photo-1585747860715-2ba37e788b70?w=800&h=600&fit=crop',
-    logo: 'https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=200&h=200&fit=crop',
-    rating: 4.9,
-    reviews: 203,
-    location: 'Denver, CO',
-    address: '321 Five Points, Denver, CO 80205',
-    phone: '+1 (303) 555-0777',
-    hours: 'Mon-Sat: 9AM-7PM',
-    isVerified: true,
-    isFeatured: true,
-    acceptsBookings: true,
-  },
+  { id: 'market', label: 'African Markets', icon: ShoppingBag },
 ];
 
 interface DbBusiness {
@@ -253,13 +129,18 @@ export default function BusinessDirectoryScreen() {
     hours: b.hours || 'Contact for hours',
     isVerified: b.is_verified,
     isFeatured: b.is_featured,
+    isAfricanMarket: b.is_african_market,
     acceptsBookings: b.accepts_bookings ?? false, // Use actual DB value
+    ownerId: b.owner_id,
   }));
 
-  const allBusinesses = [...supabaseBusinesses, ...MOCK_BUSINESSES];
+  // Use only real data from database - no mock data
+  const allBusinesses = supabaseBusinesses;
 
   const filteredBusinesses = allBusinesses.filter((business) => {
-    const matchesCategory = selectedCategory === 'all' || business.category.toLowerCase().includes(selectedCategory);
+    const matchesCategory = selectedCategory === 'all' ||
+      business.category.toLowerCase().includes(selectedCategory) ||
+      (selectedCategory === 'market' && business.isAfricanMarket);
     const matchesSearch = business.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       business.description.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCategory && matchesSearch;
@@ -276,15 +157,26 @@ export default function BusinessDirectoryScreen() {
     }
   };
 
-  const handleMessageBusiness = (businessId: string, businessName: string) => {
+  const handleMessageBusiness = async (businessOwnerId: string, businessName: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     if (isGuest || !currentUser) {
       router.push('/signup');
-    } else {
+      return;
+    }
+
+    try {
+      // Create or get existing conversation with business owner
+      const conversationId = await getOrCreateConversation(currentUser.id, businessOwnerId);
       router.push({
-        pathname: '/messages',
-        params: { businessId, businessName },
-      });
+        pathname: '/conversation/[id]',
+        params: {
+          id: conversationId,
+          otherUserName: businessName,
+        },
+      } as any);
+    } catch (error) {
+      console.error('Error creating conversation:', error);
+      Alert.alert('Error', 'Could not start conversation. Please try again.');
     }
   };
 
@@ -592,7 +484,7 @@ export default function BusinessDirectoryScreen() {
                       <Phone size={14} color="#1B4D3E" />
                       <Text className="text-forest-700 text-sm font-medium ml-1">Call</Text>
                     </Pressable>
-                    <Pressable onPress={() => handleMessageBusiness(business.id, business.name)} className="flex-row items-center flex-1">
+                    <Pressable onPress={() => handleMessageBusiness(business.ownerId, business.name)} className="flex-row items-center flex-1">
                       <MessageCircle size={14} color="#C9A227" />
                       <Text className="text-gold-600 text-sm font-medium ml-1">Message</Text>
                     </Pressable>

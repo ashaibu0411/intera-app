@@ -165,19 +165,36 @@ Instead of showing posts first, your home feed now shows:
 - Buy and sell products, crafts, and services
 - Home-based and store-based sellers
 - Product categories: Fashion, Food, Art, Beauty, Electronics, etc.
-- Direct messaging to contact sellers
+- **Direct messaging to contact sellers** - Start conversations directly from listings
 - Product listings with images, prices, and descriptions
 - View count and listing details
+- **Real-time data** - All listings from Supabase database (no mock data)
 - **Create Listing** (`/create-listing`): Users can list items for sale with photos, pricing, category, condition, and description
 
 ### Business Directory
 - Browse local businesses by category
-- Categories: Food, Beauty, Retail, Services, Health, Education, Auto, Real Estate
+- Categories: Food, Beauty, Retail, Services, Health, Education, Auto, Real Estate, **African Markets**
 - Featured businesses with ratings and reviews
 - Quick actions: Call, Message, Directions
+- **Real-time data** - All businesses from Supabase database (no mock data)
+- **Direct Messaging**: Contact business owners directly through the app with real conversations
 - **Register Business** (`/register-business`): 3-step form to register your business with logo, cover photo, contact info, and description
 - **Cultural Market Mode**: Special feature for grocery stores to manage real-time inventory
-- **Direct Messaging**: Contact businesses directly through the app
+- **Business Inventory Display**: Customers can view what's in stock when visiting a business page
+  - Horizontal scroll of in-stock items with prices
+  - Out-of-stock items shown separately
+  - Tap any item for full details (price, description, availability)
+  - "Contact About This Item" button to start conversation with pre-filled message
+- **Inventory Management** (`/manage-inventory`): Businesses can manage their product inventory
+  - Add new items with name, description, price, category, and image
+  - Toggle stock status (in stock/out of stock)
+  - Set quantity for inventory tracking
+  - Edit or delete existing items
+  - Real-time sync with Supabase
+- **Business Community Posts**: Businesses can post to the community feed
+  - Toggle between posting as yourself or your business
+  - Business posts are prefixed with the business name and icon
+  - Reach your community with announcements, promotions, and updates
 
 ### Faith & Community
 - Post religious services and faith events
