@@ -174,16 +174,34 @@ export interface ParticipantWithProfile extends DbVoiceRoomParticipant {
 }
 
 export async function listParticipantsWithProfiles(roomId: string): Promise<ParticipantWithProfile[]> {
-  const { data, error } = await supabase
+  // First get participants
+  const { data: participants, error } = await supabase
     .from('voice_room_participants')
-    .select(`
-      *,
-      profile:profiles!user_id(id, name, avatar_url)
-    `)
+    .select('*')
     .eq('room_id', roomId)
     .order('joined_at', { ascending: true });
+
   if (error) throw error;
-  return (data ?? []) as ParticipantWithProfile[];
+  if (!participants || participants.length === 0) return [];
+
+  // Get unique user IDs
+  const userIds = [...new Set(participants.map(p => p.user_id))];
+
+  // Fetch profiles separately
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('id, name, avatar_url')
+    .in('id', userIds);
+
+  // Create a map of profiles by user ID
+  const profileMap = new Map<string, { id: string; name: string; avatar_url: string | null }>();
+  (profiles ?? []).forEach(p => profileMap.set(p.id, p));
+
+  // Merge participants with profiles
+  return participants.map(p => ({
+    ...p,
+    profile: profileMap.get(p.user_id) ?? undefined
+  })) as ParticipantWithProfile[];
 }
 
 // Moderation functions
