@@ -162,8 +162,8 @@ function extractClipsObjectPathFromStorageUrl(url: string): string | null {
  * - raw storage object paths like `<userId>/<ts>.mp4`
  *
  * Behavior:
- * - try a signed URL first (works for private buckets when user has read access)
- * - fall back to a public URL
+ * - ALWAYS try signed URL first (required for private buckets)
+ * - Only fall back to public URL if signing fails AND bucket is public
  */
 export async function resolveClipVideoUrl(
   videoUrlOrPath: string,
@@ -172,9 +172,19 @@ export async function resolveClipVideoUrl(
   const raw = String(videoUrlOrPath || '').trim();
   if (!raw) return '';
 
-  // If this is already a signed URL with a token, keep it (it may still be valid).
-  // We still support re-signing elsewhere (Clips tab) when playback fails.
+  // If this is already a signed URL with a token, check if it might be expired
+  // Signed URLs typically expire, so we should re-sign if possible
   if ((raw.includes('/storage/v1/object/sign/clips/') || raw.includes('/storage/v1/object/sign/')) && raw.includes('token=')) {
+    // Extract the path and re-sign to ensure fresh token
+    const objectPath = extractClipsObjectPathFromStorageUrl(raw);
+    if (objectPath) {
+      const expiresInSeconds = Math.max(60, Math.floor(opts?.expiresInSeconds ?? 60 * 60));
+      const { data: signed, error: signedError } = await supabase.storage
+        .from('clips')
+        .createSignedUrl(objectPath, expiresInSeconds);
+      if (!signedError && signed?.signedUrl) return signed.signedUrl;
+    }
+    // If re-signing fails, return original (may still work)
     return raw;
   }
 
@@ -183,12 +193,17 @@ export async function resolveClipVideoUrl(
   const expiresInSeconds = Math.max(60, Math.floor(opts?.expiresInSeconds ?? 60 * 60));
 
   if (objectPath) {
-    // Prefer signed URL (handles private buckets). Falls back to public URL.
+    // ALWAYS try signed URL first - this is required for private buckets
     const { data: signed, error: signedError } = await supabase.storage
       .from('clips')
       .createSignedUrl(objectPath, expiresInSeconds);
 
-    if (!signedError && signed?.signedUrl) return signed.signedUrl;
+    if (!signedError && signed?.signedUrl) {
+      console.log('[clips-api] Using signed URL for:', objectPath);
+      return signed.signedUrl;
+    }
+
+    console.log('[clips-api] Signed URL failed:', signedError?.message, '- trying edge function');
 
     // If client-side signing fails (common for guests / strict Storage policies),
     // try the Edge Function signer (uses service role server-side).
@@ -196,11 +211,17 @@ export async function resolveClipVideoUrl(
       const { data: fnData, error: fnError } = await supabase.functions.invoke('sign-clip-url', {
         body: { path: objectPath, expiresInSeconds },
       });
-      if (!fnError && (fnData as any)?.signedUrl) return String((fnData as any).signedUrl);
-    } catch {
-      // ignore and fall back to public URL
+      if (!fnError && (fnData as any)?.signedUrl) {
+        console.log('[clips-api] Using edge function signed URL');
+        return String((fnData as any).signedUrl);
+      }
+      console.log('[clips-api] Edge function signing failed:', fnError?.message);
+    } catch (e: any) {
+      console.log('[clips-api] Edge function error:', e?.message);
     }
 
+    // Last resort: try public URL (only works if bucket is public)
+    console.log('[clips-api] Falling back to public URL - this will fail if bucket is private');
     const { data: publicUrl } = supabase.storage.from('clips').getPublicUrl(objectPath);
     return publicUrl.publicUrl;
   }
