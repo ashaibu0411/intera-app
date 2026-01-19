@@ -296,7 +296,7 @@ export default function FaithCommunityScreen() {
                 <Heart size={24} color="#C9A227" />
               </View>
               <View>
-                <Text className="text-2xl font-bold text-warmBrown">Faith Communities</Text>
+                <Text className="text-2xl font-bold text-warmBrown">Faith Groups & Communities</Text>
                 <Text className="text-sm text-gray-500">Churches, mosques & groups — together</Text>
               </View>
             </View>
