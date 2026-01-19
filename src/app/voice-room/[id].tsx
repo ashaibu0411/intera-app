@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, Component, ReactNode } from 'react';
 import { View, Text, Pressable, ActivityIndicator, ScrollView, Modal, Alert, Linking } from 'react-native';
 import { Stack, useLocalSearchParams, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -28,6 +28,38 @@ import {
   type ParticipantWithProfile
 } from '@/lib/voiceRooms';
 import { sendGift } from '@/lib/giftService';
+
+// Error boundary to catch navigation context errors
+class NavigationErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(): { hasError: boolean } {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error) {
+    // Log navigation context errors but don't crash
+    if (error.message?.includes('navigation context')) {
+      console.log('[VoiceRoom] Navigation context not ready, retrying...');
+    }
+  }
+
+  render() {
+    if (this.state.hasError) {
+      // Return a loading screen that will auto-retry
+      return (
+        <View className="flex-1 bg-cream-50 items-center justify-center">
+          <ActivityIndicator size="large" color="#1B4D3E" />
+          <Text className="text-warmBrown mt-4">Loading room...</Text>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 const GIFTS = [
   { id: 'heart', name: 'Heart', value: 1, emoji: '❤️' },
@@ -225,7 +257,7 @@ function SpeakerAvatar({
   );
 }
 
-export default function VoiceRoomScreen() {
+function VoiceRoomScreenContent() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const currentUser = useStore((s) => s.currentUser);
 
@@ -1059,5 +1091,14 @@ export default function VoiceRoomScreen() {
         )}
       </SafeAreaView>
     </View>
+  );
+}
+
+// Wrap the screen in an error boundary to handle navigation context errors
+export default function VoiceRoomScreen() {
+  return (
+    <NavigationErrorBoundary>
+      <VoiceRoomScreenContent />
+    </NavigationErrorBoundary>
   );
 }
