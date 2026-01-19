@@ -159,17 +159,17 @@ export default function HomeHubScreen() {
           <View className="px-4 mt-3">
             <View className="flex-row flex-wrap" style={{ gap: 12 }}>
               <PhotoTile
-                title="For Sale & Free"
-                subtitle="Marketplace"
-                imageUri="https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=1600&q=90"
-                onPress={() => go('/marketplace')}
+                title="Community"
+                subtitle="Feed"
+                imageUri="https://images.unsplash.com/photo-1517486808906-6ca8b3f04846?w=1600&q=90"
+                onPress={() => go('/community')}
                 size="lg"
               />
               <PhotoTile
-                title="Hire a Pro"
-                subtitle="Trusted helpers"
-                imageUri="https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=1600&q=90"
-                onPress={() => go('/trusted-providers')}
+                title="Events"
+                subtitle="Near you"
+                imageUri="https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=1600&q=90"
+                onPress={() => go('/events')}
                 size="lg"
               />
               <PhotoTile
@@ -179,22 +179,12 @@ export default function HomeHubScreen() {
                 onPress={() => go('/voice-rooms')}
               />
               <PhotoTile
-                title="Student Hub"
-                subtitle="Guides & tools"
-                imageUri="https://images.unsplash.com/photo-1427504494785-3a9ca7044f45?w=1600&q=90"
-                onPress={() => go('/student-hub')}
-              />
-              <PhotoTile
-                title="Community"
-                subtitle="Feed"
-                imageUri="https://images.unsplash.com/photo-1517486808906-6ca8b3f04846?w=1600&q=90"
-                onPress={() => go('/community')}
-              />
-              <PhotoTile
-                title="Events"
-                subtitle="Near you"
-                imageUri="https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=1600&q=90"
-                onPress={() => go('/events')}
+                title="Alerts"
+                subtitle="Safety"
+                imageUri="https://images.unsplash.com/photo-1557683316-973673baf926?w=1600&q=90"
+                onPress={() => go('/safety-alerts')}
+                badgeText={String(incidentCount)}
+                badgeTone={incidentCount > 0 ? 'danger' : 'info'}
               />
               <PhotoTile
                 title="Utilities"
@@ -205,12 +195,22 @@ export default function HomeHubScreen() {
                 badgeTone={utilityIssueCount > 0 ? 'warning' : 'info'}
               />
               <PhotoTile
-                title="Alerts"
-                subtitle="Safety"
-                imageUri="https://images.unsplash.com/photo-1557683316-973673baf926?w=1600&q=90"
-                onPress={() => go('/safety-alerts')}
-                badgeText={String(incidentCount)}
-                badgeTone={incidentCount > 0 ? 'danger' : 'info'}
+                title="For Sale & Free"
+                subtitle="Marketplace"
+                imageUri="https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=1600&q=90"
+                onPress={() => go('/marketplace')}
+              />
+              <PhotoTile
+                title="Hire a Pro"
+                subtitle="Trusted helpers"
+                imageUri="https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=1600&q=90"
+                onPress={() => go('/trusted-providers')}
+              />
+              <PhotoTile
+                title="Student Hub"
+                subtitle="Guides & tools"
+                imageUri="https://images.unsplash.com/photo-1427504494785-3a9ca7044f45?w=1600&q=90"
+                onPress={() => go('/student-hub')}
               />
             </View>
           </View>
