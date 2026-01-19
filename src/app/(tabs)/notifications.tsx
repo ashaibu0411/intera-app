@@ -2,7 +2,7 @@ import React, { useMemo, useEffect, useState } from 'react';
 import { View, Text, ScrollView, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
-import { Bell, Heart, MessageCircle, Calendar, AlertTriangle, Check } from 'lucide-react-native';
+import { Bell, Heart, MessageCircle, Calendar, AlertTriangle, Check, ArrowLeft } from 'lucide-react-native';
 import Animated, { FadeIn, FadeInUp, FadeInRight } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { formatDistanceToNow } from 'date-fns';
@@ -153,6 +153,16 @@ export default function NotificationsScreen() {
         <Animated.View entering={FadeIn.duration(300)} className="px-5 pt-4 pb-3">
           <View className="flex-row items-center justify-between mb-4">
             <View className="flex-row items-center">
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  router.back();
+                }}
+                className="mr-3 p-1"
+                hitSlop={8}
+              >
+                <ArrowLeft size={24} color="#2D1F1A" />
+              </Pressable>
               <Text className="text-2xl font-bold text-warmBrown">Notifications</Text>
               {unreadCount > 0 && (
                 <View className="ml-2 bg-terracotta-500 rounded-full px-2.5 py-0.5">
