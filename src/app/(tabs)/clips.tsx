@@ -519,7 +519,12 @@ function ClipItem({ clip, isActive, isMuted, onToggleMute, onBlockUser, onReport
             <ExpoVideo
               ref={videoRef}
               key={`${clip.id}:${reloadNonce}`}
-              source={{ uri: playUrl }}
+              source={{
+                uri: playUrl,
+                headers: {
+                  'Accept': 'video/*',
+                },
+              }}
               style={{ position: 'absolute', width: '100%', height: '100%' }}
               resizeMode={ResizeMode.COVER}
               isLooping
@@ -530,10 +535,12 @@ function ClipItem({ clip, isActive, isMuted, onToggleMute, onBlockUser, onReport
                 // Some failures don't populate status.error reliably, so capture the event too.
                 setVideoFailed(true);
                 setIsLoading(false);
-                try {
-                  setVideoError(JSON.stringify(e));
-                } catch {
-                  setVideoError('Unknown video error');
+                const errorStr = typeof e === 'string' ? e : JSON.stringify(e);
+                // Check for common iOS AVFoundation errors
+                if (errorStr.includes('-11850') || errorStr.includes('AVFoundation')) {
+                  setVideoError('Video format not supported on this device. The video may need to be re-encoded.');
+                } else {
+                  setVideoError(errorStr);
                 }
                 if (playUrl) void probeVideoUrlOnce(playUrl);
                 // Best-effort: if this was a 403/public URL, try to re-resolve via signed URL.
@@ -566,18 +573,10 @@ function ClipItem({ clip, isActive, isMuted, onToggleMute, onBlockUser, onReport
         {videoFailed ? (
           <View style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18 }}>
             <View style={{ backgroundColor: 'rgba(0,0,0,0.65)', borderRadius: 18, padding: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)', width: '100%' }}>
-              <Text style={{ color: '#fff', fontWeight: '900', fontSize: 16 }}>Video failed to load</Text>
+              <Text style={{ color: '#fff', fontWeight: '900', fontSize: 16 }}>Video unavailable</Text>
               <Text style={{ color: 'rgba(255,255,255,0.85)', marginTop: 6 }}>
-                This is usually a Supabase Storage permission issue (403) or a bad URL.
+                {videoError || 'This video could not be played.'}
               </Text>
-              <Text style={{ color: 'rgba(255,255,255,0.70)', marginTop: 8 }} numberOfLines={2}>
-                URL: {clip.videoUrl || '(missing)'}
-              </Text>
-              {videoError ? (
-                <Text style={{ color: 'rgba(255,255,255,0.70)', marginTop: 8 }} numberOfLines={3}>
-                  {videoError}
-                </Text>
-              ) : null}
               <Pressable
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -936,16 +935,36 @@ export default function ClipsTabScreen() {
         const db = await getClips(50, 0);
         if (cancelled) return;
 
-        const mapped: Clip[] = await Promise.all((db ?? [])
+        const mappedPromises = (db ?? [])
           // Skip bad local-only URIs that won't load after upload
           .filter((c) => !String(c.video_url || '').startsWith('file://') && !String(c.video_url || '').startsWith('ph://'))
           .map(async (c) => {
             let resolved = '';
+            let validUrl = false;
             try {
               resolved = await resolveClipVideoUrl(c.video_url, { expiresInSeconds: 60 * 60 });
+              // Check if the URL contains 'Object not found' indicator or is empty
+              validUrl = !!resolved && !resolved.includes('undefined') && resolved.length > 10;
+
+              // Verify the video actually exists by doing a HEAD request
+              if (validUrl && resolved) {
+                try {
+                  const checkRes = await fetch(resolved, { method: 'HEAD' });
+                  validUrl = checkRes.ok;
+                  if (!checkRes.ok) {
+                    console.log('[clips] Video not accessible:', c.video_url, 'status:', checkRes.status);
+                  }
+                } catch (fetchErr) {
+                  console.log('[clips] Could not verify video URL:', c.video_url);
+                  // Still try to use it - might work on device
+                  validUrl = true;
+                }
+              }
             } catch {
               resolved = String(c.video_url || '');
+              validUrl = false;
             }
+
             return {
               id: c.id,
               user: {
@@ -959,7 +978,7 @@ export default function ClipsTabScreen() {
                 isFollowing: false,
               },
               rawVideoUrl: String(c.video_url || ''),
-              videoUrl: resolved || undefined,
+              videoUrl: validUrl ? resolved : undefined,
               thumbnail:
                 c.thumbnail_url ??
                 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=800&h=1400&fit=crop',
@@ -972,10 +991,16 @@ export default function ClipsTabScreen() {
               isLiked: false,
               isSaved: false,
               createdAt: c.created_at,
+              _validVideo: validUrl,
             };
-          }));
+          });
 
-        setFeedClips(mapped.length ? mapped : MOCK_CLIPS);
+        const mapped = (await Promise.all(mappedPromises)) as Clip[];
+
+        // Filter to only show clips with valid videos, or fall back to showing thumbnail-only
+        const validClips = mapped.filter((c) => (c as any)._validVideo || c.thumbnail);
+
+        setFeedClips(validClips.length ? validClips : MOCK_CLIPS);
       } catch (e: any) {
         if (!cancelled) {
           setFeedClips(MOCK_CLIPS);
