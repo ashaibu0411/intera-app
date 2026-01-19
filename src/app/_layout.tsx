@@ -143,6 +143,8 @@ function RootLayoutNav() {
         <Stack.Screen name="event/[id]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="post/[id]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="profile/[id]" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="group/[id]" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="group/[id]/settings" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="messages" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="notifications" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="search" options={{ animation: 'slide_from_right' }} />

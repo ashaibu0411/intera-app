@@ -27,6 +27,7 @@ import {
   ChevronDown,
   Sparkles,
   TrendingUp,
+  Trash2,
 } from 'lucide-react-native';
 import Animated, {
   FadeIn,
@@ -50,7 +51,7 @@ import * as DropdownMenu from 'zeego/dropdown-menu';
 import { useStore } from '@/lib/store';
 import { reportBlockedUser } from '@/lib/reports';
 import type { ViolationType } from '@/lib/contentModeration';
-import { getClips, resolveClipVideoUrl } from '@/lib/clips-api';
+import { getClips, resolveClipVideoUrl, deleteClip } from '@/lib/clips-api';
 
 // Report reasons for App Store Guideline 1.2 compliance
 const REPORT_REASONS: { id: ViolationType | 'other'; label: string; description: string }[] = [
@@ -245,6 +246,8 @@ interface ClipItemProps {
   onReportUser: () => void;
   onComment: () => void;
   onShare: () => void;
+  onDelete?: () => void;
+  isOwnClip?: boolean;
   itemHeight: number;
   itemWidth: number;
 }
@@ -292,7 +295,7 @@ class ClipsErrorBoundary extends React.Component<
   }
 }
 
-function ClipItem({ clip, isActive, isMuted, onToggleMute, onBlockUser, onReportUser, onComment, onShare, itemHeight, itemWidth }: ClipItemProps) {
+function ClipItem({ clip, isActive, isMuted, onToggleMute, onBlockUser, onReportUser, onComment, onShare, onDelete, isOwnClip, itemHeight, itemWidth }: ClipItemProps) {
   const insets = useSafeAreaInsets();
   const [liked, setLiked] = useState(clip.isLiked);
   const [saved, setSaved] = useState(clip.isSaved);
@@ -740,6 +743,14 @@ function ClipItem({ clip, isActive, isMuted, onToggleMute, onBlockUser, onReport
               </Pressable>
             </DropdownMenu.Trigger>
             <DropdownMenu.Content>
+              {isOwnClip && onDelete && (
+                <DropdownMenu.Item key="delete" onSelect={onDelete} destructive>
+                  <DropdownMenu.ItemIcon ios={{ name: 'trash' }}>
+                    <Trash2 size={18} color="#EF4444" />
+                  </DropdownMenu.ItemIcon>
+                  <DropdownMenu.ItemTitle>Delete Clip</DropdownMenu.ItemTitle>
+                </DropdownMenu.Item>
+              )}
               <DropdownMenu.Item key="report" onSelect={onReportUser}>
                 <DropdownMenu.ItemIcon ios={{ name: 'flag' }}>
                   <Flag size={18} color="#EF4444" />
@@ -1093,6 +1104,40 @@ export default function ClipsTabScreen() {
     }
   };
 
+  const handleDeleteClip = async (clip: Clip) => {
+    if (!currentUser?.id) return;
+
+    Alert.alert(
+      'Delete Clip',
+      'Are you sure you want to delete this clip? This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            try {
+              const success = await deleteClip(clip.id, currentUser.id);
+              if (success) {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                // Remove from local state
+                setFeedClips((prev: Clip[]) => prev.filter((c: Clip) => c.id !== clip.id));
+              } else {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                Alert.alert('Error', 'Failed to delete clip. Please try again.');
+              }
+            } catch (error) {
+              console.error('Error deleting clip:', error);
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+              Alert.alert('Error', 'An error occurred. Please try again.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   // Configure audio mode to play sound even when phone is on silent
   useEffect(() => {
     const configureAudio = async () => {
@@ -1252,6 +1297,8 @@ export default function ClipsTabScreen() {
               onReportUser={() => handleReportUser({ id: item.user.id, name: item.user.name, avatar: item.user.avatar })}
               onComment={() => handleComment(item)}
               onShare={() => handleShare(item)}
+              onDelete={() => handleDeleteClip(item)}
+              isOwnClip={item.user.id === currentUser?.id}
               itemHeight={pagerHeight}
               itemWidth={SCREEN_WIDTH}
             />

@@ -43,9 +43,19 @@ import {
   Pin,
   Trash2,
   FileText,
+  UserPlus,
+  Check,
+  XCircle,
+  Video,
 } from 'lucide-react-native';
 import { useStore } from '@/lib/store';
 import type { DbGroup, DbGroupPost, DbGroupEvent, DbGroupAlbum, DbGroupFile, DbGroupMember } from '@/lib/supabase';
+import {
+  getGroupSettings,
+  requestToJoinGroup,
+  type GroupSettings,
+  DEFAULT_GROUP_SETTINGS,
+} from '@/lib/groups-api';
 
 type GroupTab = 'home' | 'posts' | 'events' | 'albums';
 
@@ -201,6 +211,9 @@ export default function GroupDetailScreen() {
   const [newPostImages, setNewPostImages] = useState<string[]>([]);
   const [isPostingPost, setIsPostingPost] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
+  const [groupSettings, setGroupSettings] = useState<GroupSettings>(DEFAULT_GROUP_SETTINGS);
+  const [joinRequestPending, setJoinRequestPending] = useState(false);
+  const [isRequestingJoin, setIsRequestingJoin] = useState(false);
 
   const currentUser = useStore((s) => s.currentUser);
   const isGuest = useStore((s) => s.isGuest);
@@ -219,6 +232,16 @@ export default function GroupDetailScreen() {
       setAlbums(MOCK_ALBUMS);
       setFiles(MOCK_FILES);
       setMembers(MOCK_MEMBERS);
+
+      // Fetch group settings
+      if (id) {
+        try {
+          const settings = await getGroupSettings(id);
+          setGroupSettings(settings);
+        } catch (e) {
+          console.log('Using default group settings');
+        }
+      }
 
       // Check if current user is member/admin
       if (currentUser) {
@@ -251,9 +274,35 @@ export default function GroupDetailScreen() {
       return;
     }
 
-    // In real implementation, call joinGroup API
-    setIsMember(true);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    // Check join mode from settings
+    if (groupSettings.join_mode === 'request') {
+      // Request to join mode - submit a request
+      setIsRequestingJoin(true);
+      try {
+        if (id) {
+          const success = await requestToJoinGroup(id, currentUser.id);
+          if (success) {
+            setJoinRequestPending(true);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            Alert.alert('Request Sent', 'Your request to join has been sent to the group admin.');
+          } else {
+            Alert.alert('Error', 'Failed to send join request. Please try again.');
+          }
+        }
+      } catch (error) {
+        console.error('Error requesting to join:', error);
+        Alert.alert('Error', 'An error occurred. Please try again.');
+      } finally {
+        setIsRequestingJoin(false);
+      }
+    } else if (groupSettings.join_mode === 'invite_only') {
+      // Invite only - show message
+      Alert.alert('Invite Only', 'This group is invite-only. Please contact an admin to be invited.');
+    } else {
+      // Open mode - join immediately
+      setIsMember(true);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
   };
 
   const handleLeaveGroup = () => {
@@ -630,12 +679,22 @@ export default function GroupDetailScreen() {
                   >
                     <Text className="text-gray-700 font-semibold text-center">Leave Group</Text>
                   </Pressable>
+                ) : joinRequestPending ? (
+                  <View className="bg-amber-100 rounded-xl py-4 flex-row items-center justify-center">
+                    <Clock size={18} color="#D97706" />
+                    <Text className="text-amber-700 font-semibold text-center ml-2">Request Pending</Text>
+                  </View>
                 ) : (
                   <Pressable
                     onPress={handleJoinGroup}
-                    className="bg-forest-600 rounded-xl py-4"
+                    disabled={isRequestingJoin}
+                    className={`rounded-xl py-4 ${isRequestingJoin ? 'bg-gray-400' : 'bg-forest-600'}`}
                   >
-                    <Text className="text-white font-semibold text-center">Join Group</Text>
+                    <Text className="text-white font-semibold text-center">
+                      {isRequestingJoin ? 'Sending Request...' :
+                        groupSettings.join_mode === 'request' ? 'Request to Join' :
+                        groupSettings.join_mode === 'invite_only' ? 'Invite Only' : 'Join Group'}
+                    </Text>
                   </Pressable>
                 )}
               </View>
@@ -644,8 +703,8 @@ export default function GroupDetailScreen() {
 
           {activeTab === 'posts' && (
             <Animated.View entering={FadeIn.duration(300)} className="pb-6">
-              {/* Create Post Button */}
-              {isMember && (
+              {/* Create Post Button - Check settings */}
+              {isMember && (groupSettings.posts_creation === 'members' || isAdmin) && (
                 <Pressable
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -748,8 +807,8 @@ export default function GroupDetailScreen() {
 
           {activeTab === 'events' && (
             <Animated.View entering={FadeIn.duration(300)} className="pb-6">
-              {/* Create Event Button */}
-              {isAdmin && (
+              {/* Create Event Button - Check settings */}
+              {isMember && (groupSettings.events_creation === 'members' || isAdmin) && (
                 <Pressable
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -820,8 +879,8 @@ export default function GroupDetailScreen() {
 
           {activeTab === 'albums' && (
             <Animated.View entering={FadeIn.duration(300)} className="pb-6">
-              {/* Create Album Button */}
-              {isAdmin && (
+              {/* Create Album Button - Check settings */}
+              {isMember && (groupSettings.media_upload === 'members' || isAdmin) && (
                 <Pressable
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -830,7 +889,7 @@ export default function GroupDetailScreen() {
                   className="bg-forest-600 mx-4 mt-4 rounded-2xl p-4 flex-row items-center justify-center"
                 >
                   <Plus size={20} color="#FFFFFF" />
-                  <Text className="text-white font-semibold ml-2">Create Album</Text>
+                  <Text className="text-white font-semibold ml-2">Add Photos & Videos</Text>
                 </Pressable>
               )}
 

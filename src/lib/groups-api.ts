@@ -10,6 +10,64 @@ import type {
   DbGroupFile,
 } from './supabase';
 
+// Extended Group Settings interface
+export interface GroupSettings {
+  // Event settings
+  events_creation: 'admin_only' | 'members';
+  // Media/Album settings
+  media_upload: 'admin_only' | 'members';
+  // Membership settings
+  join_mode: 'open' | 'request' | 'invite_only';
+  // Post settings
+  posts_creation: 'admin_only' | 'members';
+  posts_media_allowed: boolean;
+}
+
+export interface DbGroupWithSettings extends DbGroup {
+  settings?: GroupSettings;
+}
+
+export interface DbGroupJoinRequest {
+  id: string;
+  group_id: string;
+  user_id: string;
+  status: 'pending' | 'approved' | 'rejected';
+  message?: string;
+  created_at: string;
+  user?: {
+    id: string;
+    name: string;
+    username: string;
+    avatar_url: string | null;
+  };
+}
+
+export interface DbGroupMedia {
+  id: string;
+  album_id: string;
+  uploader_id: string;
+  url: string;
+  type: 'photo' | 'video';
+  thumbnail_url?: string;
+  caption: string | null;
+  created_at: string;
+  uploader?: {
+    id: string;
+    name: string;
+    username: string;
+    avatar_url: string | null;
+  };
+}
+
+// Default settings for new groups
+export const DEFAULT_GROUP_SETTINGS: GroupSettings = {
+  events_creation: 'admin_only',
+  media_upload: 'members',
+  join_mode: 'open',
+  posts_creation: 'members',
+  posts_media_allowed: true,
+};
+
 // ============ GROUPS ============
 
 export async function getGroups(limit = 50): Promise<DbGroup[]> {
@@ -563,4 +621,223 @@ export async function searchGroups(query: string, limit = 20): Promise<DbGroup[]
     return [];
   }
   return (data || []) as DbGroup[];
+}
+
+// ============ JOIN REQUESTS ============
+
+export async function getGroupJoinRequests(groupId: string): Promise<DbGroupJoinRequest[]> {
+  const { data, error } = await supabase
+    .from('group_join_requests')
+    .select('*, user:profiles!user_id(*)')
+    .eq('group_id', groupId)
+    .eq('status', 'pending')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching join requests:', error);
+    return [];
+  }
+  return (data || []) as DbGroupJoinRequest[];
+}
+
+export async function requestToJoinGroup(groupId: string, userId: string, message?: string): Promise<DbGroupJoinRequest | null> {
+  const { data, error } = await supabase
+    .from('group_join_requests')
+    .insert({
+      group_id: groupId,
+      user_id: userId,
+      status: 'pending',
+      message,
+    })
+    .select('*, user:profiles!user_id(*)')
+    .single();
+
+  if (error) {
+    console.error('Error creating join request:', error);
+    return null;
+  }
+  return data as DbGroupJoinRequest;
+}
+
+export async function approveJoinRequest(requestId: string, groupId: string, userId: string): Promise<boolean> {
+  // Update request status
+  const { error: updateError } = await supabase
+    .from('group_join_requests')
+    .update({ status: 'approved' })
+    .eq('id', requestId);
+
+  if (updateError) {
+    console.error('Error approving join request:', updateError);
+    return false;
+  }
+
+  // Add user as member
+  await joinGroup(groupId, userId, 'member');
+  return true;
+}
+
+export async function rejectJoinRequest(requestId: string): Promise<boolean> {
+  const { error } = await supabase
+    .from('group_join_requests')
+    .update({ status: 'rejected' })
+    .eq('id', requestId);
+
+  if (error) {
+    console.error('Error rejecting join request:', error);
+    return false;
+  }
+  return true;
+}
+
+// ============ ADMIN MEMBER REMOVAL ============
+
+export async function removeMember(groupId: string, userId: string, removedBy: string): Promise<boolean> {
+  // Only admins can remove members - this check should be done in the UI
+  const { error } = await supabase
+    .from('group_members')
+    .delete()
+    .eq('group_id', groupId)
+    .eq('user_id', userId);
+
+  if (error) {
+    console.error('Error removing member:', error);
+    return false;
+  }
+
+  // Update member count
+  await supabase.rpc('decrement_group_member_count', { group_id: groupId });
+  return true;
+}
+
+// ============ GROUP SETTINGS ============
+
+export async function getGroupSettings(groupId: string): Promise<GroupSettings> {
+  const { data, error } = await supabase
+    .from('group_settings')
+    .select('*')
+    .eq('group_id', groupId)
+    .single();
+
+  if (error || !data) {
+    return DEFAULT_GROUP_SETTINGS;
+  }
+
+  return {
+    events_creation: data.events_creation || 'admin_only',
+    media_upload: data.media_upload || 'members',
+    join_mode: data.join_mode || 'open',
+    posts_creation: data.posts_creation || 'members',
+    posts_media_allowed: data.posts_media_allowed ?? true,
+  };
+}
+
+export async function updateGroupSettings(groupId: string, settings: Partial<GroupSettings>): Promise<boolean> {
+  const { error } = await supabase
+    .from('group_settings')
+    .upsert({
+      group_id: groupId,
+      ...settings,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'group_id' });
+
+  if (error) {
+    console.error('Error updating group settings:', error);
+    return false;
+  }
+  return true;
+}
+
+// ============ MEDIA (Photos & Videos) ============
+
+export async function getAlbumMedia(albumId: string): Promise<DbGroupMedia[]> {
+  const { data, error } = await supabase
+    .from('group_media')
+    .select('*, uploader:profiles!uploader_id(*)')
+    .eq('album_id', albumId)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    // Fallback to photos table if media table doesn't exist
+    const photos = await getAlbumPhotos(albumId);
+    return photos.map(p => ({
+      id: p.id,
+      album_id: p.album_id,
+      uploader_id: p.uploader_id,
+      url: p.url,
+      type: 'photo' as const,
+      caption: p.caption,
+      created_at: p.created_at,
+      uploader: p.uploader,
+    }));
+  }
+  return (data || []) as DbGroupMedia[];
+}
+
+export async function addMediaToAlbum(media: Omit<DbGroupMedia, 'id' | 'created_at' | 'uploader'>): Promise<DbGroupMedia | null> {
+  const { data, error } = await supabase
+    .from('group_media')
+    .insert(media)
+    .select('*, uploader:profiles!uploader_id(*)')
+    .single();
+
+  if (error) {
+    console.error('Error adding media:', error);
+    // Fallback to photos table for photos
+    if (media.type === 'photo') {
+      const photo = await addPhotoToAlbum({
+        album_id: media.album_id,
+        uploader_id: media.uploader_id,
+        url: media.url,
+        caption: media.caption,
+      });
+      if (photo) {
+        return {
+          id: photo.id,
+          album_id: photo.album_id,
+          uploader_id: photo.uploader_id,
+          url: photo.url,
+          type: 'photo',
+          caption: photo.caption,
+          created_at: photo.created_at,
+          uploader: photo.uploader,
+        };
+      }
+    }
+    return null;
+  }
+
+  await supabase.rpc('increment_album_photo_count', { album_id: media.album_id });
+  return data as DbGroupMedia;
+}
+
+export async function deleteMedia(mediaId: string, albumId: string): Promise<boolean> {
+  const { error } = await supabase
+    .from('group_media')
+    .delete()
+    .eq('id', mediaId);
+
+  if (error) {
+    // Fallback to photos table
+    return deletePhoto(mediaId, albumId);
+  }
+
+  await supabase.rpc('decrement_album_photo_count', { album_id: albumId });
+  return true;
+}
+
+// ============ CLIPS/VIDEOS DELETION ============
+
+export async function deleteClip(clipId: string, userId: string): Promise<boolean> {
+  // Only the owner can delete their clip
+  const { error } = await supabase
+    .from('clips')
+    .delete()
+    .eq('id', clipId)
+    .eq('user_id', userId);
+
+  if (error) {
+    console.error('Error deleting clip:', error);
+    return false;
+  }
+  return true;
 }
