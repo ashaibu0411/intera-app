@@ -20,6 +20,8 @@ import {
   Calendar,
   CalendarCheck,
   Package,
+  Link2,
+  QrCode,
 } from 'lucide-react-native';
 import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -215,6 +217,26 @@ export default function MyBusinessesScreen() {
 
                     {/* Action Buttons */}
                     <View className="mt-6 mb-4">
+                      {/* Booking Link Button */}
+                      <Pressable
+                        onPress={() => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                          setSelectedBusiness(null);
+                          router.push({
+                            pathname: '/business-booking-link',
+                            params: {
+                              businessId: selectedBusiness.id,
+                              businessName: selectedBusiness.name,
+                              businessLogo: selectedBusiness.logo || selectedBusiness.image,
+                            },
+                          });
+                        }}
+                        className="mb-3 bg-gold-50 rounded-xl py-4 flex-row items-center justify-center"
+                      >
+                        <QrCode size={18} color="#C9A227" />
+                        <Text className="text-gold-700 font-semibold ml-2">Get Booking Link & QR Code</Text>
+                      </Pressable>
+
                       {/* Booking Management Buttons */}
                       <View className="flex-row mb-3">
                         <Pressable

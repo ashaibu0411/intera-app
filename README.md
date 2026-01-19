@@ -500,6 +500,12 @@ The app is fully connected to Supabase for data persistence and syncing across u
   2. Pick Date & Time - Interactive calendar with available time slots
   3. Payment Method - Choose to pay in-app or at the location (cash)
   4. Confirm Booking - Review details and confirm appointment
+- **Unique Booking Links & QR Codes** (`/business-booking-link`):
+  - Each business gets a unique booking URL (e.g., `intera.app/book/BUSINESS_ID`)
+  - Scannable QR code that customers can scan to book instantly
+  - Short code for easy sharing (e.g., "ABCD1234")
+  - Share via WhatsApp, SMS, or any app
+  - Tips for promoting: print QR code at location, add to social media, business cards
 - **My Appointments** (`/my-appointments`):
   - View upcoming, past, and cancelled appointments
   - Appointment stats dashboard
