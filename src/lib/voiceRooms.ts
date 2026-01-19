@@ -164,6 +164,121 @@ export async function listParticipants(roomId: string): Promise<DbVoiceRoomParti
   return (data ?? []) as DbVoiceRoomParticipant[];
 }
 
+// Extended participant with profile info
+export interface ParticipantWithProfile extends DbVoiceRoomParticipant {
+  profile?: {
+    id: string;
+    name: string;
+    avatar_url: string | null;
+  };
+}
+
+export async function listParticipantsWithProfiles(roomId: string): Promise<ParticipantWithProfile[]> {
+  const { data, error } = await supabase
+    .from('voice_room_participants')
+    .select(`
+      *,
+      profile:profiles!user_id(id, name, avatar_url)
+    `)
+    .eq('room_id', roomId)
+    .order('joined_at', { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as ParticipantWithProfile[];
+}
+
+// Moderation functions
+export async function muteParticipant(roomId: string, userId: string): Promise<void> {
+  const { error } = await supabase
+    .from('voice_room_participants')
+    .update({ is_muted: true })
+    .eq('room_id', roomId)
+    .eq('user_id', userId);
+  if (error) throw error;
+}
+
+export async function unmuteParticipant(roomId: string, userId: string): Promise<void> {
+  const { error } = await supabase
+    .from('voice_room_participants')
+    .update({ is_muted: false })
+    .eq('room_id', roomId)
+    .eq('user_id', userId);
+  if (error) throw error;
+}
+
+export async function demoteToListener(roomId: string, userId: string): Promise<void> {
+  const { error } = await supabase
+    .from('voice_room_participants')
+    .update({ role: 'listener' })
+    .eq('room_id', roomId)
+    .eq('user_id', userId);
+  if (error) throw error;
+}
+
+export async function kickParticipant(roomId: string, userId: string): Promise<void> {
+  // Remove from participants
+  const { error } = await supabase
+    .from('voice_room_participants')
+    .delete()
+    .eq('room_id', roomId)
+    .eq('user_id', userId);
+  if (error) throw error;
+
+  // Also remove any hand raise
+  await supabase
+    .from('voice_room_hand_raises')
+    .delete()
+    .eq('room_id', roomId)
+    .eq('user_id', userId);
+}
+
+// Get room with participant count
+export async function getRoomWithParticipantCount(roomId: string): Promise<DbVoiceRoom & { participant_count: number } | null> {
+  const { data: room, error: roomError } = await supabase
+    .from('voice_rooms')
+    .select('*')
+    .eq('id', roomId)
+    .single();
+
+  if (roomError) return null;
+
+  const { count } = await supabase
+    .from('voice_room_participants')
+    .select('id', { count: 'exact', head: true })
+    .eq('room_id', roomId);
+
+  return { ...room, participant_count: count ?? 0 } as DbVoiceRoom & { participant_count: number };
+}
+
+// List rooms with participant counts
+export async function listLiveVoiceRoomsWithCounts(limit: number = 50): Promise<(DbVoiceRoom & { participant_count: number; host_name?: string })[]> {
+  const rooms = await listLiveVoiceRooms(limit);
+
+  // Get participant counts and host names for all rooms
+  const roomsWithCounts = await Promise.all(
+    rooms.map(async (room) => {
+      const [{ count }, { data: hostProfile }] = await Promise.all([
+        supabase
+          .from('voice_room_participants')
+          .select('id', { count: 'exact', head: true })
+          .eq('room_id', room.id),
+        supabase
+          .from('profiles')
+          .select('name')
+          .eq('id', room.creator_id)
+          .single()
+      ]);
+
+      return {
+        ...room,
+        participant_count: count ?? 0,
+        host_name: hostProfile?.name ?? 'Anonymous'
+      };
+    })
+  );
+
+  return roomsWithCounts;
+}
+
 export async function listHandRaises(roomId: string): Promise<DbVoiceRoomHandRaise[]> {
   const { data, error } = await supabase
     .from('voice_room_hand_raises')

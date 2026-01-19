@@ -2,27 +2,90 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, Pressable, TextInput, ScrollView, RefreshControl, Modal, Alert, ActivityIndicator } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Image } from 'expo-image';
 import * as Haptics from 'expo-haptics';
-import { Plus, Mic, Sparkles } from 'lucide-react-native';
+import { Plus, Mic, Users, MapPin, Globe, Building2, Home } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { useStore } from '@/lib/store';
 import type { DbVoiceRoom } from '@/lib/supabase';
-import { createVoiceRoom, listLiveVoiceRooms } from '@/lib/voiceRooms';
+import { createVoiceRoom, listLiveVoiceRoomsWithCounts } from '@/lib/voiceRooms';
 
-function ScopePill({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+type RoomWithCounts = DbVoiceRoom & { participant_count: number; host_name?: string };
+
+function ScopePill({ label, icon: Icon, active, onPress }: { label: string; icon: React.ElementType; active: boolean; onPress: () => void }) {
   return (
     <Pressable onPress={onPress} className="active:opacity-80">
       <View
-        style={{
-          paddingHorizontal: 12,
-          paddingVertical: 8,
-          borderRadius: 999,
-          backgroundColor: active ? 'rgba(124,58,237,0.14)' : 'rgba(17,24,39,0.06)',
-          borderWidth: 1,
-          borderColor: active ? 'rgba(124,58,237,0.25)' : 'rgba(17,24,39,0.08)',
-        }}
+        className={`flex-row items-center px-4 py-2.5 rounded-full ${active ? 'bg-forest-600' : 'bg-white border border-gray-200'}`}
       >
-        <Text style={{ color: active ? '#5B21B6' : '#374151', fontWeight: '700', fontSize: 12 }}>{label}</Text>
+        <Icon size={14} color={active ? '#fff' : '#1B4D3E'} />
+        <Text className={`ml-2 font-semibold text-sm ${active ? 'text-white' : 'text-warmBrown'}`}>{label}</Text>
+      </View>
+    </Pressable>
+  );
+}
+
+function RoomCard({ room, isOwner }: { room: RoomWithCounts; isOwner: boolean }) {
+  const scopeIcon = room.scope === 'neighborhood' ? Home : room.scope === 'city' ? Building2 : Globe;
+  const ScopeIcon = scopeIcon;
+  const scopeLabel = room.scope === 'neighborhood'
+    ? room.neighborhood ?? 'Neighborhood'
+    : room.scope === 'city'
+      ? room.city || 'City'
+      : 'Global';
+
+  return (
+    <Pressable
+      onPress={() => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        router.push(`/voice-room/${room.id}`);
+      }}
+      className="active:opacity-90"
+    >
+      <View className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+        <View className="flex-row items-start justify-between">
+          <View className="flex-1 pr-3">
+            <Text className="text-warmBrown font-bold text-lg" numberOfLines={2}>
+              {room.title}
+            </Text>
+            {room.topic && (
+              <Text className="text-gray-500 text-sm mt-1">{room.topic}</Text>
+            )}
+          </View>
+
+          <View className="bg-emerald-500 rounded-full px-3 py-1.5">
+            <Text className="text-white font-bold text-xs">LIVE</Text>
+          </View>
+        </View>
+
+        <View className="flex-row items-center mt-3 pt-3 border-t border-gray-100">
+          <View className="flex-row items-center flex-1">
+            <View className="w-8 h-8 rounded-full bg-forest-100 items-center justify-center">
+              <Mic size={14} color="#1B4D3E" />
+            </View>
+            <View className="ml-2">
+              <Text className="text-warmBrown font-medium text-sm">
+                {isOwner ? 'You' : room.host_name ?? 'Host'}
+              </Text>
+              <Text className="text-gray-400 text-xs">Host</Text>
+            </View>
+          </View>
+
+          <View className="flex-row items-center">
+            <View className="flex-row items-center bg-gold-50 rounded-full px-3 py-1.5 mr-2">
+              <Users size={12} color="#C9A227" />
+              <Text className="text-gold-700 font-semibold text-xs ml-1">{room.participant_count}</Text>
+            </View>
+
+            <View className="flex-row items-center bg-gray-100 rounded-full px-3 py-1.5">
+              <ScopeIcon size={12} color="#6B7280" />
+              <Text className="text-gray-600 font-medium text-xs ml-1" numberOfLines={1}>
+                {scopeLabel.length > 12 ? scopeLabel.substring(0, 10) + '...' : scopeLabel}
+              </Text>
+            </View>
+          </View>
+        </View>
       </View>
     </Pressable>
   );
@@ -32,20 +95,25 @@ export default function VoiceRoomsScreen() {
   const currentUser = useStore((s) => s.currentUser);
   const selectedLocation = useStore((s) => s.selectedLocation);
   const feedFilter = useStore((s) => s.feedFilter);
+  const setFeedFilter = useStore((s) => s.setFeedFilter);
 
-  const [rooms, setRooms] = useState<DbVoiceRoom[]>([]);
+  const [rooms, setRooms] = useState<RoomWithCounts[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [topic, setTopic] = useState('');
   const [creating, setCreating] = useState(false);
 
   const canCreate = useMemo(() => !!currentUser?.id && title.trim().length >= 3, [currentUser?.id, title]);
-  const setFeedFilter = useStore((s) => s.setFeedFilter);
 
   const loadRooms = useCallback(async () => {
-    const data = await listLiveVoiceRooms(50);
-    setRooms(data);
+    try {
+      const data = await listLiveVoiceRoomsWithCounts(50);
+      setRooms(data);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -91,7 +159,6 @@ export default function VoiceRoomsScreen() {
         title: title.trim(),
         topic: topic.trim() ? topic.trim() : undefined,
         country: selectedLocation?.country ?? '',
-        admin_area: selectedLocation?.admin_area ?? null,
         city: selectedLocation?.city ?? '',
         neighborhood: selectedLocation?.neighborhood ?? null,
         scope: selectedLocation?.neighborhood ? 'neighborhood' : selectedLocation?.city ? 'city' : 'global',
@@ -99,313 +166,222 @@ export default function VoiceRoomsScreen() {
 
       setCreateOpen(false);
       router.push(`/voice-room/${room.id}`);
-    } catch (e: any) {
-      Alert.alert('Could not start room', String(e?.message ?? e ?? 'Unknown error'));
+    } catch (e: unknown) {
+      const errorMessage = e instanceof Error ? e.message : 'Unknown error';
+      Alert.alert('Could not start room', errorMessage);
     } finally {
       setCreating(false);
     }
   };
 
+  const cityName = selectedLocation?.city || 'your area';
+
   return (
-    <View style={{ flex: 1, backgroundColor: '#F7F7FF' }}>
+    <View className="flex-1 bg-cream">
       <Stack.Screen
         options={{
           headerShown: true,
           title: 'Voice Rooms',
-          headerStyle: { backgroundColor: '#F7F7FF' },
-          headerTintColor: '#111827',
+          headerStyle: { backgroundColor: '#FBF9F7' },
+          headerTintColor: '#2D1F1A',
           headerTitleStyle: { fontWeight: '700' },
+          headerShadowVisible: false,
           headerRight: () => (
-            <Pressable onPress={openCreate} style={{ paddingHorizontal: 12, paddingVertical: 6 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Plus size={18} color="#7C3AED" />
-                <Text style={{ color: '#7C3AED', fontWeight: '800', marginLeft: 6 }}>Start</Text>
-              </View>
+            <Pressable onPress={openCreate} className="flex-row items-center px-3 py-1.5">
+              <Plus size={18} color="#D4673A" />
+              <Text className="text-terracotta-500 font-bold ml-1.5">Start</Text>
             </Pressable>
           ),
         }}
       />
 
-      <SafeAreaView edges={['bottom']} style={{ flex: 1 }}>
-        {/* Hero */}
-        <View style={{ paddingHorizontal: 16, paddingTop: 10 }}>
+      <SafeAreaView edges={['bottom']} className="flex-1">
+        {/* Hero Banner */}
+        <Animated.View entering={FadeInDown.duration(400)} className="px-4 pt-2">
           <LinearGradient
-            colors={['#7C3AED', '#EC4899', '#22C55E']}
+            colors={['#1B4D3E', '#2D6A4F'] as const}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
-            style={{ borderRadius: 24, padding: 16 }}
+            style={{ borderRadius: 20, padding: 16 }}
           >
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-              <View style={{ flex: 1, paddingRight: 10 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <Sparkles size={16} color="#fff" />
-                  <Text style={{ color: 'rgba(255,255,255,0.95)', fontWeight: '900', marginLeft: 8 }}>
-                    Better-than-Clubhouse rooms
-                  </Text>
-                </View>
-                <Text style={{ color: 'rgba(255,255,255,0.92)', marginTop: 8, fontSize: 16, fontWeight: '900' }}>
-                  Tap a room to join instantly
+            <View className="flex-row items-center justify-between">
+              <View className="flex-1 pr-3">
+                <Text className="text-white/90 font-bold text-sm">Live Audio Rooms</Text>
+                <Text className="text-white font-bold text-lg mt-1">
+                  Join conversations in {cityName}
                 </Text>
-                <Text style={{ color: 'rgba(255,255,255,0.85)', marginTop: 4 }}>
-                  Raise your hand, become a speaker, send gifts to hosts.
+                <Text className="text-white/80 text-sm mt-1">
+                  Listen, raise your hand, and speak
                 </Text>
               </View>
-              <View
-                style={{
-                  width: 46,
-                  height: 46,
-                  borderRadius: 16,
-                  backgroundColor: 'rgba(255,255,255,0.20)',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <Mic size={20} color="#fff" />
+              <View className="w-14 h-14 rounded-2xl bg-white/20 items-center justify-center">
+                <Mic size={24} color="#fff" />
               </View>
             </View>
           </LinearGradient>
 
-          {/* Filters */}
-          <View style={{ flexDirection: 'row', marginTop: 12, gap: 8 }}>
-            <ScopePill label="Global" active={feedFilter === 'global'} onPress={() => setFeedFilter('global')} />
-            <ScopePill label="City" active={feedFilter === 'city'} onPress={() => setFeedFilter('city')} />
-            <ScopePill label="Neighborhood" active={feedFilter === 'neighborhood'} onPress={() => setFeedFilter('neighborhood')} />
-          </View>
-        </View>
+          {/* Scope Filters */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            className="mt-3"
+            contentContainerStyle={{ gap: 8 }}
+            style={{ flexGrow: 0 }}
+          >
+            <ScopePill label="Global" icon={Globe} active={feedFilter === 'global'} onPress={() => setFeedFilter('global')} />
+            <ScopePill label="City" icon={Building2} active={feedFilter === 'city'} onPress={() => setFeedFilter('city')} />
+            <ScopePill label="Neighborhood" icon={Home} active={feedFilter === 'neighborhood'} onPress={() => setFeedFilter('neighborhood')} />
+          </ScrollView>
+        </Animated.View>
 
         <ScrollView
-          style={{ flex: 1 }}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#7C3AED" />}
-          contentContainerStyle={{ paddingBottom: 28 }}
+          className="flex-1"
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#1B4D3E" />}
+          contentContainerStyle={{ paddingBottom: 100 }}
+          showsVerticalScrollIndicator={false}
         >
-          <View style={{ paddingHorizontal: 16, paddingTop: 14 }}>
-            <Text style={{ fontSize: 22, fontWeight: '900', color: '#111827' }}>Live now</Text>
-            <Text style={{ marginTop: 6, color: '#4B5563' }}>
-              {rooms.length ? 'Jump in — you can listen first, then raise your hand.' : 'Start the first room and invite neighbors.'}
+          <Animated.View entering={FadeInUp.duration(400).delay(100)} className="px-4 pt-4">
+            <Text className="text-warmBrown font-bold text-xl">Live Now</Text>
+            <Text className="text-gray-500 mt-1">
+              {rooms.length > 0 ? `${rooms.length} room${rooms.length > 1 ? 's' : ''} active` : 'No rooms live right now'}
             </Text>
 
-            {!currentUser?.id ? (
-              <View style={{ marginTop: 12, backgroundColor: '#FFFFFF', borderRadius: 18, padding: 14, borderWidth: 1, borderColor: 'rgba(17,24,39,0.08)' }}>
-                <Text style={{ color: '#111827', fontWeight: '900' }}>Sign in required</Text>
-                <Text style={{ color: '#6B7280', marginTop: 4 }}>Create/join rooms after you sign in.</Text>
+            {!currentUser?.id && (
+              <View className="bg-gold-50 border border-gold-200 rounded-2xl p-4 mt-4">
+                <Text className="text-gold-800 font-semibold">Sign in to join or host</Text>
+                <Text className="text-gold-600 text-sm mt-1">Create an account to participate in voice rooms.</Text>
               </View>
-            ) : null}
+            )}
 
-            <View style={{ marginTop: 14, gap: 12 }}>
-              {rooms.length === 0 ? (
-                <LinearGradient
-                  colors={['#FFFFFF', '#F3E8FF']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={{ borderRadius: 22, padding: 16, borderWidth: 1, borderColor: 'rgba(124,58,237,0.16)' }}
-                >
-                  <Text style={{ color: '#111827', fontWeight: '900', fontSize: 16 }}>No rooms live</Text>
-                  <Text style={{ color: '#6B7280', marginTop: 6 }}>Start one — it only takes a few seconds.</Text>
-                  <Pressable onPress={openCreate} className="active:opacity-80" style={{ marginTop: 12 }}>
+            {loading ? (
+              <View className="py-12 items-center">
+                <ActivityIndicator color="#1B4D3E" />
+                <Text className="text-gray-500 mt-3">Loading rooms...</Text>
+              </View>
+            ) : rooms.length === 0 ? (
+              <View className="bg-white rounded-2xl p-6 mt-4 items-center border border-gray-100">
+                <View className="w-16 h-16 rounded-full bg-forest-100 items-center justify-center mb-4">
+                  <Mic size={28} color="#1B4D3E" />
+                </View>
+                <Text className="text-warmBrown font-bold text-lg">No rooms live</Text>
+                <Text className="text-gray-500 text-center mt-2">
+                  Be the first to start a conversation in your community!
+                </Text>
+                {currentUser?.id && (
+                  <Pressable onPress={openCreate} className="mt-4">
                     <LinearGradient
-                      colors={['#7C3AED', '#EC4899']}
+                      colors={['#D4673A', '#B85430'] as const}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 1 }}
-                      style={{ borderRadius: 16, paddingVertical: 12, alignItems: 'center' }}
+                      style={{ borderRadius: 12, paddingHorizontal: 24, paddingVertical: 12 }}
                     >
-                      <Text style={{ color: '#fff', fontWeight: '900' }}>Start a room</Text>
+                      <Text className="text-white font-bold">Start a Room</Text>
                     </LinearGradient>
                   </Pressable>
-                </LinearGradient>
-              ) : (
-                rooms.map((r) => (
-                  <Pressable
-                    key={r.id}
-                    onPress={() => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      router.push(`/voice-room/${r.id}`);
-                    }}
-                    className="active:opacity-90"
-                  >
-                    <LinearGradient
-                      colors={['#FFFFFF', 'rgba(59,130,246,0.10)', 'rgba(236,72,153,0.10)']}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={{ borderRadius: 22, padding: 14, borderWidth: 1, borderColor: 'rgba(17,24,39,0.08)' }}
-                    >
-                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <View style={{ flex: 1, paddingRight: 12 }}>
-                          <Text style={{ color: '#111827', fontWeight: '900', fontSize: 16 }} numberOfLines={2}>
-                            {r.title}
-                          </Text>
-                          <Text style={{ color: '#6B7280', marginTop: 4 }}>
-                            {r.topic ? `${r.topic} • ` : ''}
-                            {r.scope === 'neighborhood'
-                              ? r.neighborhood ?? 'Neighborhood'
-                              : r.scope === 'city'
-                                ? r.city || 'City'
-                                : 'Global'}
-                          </Text>
-                        </View>
-
-                        <LinearGradient
-                          colors={['#22C55E', '#10B981']}
-                          start={{ x: 0, y: 0 }}
-                          end={{ x: 1, y: 1 }}
-                          style={{ borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 }}
-                        >
-                          <Text style={{ color: '#fff', fontWeight: '900', fontSize: 12 }}>LIVE</Text>
-                        </LinearGradient>
-                      </View>
-
-                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                          <View
-                            style={{
-                              width: 36,
-                              height: 36,
-                              borderRadius: 14,
-                              backgroundColor: 'rgba(124,58,237,0.14)',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              borderWidth: 1,
-                              borderColor: 'rgba(124,58,237,0.18)',
-                            }}
-                          >
-                            <Mic size={16} color="#5B21B6" />
-                          </View>
-                          <Text style={{ marginLeft: 10, color: '#374151', fontWeight: '800' }}>
-                            Tap to join
-                          </Text>
-                        </View>
-
-                        <Text style={{ color: '#6B7280', fontWeight: '700' }}>
-                          {r.creator_id === currentUser?.id ? 'Hosted by you' : 'Hosted live'}
-                        </Text>
-                      </View>
-                    </LinearGradient>
-                  </Pressable>
-                ))
-              )}
-            </View>
-          </View>
+                )}
+              </View>
+            ) : (
+              <View className="mt-4 gap-3">
+                {rooms.map((room, index) => (
+                  <Animated.View key={room.id} entering={FadeInUp.duration(300).delay(150 + index * 50)}>
+                    <RoomCard room={room} isOwner={room.creator_id === currentUser?.id} />
+                  </Animated.View>
+                ))}
+              </View>
+            )}
+          </Animated.View>
         </ScrollView>
 
-        {/* Floating start button */}
-        {currentUser?.id ? (
+        {/* Floating Create Button */}
+        {currentUser?.id && (
           <Pressable
             onPress={openCreate}
-            className="active:opacity-90"
-            style={{ position: 'absolute', right: 18, bottom: 18 }}
+            className="absolute right-4 bottom-4"
+            style={{
+              shadowColor: '#000',
+              shadowOpacity: 0.15,
+              shadowRadius: 12,
+              shadowOffset: { width: 0, height: 6 },
+            }}
           >
             <LinearGradient
-              colors={['#7C3AED', '#EC4899']}
+              colors={['#D4673A', '#B85430'] as const}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
-              style={{
-                width: 58,
-                height: 58,
-                borderRadius: 22,
-                alignItems: 'center',
-                justifyContent: 'center',
-                shadowColor: '#000',
-                shadowOpacity: 0.15,
-                shadowRadius: 12,
-                shadowOffset: { width: 0, height: 8 },
-              }}
+              style={{ width: 60, height: 60, borderRadius: 20, alignItems: 'center', justifyContent: 'center' }}
             >
-              <Plus size={22} color="#fff" />
+              <Plus size={24} color="#fff" />
             </LinearGradient>
           </Pressable>
-        ) : null}
+        )}
 
+        {/* Create Room Modal */}
         <Modal visible={createOpen} transparent animationType="fade" onRequestClose={() => setCreateOpen(false)}>
-          <View className="flex-1 bg-black/40 items-center justify-center px-5">
-            <View style={{ width: '100%' }}>
-              <LinearGradient
-                colors={['#FFFFFF', '#F3E8FF', '#ECFEFF']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={{ borderRadius: 28, padding: 16, borderWidth: 1, borderColor: 'rgba(17,24,39,0.10)' }}
-              >
-                <Text style={{ color: '#111827', fontSize: 18, fontWeight: '900' }}>Start a room</Text>
-                <Text style={{ color: '#6B7280', marginTop: 6 }}>Pick a clear title — people join faster.</Text>
+          <Pressable className="flex-1 bg-black/40 items-center justify-center px-5" onPress={() => setCreateOpen(false)}>
+            <Pressable onPress={(e) => e.stopPropagation()} className="w-full">
+              <View className="bg-cream rounded-3xl p-5">
+                <Text className="text-warmBrown font-bold text-xl">Start a Room</Text>
+                <Text className="text-gray-500 mt-1">Create a live audio space for your community</Text>
 
-                <Text style={{ color: '#374151', marginTop: 14, fontSize: 12, fontWeight: '800' }}>Title</Text>
+                <Text className="text-warmBrown font-semibold text-sm mt-5">Room Title</Text>
                 <TextInput
                   value={title}
                   onChangeText={setTitle}
-                  placeholder="e.g. Neighborhood updates + Q&A"
+                  placeholder="e.g. Community Q&A, Business Tips"
                   placeholderTextColor="#9CA3AF"
-                  style={{
-                    marginTop: 8,
-                    backgroundColor: 'rgba(17,24,39,0.04)',
-                    borderWidth: 1,
-                    borderColor: 'rgba(17,24,39,0.10)',
-                    borderRadius: 16,
-                    paddingHorizontal: 14,
-                    paddingVertical: 12,
-                    color: '#111827',
-                    fontWeight: '700',
-                  }}
+                  className="mt-2 bg-white border border-gray-200 rounded-xl px-4 py-3 text-warmBrown font-medium"
                 />
 
-                <Text style={{ color: '#374151', marginTop: 12, fontSize: 12, fontWeight: '800' }}>Topic (optional)</Text>
+                <Text className="text-warmBrown font-semibold text-sm mt-4">Topic (optional)</Text>
                 <TextInput
                   value={topic}
                   onChangeText={setTopic}
-                  placeholder="e.g. Safety, Business, Faith"
+                  placeholder="e.g. Safety, Faith, Business"
                   placeholderTextColor="#9CA3AF"
-                  style={{
-                    marginTop: 8,
-                    backgroundColor: 'rgba(17,24,39,0.04)',
-                    borderWidth: 1,
-                    borderColor: 'rgba(17,24,39,0.10)',
-                    borderRadius: 16,
-                    paddingHorizontal: 14,
-                    paddingVertical: 12,
-                    color: '#111827',
-                    fontWeight: '700',
-                  }}
+                  className="mt-2 bg-white border border-gray-200 rounded-xl px-4 py-3 text-warmBrown font-medium"
                 />
 
-                <View style={{ flexDirection: 'row', marginTop: 14, gap: 10 }}>
+                <View className="bg-forest-50 border border-forest-200 rounded-xl p-3 mt-4">
+                  <View className="flex-row items-center">
+                    <MapPin size={14} color="#1B4D3E" />
+                    <Text className="text-forest-700 font-medium ml-2">
+                      Visible to: {selectedLocation?.neighborhood ? 'Neighborhood' : selectedLocation?.city ? 'City' : 'Global'}
+                    </Text>
+                  </View>
+                </View>
+
+                <View className="flex-row mt-5 gap-3">
                   <Pressable
                     onPress={() => {
                       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                       setCreateOpen(false);
                     }}
-                    className="active:opacity-80"
-                    style={{
-                      flex: 1,
-                      backgroundColor: 'rgba(17,24,39,0.06)',
-                      borderWidth: 1,
-                      borderColor: 'rgba(17,24,39,0.08)',
-                      borderRadius: 16,
-                      paddingVertical: 12,
-                      alignItems: 'center',
-                    }}
+                    className="flex-1 bg-gray-100 rounded-xl py-3.5 items-center"
                   >
-                    <Text style={{ color: '#111827', fontWeight: '900' }}>Cancel</Text>
+                    <Text className="text-warmBrown font-semibold">Cancel</Text>
                   </Pressable>
 
-                  <Pressable onPress={handleCreate} disabled={!canCreate} className="active:opacity-90" style={{ flex: 1 }}>
+                  <Pressable onPress={handleCreate} disabled={!canCreate || creating} className="flex-1">
                     <LinearGradient
-                      colors={canCreate ? ['#7C3AED', '#EC4899'] : ['rgba(17,24,39,0.25)', 'rgba(17,24,39,0.18)']}
+                      colors={canCreate ? ['#1B4D3E', '#2D6A4F'] as const : ['#D1D5DB', '#E5E7EB'] as const}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 1 }}
-                      style={{ borderRadius: 16, paddingVertical: 12, alignItems: 'center' }}
+                      style={{ borderRadius: 12, paddingVertical: 14, alignItems: 'center' }}
                     >
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      {creating ? <ActivityIndicator color="#fff" /> : null}
-                      <Text style={{ color: '#fff', fontWeight: '900', marginLeft: creating ? 8 : 0 }}>
-                        {creating ? 'Going live…' : 'Go live'}
-                      </Text>
-                    </View>
+                      <View className="flex-row items-center">
+                        {creating && <ActivityIndicator color="#fff" size="small" />}
+                        <Text className={`font-bold ${canCreate ? 'text-white' : 'text-gray-400'} ${creating ? 'ml-2' : ''}`}>
+                          {creating ? 'Going live...' : 'Go Live'}
+                        </Text>
+                      </View>
                     </LinearGradient>
                   </Pressable>
                 </View>
-              </LinearGradient>
-            </View>
-          </View>
+              </View>
+            </Pressable>
+          </Pressable>
         </Modal>
       </SafeAreaView>
     </View>
   );
 }
-

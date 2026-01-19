@@ -2,28 +2,41 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, Pressable, ActivityIndicator, ScrollView, Modal, Alert, Linking } from 'react-native';
 import { Stack, useLocalSearchParams, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Image } from 'expo-image';
 import * as Haptics from 'expo-haptics';
-import { Mic, MicOff, Hand, Gift, Crown, UserPlus, X, Sparkles, Users, AudioLines, Trash2, Square } from 'lucide-react-native';
+import { Mic, MicOff, Hand, Gift, Crown, UserPlus, X, Users, AudioLines, Trash2, Square, ChevronDown, Volume2, VolumeX, UserMinus, MoreVertical } from 'lucide-react-native';
 import { LiveKitRoom, useRoomContext } from '@livekit/react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Audio } from 'expo-av';
 import * as Sharing from 'expo-sharing';
 import { useStore } from '@/lib/store';
 import { supabase } from '@/lib/supabase';
-import type { DbVoiceRoom, DbVoiceRoomParticipant, DbVoiceRoomHandRaise, DbGiftTransaction } from '@/lib/supabase';
-import { deleteVoiceRoom, endVoiceRoom, getLiveKitToken, leaveRoom, lowerHand, raiseHand, upsertParticipant, updateParticipantRole } from '@/lib/voiceRooms';
+import type { DbVoiceRoom, DbVoiceRoomHandRaise, DbGiftTransaction } from '@/lib/supabase';
+import {
+  deleteVoiceRoom,
+  endVoiceRoom,
+  getLiveKitToken,
+  leaveRoom,
+  lowerHand,
+  raiseHand,
+  upsertParticipant,
+  updateParticipantRole,
+  listParticipantsWithProfiles,
+  muteParticipant,
+  kickParticipant,
+  demoteToListener,
+  type ParticipantWithProfile
+} from '@/lib/voiceRooms';
 import { sendGift } from '@/lib/giftService';
 
 const GIFTS = [
-  { id: 'heart', name: 'Heart', value: 1 },
-  { id: 'star', name: 'Star', value: 5 },
-  { id: 'flame', name: 'Fire', value: 10 },
-  { id: 'gem', name: 'Diamond', value: 50 },
-  { id: 'crown', name: 'Crown', value: 100 },
-  { id: 'sparkle', name: 'Sparkle', value: 500 },
+  { id: 'heart', name: 'Heart', value: 1, emoji: '❤️' },
+  { id: 'star', name: 'Star', value: 5, emoji: '⭐' },
+  { id: 'flame', name: 'Fire', value: 10, emoji: '🔥' },
+  { id: 'gem', name: 'Diamond', value: 50, emoji: '💎' },
+  { id: 'crown', name: 'Crown', value: 100, emoji: '👑' },
+  { id: 'sparkle', name: 'Sparkle', value: 500, emoji: '✨' },
 ] as const;
-
-type Tab = 'room' | 'gifts';
 
 function MicSync({ enabled }: { enabled: boolean }) {
   const room = useRoomContext();
@@ -40,10 +53,8 @@ function LiveKitSpeakingBridge({ onSpeakingChange }: { onSpeakingChange: (speaki
     const lp = room.localParticipant;
     const sync = () => onSpeakingChange(!!lp.isSpeaking);
     sync();
-
     const onSpeaking = () => sync();
     const onActiveSpeakers = () => sync();
-
     lp.on?.('isSpeakingChanged', onSpeaking);
     room.on?.('activeSpeakersChanged', onActiveSpeakers);
     return () => {
@@ -54,131 +65,152 @@ function LiveKitSpeakingBridge({ onSpeakingChange }: { onSpeakingChange: (speaki
   return null;
 }
 
-function LocalMicSignalInner({ micEnabled }: { micEnabled: boolean }) {
-  const room = useRoomContext();
-  const [speaking, setSpeaking] = useState(false);
-
-  useEffect(() => {
-    if (!room?.localParticipant) return;
-    const lp = room.localParticipant;
-
-    const sync = () => setSpeaking(!!lp.isSpeaking);
-    sync();
-
-    // LiveKit emits these events via EventEmitter. Using string names keeps this compatible across SDK versions.
-    const onSpeaking = () => sync();
-    const onActiveSpeakers = () => sync();
-
-    lp.on?.('isSpeakingChanged', onSpeaking);
-    room.on?.('activeSpeakersChanged', onActiveSpeakers);
-
-    return () => {
-      lp.off?.('isSpeakingChanged', onSpeaking);
-      room.off?.('activeSpeakersChanged', onActiveSpeakers);
-    };
-  }, [room]);
-
+function MicStatusIndicator({ micEnabled, speaking }: { micEnabled: boolean; speaking?: boolean | null }) {
   const tone = !micEnabled ? 'off' : speaking ? 'on' : 'idle';
-  const dot = tone === 'on' ? '#22C55E' : tone === 'idle' ? '#F59E0B' : '#9CA3AF';
-  const label = tone === 'on' ? 'Speaking' : tone === 'idle' ? 'No voice' : 'Mic off';
+  const dot = tone === 'on' ? '#10B981' : tone === 'idle' ? '#C9A227' : '#9CA3AF';
+  const label = tone === 'on' ? 'Speaking' : tone === 'idle' ? 'Mic on' : 'Muted';
 
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+    <View className="flex-row items-center bg-warmBrown/90 rounded-full px-3 py-1.5">
       <View
         style={{
-          width: 10,
-          height: 10,
-          borderRadius: 999,
+          width: 8,
+          height: 8,
+          borderRadius: 4,
           backgroundColor: dot,
-          marginRight: 8,
-          borderWidth: 2,
-          borderColor: 'rgba(255,255,255,0.6)',
+          marginRight: 6,
         }}
       />
-      <Text style={{ color: '#fff', fontWeight: '900', fontSize: 12 }}>{label}</Text>
+      <Text className="text-white text-xs font-semibold">{label}</Text>
     </View>
   );
 }
 
-// Fallback component when not inside LiveKitRoom
-function LocalMicSignalFallback({ micEnabled, speaking }: { micEnabled: boolean; speaking?: boolean | null }) {
-  const resolvedSpeaking = speaking === undefined ? null : speaking;
-  const tone = !micEnabled ? 'off' : resolvedSpeaking ? 'on' : 'idle';
-  const dot = tone === 'on' ? '#22C55E' : tone === 'idle' ? '#F59E0B' : '#9CA3AF';
-  const label = tone === 'on' ? 'Speaking' : tone === 'idle' ? 'No voice' : 'Mic off';
-
-  return (
-    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-      <View
-        style={{
-          width: 10,
-          height: 10,
-          borderRadius: 999,
-          backgroundColor: dot,
-          marginRight: 8,
-          borderWidth: 2,
-          borderColor: 'rgba(255,255,255,0.6)',
-        }}
-      />
-      <Text style={{ color: '#fff', fontWeight: '900', fontSize: 12 }}>{label}</Text>
-    </View>
-  );
-}
-
-function Pill({
-  label,
-  tone,
+function SpeakerAvatar({
+  participant,
+  isCurrentUser,
+  isHost,
+  canModerate,
+  onMute,
+  onDemote,
+  onKick
 }: {
-  label: string;
-  tone: 'live' | 'info' | 'warn';
+  participant: ParticipantWithProfile;
+  isCurrentUser: boolean;
+  isHost: boolean;
+  canModerate: boolean;
+  onMute?: () => void;
+  onDemote?: () => void;
+  onKick?: () => void;
 }) {
-  const colors =
-    tone === 'live'
-      ? ['#22C55E', '#10B981']
-      : tone === 'warn'
-        ? ['#F97316', '#F59E0B']
-        : ['#3B82F6', '#22C55E'];
-  return (
-    <LinearGradient
-      colors={colors}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={{ borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 }}
-    >
-      <Text style={{ color: '#fff', fontWeight: '900', fontSize: 12 }}>{label}</Text>
-    </LinearGradient>
-  );
-}
+  const [showActions, setShowActions] = useState(false);
+  const name = participant.profile?.name || 'Anonymous';
+  const avatar = participant.profile?.avatar_url;
+  const role = participant.role;
 
-function AvatarBubble({ label, badge }: { label: string; badge?: 'host' | 'speaker' | 'mod' }) {
-  const ring =
-    badge === 'host' ? ['#F59E0B', '#EF4444'] : badge === 'mod' ? ['#7C3AED', '#EC4899'] : ['#3B82F6', '#22C55E'];
-  const icon = badge === 'host' ? <Crown size={14} color="#fff" /> : badge === 'speaker' ? <Mic size={14} color="#fff" /> : badge === 'mod' ? <Sparkles size={14} color="#fff" /> : null;
+  const ringColor = role === 'host'
+    ? ['#C9A227', '#D4673A']
+    : role === 'moderator'
+      ? ['#1B4D3E', '#2D6A4F']
+      : ['#D4673A', '#E07B4A'];
+
+  const roleLabel = role === 'host' ? 'Host' : role === 'moderator' ? 'Mod' : 'Speaker';
+  const roleColor = role === 'host' ? 'bg-gold-500' : role === 'moderator' ? 'bg-forest-600' : 'bg-terracotta-500';
+
   return (
-    <View style={{ width: 92, alignItems: 'center' }}>
-      <LinearGradient
-        colors={ring}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={{ width: 62, height: 62, borderRadius: 22, padding: 2 }}
+    <>
+      <Pressable
+        onPress={() => canModerate && !isCurrentUser && setShowActions(true)}
+        className="items-center mx-2 mb-3"
       >
-        <View
-          style={{
-            flex: 1,
-            borderRadius: 20,
-            backgroundColor: 'rgba(255,255,255,0.18)',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
+        <LinearGradient
+          colors={ringColor as [string, string]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={{ width: 68, height: 68, borderRadius: 24, padding: 3 }}
         >
-          {icon}
+          <View className="flex-1 rounded-[21px] bg-cream overflow-hidden items-center justify-center">
+            {avatar ? (
+              <Image source={{ uri: avatar }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
+            ) : (
+              <View className="w-full h-full bg-forest-100 items-center justify-center">
+                <Text className="text-forest-700 font-bold text-lg">{name.charAt(0).toUpperCase()}</Text>
+              </View>
+            )}
+          </View>
+        </LinearGradient>
+
+        <Text className="text-warmBrown font-semibold text-sm mt-2" numberOfLines={1}>
+          {isCurrentUser ? 'You' : name.split(' ')[0]}
+        </Text>
+
+        <View className={`${roleColor} rounded-full px-2 py-0.5 mt-1`}>
+          <Text className="text-white text-[10px] font-bold">{roleLabel}</Text>
         </View>
-      </LinearGradient>
-      <Text style={{ marginTop: 8, fontSize: 12, fontWeight: '900', color: '#111827' }} numberOfLines={1}>
-        {label}
-      </Text>
-      {badge ? <Text style={{ marginTop: 2, fontSize: 11, fontWeight: '800', color: '#6B7280' }}>{badge.toUpperCase()}</Text> : null}
-    </View>
+
+        {canModerate && !isCurrentUser && (
+          <View className="absolute top-0 right-0 bg-warmBrown/80 rounded-full p-1">
+            <MoreVertical size={12} color="#fff" />
+          </View>
+        )}
+      </Pressable>
+
+      {/* Moderation Actions Modal */}
+      <Modal visible={showActions} transparent animationType="fade" onRequestClose={() => setShowActions(false)}>
+        <Pressable className="flex-1 bg-black/40" onPress={() => setShowActions(false)}>
+          <View className="flex-1 justify-end">
+            <View className="bg-cream rounded-t-3xl p-5">
+              <View className="flex-row items-center mb-4">
+                {avatar ? (
+                  <Image source={{ uri: avatar }} style={{ width: 48, height: 48, borderRadius: 24 }} contentFit="cover" />
+                ) : (
+                  <View className="w-12 h-12 rounded-full bg-forest-100 items-center justify-center">
+                    <Text className="text-forest-700 font-bold text-lg">{name.charAt(0)}</Text>
+                  </View>
+                )}
+                <View className="ml-3">
+                  <Text className="text-warmBrown font-bold text-lg">{name}</Text>
+                  <Text className="text-gray-500 text-sm capitalize">{role}</Text>
+                </View>
+              </View>
+
+              {role !== 'listener' && (
+                <Pressable
+                  onPress={() => { setShowActions(false); onDemote?.(); }}
+                  className="flex-row items-center bg-white rounded-xl p-4 mb-2"
+                >
+                  <ChevronDown size={20} color="#D4673A" />
+                  <Text className="text-warmBrown font-medium ml-3">Move to Audience</Text>
+                </Pressable>
+              )}
+
+              <Pressable
+                onPress={() => { setShowActions(false); onMute?.(); }}
+                className="flex-row items-center bg-white rounded-xl p-4 mb-2"
+              >
+                <VolumeX size={20} color="#C9A227" />
+                <Text className="text-warmBrown font-medium ml-3">Mute</Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() => { setShowActions(false); onKick?.(); }}
+                className="flex-row items-center bg-red-50 rounded-xl p-4 mb-2"
+              >
+                <UserMinus size={20} color="#DC2626" />
+                <Text className="text-red-600 font-medium ml-3">Remove from Room</Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() => setShowActions(false)}
+                className="bg-gray-100 rounded-xl p-4 items-center mt-2"
+              >
+                <Text className="text-gray-600 font-medium">Cancel</Text>
+              </Pressable>
+            </View>
+          </View>
+        </Pressable>
+      </Modal>
+    </>
   );
 }
 
@@ -187,10 +219,9 @@ export default function VoiceRoomScreen() {
   const currentUser = useStore((s) => s.currentUser);
 
   const [room, setRoom] = useState<DbVoiceRoom | null>(null);
-  const [participants, setParticipants] = useState<DbVoiceRoomParticipant[]>([]);
+  const [participants, setParticipants] = useState<ParticipantWithProfile[]>([]);
   const [hands, setHands] = useState<DbVoiceRoomHandRaise[]>([]);
   const [gifts, setGifts] = useState<DbGiftTransaction[]>([]);
-  const [tab, setTab] = useState<Tab>('room'); // kept for backward state; UI now uses sheets
   const [giftsOpen, setGiftsOpen] = useState(false);
   const [peopleOpen, setPeopleOpen] = useState(false);
   const [testMicOpen, setTestMicOpen] = useState(false);
@@ -203,9 +234,6 @@ export default function VoiceRoomScreen() {
   const [testSeconds, setTestSeconds] = useState(0);
   const [pauseLiveKitForTest, setPauseLiveKitForTest] = useState(false);
   const [testPermGranted, setTestPermGranted] = useState<boolean | null>(null);
-  const [testUiStatus, setTestUiStatus] = useState<string>('Ready');
-  const [testTapCount, setTestTapCount] = useState(0);
-  const [testMeterDb, setTestMeterDb] = useState<number | null>(null);
 
   const [lkUrl, setLkUrl] = useState<string | null>(null);
   const [lkToken, setLkToken] = useState<string | null>(null);
@@ -222,10 +250,10 @@ export default function VoiceRoomScreen() {
     return room.creator_id === currentUser.id || me?.role === 'host' || me?.role === 'moderator';
   }, [currentUser?.id, me?.role, room]);
 
-  // Important: don't rely only on `me` because it can be null briefly while realtime rows load.
   const canSpeak = me?.role === 'host' || me?.role === 'moderator' || me?.role === 'speaker';
   const canSpeakEffective = isHost || canSpeak;
 
+  // Load room data
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
@@ -236,7 +264,6 @@ export default function VoiceRoomScreen() {
         const { data } = await supabase.from('voice_rooms').select('*').eq('id', id).single();
         if (cancelled) return;
         const r = data as DbVoiceRoom;
-        // If room is expired, treat it as ended (best-effort UX guard; the host can also end it explicitly).
         if (r?.expires_at && new Date(r.expires_at).getTime() <= Date.now()) {
           setRoom({ ...r, status: 'ended' } as DbVoiceRoom);
         } else {
@@ -247,23 +274,24 @@ export default function VoiceRoomScreen() {
       }
     };
     load();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [id]);
 
+  // Subscribe to participants and hand raises
   useEffect(() => {
     if (!id) return;
+
+    const loadParticipants = async () => {
+      const p = await listParticipantsWithProfiles(id);
+      setParticipants(p);
+    };
 
     const channel = supabase
       .channel(`voice-room:${id}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'voice_room_participants', filter: `room_id=eq.${id}` },
-        async () => {
-          const { data } = await supabase.from('voice_room_participants').select('*').eq('room_id', id).order('joined_at', { ascending: true });
-          setParticipants((data ?? []) as DbVoiceRoomParticipant[]);
-        }
+        loadParticipants
       )
       .on(
         'postgres_changes',
@@ -275,21 +303,17 @@ export default function VoiceRoomScreen() {
       )
       .subscribe();
 
-    // initial fetch
+    // Initial fetch
+    loadParticipants();
     (async () => {
-      const [{ data: p }, { data: h }] = await Promise.all([
-        supabase.from('voice_room_participants').select('*').eq('room_id', id).order('joined_at', { ascending: true }),
-        supabase.from('voice_room_hand_raises').select('*').eq('room_id', id).order('created_at', { ascending: true }),
-      ]);
-      setParticipants((p ?? []) as DbVoiceRoomParticipant[]);
+      const { data: h } = await supabase.from('voice_room_hand_raises').select('*').eq('room_id', id).order('created_at', { ascending: true });
       setHands((h ?? []) as DbVoiceRoomHandRaise[]);
     })();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, [id]);
 
+  // Subscribe to gifts
   useEffect(() => {
     if (!id) return;
     const channel = supabase
@@ -305,19 +329,17 @@ export default function VoiceRoomScreen() {
       setGifts((data ?? []) as DbGiftTransaction[]);
     })();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, [id]);
 
+  // Join room and get LiveKit token
   useEffect(() => {
     if (!id || !currentUser?.id || !room) return;
     if (room.status === 'ended') return;
     let cancelled = false;
 
     const join = async () => {
-      // ensure participant row exists
-      const role: DbVoiceRoomParticipant['role'] = room.creator_id === currentUser.id ? 'host' : 'listener';
+      const role = room.creator_id === currentUser.id ? 'host' : 'listener';
       await upsertParticipant({ roomId: id, userId: currentUser.id, role });
 
       const tokenResp = await getLiveKitToken({
@@ -332,16 +354,11 @@ export default function VoiceRoomScreen() {
       setLkToken(tokenResp.token);
     };
 
-    join().catch(() => {
-      // keep UI stable; errors shown below
-    });
-
-    return () => {
-      cancelled = true;
-    };
+    join().catch(() => {});
+    return () => { cancelled = true; };
   }, [currentUser?.id, currentUser?.name, id, room]);
 
-  // If your role changes (host promotes you), refresh token so you can publish audio.
+  // Refresh token when role changes
   useEffect(() => {
     if (!id || !currentUser?.id || !room || !me?.role) return;
     let cancelled = false;
@@ -355,30 +372,23 @@ export default function VoiceRoomScreen() {
       if (cancelled) return;
       setLkUrl(tokenResp.url);
       setLkToken(tokenResp.token);
-
-      // If you got demoted, make sure mic is off.
       if (!(me.role === 'host' || me.role === 'moderator' || me.role === 'speaker')) {
         setMicEnabled(false);
       }
     })().catch(() => null);
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [currentUser?.id, currentUser?.name, id, me?.role, room]);
 
-  // Ensure we clean up participant row on unmount.
+  // Leave room on unmount
   useEffect(() => {
     if (!id || !currentUser?.id) return;
-    return () => {
-      leaveRoom(id, currentUser.id).catch(() => null);
-    };
+    return () => { leaveRoom(id, currentUser.id).catch(() => null); };
   }, [currentUser?.id, id]);
 
-  // Track test recording duration and metering
+  // Test recording timer
   useEffect(() => {
     if (!testRecording) {
       setTestSeconds(0);
-      setTestMeterDb(null);
       return;
     }
     const t = setInterval(async () => {
@@ -387,13 +397,7 @@ export default function VoiceRoomScreen() {
         if ('durationMillis' in s && typeof s.durationMillis === 'number') {
           setTestSeconds(Math.floor(s.durationMillis / 1000));
         }
-        // iOS-only when metering is enabled
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const metering = (s as any)?.metering;
-        if (typeof metering === 'number') setTestMeterDb(metering);
-      } catch {
-        // ignore
-      }
+      } catch {}
     }, 350);
     return () => clearInterval(t);
   }, [testRecording]);
@@ -413,18 +417,41 @@ export default function VoiceRoomScreen() {
     await lowerHand(id, userId);
   };
 
+  const handleMute = async (userId: string) => {
+    if (!id) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    await muteParticipant(id, userId);
+  };
+
+  const handleDemote = async (userId: string) => {
+    if (!id) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    await demoteToListener(id, userId);
+  };
+
+  const handleKick = async (userId: string) => {
+    if (!id) return;
+    Alert.alert('Remove from room?', 'This person will be removed from the room.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: async () => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+          await kickParticipant(id, userId);
+        },
+      },
+    ]);
+  };
+
   const sendRoomGift = async (giftId: string, giftName: string, giftValue: number) => {
     if (!currentUser?.id || !room) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
-    const recipientId = room.creator_id;
-    const recipientName = 'Host';
-
     await sendGift({
       senderId: currentUser.id,
       senderName: currentUser.name ?? 'Someone',
-      recipientId,
-      recipientName: String(recipientName),
+      recipientId: room.creator_id,
+      recipientName: 'Host',
       giftId,
       giftName,
       giftValue,
@@ -433,18 +460,8 @@ export default function VoiceRoomScreen() {
     });
   };
 
-  if (!id) return null;
-
-  const stage = participants.filter((p) => p.role === 'host' || p.role === 'moderator' || p.role === 'speaker');
-  const audienceCount = participants.filter((p) => p.role === 'listener').length;
-  const iRaised = !!hands.find((h) => h.user_id === currentUser?.id);
-
   const cleanupTestAudio = async () => {
-    try {
-      await testSound?.unloadAsync();
-    } catch {
-      // ignore
-    }
+    try { await testSound?.unloadAsync(); } catch {}
     setTestSound(null);
   };
 
@@ -452,52 +469,32 @@ export default function VoiceRoomScreen() {
     try {
       if (testRecording) {
         const status = await testRecording.getStatusAsync().catch(() => null as any);
-        if (status?.isRecording) {
-          await testRecording.stopAndUnloadAsync().catch(() => null);
-        }
+        if (status?.isRecording) await testRecording.stopAndUnloadAsync().catch(() => null);
       }
-    } catch {
-      // ignore
-    }
+    } catch {}
     setTestRecording(null);
   };
 
   const startTestRecording = async () => {
-    if (testBusy) return;
-    if (testRecording) return;
+    if (testBusy || testRecording) return;
     setTestBusy(true);
     try {
-      setTestUiStatus('Starting…');
-      // Avoid mic conflicts with LiveKit: pause LiveKit while recording a local test.
       setMicEnabled(false);
       setPauseLiveKitForTest(true);
-
       await cleanupTestAudio();
       await cleanupTestRecording();
       setTestRecordingUri(null);
 
-      setTestUiStatus('Requesting mic permission…');
       const perm = await Audio.requestPermissionsAsync();
       setTestPermGranted(!!perm.granted);
       if (!perm.granted) {
-        setTestUiStatus('Mic permission denied');
-        Alert.alert(
-          'Microphone permission denied',
-          'Enable microphone access: iPhone Settings → Privacy & Security → Microphone → turn ON for this app (or Settings → this app → Microphone).',
-          [
-            { text: 'Cancel', style: 'cancel' },
-            {
-              text: 'Open Settings',
-              onPress: () => {
-                Linking.openSettings().catch(() => null);
-              },
-            },
-          ]
-        );
+        Alert.alert('Microphone permission denied', 'Enable microphone in Settings.', [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => Linking.openSettings().catch(() => null) },
+        ]);
         return;
       }
 
-      setTestUiStatus('Preparing recorder…');
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
@@ -506,57 +503,35 @@ export default function VoiceRoomScreen() {
         playThroughEarpieceAndroid: false,
       });
 
-      setTestUiStatus('Recording…');
-      // Enable metering (iOS) so we can show if the input is loud enough.
-      const preset = Audio.RecordingOptionsPresets.HIGH_QUALITY;
-      const options: Audio.RecordingOptions = {
-        ...preset,
-        ios: {
-          ...preset.ios,
-          isMeteringEnabled: true,
-        },
-      };
-      const { recording } = await Audio.Recording.createAsync(options);
+      const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
       setTestRecording(recording);
     } catch (e: any) {
-      setTestUiStatus('Failed');
-      Alert.alert('Mic test failed to start', String(e?.message ?? e ?? 'Unknown error'));
+      Alert.alert('Mic test failed', String(e?.message ?? e));
     } finally {
       setTestBusy(false);
     }
   };
 
   const stopTestRecording = async () => {
-    if (testBusy) return;
-    if (!testRecording) return;
+    if (testBusy || !testRecording) return;
     setTestBusy(true);
     try {
-      setTestUiStatus('Stopping…');
       await testRecording.stopAndUnloadAsync();
       const uri = testRecording.getURI();
       setTestRecording(null);
       setTestRecordingUri(uri ?? null);
-      if (!uri) {
-        setTestUiStatus('Stopped (no file)');
-        Alert.alert('Recording saved, but no file URI', 'Please try again.');
-      } else {
-        setTestUiStatus('Recorded ✓');
-      }
     } catch (e: any) {
-      setTestUiStatus('Stop failed');
-      Alert.alert('Could not stop recording', String(e?.message ?? e ?? 'Unknown error'));
+      Alert.alert('Could not stop recording', String(e?.message ?? e));
     } finally {
       setTestBusy(false);
     }
   };
 
   const playTestRecording = async () => {
-    if (!testRecordingUri) return;
-    if (testBusy) return;
+    if (!testRecordingUri || testBusy) return;
     setTestBusy(true);
     try {
       await cleanupTestAudio();
-      // Switch to playback-friendly mode
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: false,
         playsInSilentModeIOS: true,
@@ -575,19 +550,10 @@ export default function VoiceRoomScreen() {
       });
       setTestSound(sound);
     } catch (e: any) {
-      Alert.alert('Could not play recording', String(e?.message ?? e ?? 'Unknown error'));
+      Alert.alert('Could not play recording', String(e?.message ?? e));
     } finally {
       setTestBusy(false);
     }
-  };
-
-  const shareTestRecording = async () => {
-    if (!testRecordingUri) return;
-    if (!(await Sharing.isAvailableAsync())) {
-      Alert.alert('Sharing not available', 'Sharing is not available on this device.');
-      return;
-    }
-    await Sharing.shareAsync(testRecordingUri);
   };
 
   const hostEndRoom = async () => {
@@ -598,11 +564,7 @@ export default function VoiceRoomScreen() {
         text: 'End room',
         style: 'destructive',
         onPress: async () => {
-          try {
-            await endVoiceRoom(room.id);
-          } finally {
-            router.back();
-          }
+          try { await endVoiceRoom(room.id); } finally { router.back(); }
         },
       },
     ]);
@@ -610,581 +572,477 @@ export default function VoiceRoomScreen() {
 
   const hostDeleteRoom = async () => {
     if (!room?.id) return;
-    Alert.alert('Delete room?', 'This permanently deletes the room (and participants). This cannot be undone.', [
+    Alert.alert('Delete room?', 'This permanently deletes the room.', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',
         style: 'destructive',
         onPress: async () => {
-          try {
-            await deleteVoiceRoom(room.id);
-          } finally {
-            router.back();
-          }
+          try { await deleteVoiceRoom(room.id); } finally { router.back(); }
         },
       },
     ]);
   };
 
-  const hostRecordingInfo = () => {
-    Alert.alert(
-      'Room recording (setup required)',
-      'To record the full room and download it later, we need LiveKit server-side egress recording. See SUPABASE_LIVEKIT_SETUP.md → “Room recording”.'
-    );
-  };
+  if (!id) return null;
+
+  const stage = participants.filter((p) => p.role === 'host' || p.role === 'moderator' || p.role === 'speaker');
+  const audience = participants.filter((p) => p.role === 'listener');
+  const audienceCount = audience.length;
+  const iRaised = !!hands.find((h) => h.user_id === currentUser?.id);
+
+  // Get hand raise user profiles
+  const handRaisesWithProfiles = hands.map(h => {
+    const participant = participants.find(p => p.user_id === h.user_id);
+    return { ...h, profile: participant?.profile };
+  });
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#F7F7FF' }}>
+    <View className="flex-1 bg-cream">
       <Stack.Screen
         options={{
           headerShown: true,
-          title: room?.title ?? 'Voice Room',
-          headerStyle: { backgroundColor: '#F7F7FF' },
-          headerTintColor: '#111827',
+          title: '',
+          headerStyle: { backgroundColor: '#FBF9F7' },
+          headerTintColor: '#2D1F1A',
+          headerShadowVisible: false,
         }}
       />
 
-      <SafeAreaView edges={['bottom']} style={{ flex: 1 }}>
+      <SafeAreaView edges={['bottom']} className="flex-1">
         {loading ? (
           <View className="flex-1 items-center justify-center">
-            <ActivityIndicator color="#7C3AED" />
+            <ActivityIndicator color="#1B4D3E" />
           </View>
         ) : !room ? (
           <View className="flex-1 px-5 items-center justify-center">
-            <Text style={{ color: '#111827', fontSize: 16, fontWeight: '900' }}>Room not found</Text>
-            <Pressable onPress={() => router.back()} className="active:opacity-80" style={{ marginTop: 12 }}>
-              <LinearGradient
-                colors={['#7C3AED', '#EC4899']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={{ borderRadius: 16, paddingVertical: 12, paddingHorizontal: 16 }}
-              >
-                <Text style={{ color: '#fff', fontWeight: '900' }}>Go back</Text>
-              </LinearGradient>
+            <Text className="text-warmBrown font-bold text-lg">Room not found</Text>
+            <Pressable onPress={() => router.back()} className="mt-4 bg-terracotta-500 rounded-xl px-6 py-3">
+              <Text className="text-white font-semibold">Go back</Text>
             </Pressable>
           </View>
         ) : (
           <>
-            {/* Hero header */}
-            <View style={{ paddingHorizontal: 16, paddingTop: 10 }}>
-              <LinearGradient
-                colors={['#7C3AED', '#EC4899', '#22C55E']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={{ borderRadius: 24, padding: 14 }}
-              >
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <View style={{ flex: 1, paddingRight: 12 }}>
-                    <Text style={{ color: '#fff', fontWeight: '900', fontSize: 16 }} numberOfLines={2}>
-                      {room.title}
-                    </Text>
-                    <Text style={{ color: 'rgba(255,255,255,0.85)', marginTop: 4 }}>
-                      {room.topic ? `${room.topic} • ` : ''}
-                      {room.scope === 'neighborhood'
-                        ? room.neighborhood ?? 'Neighborhood'
-                        : room.scope === 'city'
-                          ? room.city || 'City'
-                          : 'Global'}
-                    </Text>
-                  </View>
-                  <Pill label="LIVE" tone="live" />
+            {/* Header Card */}
+            <View className="mx-4 mt-2 bg-white rounded-2xl p-4 shadow-sm">
+              <View className="flex-row items-start justify-between">
+                <View className="flex-1 pr-3">
+                  <Text className="text-warmBrown font-bold text-lg" numberOfLines={2}>{room.title}</Text>
+                  {room.topic && (
+                    <Text className="text-gray-500 text-sm mt-1">{room.topic}</Text>
+                  )}
+                  <Text className="text-terracotta-500 text-sm mt-1">
+                    {room.scope === 'neighborhood' ? room.neighborhood ?? 'Neighborhood' : room.scope === 'city' ? room.city || 'City' : 'Global'}
+                  </Text>
                 </View>
-
-                <View style={{ flexDirection: 'row', marginTop: 12, alignItems: 'center', justifyContent: 'space-between' }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <Pill label={`${stage.length} on stage`} tone="info" />
-                    <Pill label={`${audienceCount} listening`} tone="info" />
-                  </View>
-
-                  <Pressable
-                    onPress={() => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      router.back();
-                    }}
-                    className="active:opacity-90"
-                    style={{ paddingHorizontal: 10, paddingVertical: 8, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.18)' }}
-                  >
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <X size={14} color="#fff" />
-                      <Text style={{ color: '#fff', fontWeight: '900', marginLeft: 6 }}>Leave</Text>
-                    </View>
-                  </Pressable>
+                <View className="bg-emerald-500 rounded-full px-3 py-1.5">
+                  <Text className="text-white font-bold text-xs">LIVE</Text>
                 </View>
-              </LinearGradient>
+              </View>
+
+              <View className="flex-row items-center mt-3 pt-3 border-t border-gray-100">
+                <View className="flex-row items-center flex-1">
+                  <Users size={16} color="#1B4D3E" />
+                  <Text className="text-forest-700 font-medium ml-1.5">{stage.length} speaking</Text>
+                </View>
+                <View className="flex-row items-center flex-1">
+                  <Volume2 size={16} color="#C9A227" />
+                  <Text className="text-gold-600 font-medium ml-1.5">{audienceCount} listening</Text>
+                </View>
+                <Pressable
+                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.back(); }}
+                  className="bg-gray-100 rounded-full px-4 py-2"
+                >
+                  <Text className="text-gray-600 font-medium">Leave</Text>
+                </Pressable>
+              </View>
             </View>
 
-            {/* LiveKit audio connection */}
+            {/* LiveKit Connection */}
             {lkUrl && lkToken ? (
               <LiveKitRoom
                 key={`${lkToken}:${pauseLiveKitForTest ? 'paused' : 'on'}`}
                 serverUrl={lkUrl}
                 token={lkToken}
                 connect={!pauseLiveKitForTest}
-                // Must be enabled so the SDK sets up the audio pipeline; MicSync controls actual mic publishing.
                 audio={true}
                 video={false}
-                options={{
-                  // keep defaults; can tune later
-                }}
               >
-                {/* We keep UI custom; LiveKitRoom handles actual media */}
                 <MicSync enabled={!!(canSpeakEffective && micEnabled)} />
                 <LiveKitSpeakingBridge onSpeakingChange={setLkSpeaking} />
                 <View className="h-0 w-0" />
               </LiveKitRoom>
             ) : (
-              <View style={{ paddingHorizontal: 16, marginTop: 10 }}>
-                <View style={{ backgroundColor: '#FFFFFF', borderRadius: 18, padding: 14, borderWidth: 1, borderColor: 'rgba(17,24,39,0.08)' }}>
-                  <Text style={{ color: '#111827', fontWeight: '900' }}>Connecting audio…</Text>
-                  <Text style={{ color: '#6B7280', marginTop: 6 }}>
-                    If this hangs, set LIVEKIT_URL / LIVEKIT_API_KEY / LIVEKIT_API_SECRET in Supabase secrets and redeploy the Edge Function.
-                  </Text>
-                </View>
+              <View className="mx-4 mt-3 bg-gold-50 border border-gold-200 rounded-xl p-4">
+                <Text className="text-gold-800 font-semibold">Connecting audio...</Text>
+                <Text className="text-gold-600 text-sm mt-1">Please wait while we connect you to the room.</Text>
               </View>
             )}
 
-            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 110 }} showsVerticalScrollIndicator={false}>
-              {/* Stage */}
-              <View style={{ backgroundColor: '#FFFFFF', borderRadius: 22, padding: 14, borderWidth: 1, borderColor: 'rgba(17,24,39,0.08)' }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <Text style={{ color: '#111827', fontWeight: '900' }}>Stage</Text>
-                  {isHost ? <Pill label="Host controls" tone="warn" /> : <Pill label={canSpeak ? 'Speaker' : 'Listener'} tone="info" />}
-                </View>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 12, gap: 10 }}>
+            <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 200 }} showsVerticalScrollIndicator={false}>
+              {/* Stage Section */}
+              <View className="px-4 mt-4">
+                <Text className="text-warmBrown font-bold text-lg mb-3">On Stage</Text>
+                <View className="bg-white rounded-2xl p-4">
                   {stage.length === 0 ? (
-                    <Text style={{ color: '#6B7280', fontWeight: '700' }}>No speakers yet.</Text>
+                    <Text className="text-gray-500 text-center py-4">No speakers yet</Text>
                   ) : (
-                    stage.map((p) => (
-                      <AvatarBubble
-                        key={p.id}
-                        label={p.user_id === currentUser?.id ? 'You' : 'Speaker'}
-                        badge={p.role === 'host' ? 'host' : p.role === 'moderator' ? 'mod' : 'speaker'}
-                      />
-                    ))
-                  )}
-                </View>
-              </View>
-
-              {/* Raised hands (host-only) */}
-              {isHost ? (
-                <View style={{ marginTop: 12, backgroundColor: '#FFFFFF', borderRadius: 22, padding: 14, borderWidth: 1, borderColor: 'rgba(17,24,39,0.08)' }}>
-                  <Text style={{ color: '#111827', fontWeight: '900' }}>Raised hands</Text>
-                  {hands.length === 0 ? (
-                    <Text style={{ color: '#6B7280', marginTop: 8, fontWeight: '700' }}>No one is requesting to speak.</Text>
-                  ) : (
-                    <View style={{ marginTop: 10, gap: 10 }}>
-                      {hands.map((h) => (
-                        <View key={h.id} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <Text style={{ color: '#111827', fontWeight: '900' }}>Listener</Text>
-                          <Pressable onPress={() => promote(h.user_id)} className="active:opacity-90">
-                            <LinearGradient
-                              colors={['#7C3AED', '#EC4899']}
-                              start={{ x: 0, y: 0 }}
-                              end={{ x: 1, y: 1 }}
-                              style={{ borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 }}
-                            >
-                              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                <UserPlus size={14} color="#fff" />
-                                <Text style={{ color: '#fff', fontWeight: '900', marginLeft: 6 }}>Make speaker</Text>
-                              </View>
-                            </LinearGradient>
-                          </Pressable>
-                        </View>
+                    <View className="flex-row flex-wrap justify-center">
+                      {stage.map((p) => (
+                        <SpeakerAvatar
+                          key={p.id}
+                          participant={p}
+                          isCurrentUser={p.user_id === currentUser?.id}
+                          isHost={p.role === 'host'}
+                          canModerate={isHost && p.user_id !== currentUser?.id}
+                          onMute={() => handleMute(p.user_id)}
+                          onDemote={() => handleDemote(p.user_id)}
+                          onKick={() => handleKick(p.user_id)}
+                        />
                       ))}
                     </View>
                   )}
                 </View>
-              ) : null}
+              </View>
 
-              {/* Audience summary */}
-              <View style={{ marginTop: 12, backgroundColor: '#FFFFFF', borderRadius: 22, padding: 14, borderWidth: 1, borderColor: 'rgba(17,24,39,0.08)' }}>
-                <Text style={{ color: '#111827', fontWeight: '900' }}>Audience</Text>
-                <Text style={{ color: '#6B7280', marginTop: 6, fontWeight: '700' }}>{audienceCount} listening</Text>
+              {/* Raised Hands (Host only) */}
+              {isHost && handRaisesWithProfiles.length > 0 && (
+                <View className="px-4 mt-4">
+                  <Text className="text-warmBrown font-bold text-lg mb-3">Raised Hands</Text>
+                  <View className="bg-gold-50 border border-gold-200 rounded-2xl p-4">
+                    {handRaisesWithProfiles.map((h) => (
+                      <View key={h.id} className="flex-row items-center justify-between py-2">
+                        <View className="flex-row items-center">
+                          <Hand size={18} color="#C9A227" />
+                          <Text className="text-warmBrown font-medium ml-2">
+                            {h.profile?.name || 'Anonymous'}
+                          </Text>
+                        </View>
+                        <Pressable
+                          onPress={() => promote(h.user_id)}
+                          className="bg-forest-600 rounded-full px-4 py-2 flex-row items-center"
+                        >
+                          <UserPlus size={14} color="#fff" />
+                          <Text className="text-white font-semibold ml-1.5 text-sm">Promote</Text>
+                        </Pressable>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              )}
+
+              {/* Audience Section */}
+              <View className="px-4 mt-4">
+                <Text className="text-warmBrown font-bold text-lg mb-3">Audience ({audienceCount})</Text>
+                <View className="bg-white rounded-2xl p-4">
+                  {audience.length === 0 ? (
+                    <Text className="text-gray-500 text-center py-2">No audience yet</Text>
+                  ) : (
+                    <View className="flex-row flex-wrap">
+                      {audience.slice(0, 12).map((p) => (
+                        <View key={p.id} className="items-center mx-2 mb-2">
+                          <View className="w-12 h-12 rounded-full bg-gray-100 overflow-hidden">
+                            {p.profile?.avatar_url ? (
+                              <Image source={{ uri: p.profile.avatar_url }} style={{ width: 48, height: 48 }} contentFit="cover" />
+                            ) : (
+                              <View className="w-full h-full items-center justify-center">
+                                <Text className="text-gray-500 font-medium">{(p.profile?.name || 'A').charAt(0)}</Text>
+                              </View>
+                            )}
+                          </View>
+                          <Text className="text-gray-600 text-xs mt-1" numberOfLines={1}>
+                            {p.profile?.name?.split(' ')[0] || 'Anon'}
+                          </Text>
+                        </View>
+                      ))}
+                      {audience.length > 12 && (
+                        <View className="items-center mx-2 mb-2">
+                          <View className="w-12 h-12 rounded-full bg-gray-200 items-center justify-center">
+                            <Text className="text-gray-600 font-bold text-sm">+{audience.length - 12}</Text>
+                          </View>
+                        </View>
+                      )}
+                    </View>
+                  )}
+                </View>
               </View>
             </ScrollView>
 
-            {/* Bottom controls */}
-            <View
-              style={{
-                position: 'absolute',
-                left: 0,
-                right: 0,
-                bottom: 0,
-                paddingHorizontal: 16,
-                paddingBottom: 14,
-                paddingTop: 10,
-                backgroundColor: 'rgba(247,247,255,0.94)',
-                borderTopWidth: 1,
-                borderTopColor: 'rgba(17,24,39,0.08)',
-              }}
-            >
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            {/* Bottom Controls */}
+            <View className="absolute left-0 right-0 bottom-0 bg-cream/95 border-t border-gray-100 px-4 pb-6 pt-3">
+              {/* Mic Status */}
+              {canSpeakEffective && (
+                <View className="items-center mb-3">
+                  <MicStatusIndicator micEnabled={micEnabled} speaking={lkSpeaking} />
+                </View>
+              )}
+
+              {/* Main Controls */}
+              <View className="flex-row items-center justify-between">
                 <Pressable
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    setPeopleOpen(true);
-                  }}
-                  className="active:opacity-80"
-                  style={{ width: 56, height: 56, borderRadius: 18, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: 'rgba(17,24,39,0.08)', alignItems: 'center', justifyContent: 'center' }}
+                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setPeopleOpen(true); }}
+                  className="w-14 h-14 rounded-2xl bg-white border border-gray-200 items-center justify-center"
                 >
-                  <Users size={18} color="#111827" />
+                  <Users size={22} color="#2D1F1A" />
                 </Pressable>
 
-                {/* Big mic button */}
+                {/* Big Mic Button */}
                 <Pressable
                   onPress={() => {
                     if (!canSpeakEffective) {
                       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      Alert.alert('Listener mode', 'Raise your hand and get promoted to speaker to unmute.');
+                      Alert.alert('Listener mode', 'Raise your hand to request speaking.');
                       return;
                     }
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                     setMicEnabled((v) => !v);
                   }}
-                  className="active:opacity-90"
                 >
                   <LinearGradient
                     colors={
                       canSpeakEffective
                         ? micEnabled
-                          ? ['#EF4444', '#F97316']
-                          : ['#7C3AED', '#EC4899']
-                        : ['rgba(17,24,39,0.22)', 'rgba(17,24,39,0.16)']
+                          ? ['#DC2626', '#EF4444'] as const
+                          : ['#1B4D3E', '#2D6A4F'] as const
+                        : ['#9CA3AF', '#D1D5DB'] as const
                     }
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
-                    style={{ width: 74, height: 74, borderRadius: 28, alignItems: 'center', justifyContent: 'center' }}
+                    style={{ width: 72, height: 72, borderRadius: 24, alignItems: 'center', justifyContent: 'center' }}
                   >
-                    {micEnabled ? <Mic size={22} color="#fff" /> : <MicOff size={22} color="#fff" />}
-                    <Text style={{ marginTop: 6, color: '#fff', fontWeight: '900', fontSize: 12 }}>
-                      {canSpeakEffective ? (micEnabled ? 'Mute' : 'Unmute') : 'Listener'}
-                    </Text>
+                    {micEnabled ? <Mic size={28} color="#fff" /> : <MicOff size={28} color="#fff" />}
                   </LinearGradient>
                 </Pressable>
 
                 <Pressable
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    setGiftsOpen(true);
-                  }}
-                  className="active:opacity-80"
-                  style={{ width: 56, height: 56, borderRadius: 18, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: 'rgba(17,24,39,0.08)', alignItems: 'center', justifyContent: 'center' }}
+                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setGiftsOpen(true); }}
+                  className="w-14 h-14 rounded-2xl bg-white border border-gray-200 items-center justify-center"
                 >
-                  <Gift size={18} color="#111827" />
+                  <Gift size={22} color="#C9A227" />
                 </Pressable>
               </View>
 
-              {/* Host mic signal */}
-              {isHost ? (
-                <View style={{ marginTop: 10, alignItems: 'center' }}>
-                  <View style={{ borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: 'rgba(17,24,39,0.92)' }}>
-                    <LocalMicSignalFallback micEnabled={!!(canSpeakEffective && micEnabled)} speaking={lkSpeaking} />
-                  </View>
-                </View>
-              ) : null}
-
-              <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 10 }}>
+              {/* Secondary Actions */}
+              <View className="flex-row mt-3 gap-2">
                 <Pressable
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    setTestMicOpen(true);
-                  }}
-                  className="active:opacity-90"
-                  style={{ width: '100%' }}
+                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setTestMicOpen(true); }}
+                  className="flex-1 bg-white border border-gray-200 rounded-xl py-3 flex-row items-center justify-center"
                 >
-                  <LinearGradient
-                    colors={['rgba(124,58,237,0.16)', 'rgba(236,72,153,0.12)']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={{ borderRadius: 18, paddingVertical: 12, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(17,24,39,0.08)' }}
-                  >
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <AudioLines size={16} color="#111827" />
-                      <Text style={{ color: '#111827', fontWeight: '900', marginLeft: 8 }}>Test Mic (record & playback)</Text>
-                    </View>
-                  </LinearGradient>
+                  <AudioLines size={16} color="#2D1F1A" />
+                  <Text className="text-warmBrown font-medium ml-2">Test Mic</Text>
                 </Pressable>
-              </View>
 
-              <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 10 }}>
-                <Pressable onPress={toggleHand} className="active:opacity-90" style={{ width: '100%' }}>
-                  <LinearGradient
-                    colors={iRaised ? ['#F97316', '#F59E0B'] : ['#3B82F6', '#22C55E']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={{ borderRadius: 18, paddingVertical: 12, alignItems: 'center' }}
-                  >
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <Hand size={16} color="#fff" />
-                      <Text style={{ color: '#fff', fontWeight: '900', marginLeft: 8 }}>
-                        {iRaised ? 'Lower hand' : 'Raise hand'}
-                      </Text>
-                    </View>
-                  </LinearGradient>
+                <Pressable
+                  onPress={toggleHand}
+                  className="flex-1 rounded-xl py-3 flex-row items-center justify-center"
+                  style={{ backgroundColor: iRaised ? '#FEF3C7' : '#D4673A' }}
+                >
+                  <Hand size={16} color={iRaised ? '#D97706' : '#fff'} />
+                  <Text className={`font-medium ml-2 ${iRaised ? 'text-amber-700' : 'text-white'}`}>
+                    {iRaised ? 'Lower Hand' : 'Raise Hand'}
+                  </Text>
                 </Pressable>
               </View>
             </View>
 
-            {/* Gifts bottom sheet */}
-            <Modal visible={giftsOpen} transparent animationType="fade" onRequestClose={() => setGiftsOpen(false)}>
-              <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'flex-end' }}>
-                <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 16, borderWidth: 1, borderColor: 'rgba(17,24,39,0.08)' }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Text style={{ color: '#111827', fontWeight: '900', fontSize: 16 }}>Gifts</Text>
-                    <Pressable onPress={() => setGiftsOpen(false)} className="active:opacity-80">
-                      <X size={18} color="#111827" />
-                    </Pressable>
-                  </View>
-
-                  <Text style={{ color: '#6B7280', marginTop: 6 }}>Support the host — gifts show up live in the room.</Text>
-
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 12, gap: 10 }}>
-                    {GIFTS.map((g) => (
-                      <Pressable key={g.id} onPress={() => sendRoomGift(g.id, g.name, g.value)} className="active:opacity-90" style={{ width: '48%' }}>
-                        <LinearGradient
-                          colors={['rgba(124,58,237,0.12)', 'rgba(236,72,153,0.10)', 'rgba(34,197,94,0.10)']}
-                          start={{ x: 0, y: 0 }}
-                          end={{ x: 1, y: 1 }}
-                          style={{ borderRadius: 18, padding: 12, borderWidth: 1, borderColor: 'rgba(17,24,39,0.08)' }}
-                        >
-                          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <Text style={{ color: '#111827', fontWeight: '900' }}>{g.name}</Text>
-                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                              <Gift size={14} color="#111827" />
-                              <Text style={{ marginLeft: 6, color: '#111827', fontWeight: '900' }}>{g.value}</Text>
-                            </View>
-                          </View>
-                        </LinearGradient>
-                      </Pressable>
-                    ))}
-                  </View>
-
-                  <Text style={{ color: '#111827', fontWeight: '900', marginTop: 14 }}>Recent</Text>
-                  <View style={{ marginTop: 8, gap: 8 }}>
-                    {gifts.length === 0 ? (
-                      <Text style={{ color: '#6B7280', fontWeight: '700' }}>No gifts yet.</Text>
-                    ) : (
-                      gifts.slice(0, 6).map((t) => (
-                        <View key={t.id} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <Text style={{ color: '#111827', fontWeight: '800' }} numberOfLines={1}>
-                            {(t.sender_name ?? 'Someone') + ' sent ' + t.gift_name}
-                          </Text>
-                          <Text style={{ color: '#6B7280', fontWeight: '800' }}>{t.gift_value}</Text>
-                        </View>
-                      ))
-                    )}
-                  </View>
-
-                  <View style={{ height: 14 }} />
-                </View>
-              </View>
-            </Modal>
-
-            {/* People sheet (quick glance) */}
-            <Modal visible={peopleOpen} transparent animationType="fade" onRequestClose={() => setPeopleOpen(false)}>
-              <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'flex-end' }}>
-                <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 16, borderWidth: 1, borderColor: 'rgba(17,24,39,0.08)' }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Text style={{ color: '#111827', fontWeight: '900', fontSize: 16 }}>People</Text>
-                    <Pressable onPress={() => setPeopleOpen(false)} className="active:opacity-80">
-                      <X size={18} color="#111827" />
-                    </Pressable>
-                  </View>
-                  <Text style={{ color: '#6B7280', marginTop: 6, fontWeight: '700' }}>
-                    {stage.length} on stage • {audienceCount} listening
-                  </Text>
-
-                  {/* Host actions */}
-                  {isHost ? (
-                    <View style={{ marginTop: 12, gap: 10 }}>
-                      <Pressable onPress={hostEndRoom} className="active:opacity-90">
-                        <LinearGradient
-                          colors={['#F97316', '#EF4444']}
-                          start={{ x: 0, y: 0 }}
-                          end={{ x: 1, y: 1 }}
-                          style={{ borderRadius: 18, paddingVertical: 12, paddingHorizontal: 12 }}
-                        >
-                          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
-                            <Square size={16} color="#fff" />
-                            <Text style={{ color: '#fff', fontWeight: '900', marginLeft: 8 }}>End room now</Text>
-                          </View>
-                        </LinearGradient>
-                      </Pressable>
-
-                      <Pressable onPress={hostDeleteRoom} className="active:opacity-90">
-                        <View
-                          style={{
-                            borderRadius: 18,
-                            paddingVertical: 12,
-                            paddingHorizontal: 12,
-                            backgroundColor: 'rgba(239,68,68,0.10)',
-                            borderWidth: 1,
-                            borderColor: 'rgba(239,68,68,0.25)',
-                          }}
-                        >
-                          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
-                            <Trash2 size={16} color="#EF4444" />
-                            <Text style={{ color: '#991B1B', fontWeight: '900', marginLeft: 8 }}>Delete room (permanent)</Text>
-                          </View>
-                        </View>
-                      </Pressable>
-
-                      <Pressable onPress={hostRecordingInfo} className="active:opacity-90">
-                        <View
-                          style={{
-                            borderRadius: 18,
-                            paddingVertical: 12,
-                            paddingHorizontal: 12,
-                            backgroundColor: 'rgba(124,58,237,0.10)',
-                            borderWidth: 1,
-                            borderColor: 'rgba(124,58,237,0.18)',
-                          }}
-                        >
-                          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
-                            <AudioLines size={16} color="#5B21B6" />
-                            <Text style={{ color: '#4C1D95', fontWeight: '900', marginLeft: 8 }}>Record room (setup)</Text>
-                          </View>
-                        </View>
+            {/* Gifts Modal */}
+            <Modal visible={giftsOpen} transparent animationType="slide" onRequestClose={() => setGiftsOpen(false)}>
+              <Pressable className="flex-1 bg-black/40" onPress={() => setGiftsOpen(false)}>
+                <View className="flex-1 justify-end">
+                  <View className="bg-cream rounded-t-3xl p-5">
+                    <View className="flex-row items-center justify-between mb-4">
+                      <Text className="text-warmBrown font-bold text-lg">Send a Gift</Text>
+                      <Pressable onPress={() => setGiftsOpen(false)}>
+                        <X size={24} color="#2D1F1A" />
                       </Pressable>
                     </View>
-                  ) : null}
 
-                  <View style={{ marginTop: 12, gap: 8 }}>
-                    {stage.slice(0, 8).map((p) => (
-                      <View key={p.id} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <Text style={{ color: '#111827', fontWeight: '900' }}>{p.user_id === currentUser?.id ? 'You' : 'Speaker'}</Text>
-                        <Text style={{ color: '#6B7280', fontWeight: '800' }}>{p.role.toUpperCase()}</Text>
+                    <Text className="text-gray-500 mb-4">Support the host with a gift!</Text>
+
+                    <View className="flex-row flex-wrap gap-3">
+                      {GIFTS.map((g) => (
+                        <Pressable
+                          key={g.id}
+                          onPress={() => { sendRoomGift(g.id, g.name, g.value); setGiftsOpen(false); }}
+                          className="bg-white rounded-xl p-4 items-center"
+                          style={{ width: '30%' }}
+                        >
+                          <Text className="text-2xl mb-1">{g.emoji}</Text>
+                          <Text className="text-warmBrown font-semibold">{g.name}</Text>
+                          <Text className="text-gold-600 font-bold">{g.value}</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+
+                    {gifts.length > 0 && (
+                      <View className="mt-6">
+                        <Text className="text-warmBrown font-semibold mb-2">Recent Gifts</Text>
+                        {gifts.slice(0, 5).map((t) => (
+                          <View key={t.id} className="flex-row items-center py-1.5">
+                            <Text className="text-gray-600 flex-1">{t.sender_name ?? 'Someone'} sent {t.gift_name}</Text>
+                            <Text className="text-gold-600 font-semibold">{t.gift_value}</Text>
+                          </View>
+                        ))}
                       </View>
-                    ))}
+                    )}
                   </View>
-                  <View style={{ height: 14 }} />
                 </View>
-              </View>
+              </Pressable>
             </Modal>
 
-            {/* Test mic modal */}
+            {/* People Modal */}
+            <Modal visible={peopleOpen} transparent animationType="slide" onRequestClose={() => setPeopleOpen(false)}>
+              <Pressable className="flex-1 bg-black/40" onPress={() => setPeopleOpen(false)}>
+                <View className="flex-1 justify-end">
+                  <View className="bg-cream rounded-t-3xl p-5 max-h-[70%]">
+                    <View className="flex-row items-center justify-between mb-4">
+                      <Text className="text-warmBrown font-bold text-lg">People ({participants.length})</Text>
+                      <Pressable onPress={() => setPeopleOpen(false)}>
+                        <X size={24} color="#2D1F1A" />
+                      </Pressable>
+                    </View>
+
+                    {isHost && (
+                      <View className="gap-2 mb-4">
+                        <Pressable onPress={hostEndRoom} className="bg-red-500 rounded-xl py-3 flex-row items-center justify-center">
+                          <Square size={16} color="#fff" />
+                          <Text className="text-white font-semibold ml-2">End Room</Text>
+                        </Pressable>
+                        <Pressable onPress={hostDeleteRoom} className="bg-red-100 rounded-xl py-3 flex-row items-center justify-center">
+                          <Trash2 size={16} color="#DC2626" />
+                          <Text className="text-red-600 font-semibold ml-2">Delete Room</Text>
+                        </Pressable>
+                      </View>
+                    )}
+
+                    <ScrollView showsVerticalScrollIndicator={false}>
+                      {stage.length > 0 && (
+                        <View className="mb-4">
+                          <Text className="text-gray-500 font-medium mb-2">On Stage</Text>
+                          {stage.map((p) => (
+                            <View key={p.id} className="flex-row items-center py-2">
+                              <View className="w-10 h-10 rounded-full bg-forest-100 overflow-hidden">
+                                {p.profile?.avatar_url ? (
+                                  <Image source={{ uri: p.profile.avatar_url }} style={{ width: 40, height: 40 }} contentFit="cover" />
+                                ) : (
+                                  <View className="w-full h-full items-center justify-center">
+                                    <Text className="text-forest-700 font-medium">{(p.profile?.name || 'A').charAt(0)}</Text>
+                                  </View>
+                                )}
+                              </View>
+                              <View className="flex-1 ml-3">
+                                <Text className="text-warmBrown font-medium">{p.profile?.name || 'Anonymous'}</Text>
+                                <Text className="text-gray-400 text-sm capitalize">{p.role}</Text>
+                              </View>
+                              {p.role === 'host' && <Crown size={16} color="#C9A227" />}
+                            </View>
+                          ))}
+                        </View>
+                      )}
+
+                      {audience.length > 0 && (
+                        <View>
+                          <Text className="text-gray-500 font-medium mb-2">Audience</Text>
+                          {audience.map((p) => (
+                            <View key={p.id} className="flex-row items-center py-2">
+                              <View className="w-10 h-10 rounded-full bg-gray-100 overflow-hidden">
+                                {p.profile?.avatar_url ? (
+                                  <Image source={{ uri: p.profile.avatar_url }} style={{ width: 40, height: 40 }} contentFit="cover" />
+                                ) : (
+                                  <View className="w-full h-full items-center justify-center">
+                                    <Text className="text-gray-500 font-medium">{(p.profile?.name || 'A').charAt(0)}</Text>
+                                  </View>
+                                )}
+                              </View>
+                              <Text className="text-warmBrown font-medium ml-3">{p.profile?.name || 'Anonymous'}</Text>
+                            </View>
+                          ))}
+                        </View>
+                      )}
+                    </ScrollView>
+                  </View>
+                </View>
+              </Pressable>
+            </Modal>
+
+            {/* Test Mic Modal */}
             <Modal
               visible={testMicOpen}
               transparent
-              animationType="fade"
+              animationType="slide"
               onRequestClose={() => {
-                // best-effort cleanup; modal close can be triggered by Android back button
-                cleanupTestAudio().catch(() => null);
-                cleanupTestRecording().catch(() => null);
+                cleanupTestAudio();
+                cleanupTestRecording();
                 setPauseLiveKitForTest(false);
                 setTestMicOpen(false);
               }}
             >
-              <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'flex-end' }}>
-                <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 16, borderWidth: 1, borderColor: 'rgba(17,24,39,0.08)' }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Text style={{ color: '#111827', fontWeight: '900', fontSize: 16 }}>Test Mic</Text>
-                    <Pressable
-                      onPress={async () => {
-                        await cleanupTestAudio();
-                        await cleanupTestRecording();
-                        setPauseLiveKitForTest(false);
-                        setTestMicOpen(false);
-                      }}
-                      className="active:opacity-80"
-                    >
-                      <X size={18} color="#111827" />
-                    </Pressable>
-                  </View>
-
-                {pauseLiveKitForTest ? (
-                  <View style={{ marginTop: 10, backgroundColor: 'rgba(245,158,11,0.10)', borderRadius: 16, padding: 10, borderWidth: 1, borderColor: 'rgba(17,24,39,0.08)' }}>
-                    <Text style={{ color: '#92400E', fontWeight: '900' }}>
-                      Room audio paused while testing mic
-                    </Text>
-                    <Text style={{ color: '#92400E', marginTop: 4, fontWeight: '700' }}>
-                      Close this sheet to reconnect to the room.
-                    </Text>
-                  </View>
-                ) : null}
-
-                  <View style={{ marginTop: 10, backgroundColor: 'rgba(124,58,237,0.08)', borderRadius: 16, padding: 12, borderWidth: 1, borderColor: 'rgba(17,24,39,0.08)' }}>
-                    <Text style={{ color: '#111827', fontWeight: '900' }}>Live check (in-room)</Text>
-                    <Text style={{ color: '#6B7280', marginTop: 6 }}>
-                      Turn on your mic, then talk. The signal should switch to “Speaking”.
-                    </Text>
-                    <View style={{ marginTop: 10, alignSelf: 'flex-start', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: 'rgba(17,24,39,0.92)' }}>
-                      <LocalMicSignalFallback micEnabled={!!(canSpeakEffective && micEnabled)} speaking={lkSpeaking} />
-                    </View>
-                  </View>
-
-                  <View style={{ marginTop: 12, backgroundColor: 'rgba(34,197,94,0.08)', borderRadius: 16, padding: 12, borderWidth: 1, borderColor: 'rgba(17,24,39,0.08)' }}>
-                    <Text style={{ color: '#111827', fontWeight: '900' }}>Hear yourself (record & playback)</Text>
-                    <Text style={{ color: '#6B7280', marginTop: 6 }}>
-                      Record a short clip and play it back. Use headphones to avoid feedback.
-                    </Text>
-
-                    <Text style={{ color: '#6B7280', marginTop: 8, fontWeight: '700' }}>
-                      Mic permission: {testPermGranted === null ? 'unknown' : testPermGranted ? 'granted' : 'denied'} • File:{' '}
-                      {testRecordingUri ? 'saved' : 'none'}
-                    </Text>
-
-                    <Text style={{ color: '#111827', marginTop: 10, fontWeight: '800' }}>
-                      {testRecording ? `Recording… ${testSeconds}s` : testRecordingUri ? 'Recorded ✓ (tap Play)' : testUiStatus}
-                    </Text>
-
-                    <Text style={{ color: '#6B7280', marginTop: 4, fontWeight: '700' }}>
-                      Input level: {typeof testMeterDb === 'number' ? `${Math.round(testMeterDb)} dB` : '—'}
-                      {typeof testMeterDb === 'number' && testMeterDb < -40 ? ' (too quiet)' : ''}
-                    </Text>
-
-                    <Text style={{ color: '#6B7280', marginTop: 4, fontWeight: '700' }}>Tap count: {testTapCount}</Text>
-
-                    <View style={{ flexDirection: 'row', marginTop: 12, gap: 10 }}>
-                      <Pressable
-                        onPress={() => {
-                          setTestTapCount((c) => c + 1);
-                          if (testRecording) stopTestRecording();
-                          else startTestRecording();
-                        }}
-                        disabled={testBusy}
-                        className="active:opacity-90"
-                        style={{ flex: 1 }}
-                      >
-                        <LinearGradient
-                          colors={testRecording ? ['#EF4444', '#F97316'] : ['#7C3AED', '#EC4899']}
-                          start={{ x: 0, y: 0 }}
-                          end={{ x: 1, y: 1 }}
-                          style={{ borderRadius: 16, paddingVertical: 12, alignItems: 'center' }}
-                        >
-                          <Text style={{ color: '#fff', fontWeight: '900' }}>
-                            {testBusy && !testRecording ? 'Starting…' : testRecording ? 'Stop recording' : 'Start recording'}
-                          </Text>
-                        </LinearGradient>
-                      </Pressable>
-
-                      <Pressable onPress={playTestRecording} disabled={!testRecordingUri || testBusy} className="active:opacity-90" style={{ flex: 1 }}>
-                        <View
-                          style={{
-                            borderRadius: 16,
-                            paddingVertical: 12,
-                            alignItems: 'center',
-                            backgroundColor: testRecordingUri ? 'rgba(17,24,39,0.06)' : 'rgba(17,24,39,0.04)',
-                            borderWidth: 1,
-                            borderColor: 'rgba(17,24,39,0.08)',
-                            opacity: testRecordingUri ? 1 : 0.55,
-                          }}
-                        >
-                          <Text style={{ color: '#111827', fontWeight: '900' }}>Play</Text>
-                        </View>
-                      </Pressable>
-                    </View>
-
-                    <Pressable onPress={shareTestRecording} disabled={!testRecordingUri} className="active:opacity-90" style={{ marginTop: 10, opacity: testRecordingUri ? 1 : 0.55 }}>
-                      <View style={{ borderRadius: 16, paddingVertical: 12, alignItems: 'center', backgroundColor: 'rgba(59,130,246,0.10)', borderWidth: 1, borderColor: 'rgba(59,130,246,0.18)' }}>
-                        <Text style={{ color: '#1D4ED8', fontWeight: '900' }}>Save/Share recording</Text>
+              <Pressable className="flex-1 bg-black/40" onPress={() => {
+                cleanupTestAudio();
+                cleanupTestRecording();
+                setPauseLiveKitForTest(false);
+                setTestMicOpen(false);
+              }}>
+                <View className="flex-1 justify-end">
+                  <Pressable onPress={(e) => e.stopPropagation()}>
+                    <View className="bg-cream rounded-t-3xl p-5">
+                      <View className="flex-row items-center justify-between mb-4">
+                        <Text className="text-warmBrown font-bold text-lg">Test Your Mic</Text>
+                        <Pressable onPress={async () => {
+                          await cleanupTestAudio();
+                          await cleanupTestRecording();
+                          setPauseLiveKitForTest(false);
+                          setTestMicOpen(false);
+                        }}>
+                          <X size={24} color="#2D1F1A" />
+                        </Pressable>
                       </View>
-                    </Pressable>
-                  </View>
 
-                  <View style={{ height: 14 }} />
+                      {pauseLiveKitForTest && (
+                        <View className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4">
+                          <Text className="text-amber-800 font-medium">Room audio paused while testing</Text>
+                        </View>
+                      )}
+
+                      <View className="bg-white rounded-xl p-4 mb-4">
+                        <Text className="text-warmBrown font-semibold mb-2">Record & Playback</Text>
+                        <Text className="text-gray-500 text-sm mb-4">
+                          Record yourself and play it back to check your mic quality.
+                        </Text>
+
+                        <Text className="text-gray-400 text-sm mb-3">
+                          Permission: {testPermGranted === null ? 'Unknown' : testPermGranted ? 'Granted' : 'Denied'} •
+                          Recording: {testRecording ? `${testSeconds}s` : testRecordingUri ? 'Ready' : 'Not started'}
+                        </Text>
+
+                        <View className="flex-row gap-3">
+                          <Pressable
+                            onPress={testRecording ? stopTestRecording : startTestRecording}
+                            disabled={testBusy}
+                            className="flex-1 rounded-xl py-3 items-center"
+                            style={{ backgroundColor: testRecording ? '#DC2626' : '#1B4D3E' }}
+                          >
+                            <Text className="text-white font-semibold">
+                              {testRecording ? 'Stop' : 'Record'}
+                            </Text>
+                          </Pressable>
+
+                          <Pressable
+                            onPress={playTestRecording}
+                            disabled={!testRecordingUri || testBusy}
+                            className="flex-1 rounded-xl py-3 items-center"
+                            style={{ backgroundColor: testRecordingUri ? '#C9A227' : '#E5E7EB' }}
+                          >
+                            <Text className={testRecordingUri ? 'text-white font-semibold' : 'text-gray-400 font-semibold'}>
+                              Play
+                            </Text>
+                          </Pressable>
+                        </View>
+                      </View>
+                    </View>
+                  </Pressable>
                 </View>
-              </View>
+              </Pressable>
             </Modal>
           </>
         )}
@@ -1192,4 +1050,3 @@ export default function VoiceRoomScreen() {
     </View>
   );
 }
-
