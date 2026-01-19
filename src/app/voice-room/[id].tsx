@@ -1061,17 +1061,16 @@ function VoiceRoomScreenContent() {
   );
 }
 
-// Simple wrapper that handles the navigation context check
-function NavigationReady({ children }: { children: React.ReactNode }) {
-  const [ready, setReady] = useState(false);
+export default function VoiceRoomScreen() {
+  const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
-    // Small delay to ensure navigation context is mounted
-    const timer = setTimeout(() => setReady(true), 50);
+    // Delay to ensure navigation context is fully mounted
+    const timer = setTimeout(() => setIsReady(true), 100);
     return () => clearTimeout(timer);
   }, []);
 
-  if (!ready) {
+  if (!isReady) {
     return (
       <View style={{ flex: 1, backgroundColor: '#FBF9F7', alignItems: 'center', justifyContent: 'center' }}>
         <ActivityIndicator size="large" color="#1B4D3E" />
@@ -1080,13 +1079,5 @@ function NavigationReady({ children }: { children: React.ReactNode }) {
     );
   }
 
-  return <>{children}</>;
-}
-
-export default function VoiceRoomScreen() {
-  return (
-    <NavigationReady>
-      <VoiceRoomScreenContent />
-    </NavigationReady>
-  );
+  return <VoiceRoomScreenContent />;
 }
