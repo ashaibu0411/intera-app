@@ -170,6 +170,17 @@ export async function resolveClipVideoUrl(
 
     if (!signedError && signed?.signedUrl) return signed.signedUrl;
 
+    // If client-side signing fails (common for guests / strict Storage policies),
+    // try the Edge Function signer (uses service role server-side).
+    try {
+      const { data: fnData, error: fnError } = await supabase.functions.invoke('sign-clip-url', {
+        body: { path: objectPath, expiresInSeconds },
+      });
+      if (!fnError && (fnData as any)?.signedUrl) return String((fnData as any).signedUrl);
+    } catch {
+      // ignore and fall back to public URL
+    }
+
     const { data: publicUrl } = supabase.storage.from('clips').getPublicUrl(objectPath);
     return publicUrl.publicUrl;
   }
