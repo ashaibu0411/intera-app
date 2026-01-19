@@ -145,6 +145,7 @@ function RootLayoutNav() {
         <Stack.Screen name="profile/[id]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="messages" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="notifications" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="search" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="chat/[id]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="create-study-group" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="become-mentor" options={{ animation: 'slide_from_right' }} />

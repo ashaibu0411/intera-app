@@ -2,7 +2,7 @@ import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { View, Text, TextInput, ScrollView, Pressable, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
-import { Search as SearchIcon, X, Users, Calendar, Briefcase, Hash, UserCircle, Circle, MessageCircle } from 'lucide-react-native';
+import { Search as SearchIcon, X, Users, Calendar, Briefcase, Hash, UserCircle, Circle, MessageCircle, ArrowLeft } from 'lucide-react-native';
 import Animated, { FadeIn, FadeInUp, FadeInRight } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { MOCK_POSTS, MOCK_COMMUNITIES, useStore } from '@/lib/store';
@@ -293,7 +293,19 @@ export default function SearchScreen() {
       <SafeAreaView edges={['top']} className="flex-1">
         {/* Search Header */}
         <Animated.View entering={FadeIn.duration(300)} className="px-5 pt-4 pb-3">
-          <Text className="text-2xl font-bold text-warmBrown mb-4">Discover</Text>
+          <View className="flex-row items-center mb-4">
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.back();
+              }}
+              className="mr-3 p-1"
+              hitSlop={8}
+            >
+              <ArrowLeft size={24} color="#2D1F1A" />
+            </Pressable>
+            <Text className="text-2xl font-bold text-warmBrown">Discover</Text>
+          </View>
 
           {/* Search Input */}
           <View className="flex-row items-center bg-white rounded-2xl px-4 py-3 shadow-sm">

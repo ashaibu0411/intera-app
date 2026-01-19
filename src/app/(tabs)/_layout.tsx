@@ -129,12 +129,6 @@ export default function TabLayout() {
           href: null, // Hides from tab bar - accessible via floating button
         }}
       />
-      <Tabs.Screen
-        name="search"
-        options={{
-          href: null,
-        }}
-      />
     </Tabs>
   );
 }
