@@ -1,14 +1,13 @@
-import React, { useEffect, useMemo, useState, Component, ReactNode } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, Pressable, ActivityIndicator, ScrollView, Modal, Alert, Linking } from 'react-native';
-import { Stack, useLocalSearchParams, router } from 'expo-router';
+import { Stack, useLocalSearchParams, router, useNavigation } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import * as Haptics from 'expo-haptics';
 import { Mic, MicOff, Hand, Gift, Crown, UserPlus, X, Users, AudioLines, Trash2, Square, ChevronDown, Volume2, VolumeX, UserMinus, MoreVertical } from 'lucide-react-native';
-import { LiveKitRoom, useRoomContext, isLiveKitAvailable } from '@/lib/livekit-wrapper';
+import { LiveKitRoom, useRoomContext } from '@/lib/livekit-wrapper';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Audio } from 'expo-av';
-import * as Sharing from 'expo-sharing';
 import { useStore } from '@/lib/store';
 import { supabase } from '@/lib/supabase';
 import type { DbVoiceRoom, DbVoiceRoomHandRaise, DbGiftTransaction } from '@/lib/supabase';
@@ -28,38 +27,6 @@ import {
   type ParticipantWithProfile
 } from '@/lib/voiceRooms';
 import { sendGift } from '@/lib/giftService';
-
-// Error boundary to catch navigation context errors
-class NavigationErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
-  constructor(props: { children: ReactNode }) {
-    super(props);
-    this.state = { hasError: false };
-  }
-
-  static getDerivedStateFromError(): { hasError: boolean } {
-    return { hasError: true };
-  }
-
-  componentDidCatch(error: Error) {
-    // Log navigation context errors but don't crash
-    if (error.message?.includes('navigation context')) {
-      console.log('[VoiceRoom] Navigation context not ready, retrying...');
-    }
-  }
-
-  render() {
-    if (this.state.hasError) {
-      // Return a loading screen that will auto-retry
-      return (
-        <View className="flex-1 bg-cream-50 items-center justify-center">
-          <ActivityIndicator size="large" color="#1B4D3E" />
-          <Text className="text-warmBrown mt-4">Loading room...</Text>
-        </View>
-      );
-    }
-    return this.props.children;
-  }
-}
 
 const GIFTS = [
   { id: 'heart', name: 'Heart', value: 1, emoji: '❤️' },
@@ -1094,11 +1061,26 @@ function VoiceRoomScreenContent() {
   );
 }
 
-// Wrap the screen in an error boundary to handle navigation context errors
 export default function VoiceRoomScreen() {
-  return (
-    <NavigationErrorBoundary>
-      <VoiceRoomScreenContent />
-    </NavigationErrorBoundary>
-  );
+  // Check if navigation is ready before rendering
+  const navigation = useNavigation();
+  const [isReady, setIsReady] = useState(false);
+
+  useEffect(() => {
+    // Navigation context is ready if we can access the navigation object
+    if (navigation) {
+      setIsReady(true);
+    }
+  }, [navigation]);
+
+  if (!isReady) {
+    return (
+      <View className="flex-1 bg-cream items-center justify-center">
+        <ActivityIndicator size="large" color="#1B4D3E" />
+        <Text className="text-warmBrown mt-4">Loading room...</Text>
+      </View>
+    );
+  }
+
+  return <VoiceRoomScreenContent />;
 }
