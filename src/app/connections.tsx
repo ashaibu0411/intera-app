@@ -1,29 +1,46 @@
-import React from 'react';
-import { View, Text, ScrollView, Pressable } from 'react-native';
+import React, { useState, useCallback, useEffect } from 'react';
+import { View, Text, ScrollView, Pressable, RefreshControl, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
-import { ArrowLeft, MapPin, MessageCircle, UserMinus } from 'lucide-react-native';
+import { ArrowLeft, MapPin, MessageCircle, UserMinus, Users } from 'lucide-react-native';
 import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
-import { useStore, MOCK_USERS, type User } from '@/lib/store';
+import { useFocusEffect } from '@react-navigation/native';
+import { useStore } from '@/lib/store';
+import { getConnectedUsers, removeConnection } from '@/lib/connections-api';
+import { DbUser } from '@/lib/supabase';
 
-function ConnectionCard({ user, onRemove, onMessage }: { user: User; onRemove: () => void; onMessage: () => void }) {
+function ConnectionCard({
+  user,
+  onRemove,
+  onMessage,
+  isRemoving
+}: {
+  user: DbUser;
+  onRemove: () => void;
+  onMessage: () => void;
+  isRemoving?: boolean;
+}) {
   return (
     <View className="bg-white rounded-2xl p-4 mb-3 shadow-sm">
       <View className="flex-row items-center">
-        <Image
-          source={{ uri: user.avatar }}
-          style={{ width: 56, height: 56, borderRadius: 28 }}
-          contentFit="cover"
-        />
+        <Pressable onPress={() => router.push(`/profile/${user.id}`)}>
+          <Image
+            source={{ uri: user.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&h=200&fit=crop' }}
+            style={{ width: 56, height: 56, borderRadius: 28 }}
+            contentFit="cover"
+          />
+        </Pressable>
         <View className="flex-1 ml-3">
           <Text className="text-warmBrown font-semibold text-base">{user.name}</Text>
           <Text className="text-gray-400 text-sm">@{user.username}</Text>
-          <View className="flex-row items-center mt-1">
-            <MapPin size={12} color="#9CA3AF" />
-            <Text className="text-gray-400 text-xs ml-1">{user.location}</Text>
-          </View>
+          {user.location && (
+            <View className="flex-row items-center mt-1">
+              <MapPin size={12} color="#9CA3AF" />
+              <Text className="text-gray-400 text-xs ml-1">{user.location}</Text>
+            </View>
+          )}
         </View>
       </View>
 
@@ -62,9 +79,14 @@ function ConnectionCard({ user, onRemove, onMessage }: { user: User; onRemove: (
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
             onRemove();
           }}
+          disabled={isRemoving}
           className="flex-row items-center justify-center bg-gray-100 rounded-xl px-4 py-3"
         >
-          <UserMinus size={18} color="#6B7280" />
+          {isRemoving ? (
+            <ActivityIndicator size="small" color="#6B7280" />
+          ) : (
+            <UserMinus size={18} color="#6B7280" />
+          )}
         </Pressable>
       </View>
     </View>
@@ -72,11 +94,67 @@ function ConnectionCard({ user, onRemove, onMessage }: { user: User; onRemove: (
 }
 
 export default function ConnectionsScreen() {
-  const connections = useStore((s) => s.connections);
-  const removeConnection = useStore((s) => s.removeConnection);
+  const [connections, setConnections] = useState<DbUser[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [removingUserId, setRemovingUserId] = useState<string | null>(null);
 
-  // If no connections yet, show mock users as suggestions
-  const displayConnections = connections.length > 0 ? connections : [];
+  const currentUser = useStore((s) => s.currentUser);
+
+  const loadConnections = useCallback(async () => {
+    if (!currentUser?.id) {
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      console.log('[connections] Loading connected users...');
+      const connectedUsers = await getConnectedUsers(currentUser.id);
+      console.log('[connections] Loaded', connectedUsers.length, 'connections');
+      setConnections(connectedUsers);
+    } catch (error) {
+      console.error('[connections] Error loading connections:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [currentUser?.id]);
+
+  useEffect(() => {
+    loadConnections();
+  }, [loadConnections]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (currentUser?.id) {
+        loadConnections();
+      }
+    }, [loadConnections, currentUser?.id])
+  );
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    await loadConnections();
+    setRefreshing(false);
+  };
+
+  const handleRemove = async (userId: string) => {
+    if (!currentUser?.id) return;
+
+    setRemovingUserId(userId);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    const result = await removeConnection(currentUser.id, userId);
+
+    if (result.success) {
+      setConnections((prev) => prev.filter((c) => c.id !== userId));
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } else {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    }
+
+    setRemovingUserId(null);
+  };
 
   return (
     <View className="flex-1 bg-cream">
@@ -98,40 +176,57 @@ export default function ConnectionsScreen() {
           </Pressable>
           <Text className="text-xl font-bold text-warmBrown">Connections</Text>
           <View className="ml-2 bg-terracotta-100 rounded-full px-2 py-0.5">
-            <Text className="text-terracotta-600 font-medium text-sm">{displayConnections.length}</Text>
+            <Text className="text-terracotta-600 font-medium text-sm">{connections.length}</Text>
           </View>
         </Animated.View>
 
-        <ScrollView className="flex-1 px-5" showsVerticalScrollIndicator={false}>
-          {displayConnections.length === 0 ? (
+        <ScrollView
+          className="flex-1 px-5"
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor="#D4673A"
+              colors={['#D4673A']}
+            />
+          }
+        >
+          {isLoading ? (
+            <View className="py-16 items-center">
+              <ActivityIndicator size="large" color="#D4673A" />
+              <Text className="text-gray-500 mt-4">Loading connections...</Text>
+            </View>
+          ) : connections.length === 0 ? (
             <Animated.View
               entering={FadeInUp.duration(400).delay(100)}
               className="items-center justify-center py-16"
             >
-              <Text className="text-6xl mb-4">👥</Text>
+              <View className="bg-gray-100 rounded-full p-6 mb-4">
+                <Users size={48} color="#9CA3AF" />
+              </View>
               <Text className="text-lg font-semibold text-warmBrown mb-2">No connections yet</Text>
               <Text className="text-gray-500 text-center px-8 mb-6">
                 Connect with people in your community to grow your network
               </Text>
-
-              {/* Suggested connections */}
-              <Text className="text-base font-semibold text-warmBrown mb-4 self-start">
-                Suggested for you
-              </Text>
-              {MOCK_USERS.map((user, index) => (
-                <SuggestedUserCard key={user.id} user={user} index={index} />
-              ))}
+              <Pressable
+                onPress={() => router.push('/(tabs)/connect')}
+                className="bg-terracotta-500 rounded-xl px-6 py-3"
+              >
+                <Text className="text-white font-medium">Find People</Text>
+              </Pressable>
             </Animated.View>
           ) : (
-            displayConnections.map((user, index) => (
+            connections.map((user, index) => (
               <Animated.View
                 key={user.id}
                 entering={FadeInUp.duration(300).delay(index * 50)}
               >
                 <ConnectionCard
                   user={user}
-                  onRemove={() => removeConnection(user.id)}
+                  onRemove={() => handleRemove(user.id)}
                   onMessage={() => router.push(`/chat/${user.id}`)}
+                  isRemoving={removingUserId === user.id}
                 />
               </Animated.View>
             ))
@@ -140,37 +235,5 @@ export default function ConnectionsScreen() {
         </ScrollView>
       </SafeAreaView>
     </View>
-  );
-}
-
-function SuggestedUserCard({ user, index }: { user: User; index: number }) {
-  const addConnection = useStore((s) => s.addConnection);
-
-  return (
-    <Animated.View
-      entering={FadeInUp.duration(300).delay(200 + index * 50)}
-      className="bg-white rounded-2xl p-4 mb-3 shadow-sm w-full"
-    >
-      <View className="flex-row items-center">
-        <Image
-          source={{ uri: user.avatar }}
-          style={{ width: 48, height: 48, borderRadius: 24 }}
-          contentFit="cover"
-        />
-        <View className="flex-1 ml-3">
-          <Text className="text-warmBrown font-semibold">{user.name}</Text>
-          <Text className="text-gray-400 text-sm">@{user.username}</Text>
-        </View>
-        <Pressable
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-            addConnection(user);
-          }}
-          className="bg-terracotta-500 rounded-xl px-4 py-2"
-        >
-          <Text className="text-white font-medium">Connect</Text>
-        </Pressable>
-      </View>
-    </Animated.View>
   );
 }
