@@ -104,6 +104,36 @@ export interface DbServiceTemplate {
 
 // ==================== Service Templates ====================
 
+// Hardcoded service templates since the table doesn't exist in the database
+const SERVICE_TEMPLATES: Record<string, DbServiceTemplate[]> = {
+  'hair_salon': [
+    { id: '1', business_category: 'hair_salon', name: 'Haircut', description: 'Professional haircut', suggested_duration: 30, suggested_price: 25, currency: 'USD', service_category: 'Hair', display_order: 0, created_at: '' },
+    { id: '2', business_category: 'hair_salon', name: 'Hair Coloring', description: 'Full hair coloring service', suggested_duration: 90, suggested_price: 80, currency: 'USD', service_category: 'Hair', display_order: 1, created_at: '' },
+    { id: '3', business_category: 'hair_salon', name: 'Blowout', description: 'Wash and blowout styling', suggested_duration: 45, suggested_price: 35, currency: 'USD', service_category: 'Hair', display_order: 2, created_at: '' },
+  ],
+  'barbershop': [
+    { id: '4', business_category: 'barbershop', name: 'Haircut', description: 'Classic haircut', suggested_duration: 30, suggested_price: 20, currency: 'USD', service_category: 'Hair', display_order: 0, created_at: '' },
+    { id: '5', business_category: 'barbershop', name: 'Beard Trim', description: 'Beard shaping and trim', suggested_duration: 15, suggested_price: 10, currency: 'USD', service_category: 'Beard', display_order: 1, created_at: '' },
+    { id: '6', business_category: 'barbershop', name: 'Haircut & Beard', description: 'Full haircut with beard trim', suggested_duration: 45, suggested_price: 30, currency: 'USD', service_category: 'Combo', display_order: 2, created_at: '' },
+    { id: '7', business_category: 'barbershop', name: 'Hot Towel Shave', description: 'Traditional hot towel shave', suggested_duration: 30, suggested_price: 25, currency: 'USD', service_category: 'Shave', display_order: 3, created_at: '' },
+  ],
+  'beauty_salon': [
+    { id: '8', business_category: 'beauty_salon', name: 'Manicure', description: 'Classic manicure', suggested_duration: 30, suggested_price: 20, currency: 'USD', service_category: 'Nails', display_order: 0, created_at: '' },
+    { id: '9', business_category: 'beauty_salon', name: 'Pedicure', description: 'Classic pedicure', suggested_duration: 45, suggested_price: 30, currency: 'USD', service_category: 'Nails', display_order: 1, created_at: '' },
+    { id: '10', business_category: 'beauty_salon', name: 'Gel Nails', description: 'Gel nail application', suggested_duration: 60, suggested_price: 45, currency: 'USD', service_category: 'Nails', display_order: 2, created_at: '' },
+    { id: '11', business_category: 'beauty_salon', name: 'Facial', description: 'Deep cleansing facial', suggested_duration: 60, suggested_price: 65, currency: 'USD', service_category: 'Skin', display_order: 3, created_at: '' },
+  ],
+  'spa': [
+    { id: '12', business_category: 'spa', name: 'Swedish Massage', description: 'Relaxing full body massage', suggested_duration: 60, suggested_price: 80, currency: 'USD', service_category: 'Massage', display_order: 0, created_at: '' },
+    { id: '13', business_category: 'spa', name: 'Deep Tissue Massage', description: 'Therapeutic deep tissue massage', suggested_duration: 60, suggested_price: 95, currency: 'USD', service_category: 'Massage', display_order: 1, created_at: '' },
+    { id: '14', business_category: 'spa', name: 'Hot Stone Massage', description: 'Heated stone massage therapy', suggested_duration: 75, suggested_price: 110, currency: 'USD', service_category: 'Massage', display_order: 2, created_at: '' },
+  ],
+  'health': [
+    { id: '15', business_category: 'health', name: 'Consultation', description: 'Initial health consultation', suggested_duration: 30, suggested_price: 50, currency: 'USD', service_category: 'Consultation', display_order: 0, created_at: '' },
+    { id: '16', business_category: 'health', name: 'Follow-up Visit', description: 'Follow-up appointment', suggested_duration: 15, suggested_price: 30, currency: 'USD', service_category: 'Visit', display_order: 1, created_at: '' },
+  ],
+};
+
 export async function getServiceTemplates(businessCategory: string): Promise<DbServiceTemplate[]> {
   // Map common category names to template categories
   const categoryMap: Record<string, string> = {
@@ -129,38 +159,19 @@ export async function getServiceTemplates(businessCategory: string): Promise<DbS
     'pet': 'pet_services',
     'grooming': 'pet_services',
     'nails': 'beauty_salon',
+    'health': 'health',
   };
 
   const normalizedCategory = businessCategory.toLowerCase().trim();
   const templateCategory = categoryMap[normalizedCategory] || normalizedCategory;
 
-  const { data, error } = await supabase
-    .from('service_templates')
-    .select('*')
-    .eq('business_category', templateCategory)
-    .order('display_order', { ascending: true });
-
-  if (error) {
-    console.error('Error fetching service templates:', error);
-    return [];
-  }
-
-  return (data || []) as DbServiceTemplate[];
+  // Return hardcoded templates instead of querying non-existent table
+  return SERVICE_TEMPLATES[templateCategory] || [];
 }
 
 export async function getAllServiceTemplateCategories(): Promise<string[]> {
-  const { data, error } = await supabase
-    .from('service_templates')
-    .select('business_category')
-    .order('business_category');
-
-  if (error) {
-    console.error('Error fetching template categories:', error);
-    return [];
-  }
-
-  const categories = [...new Set((data || []).map(d => d.business_category))];
-  return categories;
+  // Return hardcoded categories
+  return Object.keys(SERVICE_TEMPLATES);
 }
 
 // ==================== Business Services ====================
