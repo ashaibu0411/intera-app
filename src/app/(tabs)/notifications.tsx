@@ -39,20 +39,42 @@ function NotificationItem({ notification, index }: { notification: Notification;
   const timeAgo = formatDistanceToNow(new Date(notification.timestamp), { addSuffix: true });
   const markNotificationRead = useStore((s) => s.markNotificationRead);
 
+  const handlePress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    markNotificationRead(notification.id);
+
+    // Determine the route to navigate to
+    let targetRoute = notification.route;
+
+    if (!targetRoute) {
+      // Default fallback routes based on notification type
+      if (notification.type === 'alert') {
+        targetRoute = '/safety-alerts';
+      } else if (notification.type === 'event') {
+        targetRoute = '/advanced-events';
+      } else {
+        // For general notifications, go to community tab
+        targetRoute = '/(tabs)/community';
+      }
+    }
+
+    // Handle tab routes - use replace to avoid stack issues
+    if (targetRoute === '/community' || targetRoute === '/(tabs)/community') {
+      router.replace('/(tabs)/community');
+    } else if (targetRoute === '/events' || targetRoute === '/(tabs)/events') {
+      router.replace('/(tabs)/events');
+    } else {
+      // For non-tab routes, use push normally
+      router.push(targetRoute as any);
+    }
+  };
+
   return (
     <Animated.View
       entering={FadeInUp.duration(300).delay(index * 50)}
     >
       <Pressable
-        onPress={() => {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          markNotificationRead(notification.id);
-          const fallbackRoute =
-            notification.type === 'alert' ? '/safety-alerts'
-            : notification.type === 'event' ? '/events'
-            : '/community';
-          router.push((notification.route || fallbackRoute) as any);
-        }}
+        onPress={handlePress}
         className={`flex-row items-start p-4 mx-4 mb-3 rounded-2xl ${
           notification.read ? 'bg-white' : 'bg-terracotta-50'
         } shadow-sm`}
