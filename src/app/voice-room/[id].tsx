@@ -224,8 +224,7 @@ function SpeakerAvatar({
   );
 }
 
-function VoiceRoomScreenContent() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+function VoiceRoomScreenContent({ id }: { id: string }) {
   const currentUser = useStore((s) => s.currentUser);
 
   const [room, setRoom] = useState<DbVoiceRoom | null>(null);
@@ -1063,6 +1062,7 @@ function VoiceRoomScreenContent() {
 
 export default function VoiceRoomScreen() {
   const [isReady, setIsReady] = useState(false);
+  const [roomId, setRoomId] = useState<string | null>(null);
 
   useEffect(() => {
     // Delay to ensure navigation context is fully mounted
@@ -1070,6 +1070,7 @@ export default function VoiceRoomScreen() {
     return () => clearTimeout(timer);
   }, []);
 
+  // Only call useLocalSearchParams after navigation is ready
   if (!isReady) {
     return (
       <View style={{ flex: 1, backgroundColor: '#FBF9F7', alignItems: 'center', justifyContent: 'center' }}>
@@ -1079,5 +1080,20 @@ export default function VoiceRoomScreen() {
     );
   }
 
-  return <VoiceRoomScreenContent />;
+  return <VoiceRoomScreenInner />;
+}
+
+// Inner component that can safely use navigation hooks
+function VoiceRoomScreenInner() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+
+  if (!id) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#FBF9F7', alignItems: 'center', justifyContent: 'center' }}>
+        <Text style={{ color: '#2D1F1A' }}>Room not found</Text>
+      </View>
+    );
+  }
+
+  return <VoiceRoomScreenContent id={id} />;
 }
