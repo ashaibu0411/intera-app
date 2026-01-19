@@ -21,6 +21,8 @@ import {
   UserPlus,
   Plane,
   Building2,
+  Bot,
+  Sparkles,
 } from 'lucide-react-native';
 import Animated, { FadeIn, FadeInUp, FadeInRight } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -253,6 +255,42 @@ export default function StudentHubScreen() {
         </Animated.View>
 
         <ScrollView showsVerticalScrollIndicator={false} className="flex-1">
+          {/* AI Immigration & Study Assistant - Featured Card */}
+          <Animated.View entering={FadeInUp.duration(400).delay(50)} className="px-5 mt-4">
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                router.push('/ai-study-assistant' as any);
+              }}
+            >
+              <LinearGradient
+                colors={['#6366F1', '#8B5CF6', '#A855F7']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={{ borderRadius: 20, padding: 20 }}
+              >
+                <View className="flex-row items-center justify-between">
+                  <View className="flex-1">
+                    <View className="flex-row items-center mb-2">
+                      <View className="bg-white/20 rounded-full p-2 mr-2">
+                        <Bot size={20} color="#FFFFFF" />
+                      </View>
+                      <View className="bg-white/20 rounded-full px-2 py-1 flex-row items-center">
+                        <Sparkles size={12} color="#FFFFFF" />
+                        <Text className="text-white text-xs font-medium ml-1">AI Powered</Text>
+                      </View>
+                    </View>
+                    <Text className="text-white text-xl font-bold">Immigration & Study Assistant</Text>
+                    <Text className="text-white/80 text-sm mt-1">
+                      Get help with visas, school transfers, studying abroad & more
+                    </Text>
+                  </View>
+                  <ChevronRight size={24} color="#FFFFFF" />
+                </View>
+              </LinearGradient>
+            </Pressable>
+          </Animated.View>
+
           {/* Quick Actions */}
           <Animated.View entering={FadeInUp.duration(400).delay(100)} className="px-5 mt-4">
             <View className="flex-row justify-between">
