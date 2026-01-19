@@ -68,6 +68,78 @@ export const DEFAULT_GROUP_SETTINGS: GroupSettings = {
   posts_media_allowed: true,
 };
 
+// ============ MOCK DATA ============
+// Used when database tables don't exist yet
+
+const MOCK_GROUPS: DbGroup[] = [
+  {
+    id: 'mock-1',
+    creator_id: 'mock-user',
+    name: 'Community Study Group',
+    description: 'A place to study and learn together',
+    image_url: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=400',
+    cover_url: null,
+    category: 'community',
+    faith_type: null,
+    visibility: 'public',
+    country: 'USA',
+    admin_area: 'CA',
+    city: 'Los Angeles',
+    neighborhood: null,
+    location_label: 'Los Angeles, CA',
+    contact_phone: null,
+    contact_email: null,
+    website: null,
+    member_count: 24,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: 'mock-2',
+    creator_id: 'mock-user',
+    name: 'Neighborhood Association',
+    description: 'Connect with your neighbors',
+    image_url: 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=400',
+    cover_url: null,
+    category: 'association',
+    faith_type: null,
+    visibility: 'public',
+    country: 'USA',
+    admin_area: 'CA',
+    city: 'Los Angeles',
+    neighborhood: 'Downtown',
+    location_label: 'Downtown, Los Angeles',
+    contact_phone: null,
+    contact_email: null,
+    website: null,
+    member_count: 156,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: 'mock-3',
+    creator_id: 'mock-user',
+    name: 'Faith Community',
+    description: 'Spiritual growth and fellowship',
+    image_url: 'https://images.unsplash.com/photo-1438232992991-995b7058bbb3?w=400',
+    cover_url: null,
+    category: 'church',
+    faith_type: 'Christian',
+    visibility: 'public',
+    country: 'USA',
+    admin_area: 'CA',
+    city: 'Los Angeles',
+    neighborhood: null,
+    location_label: 'Los Angeles, CA',
+    contact_phone: null,
+    contact_email: null,
+    website: null,
+    member_count: 89,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+];
+
 // ============ GROUPS ============
 
 export async function getGroups(limit = 50): Promise<DbGroup[]> {
@@ -78,6 +150,11 @@ export async function getGroups(limit = 50): Promise<DbGroup[]> {
     .limit(limit);
 
   if (error) {
+    // Table doesn't exist yet - return mock data
+    if (error.code === 'PGRST205') {
+      console.log('[Groups] Using mock data - groups table not set up yet');
+      return MOCK_GROUPS.slice(0, limit);
+    }
     console.error('Error fetching groups:', error);
     return [];
   }
@@ -93,6 +170,9 @@ export async function getGroupsByCategory(category: string, limit = 50): Promise
     .limit(limit);
 
   if (error) {
+    if (error.code === 'PGRST205') {
+      return MOCK_GROUPS.filter(g => g.category === category).slice(0, limit);
+    }
     console.error('Error fetching groups by category:', error);
     return [];
   }
@@ -108,6 +188,9 @@ export async function getGroupsByCity(city: string, limit = 50): Promise<DbGroup
     .limit(limit);
 
   if (error) {
+    if (error.code === 'PGRST205') {
+      return MOCK_GROUPS.filter(g => g.city.toLowerCase().includes(city.toLowerCase())).slice(0, limit);
+    }
     console.error('Error fetching groups by city:', error);
     return [];
   }
@@ -115,7 +198,6 @@ export async function getGroupsByCity(city: string, limit = 50): Promise<DbGroup
 }
 
 export async function getStudyGroups(limit = 50): Promise<DbGroup[]> {
-  // Fetch groups that are study groups (category 'other' or name contains 'study')
   const { data, error } = await supabase
     .from('groups')
     .select('*, creator:users!creator_id(*)')
@@ -124,6 +206,13 @@ export async function getStudyGroups(limit = 50): Promise<DbGroup[]> {
     .limit(limit);
 
   if (error) {
+    if (error.code === 'PGRST205') {
+      return MOCK_GROUPS.filter(g =>
+        g.category === 'other' ||
+        g.name.toLowerCase().includes('study') ||
+        g.name.toLowerCase().includes('students')
+      ).slice(0, limit);
+    }
     console.error('Error fetching study groups:', error);
     return [];
   }
@@ -138,6 +227,9 @@ export async function getGroup(groupId: string): Promise<DbGroup | null> {
     .single();
 
   if (error) {
+    if (error.code === 'PGRST205') {
+      return MOCK_GROUPS.find(g => g.id === groupId) || null;
+    }
     console.error('Error fetching group:', error);
     return null;
   }
@@ -633,6 +725,13 @@ export async function searchGroups(query: string, limit = 20): Promise<DbGroup[]
     .limit(limit);
 
   if (error) {
+    if (error.code === 'PGRST205') {
+      const q = query.toLowerCase();
+      return MOCK_GROUPS.filter(g =>
+        g.name.toLowerCase().includes(q) ||
+        (g.description?.toLowerCase().includes(q) ?? false)
+      ).slice(0, limit);
+    }
     console.error('Error searching groups:', error);
     return [];
   }
