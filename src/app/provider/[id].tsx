@@ -8,6 +8,7 @@ import { useStore } from '@/lib/store';
 import { getServiceProviders, getServiceProviderReviews, getServiceProviderTrustCounts, removeServiceProviderConfirmation, setServiceProviderConfirmation, upsertServiceProviderReview } from '@/lib/marketplace-api';
 import { getOrCreateTrustScore, DbUserTrustScore } from '@/lib/trust-api';
 import { TrustScoreBadge } from '@/components/TrustScoreBadge';
+import { ReviewHistoryBadge } from '@/components/ReviewHistoryBadge';
 
 export default function ProviderDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -159,6 +160,13 @@ export default function ProviderDetailScreen() {
                 confirmationCount={trust?.workedForMe ?? 0}
                 userId={provider?.user_id}
               />
+            </View>
+          )}
+
+          {/* Review History Warning (if suspicious) */}
+          {provider?.user_id && (
+            <View className="mx-5 mt-3">
+              <ReviewHistoryBadge userId={provider.user_id} />
             </View>
           )}
 

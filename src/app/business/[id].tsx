@@ -9,6 +9,7 @@ import { useStore } from '@/lib/store';
 import { getBusiness, getBusinessReviews, getBusinessTrustCounts, removeBusinessConfirmation, setBusinessConfirmation, upsertBusinessReview, getBusinessInventory } from '@/lib/marketplace-api';
 import { getOrCreateTrustScore, DbUserTrustScore } from '@/lib/trust-api';
 import { TrustScoreBadge } from '@/components/TrustScoreBadge';
+import { ReviewHistoryBadge } from '@/components/ReviewHistoryBadge';
 import { getOrCreateConversation } from '@/lib/messages';
 import Animated, { FadeInUp } from 'react-native-reanimated';
 
@@ -302,6 +303,13 @@ export default function BusinessDetailScreen() {
                 confirmationCount={trust?.workedForMe ?? 0}
                 userId={business?.owner_id}
               />
+            </View>
+          )}
+
+          {/* Review History Warning (if suspicious) */}
+          {business?.owner_id && (
+            <View className="mx-5 mt-3">
+              <ReviewHistoryBadge userId={business.owner_id} />
             </View>
           )}
 

@@ -405,3 +405,206 @@ export function getScoreColor(score: number): string {
   if (score >= 40) return '#D4673A';
   return '#DC2626';
 }
+
+// ==================== Permanent Review Archive API ====================
+
+export interface ArchivedReview {
+  id: string;
+  review_type: 'business' | 'service_provider';
+  rating: number;
+  review_text: string | null;
+  reviewer_name: string | null;
+  original_created_at: string;
+  target_name: string | null;
+  target_user_id: string | null;
+  archived_at: string;
+}
+
+export interface FraudHistory {
+  has_flags: boolean;
+  flag_count: number;
+  total_bad_reviews: number;
+  average_rating: number;
+  deleted_accounts: number;
+}
+
+export interface FraudFlag {
+  id: string;
+  identity_hash: string;
+  flag_type: 'account_deleted_after_bad_review' | 'multiple_accounts' | 'suspicious_pattern' | 'reported_by_community';
+  description: string | null;
+  evidence: Record<string, unknown> | null;
+  flagged_at: string;
+}
+
+/**
+ * Get permanent archived reviews for a user (cannot be deleted)
+ * This fetches all reviews ever left for this person, even from deleted accounts
+ */
+export async function getPermanentReviewsForUser(userId: string): Promise<ArchivedReview[]> {
+  const { data, error } = await supabase
+    .from('permanent_review_archive')
+    .select('*')
+    .eq('target_user_id', userId)
+    .order('original_created_at', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching permanent reviews:', error);
+    return [];
+  }
+
+  return (data || []) as ArchivedReview[];
+}
+
+/**
+ * Get archived reviews by email (for detecting reviews from previous accounts)
+ */
+export async function getPermanentReviewsByEmail(email: string): Promise<ArchivedReview[]> {
+  const { data, error } = await supabase
+    .from('permanent_review_archive')
+    .select('*')
+    .ilike('target_email', email)
+    .order('original_created_at', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching permanent reviews by email:', error);
+    return [];
+  }
+
+  return (data || []) as ArchivedReview[];
+}
+
+/**
+ * Check if a user has fraud flags in their history
+ */
+export async function checkUserFraudHistory(userId: string): Promise<FraudHistory> {
+  const { data, error } = await supabase.rpc('check_user_fraud_history', {
+    user_id: userId,
+  });
+
+  if (error) {
+    console.error('Error checking fraud history:', error);
+    return {
+      has_flags: false,
+      flag_count: 0,
+      total_bad_reviews: 0,
+      average_rating: 0,
+      deleted_accounts: 0,
+    };
+  }
+
+  // RPC returns array with single row
+  const result = Array.isArray(data) ? data[0] : data;
+  return result as FraudHistory;
+}
+
+/**
+ * Get fraud flags for a user
+ */
+export async function getUserFraudFlags(userId: string): Promise<FraudFlag[]> {
+  // First get user's email to find identity hash
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('email, phone')
+    .eq('id', userId)
+    .single();
+
+  if (!profile?.email && !profile?.phone) {
+    return [];
+  }
+
+  // We need to compute the hash client-side or use a different approach
+  // For now, we'll query by evidence containing the user_id
+  const { data, error } = await supabase
+    .from('review_fraud_flags')
+    .select('*')
+    .order('flagged_at', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching fraud flags:', error);
+    return [];
+  }
+
+  // Filter flags that relate to this user
+  const userFlags = (data || []).filter((flag: FraudFlag) => {
+    const evidence = flag.evidence as Record<string, unknown> | null;
+    if (!evidence) return false;
+    return evidence.deleted_user_id === userId ||
+           evidence.email === profile.email;
+  });
+
+  return userFlags as FraudFlag[];
+}
+
+/**
+ * Get all-time review statistics for a user (from permanent archive)
+ * This includes reviews from deleted businesses/accounts
+ */
+export async function getPermanentReviewStats(userId: string): Promise<{
+  totalReviews: number;
+  avgRating: number;
+  positiveReviews: number;
+  negativeReviews: number;
+  oldestReviewDate: string | null;
+}> {
+  const reviews = await getPermanentReviewsForUser(userId);
+
+  if (reviews.length === 0) {
+    return {
+      totalReviews: 0,
+      avgRating: 0,
+      positiveReviews: 0,
+      negativeReviews: 0,
+      oldestReviewDate: null,
+    };
+  }
+
+  const totalReviews = reviews.length;
+  const avgRating = reviews.reduce((sum, r) => sum + r.rating, 0) / totalReviews;
+  const positiveReviews = reviews.filter(r => r.rating >= 4).length;
+  const negativeReviews = reviews.filter(r => r.rating <= 2).length;
+  const oldestReviewDate = reviews.length > 0
+    ? reviews[reviews.length - 1].original_created_at
+    : null;
+
+  return {
+    totalReviews,
+    avgRating,
+    positiveReviews,
+    negativeReviews,
+    oldestReviewDate,
+  };
+}
+
+/**
+ * Check if user appears to be a new account from someone with bad review history
+ */
+export async function checkForSuspiciousNewAccount(userId: string): Promise<{
+  isSuspicious: boolean;
+  reason: string | null;
+  previousBadReviews: number;
+}> {
+  const fraudHistory = await checkUserFraudHistory(userId);
+
+  if (fraudHistory.has_flags) {
+    return {
+      isSuspicious: true,
+      reason: `This account may be linked to ${fraudHistory.deleted_accounts} previously deleted account(s) with ${fraudHistory.total_bad_reviews} negative reviews.`,
+      previousBadReviews: fraudHistory.total_bad_reviews,
+    };
+  }
+
+  if (fraudHistory.total_bad_reviews > 0 && fraudHistory.average_rating < 3) {
+    return {
+      isSuspicious: true,
+      reason: `User has a history of ${fraudHistory.total_bad_reviews} negative reviews (avg: ${fraudHistory.average_rating.toFixed(1)}).`,
+      previousBadReviews: fraudHistory.total_bad_reviews,
+    };
+  }
+
+  return {
+    isSuspicious: false,
+    reason: null,
+    previousBadReviews: 0,
+  };
+}
