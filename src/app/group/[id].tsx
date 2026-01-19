@@ -10,6 +10,7 @@ import {
   Modal,
   Alert,
   Linking,
+  Share,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
@@ -51,6 +52,16 @@ import {
 import { useStore } from '@/lib/store';
 import type { DbGroup, DbGroupPost, DbGroupEvent, DbGroupAlbum, DbGroupFile, DbGroupMember } from '@/lib/supabase';
 import {
+  getGroup,
+  getGroupMembers,
+  getGroupMember,
+  getGroupPosts,
+  getGroupEvents,
+  getGroupAlbums,
+  createGroupPost,
+  createGroupEvent,
+  joinGroup,
+  leaveGroup,
   getGroupSettings,
   requestToJoinGroup,
   type GroupSettings,
@@ -214,38 +225,60 @@ export default function GroupDetailScreen() {
   const [groupSettings, setGroupSettings] = useState<GroupSettings>(DEFAULT_GROUP_SETTINGS);
   const [joinRequestPending, setJoinRequestPending] = useState(false);
   const [isRequestingJoin, setIsRequestingJoin] = useState(false);
+  // Event creation state
+  const [showEventModal, setShowEventModal] = useState(false);
+  const [newEventTitle, setNewEventTitle] = useState('');
+  const [newEventDescription, setNewEventDescription] = useState('');
+  const [newEventDate, setNewEventDate] = useState('');
+  const [newEventTime, setNewEventTime] = useState('');
+  const [newEventLocation, setNewEventLocation] = useState('');
+  const [isCreatingEvent, setIsCreatingEvent] = useState(false);
+  // Album upload state
+  const [showAlbumModal, setShowAlbumModal] = useState(false);
+  const [newAlbumName, setNewAlbumName] = useState('');
+  const [newAlbumDescription, setNewAlbumDescription] = useState('');
+  const [isCreatingAlbum, setIsCreatingAlbum] = useState(false);
+  // Search and members modal state
+  const [showSearchModal, setShowSearchModal] = useState(false);
+  const [showMembersModal, setShowMembersModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const currentUser = useStore((s) => s.currentUser);
   const isGuest = useStore((s) => s.isGuest);
 
   const loadGroupData = useCallback(async () => {
-    try {
-      // In real implementation, fetch from API
-      // const groupData = await getGroup(id);
-      // const postsData = await getGroupPosts(id);
-      // etc.
+    if (!id) return;
 
-      // For now, use mock data
-      setGroup(MOCK_GROUP);
-      setPosts(MOCK_POSTS);
-      setEvents(MOCK_EVENTS);
-      setAlbums(MOCK_ALBUMS);
-      setFiles(MOCK_FILES);
-      setMembers(MOCK_MEMBERS);
+    try {
+      // Fetch real data from API
+      const [groupData, postsData, eventsData, albumsData, membersData] = await Promise.all([
+        getGroup(id),
+        getGroupPosts(id),
+        getGroupEvents(id),
+        getGroupAlbums(id),
+        getGroupMembers(id),
+      ]);
+
+      if (groupData) {
+        setGroup(groupData);
+      }
+      setPosts(postsData);
+      setEvents(eventsData);
+      setAlbums(albumsData);
+      setFiles([]); // Files API to be implemented
+      setMembers(membersData);
 
       // Fetch group settings
-      if (id) {
-        try {
-          const settings = await getGroupSettings(id);
-          setGroupSettings(settings);
-        } catch (e) {
-          console.log('Using default group settings');
-        }
+      try {
+        const settings = await getGroupSettings(id);
+        setGroupSettings(settings);
+      } catch (e) {
+        console.log('Using default group settings');
       }
 
       // Check if current user is member/admin
       if (currentUser) {
-        const membership = MOCK_MEMBERS.find((m) => m.user_id === currentUser.id);
+        const membership = await getGroupMember(id, currentUser.id);
         setIsMember(!!membership);
         setIsAdmin(membership?.role === 'admin');
       }
@@ -274,20 +307,20 @@ export default function GroupDetailScreen() {
       return;
     }
 
+    if (!id) return;
+
     // Check join mode from settings
     if (groupSettings.join_mode === 'request') {
       // Request to join mode - submit a request
       setIsRequestingJoin(true);
       try {
-        if (id) {
-          const success = await requestToJoinGroup(id, currentUser.id);
-          if (success) {
-            setJoinRequestPending(true);
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            Alert.alert('Request Sent', 'Your request to join has been sent to the group admin.');
-          } else {
-            Alert.alert('Error', 'Failed to send join request. Please try again.');
-          }
+        const success = await requestToJoinGroup(id, currentUser.id);
+        if (success) {
+          setJoinRequestPending(true);
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          Alert.alert('Request Sent', 'Your request to join has been sent to the group admin.');
+        } else {
+          Alert.alert('Error', 'Failed to send join request. Please try again.');
         }
       } catch (error) {
         console.error('Error requesting to join:', error);
@@ -299,23 +332,50 @@ export default function GroupDetailScreen() {
       // Invite only - show message
       Alert.alert('Invite Only', 'This group is invite-only. Please contact an admin to be invited.');
     } else {
-      // Open mode - join immediately
-      setIsMember(true);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      // Open mode - join immediately via API
+      setIsRequestingJoin(true);
+      try {
+        const membership = await joinGroup(id, currentUser.id);
+        if (membership) {
+          setIsMember(true);
+          setMembers((prev) => [...prev, membership]);
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        } else {
+          Alert.alert('Error', 'Failed to join group. Please try again.');
+        }
+      } catch (error) {
+        console.error('Error joining group:', error);
+        Alert.alert('Error', 'An error occurred. Please try again.');
+      } finally {
+        setIsRequestingJoin(false);
+      }
     }
   };
 
   const handleLeaveGroup = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
+    if (!id || !currentUser) return;
+
     Alert.alert('Leave Group', 'Are you sure you want to leave this group?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Leave',
         style: 'destructive',
-        onPress: () => {
-          setIsMember(false);
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        onPress: async () => {
+          try {
+            const success = await leaveGroup(id, currentUser.id);
+            if (success) {
+              setIsMember(false);
+              setMembers((prev) => prev.filter((m) => m.user_id !== currentUser.id));
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            } else {
+              Alert.alert('Error', 'Failed to leave group. Please try again.');
+            }
+          } catch (error) {
+            console.error('Error leaving group:', error);
+            Alert.alert('Error', 'An error occurred. Please try again.');
+          }
         },
       },
     ]);
@@ -340,49 +400,90 @@ export default function GroupDetailScreen() {
   };
 
   const handleCreatePost = async () => {
-    if (!newPostContent.trim() || isPostingPost) return;
+    if (!newPostContent.trim() || isPostingPost || !id || !currentUser) return;
 
     setIsPostingPost(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     try {
-      // In real implementation, call createGroupPost API
-      const newPost: DbGroupPost = {
-        id: `post-${Date.now()}`,
-        group_id: group?.id || '',
-        author_id: currentUser?.id || '',
+      // Create post via API
+      const newPost = await createGroupPost({
+        group_id: id,
+        author_id: currentUser.id,
         content: newPostContent,
         images: newPostImages,
         is_notice: false,
         is_pinned: false,
-        likes_count: 0,
-        comments_count: 0,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        author: currentUser ? {
-          id: currentUser.id,
-          email: currentUser.email || null,
-          phone: currentUser.phone || null,
-          name: currentUser.name,
-          username: currentUser.username,
-          avatar_url: currentUser.avatar || null,
-          bio: currentUser.bio || null,
-          location: currentUser.location || null,
-          interests: currentUser.interests || [],
-          created_at: currentUser.joinedDate,
-        } : undefined,
-      };
+      });
 
-      setPosts([newPost, ...posts]);
-      setNewPostContent('');
-      setNewPostImages([]);
-      setShowPostModal(false);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      if (newPost) {
+        setPosts([newPost, ...posts]);
+        setNewPostContent('');
+        setNewPostImages([]);
+        setShowPostModal(false);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } else {
+        Alert.alert('Error', 'Failed to create post. Please try again.');
+      }
     } catch (error) {
       console.error('Error creating post:', error);
+      Alert.alert('Error', 'An error occurred. Please try again.');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setIsPostingPost(false);
+    }
+  };
+
+  const handleCreateEvent = async () => {
+    if (!newEventTitle.trim() || !newEventDate.trim() || !newEventTime.trim() || isCreatingEvent || !id || !currentUser) return;
+
+    setIsCreatingEvent(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    try {
+      const newEvent = await createGroupEvent({
+        group_id: id,
+        creator_id: currentUser.id,
+        title: newEventTitle,
+        description: newEventDescription,
+        date: newEventDate,
+        time: newEventTime,
+        end_time: null,
+        location: newEventLocation || null,
+        address: null,
+        image: null,
+      });
+
+      if (newEvent) {
+        setEvents([newEvent, ...events]);
+        setNewEventTitle('');
+        setNewEventDescription('');
+        setNewEventDate('');
+        setNewEventTime('');
+        setNewEventLocation('');
+        setShowEventModal(false);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } else {
+        Alert.alert('Error', 'Failed to create event. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error creating event:', error);
+      Alert.alert('Error', 'An error occurred. Please try again.');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      setIsCreatingEvent(false);
+    }
+  };
+
+  const handleShareInvite = async () => {
+    if (!group) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      await Share.share({
+        message: `Join "${group.name}" on Diaspora!\n\nA community for ${group.faith_type || 'faith'} in ${group.location_label || 'your area'}.`,
+      });
+    } catch (error) {
+      console.error('Error sharing:', error);
     }
   };
 
@@ -453,7 +554,7 @@ export default function GroupDetailScreen() {
               <Pressable
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  // Open search
+                  setShowSearchModal(true);
                 }}
                 className="w-10 h-10 items-center justify-center"
               >
@@ -462,7 +563,7 @@ export default function GroupDetailScreen() {
               <Pressable
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  // Open messages
+                  router.push('/messages');
                 }}
                 className="w-10 h-10 items-center justify-center"
               >
@@ -473,11 +574,13 @@ export default function GroupDetailScreen() {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   if (isAdmin) {
                     router.push(`/group/${id}/settings` as never);
+                  } else {
+                    Alert.alert('Admin Only', 'Only group admins can access settings.');
                   }
                 }}
                 className="w-10 h-10 items-center justify-center"
               >
-                <Settings size={22} color="#1F2937" />
+                <Settings size={22} color={isAdmin ? '#1F2937' : '#9CA3AF'} />
               </Pressable>
             </View>
           </View>
@@ -505,7 +608,7 @@ export default function GroupDetailScreen() {
                   )}
                   <Text className="text-gray-500 text-sm ml-1 capitalize">{group.visibility}</Text>
                   <Text className="text-gray-400 mx-2">·</Text>
-                  <Text className="text-gray-500 text-sm">Admin {MOCK_MEMBERS.find((m) => m.role === 'admin')?.user?.name || 'Unknown'}</Text>
+                  <Text className="text-gray-500 text-sm">Admin {members.find((m) => m.role === 'admin')?.user?.name || 'Unknown'}</Text>
                 </View>
               </View>
             </View>
@@ -515,12 +618,12 @@ export default function GroupDetailScreen() {
               <Pressable
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  // Show members
+                  setShowMembersModal(true);
                 }}
                 className="flex-1 flex-row items-center justify-center bg-gray-100 rounded-xl py-3"
               >
                 <Users size={18} color="#374151" />
-                <Text className="text-gray-700 font-semibold ml-2">{group.member_count} Members</Text>
+                <Text className="text-gray-700 font-semibold ml-2">{group.member_count || members.length} Members</Text>
               </Pressable>
               <Pressable
                 onPress={() => {
@@ -812,7 +915,7 @@ export default function GroupDetailScreen() {
                 <Pressable
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                    router.push(`/group/${id}/create-event` as never);
+                    setShowEventModal(true);
                   }}
                   className="bg-forest-600 mx-4 mt-4 rounded-2xl p-4 flex-row items-center justify-center"
                 >
@@ -884,7 +987,7 @@ export default function GroupDetailScreen() {
                 <Pressable
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                    // Open create album modal
+                    setShowAlbumModal(true);
                   }}
                   className="bg-forest-600 mx-4 mt-4 rounded-2xl p-4 flex-row items-center justify-center"
                 >
@@ -1035,10 +1138,7 @@ export default function GroupDetailScreen() {
               </Text>
 
               <Pressable
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                  // Share functionality
-                }}
+                onPress={handleShareInvite}
                 className="bg-forest-600 rounded-xl py-4 mt-6"
               >
                 <Text className="text-white font-semibold text-center">Share Invite Link</Text>
@@ -1048,6 +1148,383 @@ export default function GroupDetailScreen() {
                 Anyone with the link can join this {group.visibility} group
               </Text>
             </View>
+          </SafeAreaView>
+        </Modal>
+
+        {/* Create Event Modal */}
+        <Modal
+          visible={showEventModal}
+          animationType="slide"
+          presentationStyle="pageSheet"
+          onRequestClose={() => setShowEventModal(false)}
+        >
+          <SafeAreaView className="flex-1 bg-white" edges={['top', 'bottom']}>
+            <View className="flex-row items-center justify-between px-4 py-3 border-b border-gray-100">
+              <Pressable onPress={() => setShowEventModal(false)} className="w-10 h-10 items-center justify-center">
+                <X size={24} color="#1F2937" />
+              </Pressable>
+              <Text className="text-lg font-semibold text-gray-900">Create Event</Text>
+              <Pressable
+                onPress={handleCreateEvent}
+                disabled={!newEventTitle.trim() || !newEventDate.trim() || !newEventTime.trim() || isCreatingEvent}
+                className={`px-4 py-2 rounded-full ${
+                  newEventTitle.trim() && newEventDate.trim() && newEventTime.trim() ? 'bg-forest-600' : 'bg-gray-200'
+                }`}
+              >
+                {isCreatingEvent ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text className={`font-semibold ${newEventTitle.trim() && newEventDate.trim() && newEventTime.trim() ? 'text-white' : 'text-gray-400'}`}>
+                    Create
+                  </Text>
+                )}
+              </Pressable>
+            </View>
+
+            <ScrollView className="flex-1 p-4">
+              {/* Event Title */}
+              <View className="mb-4">
+                <Text className="text-gray-700 font-medium mb-2">Event Title *</Text>
+                <TextInput
+                  value={newEventTitle}
+                  onChangeText={setNewEventTitle}
+                  placeholder="Enter event title"
+                  placeholderTextColor="#9CA3AF"
+                  className="bg-gray-50 rounded-xl px-4 py-3 text-gray-900"
+                />
+              </View>
+
+              {/* Event Description */}
+              <View className="mb-4">
+                <Text className="text-gray-700 font-medium mb-2">Description</Text>
+                <TextInput
+                  value={newEventDescription}
+                  onChangeText={setNewEventDescription}
+                  placeholder="Tell people about your event"
+                  placeholderTextColor="#9CA3AF"
+                  multiline
+                  numberOfLines={4}
+                  className="bg-gray-50 rounded-xl px-4 py-3 text-gray-900 min-h-[100px]"
+                  textAlignVertical="top"
+                />
+              </View>
+
+              {/* Event Date */}
+              <View className="mb-4">
+                <Text className="text-gray-700 font-medium mb-2">Date *</Text>
+                <TextInput
+                  value={newEventDate}
+                  onChangeText={setNewEventDate}
+                  placeholder="YYYY-MM-DD (e.g., 2024-12-25)"
+                  placeholderTextColor="#9CA3AF"
+                  className="bg-gray-50 rounded-xl px-4 py-3 text-gray-900"
+                />
+              </View>
+
+              {/* Event Time */}
+              <View className="mb-4">
+                <Text className="text-gray-700 font-medium mb-2">Time *</Text>
+                <TextInput
+                  value={newEventTime}
+                  onChangeText={setNewEventTime}
+                  placeholder="e.g., 10:00 AM"
+                  placeholderTextColor="#9CA3AF"
+                  className="bg-gray-50 rounded-xl px-4 py-3 text-gray-900"
+                />
+              </View>
+
+              {/* Event Location */}
+              <View className="mb-4">
+                <Text className="text-gray-700 font-medium mb-2">Location</Text>
+                <TextInput
+                  value={newEventLocation}
+                  onChangeText={setNewEventLocation}
+                  placeholder="Where is this event?"
+                  placeholderTextColor="#9CA3AF"
+                  className="bg-gray-50 rounded-xl px-4 py-3 text-gray-900"
+                />
+              </View>
+
+              <View className="h-8" />
+            </ScrollView>
+          </SafeAreaView>
+        </Modal>
+
+        {/* Create Album Modal */}
+        <Modal
+          visible={showAlbumModal}
+          animationType="slide"
+          presentationStyle="pageSheet"
+          onRequestClose={() => setShowAlbumModal(false)}
+        >
+          <SafeAreaView className="flex-1 bg-white" edges={['top', 'bottom']}>
+            <View className="flex-row items-center justify-between px-4 py-3 border-b border-gray-100">
+              <Pressable onPress={() => setShowAlbumModal(false)} className="w-10 h-10 items-center justify-center">
+                <X size={24} color="#1F2937" />
+              </Pressable>
+              <Text className="text-lg font-semibold text-gray-900">Add Photos & Videos</Text>
+              <Pressable
+                onPress={async () => {
+                  if (isCreatingAlbum || !id || !currentUser) return;
+                  setIsCreatingAlbum(true);
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+                  // Pick images
+                  const result = await ImagePicker.launchImageLibraryAsync({
+                    mediaTypes: ImagePicker.MediaTypeOptions.All,
+                    allowsMultipleSelection: true,
+                    quality: 0.8,
+                    selectionLimit: 10,
+                  });
+
+                  if (!result.canceled && result.assets.length > 0) {
+                    // For now, show success message - actual upload to be implemented
+                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                    Alert.alert('Success', `Selected ${result.assets.length} file(s). Upload functionality coming soon!`);
+                    setShowAlbumModal(false);
+                  }
+                  setIsCreatingAlbum(false);
+                }}
+                disabled={isCreatingAlbum}
+                className="px-4 py-2 rounded-full bg-forest-600"
+              >
+                {isCreatingAlbum ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text className="font-semibold text-white">Select</Text>
+                )}
+              </Pressable>
+            </View>
+
+            <View className="flex-1 p-4 items-center justify-center">
+              <View className="bg-gray-50 rounded-2xl p-8 items-center w-full">
+                <View className="w-20 h-20 rounded-full bg-forest-100 items-center justify-center mb-4">
+                  <ImageIcon size={36} color="#166534" />
+                </View>
+                <Text className="text-lg font-semibold text-gray-900 text-center">
+                  Add Photos & Videos
+                </Text>
+                <Text className="text-gray-500 text-center mt-2">
+                  Select photos and videos from your library to share with the group
+                </Text>
+                <View className="flex-row items-center mt-4">
+                  <View className="flex-row items-center bg-gray-100 rounded-full px-3 py-1.5 mr-2">
+                    <ImageIcon size={14} color="#6B7280" />
+                    <Text className="text-gray-600 text-sm ml-1.5">Photos</Text>
+                  </View>
+                  <View className="flex-row items-center bg-gray-100 rounded-full px-3 py-1.5">
+                    <Video size={14} color="#6B7280" />
+                    <Text className="text-gray-600 text-sm ml-1.5">Videos</Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+          </SafeAreaView>
+        </Modal>
+
+        {/* Search Modal */}
+        <Modal
+          visible={showSearchModal}
+          animationType="slide"
+          presentationStyle="pageSheet"
+          onRequestClose={() => setShowSearchModal(false)}
+        >
+          <SafeAreaView className="flex-1 bg-white" edges={['top', 'bottom']}>
+            <View className="flex-row items-center px-4 py-3 border-b border-gray-100">
+              <Pressable onPress={() => setShowSearchModal(false)} className="w-10 h-10 items-center justify-center">
+                <X size={24} color="#1F2937" />
+              </Pressable>
+              <View className="flex-1 flex-row items-center bg-gray-100 rounded-xl px-3 py-2 ml-2">
+                <Search size={18} color="#9CA3AF" />
+                <TextInput
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  placeholder="Search posts, events, members..."
+                  placeholderTextColor="#9CA3AF"
+                  className="flex-1 ml-2 text-gray-900"
+                  autoFocus
+                />
+              </View>
+            </View>
+
+            <ScrollView className="flex-1 p-4">
+              {searchQuery.trim() ? (
+                <>
+                  {/* Search Results */}
+                  {posts.filter(p => p.content.toLowerCase().includes(searchQuery.toLowerCase())).length > 0 && (
+                    <View className="mb-6">
+                      <Text className="text-sm font-semibold text-gray-500 mb-3">POSTS</Text>
+                      {posts
+                        .filter(p => p.content.toLowerCase().includes(searchQuery.toLowerCase()))
+                        .slice(0, 5)
+                        .map(post => (
+                          <Pressable
+                            key={post.id}
+                            onPress={() => {
+                              setShowSearchModal(false);
+                              setActiveTab('posts');
+                            }}
+                            className="bg-gray-50 rounded-xl p-3 mb-2"
+                          >
+                            <Text className="text-gray-900" numberOfLines={2}>{post.content}</Text>
+                            <Text className="text-gray-500 text-sm mt-1">{post.author?.name}</Text>
+                          </Pressable>
+                        ))}
+                    </View>
+                  )}
+
+                  {events.filter(e => e.title.toLowerCase().includes(searchQuery.toLowerCase())).length > 0 && (
+                    <View className="mb-6">
+                      <Text className="text-sm font-semibold text-gray-500 mb-3">EVENTS</Text>
+                      {events
+                        .filter(e => e.title.toLowerCase().includes(searchQuery.toLowerCase()))
+                        .slice(0, 5)
+                        .map(event => (
+                          <Pressable
+                            key={event.id}
+                            onPress={() => {
+                              setShowSearchModal(false);
+                              setActiveTab('events');
+                            }}
+                            className="bg-gray-50 rounded-xl p-3 mb-2"
+                          >
+                            <Text className="text-gray-900 font-medium">{event.title}</Text>
+                            <Text className="text-gray-500 text-sm mt-1">{formatDate(event.date)}</Text>
+                          </Pressable>
+                        ))}
+                    </View>
+                  )}
+
+                  {members.filter(m => m.user?.name?.toLowerCase().includes(searchQuery.toLowerCase())).length > 0 && (
+                    <View className="mb-6">
+                      <Text className="text-sm font-semibold text-gray-500 mb-3">MEMBERS</Text>
+                      {members
+                        .filter(m => m.user?.name?.toLowerCase().includes(searchQuery.toLowerCase()))
+                        .slice(0, 5)
+                        .map(member => (
+                          <Pressable
+                            key={member.id}
+                            onPress={() => {
+                              setShowSearchModal(false);
+                              router.push(`/user/${member.user_id}` as never);
+                            }}
+                            className="flex-row items-center bg-gray-50 rounded-xl p-3 mb-2"
+                          >
+                            <Image
+                              source={{ uri: member.user?.avatar_url || 'https://via.placeholder.com/40' }}
+                              style={{ width: 40, height: 40, borderRadius: 20 }}
+                            />
+                            <View className="ml-3">
+                              <Text className="text-gray-900 font-medium">{member.user?.name}</Text>
+                              <Text className="text-gray-500 text-sm capitalize">{member.role}</Text>
+                            </View>
+                          </Pressable>
+                        ))}
+                    </View>
+                  )}
+
+                  {posts.filter(p => p.content.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 &&
+                   events.filter(e => e.title.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 &&
+                   members.filter(m => m.user?.name?.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 && (
+                    <View className="items-center py-12">
+                      <Search size={32} color="#9CA3AF" />
+                      <Text className="text-gray-500 mt-3">No results found</Text>
+                    </View>
+                  )}
+                </>
+              ) : (
+                <View className="items-center py-12">
+                  <Search size={32} color="#9CA3AF" />
+                  <Text className="text-gray-500 mt-3">Search posts, events, and members</Text>
+                </View>
+              )}
+            </ScrollView>
+          </SafeAreaView>
+        </Modal>
+
+        {/* Members Modal */}
+        <Modal
+          visible={showMembersModal}
+          animationType="slide"
+          presentationStyle="pageSheet"
+          onRequestClose={() => setShowMembersModal(false)}
+        >
+          <SafeAreaView className="flex-1 bg-white" edges={['top', 'bottom']}>
+            <View className="flex-row items-center justify-between px-4 py-3 border-b border-gray-100">
+              <Pressable onPress={() => setShowMembersModal(false)} className="w-10 h-10 items-center justify-center">
+                <X size={24} color="#1F2937" />
+              </Pressable>
+              <Text className="text-lg font-semibold text-gray-900">Members ({members.length})</Text>
+              <View className="w-10" />
+            </View>
+
+            <ScrollView className="flex-1">
+              {/* Admins Section */}
+              {members.filter(m => m.role === 'admin').length > 0 && (
+                <View className="p-4">
+                  <Text className="text-sm font-semibold text-gray-500 mb-3">ADMINS</Text>
+                  {members
+                    .filter(m => m.role === 'admin')
+                    .map(member => (
+                      <Pressable
+                        key={member.id}
+                        onPress={() => {
+                          setShowMembersModal(false);
+                          router.push(`/user/${member.user_id}` as never);
+                        }}
+                        className="flex-row items-center py-3"
+                      >
+                        <Image
+                          source={{ uri: member.user?.avatar_url || 'https://via.placeholder.com/48' }}
+                          style={{ width: 48, height: 48, borderRadius: 24 }}
+                        />
+                        <View className="flex-1 ml-3">
+                          <Text className="text-gray-900 font-medium">{member.user?.name || 'Unknown'}</Text>
+                          <Text className="text-gray-500 text-sm">@{member.user?.username || 'user'}</Text>
+                        </View>
+                        <View className="bg-gold-100 px-2.5 py-1 rounded-full">
+                          <Text className="text-gold-700 text-xs font-medium">Admin</Text>
+                        </View>
+                      </Pressable>
+                    ))}
+                </View>
+              )}
+
+              {/* Members Section */}
+              {members.filter(m => m.role === 'member').length > 0 && (
+                <View className="p-4 pt-0">
+                  <Text className="text-sm font-semibold text-gray-500 mb-3">MEMBERS</Text>
+                  {members
+                    .filter(m => m.role === 'member')
+                    .map(member => (
+                      <Pressable
+                        key={member.id}
+                        onPress={() => {
+                          setShowMembersModal(false);
+                          router.push(`/user/${member.user_id}` as never);
+                        }}
+                        className="flex-row items-center py-3"
+                      >
+                        <Image
+                          source={{ uri: member.user?.avatar_url || 'https://via.placeholder.com/48' }}
+                          style={{ width: 48, height: 48, borderRadius: 24 }}
+                        />
+                        <View className="flex-1 ml-3">
+                          <Text className="text-gray-900 font-medium">{member.user?.name || 'Unknown'}</Text>
+                          <Text className="text-gray-500 text-sm">@{member.user?.username || 'user'}</Text>
+                        </View>
+                      </Pressable>
+                    ))}
+                </View>
+              )}
+
+              {members.length === 0 && (
+                <View className="items-center py-12">
+                  <Users size={32} color="#9CA3AF" />
+                  <Text className="text-gray-500 mt-3">No members yet</Text>
+                </View>
+              )}
+            </ScrollView>
           </SafeAreaView>
         </Modal>
       </SafeAreaView>
