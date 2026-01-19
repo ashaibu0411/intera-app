@@ -7,6 +7,8 @@ import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useStore } from '@/lib/store';
 import { getBusiness, getBusinessReviews, getBusinessTrustCounts, removeBusinessConfirmation, setBusinessConfirmation, upsertBusinessReview, getBusinessInventory } from '@/lib/marketplace-api';
+import { getOrCreateTrustScore, DbUserTrustScore } from '@/lib/trust-api';
+import { TrustScoreBadge } from '@/components/TrustScoreBadge';
 import { getOrCreateConversation } from '@/lib/messages';
 import Animated, { FadeInUp } from 'react-native-reanimated';
 
@@ -39,6 +41,7 @@ export default function BusinessDetailScreen() {
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [loadingInventory, setLoadingInventory] = useState(true);
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
+  const [ownerTrustScore, setOwnerTrustScore] = useState<DbUserTrustScore | null>(null);
 
   const canInteract = !!currentUser?.id && !isGuest;
 
@@ -55,6 +58,12 @@ export default function BusinessDetailScreen() {
     setTrust(t);
     setInventory((inv || []) as InventoryItem[]);
     setLoadingInventory(false);
+
+    // Fetch owner's trust score if business has an owner
+    if (b?.owner_id) {
+      const trustScore = await getOrCreateTrustScore(b.owner_id);
+      setOwnerTrustScore(trustScore);
+    }
   };
 
   useEffect(() => {
@@ -281,6 +290,20 @@ export default function BusinessDetailScreen() {
               </View>
             </View>
           </View>
+
+          {/* Owner Trust Score */}
+          {ownerTrustScore && (
+            <View className="mx-5 mt-4">
+              <TrustScoreBadge
+                score={ownerTrustScore.overall_score}
+                verificationLevel={ownerTrustScore.verification_level}
+                reviewCount={trust?.reviews ?? 0}
+                avgRating={trust?.avgRating ?? 0}
+                confirmationCount={trust?.workedForMe ?? 0}
+                userId={business?.owner_id}
+              />
+            </View>
+          )}
 
           {/* Inventory Section */}
           <View className="mx-5 mt-4">

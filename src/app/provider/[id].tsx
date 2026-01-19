@@ -6,6 +6,8 @@ import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useStore } from '@/lib/store';
 import { getServiceProviders, getServiceProviderReviews, getServiceProviderTrustCounts, removeServiceProviderConfirmation, setServiceProviderConfirmation, upsertServiceProviderReview } from '@/lib/marketplace-api';
+import { getOrCreateTrustScore, DbUserTrustScore } from '@/lib/trust-api';
+import { TrustScoreBadge } from '@/components/TrustScoreBadge';
 
 export default function ProviderDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -23,6 +25,7 @@ export default function ProviderDetailScreen() {
   const [rating, setRating] = useState(5);
   const [reviewText, setReviewText] = useState('');
   const [savingReview, setSavingReview] = useState(false);
+  const [providerTrustScore, setProviderTrustScore] = useState<DbUserTrustScore | null>(null);
 
   const load = async () => {
     const all = await getServiceProviders(300);
@@ -35,6 +38,12 @@ export default function ProviderDetailScreen() {
     ]);
     setReviews(r as any);
     setTrust(t);
+
+    // Fetch provider's trust score
+    if (p?.user_id) {
+      const trustScore = await getOrCreateTrustScore(p.user_id);
+      setProviderTrustScore(trustScore);
+    }
   };
 
   useEffect(() => {
@@ -138,6 +147,20 @@ export default function ProviderDetailScreen() {
               <Text className="text-white font-semibold ml-2">Worked for me ({trust?.workedForMe ?? 0})</Text>
             </Pressable>
           </View>
+
+          {/* Provider Trust Score */}
+          {providerTrustScore && (
+            <View className="mx-5 mt-4">
+              <TrustScoreBadge
+                score={providerTrustScore.overall_score}
+                verificationLevel={providerTrustScore.verification_level}
+                reviewCount={trust?.reviews ?? 0}
+                avgRating={trust?.avgRating ?? 0}
+                confirmationCount={trust?.workedForMe ?? 0}
+                userId={provider?.user_id}
+              />
+            </View>
+          )}
 
           <View className="mx-5 mt-4 mb-10">
             <Text className="text-warmBrown font-bold text-lg mb-2">Reviews</Text>
