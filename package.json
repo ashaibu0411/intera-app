@@ -29,6 +29,7 @@
     "@gorhom/bottom-sheet": "^5",
     "@kolking/react-native-avatar": "^2.1.6",
     "@livekit/react-native": "^2.9.6",
+    "@livekit/react-native-webrtc": "^2.9.6",
     "@nandorojo/galeria": "2.0.0-rc.4",
     "@react-native-async-storage/async-storage": "2.1.2",
     "@react-native-clipboard/clipboard": "^1.16.2",
