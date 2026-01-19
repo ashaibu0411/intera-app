@@ -55,8 +55,8 @@ interface DbFaithEvent {
 }
 
 export default function FaithCommunityScreen() {
-  type FaithTab = 'discover' | 'communities' | 'announcements' | 'calendar';
-  const [activeTab, setActiveTab] = useState<FaithTab>('discover');
+  type FaithTab = 'groups' | 'discover' | 'announcements' | 'calendar';
+  const [activeTab, setActiveTab] = useState<FaithTab>('groups');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFaithType, setSelectedFaithType] = useState<string | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<FaithEvent | null>(null);
@@ -320,7 +320,7 @@ export default function FaithCommunityScreen() {
           <View className="flex-row items-center bg-white rounded-2xl px-4 py-3 shadow-sm">
             <Search size={20} color="#8B7355" />
             <TextInput
-              placeholder={activeTab === 'communities' ? 'Search communities, circles...' : 'Search events, organizations...'}
+              placeholder={activeTab === 'groups' ? 'Search groups, churches, mosques...' : 'Search events, organizations...'}
               placeholderTextColor="#9CA3AF"
               value={searchQuery}
               onChangeText={setSearchQuery}
@@ -336,8 +336,8 @@ export default function FaithCommunityScreen() {
             style={{ flexGrow: 0 }}
           >
             {[
+              { id: 'groups', label: 'Groups' },
               { id: 'discover', label: 'Discover' },
-              { id: 'communities', label: 'Communities' },
               { id: 'announcements', label: 'Announcements' },
               { id: 'calendar', label: 'Calendar' },
             ].map((t) => (
@@ -642,7 +642,7 @@ export default function FaithCommunityScreen() {
                 </>
               )}
 
-              {activeTab === 'communities' && (
+              {activeTab === 'groups' && (
                 <>
                   <Animated.View entering={FadeInUp.duration(400).delay(60)} className="mb-4">
                     <LinearGradient
