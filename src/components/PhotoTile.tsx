@@ -38,12 +38,18 @@ export function PhotoTile(props: {
         height,
         borderRadius: 22,
         overflow: 'hidden',
-        backgroundColor: '#FFFFFF',
+        backgroundColor: '#1a1a2e',
         borderWidth: 1,
         borderColor: 'rgba(17, 24, 39, 0.08)',
       }}
     >
-      <Image source={{ uri: props.imageUri }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
+      <Image
+        source={{ uri: props.imageUri }}
+        style={{ width: '100%', height: '100%' }}
+        contentFit="cover"
+        transition={300}
+        placeholder={{ blurhash: 'L6PZfSi_.AyE_3t7t7R**0o#DgR4' }}
+      />
 
       {/* Brighten + improve readability (less dark than before) */}
       <LinearGradient

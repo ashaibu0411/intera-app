@@ -161,45 +161,45 @@ export default function HomeHubScreen() {
               <PhotoTile
                 title="For Sale & Free"
                 subtitle="Marketplace"
-                imageUri="https://images.unsplash.com/photo-1520975916090-3105956dac38?w=1200&h=800&fit=crop"
+                imageUri="https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=1600&q=90"
                 onPress={() => go('/marketplace')}
                 size="lg"
               />
               <PhotoTile
                 title="Hire a Pro"
                 subtitle="Trusted helpers"
-                imageUri="https://images.unsplash.com/photo-1581579185169-7a5b2a36b1aa?w=1200&h=800&fit=crop"
+                imageUri="https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=1600&q=90"
                 onPress={() => go('/trusted-providers')}
                 size="lg"
               />
               <PhotoTile
                 title="Voice Rooms"
                 subtitle="Live chats"
-                imageUri="https://images.unsplash.com/photo-1521737604893-d14cc237f11d?w=1200&h=800&fit=crop"
+                imageUri="https://images.unsplash.com/photo-1516321497487-e288fb19713f?w=1600&q=90"
                 onPress={() => go('/voice-rooms')}
               />
               <PhotoTile
                 title="Student Hub"
                 subtitle="Guides & tools"
-                imageUri="https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=1200&h=800&fit=crop"
+                imageUri="https://images.unsplash.com/photo-1427504494785-3a9ca7044f45?w=1600&q=90"
                 onPress={() => go('/student-hub')}
               />
               <PhotoTile
                 title="Community"
                 subtitle="Feed"
-                imageUri="https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=1200&h=800&fit=crop"
+                imageUri="https://images.unsplash.com/photo-1517486808906-6ca8b3f04846?w=1600&q=90"
                 onPress={() => go('/community')}
               />
               <PhotoTile
                 title="Events"
                 subtitle="Near you"
-                imageUri="https://images.unsplash.com/photo-1527529482837-4698179dc6ce?w=1200&h=800&fit=crop"
+                imageUri="https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=1600&q=90"
                 onPress={() => go('/events')}
               />
               <PhotoTile
                 title="Utilities"
                 subtitle="Status"
-                imageUri="https://images.unsplash.com/photo-1497435334941-8c899ee9e8e9?w=1200&h=800&fit=crop"
+                imageUri="https://images.unsplash.com/photo-1473341304170-971dccb5ac1e?w=1600&q=90"
                 onPress={() => go('/utility-status')}
                 badgeText={String(utilityIssueCount)}
                 badgeTone={utilityIssueCount > 0 ? 'warning' : 'info'}
@@ -207,7 +207,7 @@ export default function HomeHubScreen() {
               <PhotoTile
                 title="Alerts"
                 subtitle="Safety"
-                imageUri="https://images.unsplash.com/photo-1457732815361-daa98277e9c8?w=1200&h=800&fit=crop"
+                imageUri="https://images.unsplash.com/photo-1557683316-973673baf926?w=1600&q=90"
                 onPress={() => go('/safety-alerts')}
                 badgeText={String(incidentCount)}
                 badgeTone={incidentCount > 0 ? 'danger' : 'info'}
@@ -225,25 +225,25 @@ export default function HomeHubScreen() {
               <PhotoTile
                 title="Businesses"
                 subtitle="Directory"
-                imageUri="https://images.unsplash.com/photo-1520607162513-77705c0f0d4a?w=1200&h=800&fit=crop"
+                imageUri="https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=1600&q=90"
                 onPress={() => go('/business-directory')}
               />
               <PhotoTile
                 title="Faith"
                 subtitle="Community"
-                imageUri="https://images.unsplash.com/photo-1520975958225-b74b16f7f2f6?w=1200&h=800&fit=crop"
+                imageUri="https://images.unsplash.com/photo-1438232992991-995b7058bbb3?w=1600&q=90"
                 onPress={() => go('/faith-community')}
               />
               <PhotoTile
                 title="Housing"
                 subtitle="Board"
-                imageUri="https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=1200&h=800&fit=crop"
+                imageUri="https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=1600&q=90"
                 onPress={() => go('/housing-board')}
               />
               <PhotoTile
                 title="Helpers"
                 subtitle="Serve & connect"
-                imageUri="https://images.unsplash.com/photo-1521791136064-7986c2920216?w=1200&h=800&fit=crop"
+                imageUri="https://images.unsplash.com/photo-1582213782179-e0d53f98f2ca?w=1600&q=90"
                 onPress={() => go('/serve-connect')}
               />
             </View>
