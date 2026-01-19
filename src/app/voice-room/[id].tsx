@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import * as Haptics from 'expo-haptics';
 import { Mic, MicOff, Hand, Gift, Crown, UserPlus, X, Users, AudioLines, Trash2, Square, ChevronDown, Volume2, VolumeX, UserMinus, MoreVertical } from 'lucide-react-native';
-import { LiveKitRoom, useRoomContext } from '@livekit/react-native';
+import { LiveKitRoom, useRoomContext, isLiveKitAvailable } from '@/lib/livekit-wrapper';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Audio } from 'expo-av';
 import * as Sharing from 'expo-sharing';
@@ -39,15 +39,26 @@ const GIFTS = [
 ] as const;
 
 function MicSync({ enabled }: { enabled: boolean }) {
-  const room = useRoomContext();
+  const room = useRoomContext() as { localParticipant?: { setMicrophoneEnabled?: (enabled: boolean) => Promise<void> } } | null;
   useEffect(() => {
-    room?.localParticipant?.setMicrophoneEnabled(enabled).catch(() => null);
+    room?.localParticipant?.setMicrophoneEnabled?.(enabled)?.catch?.(() => null);
   }, [enabled, room]);
   return null;
 }
 
+// LiveKit room context type for speaking detection
+interface LiveKitRoomContext {
+  localParticipant?: {
+    isSpeaking?: boolean;
+    on?: (event: string, handler: () => void) => void;
+    off?: (event: string, handler: () => void) => void;
+  };
+  on?: (event: string, handler: () => void) => void;
+  off?: (event: string, handler: () => void) => void;
+}
+
 function LiveKitSpeakingBridge({ onSpeakingChange }: { onSpeakingChange: (speaking: boolean) => void }) {
-  const room = useRoomContext();
+  const room = useRoomContext() as LiveKitRoomContext | null;
   useEffect(() => {
     if (!room?.localParticipant) return;
     const lp = room.localParticipant;
