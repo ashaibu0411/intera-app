@@ -260,7 +260,7 @@ export default function StudentHubScreen() {
             <Pressable
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                router.push('/ai-study-assistant' as any);
+                router.push('/immigration-assistant' as any);
               }}
             >
               <LinearGradient
