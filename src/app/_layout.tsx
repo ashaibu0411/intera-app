@@ -175,8 +175,7 @@ function RootLayoutNav() {
         <Stack.Screen name="village-council" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="susu-circles" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="job-board" options={{ animation: 'slide_from_right' }} />
-        <Stack.Screen name="voice-rooms" options={{ animation: 'slide_from_right' }} />
-        <Stack.Screen name="voice-room/[id]" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="voice-room/[id]" options={{ headerShown: false, animation: 'slide_from_right' }} />
         <Stack.Screen name="heritage-hub" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="safety-network" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="safety-alerts" options={{ animation: 'slide_from_right' }} />
