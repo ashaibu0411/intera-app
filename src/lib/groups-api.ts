@@ -114,6 +114,22 @@ export async function getGroupsByCity(city: string, limit = 50): Promise<DbGroup
   return (data || []) as DbGroup[];
 }
 
+export async function getStudyGroups(limit = 50): Promise<DbGroup[]> {
+  // Fetch groups that are study groups (category 'other' or name contains 'study')
+  const { data, error } = await supabase
+    .from('groups')
+    .select('*, creator:users!creator_id(*)')
+    .or(`category.eq.other,name.ilike.%study%,name.ilike.%students%`)
+    .order('member_count', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    console.error('Error fetching study groups:', error);
+    return [];
+  }
+  return (data || []) as DbGroup[];
+}
+
 export async function getGroup(groupId: string): Promise<DbGroup | null> {
   const { data, error } = await supabase
     .from('groups')

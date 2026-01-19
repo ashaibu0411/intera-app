@@ -24,6 +24,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { useStore } from '@/lib/store';
 import { createBusiness } from '@/lib/marketplace-api';
+import { initializeBusinessBooking } from '@/lib/booking-api';
 
 const BUSINESS_CATEGORIES = [
   'Food & Dining',
@@ -109,7 +110,7 @@ export default function RegisterBusinessScreen() {
     setIsSubmitting(true);
 
     try {
-      await createBusiness(currentUser.id, {
+      const newBusiness = await createBusiness(currentUser.id, {
         name: businessName.trim(),
         category,
         description: description.trim(),
@@ -124,6 +125,17 @@ export default function RegisterBusinessScreen() {
         isAfricanMarket,
         acceptsBookings,
       });
+
+      // If business accepts bookings, initialize booking system with service templates
+      if (acceptsBookings && newBusiness?.id) {
+        try {
+          await initializeBusinessBooking(newBusiness.id, category);
+          console.log('[Booking] Initialized booking system for', newBusiness.name);
+        } catch (bookingError) {
+          console.error('Error initializing booking:', bookingError);
+          // Don't fail the business creation if booking init fails
+        }
+      }
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.back();

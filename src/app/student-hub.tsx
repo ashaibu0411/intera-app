@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, Pressable, TextInput } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, ScrollView, Pressable, TextInput, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -27,6 +27,8 @@ import {
 import Animated, { FadeIn, FadeInUp, FadeInRight } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
+import { getStudyGroups } from '@/lib/groups-api';
+import type { DbGroup } from '@/lib/supabase';
 
 // Mock data for Student Hub
 const SCHOLARSHIPS = [
@@ -201,6 +203,22 @@ const ACTION_CARDS = [
 
 export default function StudentHubScreen() {
   const [searchQuery, setSearchQuery] = useState('');
+  const [studyGroups, setStudyGroups] = useState<DbGroup[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchStudyGroups = async () => {
+      try {
+        const groups = await getStudyGroups();
+        setStudyGroups(groups || []);
+      } catch (error) {
+        console.error('Error fetching study groups:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchStudyGroups();
+  }, []);
 
   const handleQuickAction = (id: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -403,43 +421,104 @@ export default function StudentHubScreen() {
                 <BookOpen size={20} color="#1B4D3E" />
                 <Text className="text-lg font-semibold text-warmBrown ml-2">Study Groups</Text>
               </View>
-              <Pressable className="flex-row items-center">
-                <Text className="text-terracotta-500 text-sm font-medium">See all</Text>
-                <ChevronRight size={16} color="#D4673A" />
+              <Pressable
+                onPress={() => router.push('/create-study-group')}
+                className="flex-row items-center"
+              >
+                <Plus size={16} color="#D4673A" />
+                <Text className="text-terracotta-500 text-sm font-medium ml-1">Create</Text>
               </Pressable>
             </View>
 
-            {STUDY_GROUPS.map((group, index) => (
-              <Animated.View
-                key={group.id}
-                entering={FadeInUp.duration(300).delay(350 + index * 50)}
-              >
-                <Pressable
-                  onPress={handleItemPress}
-                  className="flex-row items-center bg-white rounded-2xl p-4 mb-3 shadow-sm"
+            {isLoading ? (
+              <View className="bg-white rounded-2xl p-8 items-center">
+                <ActivityIndicator size="small" color="#1B4D3E" />
+                <Text className="text-gray-500 mt-2">Loading groups...</Text>
+              </View>
+            ) : studyGroups.length > 0 ? (
+              studyGroups.slice(0, 5).map((group, index) => (
+                <Animated.View
+                  key={group.id}
+                  entering={FadeInUp.duration(300).delay(350 + index * 50)}
                 >
-                  <Image
-                    source={{ uri: group.avatar }}
-                    style={{ width: 50, height: 50, borderRadius: 12 }}
-                    contentFit="cover"
-                  />
-                  <View className="flex-1 ml-3">
-                    <Text className="text-warmBrown font-semibold">{group.name}</Text>
-                    <Text className="text-gray-500 text-sm">{group.subject}</Text>
-                    <View className="flex-row items-center mt-1">
-                      <Users size={12} color="#8B7355" />
-                      <Text className="text-gray-400 text-xs ml-1">{group.members} members</Text>
-                      <Text className="text-gray-300 mx-2">•</Text>
-                      <Clock size={12} color="#8B7355" />
-                      <Text className="text-gray-400 text-xs ml-1">{group.nextMeeting}</Text>
+                  <Pressable
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      router.push(`/group/${group.id}` as never);
+                    }}
+                    className="flex-row items-center bg-white rounded-2xl p-4 mb-3 shadow-sm"
+                  >
+                    <Image
+                      source={{ uri: group.image_url || 'https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=200&h=200&fit=crop' }}
+                      style={{ width: 50, height: 50, borderRadius: 12 }}
+                      contentFit="cover"
+                    />
+                    <View className="flex-1 ml-3">
+                      <Text className="text-warmBrown font-semibold" numberOfLines={1}>{group.name}</Text>
+                      <Text className="text-gray-500 text-sm" numberOfLines={1}>{group.description || 'Study group'}</Text>
+                      <View className="flex-row items-center mt-1">
+                        <Users size={12} color="#8B7355" />
+                        <Text className="text-gray-400 text-xs ml-1">{group.member_count || 0} members</Text>
+                        <Text className="text-gray-300 mx-2">•</Text>
+                        <Text className="text-gray-400 text-xs capitalize">{group.visibility}</Text>
+                      </View>
                     </View>
-                  </View>
-                  <View className="bg-forest-50 rounded-full px-3 py-1.5">
-                    <Text className="text-forest-700 text-xs font-medium">Join</Text>
-                  </View>
-                </Pressable>
-              </Animated.View>
-            ))}
+                    <View className="bg-forest-50 rounded-full px-3 py-1.5">
+                      <Text className="text-forest-700 text-xs font-medium">View</Text>
+                    </View>
+                  </Pressable>
+                </Animated.View>
+              ))
+            ) : (
+              <>
+                {/* Show mock data as fallback when no real groups exist */}
+                {STUDY_GROUPS.map((group, index) => (
+                  <Animated.View
+                    key={group.id}
+                    entering={FadeInUp.duration(300).delay(350 + index * 50)}
+                  >
+                    <Pressable
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        router.push('/create-study-group');
+                      }}
+                      className="flex-row items-center bg-white rounded-2xl p-4 mb-3 shadow-sm"
+                    >
+                      <Image
+                        source={{ uri: group.avatar }}
+                        style={{ width: 50, height: 50, borderRadius: 12 }}
+                        contentFit="cover"
+                      />
+                      <View className="flex-1 ml-3">
+                        <Text className="text-warmBrown font-semibold">{group.name}</Text>
+                        <Text className="text-gray-500 text-sm">{group.subject}</Text>
+                        <View className="flex-row items-center mt-1">
+                          <Users size={12} color="#8B7355" />
+                          <Text className="text-gray-400 text-xs ml-1">{group.members} members</Text>
+                          <Text className="text-gray-300 mx-2">•</Text>
+                          <Clock size={12} color="#8B7355" />
+                          <Text className="text-gray-400 text-xs ml-1">{group.nextMeeting}</Text>
+                        </View>
+                      </View>
+                      <View className="bg-forest-50 rounded-full px-3 py-1.5">
+                        <Text className="text-forest-700 text-xs font-medium">Join</Text>
+                      </View>
+                    </Pressable>
+                  </Animated.View>
+                ))}
+                <View className="bg-forest-50 rounded-2xl p-4 items-center">
+                  <Text className="text-forest-700 text-sm text-center">
+                    Create your own study group to connect with other students!
+                  </Text>
+                  <Pressable
+                    onPress={() => router.push('/create-study-group')}
+                    className="bg-forest-600 rounded-full px-4 py-2 mt-2"
+                  >
+                    <Text className="text-white font-semibold text-sm">Create Study Group</Text>
+                  </Pressable>
+                </View>
+              </>
+            )}
           </Animated.View>
 
           {/* Internships */}

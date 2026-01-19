@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { View, Text, ScrollView, Pressable, Switch, TextInput, Modal } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, ScrollView, Pressable, Switch, TextInput, Modal, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
@@ -8,7 +8,6 @@ import {
   Clock,
   Plus,
   X,
-  Check,
   AlertCircle,
   Crown,
   Sparkles,
@@ -16,24 +15,43 @@ import {
   Ban,
   Coffee,
   Trash2,
+  RefreshCw,
 } from 'lucide-react-native';
 import Animated, { FadeIn, FadeInUp, FadeInDown } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useStore, BusinessBookingSettings, BusinessHours, BusinessService } from '@/lib/store';
+import {
+  getBusinessServices,
+  getBusinessHours,
+  getBusinessBookingSettings,
+  getBlockedSlots,
+  getServiceTemplates,
+  createBusinessService,
+  updateBusinessService,
+  deleteBusinessService,
+  setBusinessHours,
+  createBusinessBookingSettings,
+  updateBusinessBookingSettings as updateDbBookingSettings,
+  addBlockedSlot,
+  removeBlockedSlot,
+  createServicesFromTemplates,
+  type DbBusinessService,
+  type DbBusinessHours,
+  type DbBusinessBookingSettings,
+  type DbBlockedSlot,
+  type DbServiceTemplate,
+} from '@/lib/booking-api';
 
-const DAYS_OF_WEEK: BusinessHours['day'][] = [
-  'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'
-];
+const DAYS_OF_WEEK = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 
-const DAY_LABELS: Record<BusinessHours['day'], string> = {
+const DAY_LABELS: Record<string, string> = {
+  sunday: 'Sun',
   monday: 'Mon',
   tuesday: 'Tue',
   wednesday: 'Wed',
   thursday: 'Thu',
   friday: 'Fri',
   saturday: 'Sat',
-  sunday: 'Sun',
 };
 
 const TIME_OPTIONS = [
@@ -43,157 +61,275 @@ const TIME_OPTIONS = [
   '18:00', '18:30', '19:00', '19:30', '20:00', '20:30', '21:00', '21:30', '22:00',
 ];
 
-const DEFAULT_HOURS: BusinessHours[] = DAYS_OF_WEEK.map((day) => ({
-  day,
-  isOpen: day !== 'sunday',
-  openTime: '09:00',
-  closeTime: '18:00',
-}));
-
 // First 25 bookings are FREE
 const FREE_BOOKING_LIMIT = 25;
 
+interface LocalHours {
+  day: string;
+  dayIndex: number;
+  isOpen: boolean;
+  openTime: string;
+  closeTime: string;
+}
+
 export default function ManageBookingCalendarScreen() {
-  const { businessId, businessName } = useLocalSearchParams<{ businessId: string; businessName: string }>();
+  const { businessId, businessName, businessCategory } = useLocalSearchParams<{
+    businessId: string;
+    businessName: string;
+    businessCategory?: string;
+  }>();
 
-  const businessBookingSettings = useStore((s) => s.businessBookingSettings);
-  const setBusinessBookingSettings = useStore((s) => s.setBusinessBookingSettings);
-  const updateBusinessBookingSettings = useStore((s) => s.updateBusinessBookingSettings);
+  // Loading states
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
 
-  // Get or create settings for this business
-  const existingSettings = businessBookingSettings.find((s) => s.businessId === businessId);
-
-  const [settings, setSettings] = useState<BusinessBookingSettings>(
-    existingSettings || {
-      businessId: businessId || '',
-      isBookingEnabled: true,
-      hasBusinessPro: false,
-      bookingHours: DEFAULT_HOURS,
-      blockedDates: [],
-      blockedTimeSlots: [],
-      appointmentBuffer: 15,
-      advanceBookingDays: 30,
-      services: [],
-      totalBookingsReceived: 0,
-    }
+  // Data states
+  const [services, setServices] = useState<DbBusinessService[]>([]);
+  const [bookingSettings, setBookingSettings] = useState<DbBusinessBookingSettings | null>(null);
+  const [blockedSlots, setBlockedSlots] = useState<DbBlockedSlot[]>([]);
+  const [serviceTemplates, setServiceTemplates] = useState<DbServiceTemplate[]>([]);
+  const [hours, setHours] = useState<LocalHours[]>(
+    DAYS_OF_WEEK.map((day, index) => ({
+      day,
+      dayIndex: index,
+      isOpen: index !== 0, // Closed on Sunday by default
+      openTime: '09:00',
+      closeTime: '18:00',
+    }))
   );
 
+  // UI states
   const [showAddService, setShowAddService] = useState(false);
   const [showBlockTimeModal, setShowBlockTimeModal] = useState(false);
+  const [showTemplatesModal, setShowTemplatesModal] = useState(false);
   const [newService, setNewService] = useState({
     name: '',
     description: '',
     duration: '30',
     price: '',
+    category: '',
   });
   const [newBlockedTime, setNewBlockedTime] = useState({
-    day: 'everyday' as 'everyday' | BusinessHours['day'],
+    day: 'everyday' as 'everyday' | string,
     startTime: '12:00',
     endTime: '13:00',
     reason: 'Lunch Break',
   });
 
-  const remainingFreeBookings = Math.max(0, FREE_BOOKING_LIMIT - settings.totalBookingsReceived);
-  const needsSubscription = settings.totalBookingsReceived >= FREE_BOOKING_LIMIT && !settings.hasBusinessPro;
+  const remainingFreeBookings = Math.max(0, FREE_BOOKING_LIMIT - (bookingSettings?.total_bookings_received || 0));
+  const needsSubscription = (bookingSettings?.total_bookings_received || 0) >= FREE_BOOKING_LIMIT && !bookingSettings?.has_business_pro;
 
-  const handleSave = () => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    if (existingSettings) {
-      updateBusinessBookingSettings(businessId || '', settings);
-    } else {
-      setBusinessBookingSettings(settings);
+  // Load data on mount
+  useEffect(() => {
+    loadData();
+  }, [businessId]);
+
+  const loadData = async () => {
+    if (!businessId) return;
+
+    setIsLoading(true);
+    try {
+      const [servicesData, hoursData, settingsData, blockedData, templatesData] = await Promise.all([
+        getBusinessServices(businessId),
+        getBusinessHours(businessId),
+        getBusinessBookingSettings(businessId),
+        getBlockedSlots(businessId),
+        businessCategory ? getServiceTemplates(businessCategory) : Promise.resolve([]),
+      ]);
+
+      setServices(servicesData);
+      setBlockedSlots(blockedData);
+      setServiceTemplates(templatesData);
+
+      // Map database hours to local format
+      if (hoursData.length > 0) {
+        const mappedHours = DAYS_OF_WEEK.map((day, index) => {
+          const dbHour = hoursData.find(h => h.day_of_week === index);
+          return {
+            day,
+            dayIndex: index,
+            isOpen: dbHour?.is_open ?? (index !== 0),
+            openTime: dbHour?.open_time || '09:00',
+            closeTime: dbHour?.close_time || '18:00',
+          };
+        });
+        setHours(mappedHours);
+      }
+
+      // Create settings if they don't exist
+      if (settingsData) {
+        setBookingSettings(settingsData);
+      } else {
+        const newSettings = await createBusinessBookingSettings(businessId);
+        setBookingSettings(newSettings);
+      }
+    } catch (error) {
+      console.error('Error loading booking data:', error);
+    } finally {
+      setIsLoading(false);
     }
-    router.back();
   };
 
-  const toggleDayOpen = (day: BusinessHours['day']) => {
+  const handleSave = async () => {
+    if (!businessId) return;
+
+    setIsSaving(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    try {
+      // Save hours
+      const hoursToSave = hours.map(h => ({
+        day_of_week: h.dayIndex,
+        is_open: h.isOpen,
+        open_time: h.openTime,
+        close_time: h.closeTime,
+      }));
+      await setBusinessHours(businessId, hoursToSave);
+
+      // Save booking settings
+      if (bookingSettings) {
+        await updateDbBookingSettings(businessId, {
+          is_booking_enabled: bookingSettings.is_booking_enabled,
+          appointment_buffer: bookingSettings.appointment_buffer,
+          advance_booking_days: bookingSettings.advance_booking_days,
+        });
+      }
+
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      router.back();
+    } catch (error) {
+      console.error('Error saving booking settings:', error);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const toggleDayOpen = (dayIndex: number) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setSettings((prev) => ({
-      ...prev,
-      bookingHours: prev.bookingHours.map((h) =>
-        h.day === day ? { ...h, isOpen: !h.isOpen } : h
-      ),
-    }));
+    setHours(prev =>
+      prev.map(h =>
+        h.dayIndex === dayIndex ? { ...h, isOpen: !h.isOpen } : h
+      )
+    );
   };
 
-  const updateDayTime = (day: BusinessHours['day'], field: 'openTime' | 'closeTime', value: string) => {
-    setSettings((prev) => ({
-      ...prev,
-      bookingHours: prev.bookingHours.map((h) =>
-        h.day === day ? { ...h, [field]: value } : h
-      ),
-    }));
+  const updateDayTime = (dayIndex: number, field: 'openTime' | 'closeTime', value: string) => {
+    setHours(prev =>
+      prev.map(h =>
+        h.dayIndex === dayIndex ? { ...h, [field]: value } : h
+      )
+    );
   };
 
-  const addService = () => {
-    if (!newService.name || !newService.price) return;
+  const handleAddService = async () => {
+    if (!newService.name || !newService.price || !businessId) return;
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const service: BusinessService = {
-      id: Date.now().toString(),
-      businessId: businessId || '',
-      name: newService.name,
-      description: newService.description,
-      duration: parseInt(newService.duration, 10),
-      price: parseFloat(newService.price),
-      currency: 'USD',
-      category: 'general',
-      isActive: true,
-    };
 
-    setSettings((prev) => ({
-      ...prev,
-      services: [...prev.services, service],
-    }));
+    try {
+      const created = await createBusinessService(businessId, {
+        name: newService.name,
+        description: newService.description || undefined,
+        duration: parseInt(newService.duration, 10),
+        price: parseFloat(newService.price),
+        category: newService.category || undefined,
+      });
 
-    setNewService({ name: '', description: '', duration: '30', price: '' });
-    setShowAddService(false);
+      if (created) {
+        setServices(prev => [...prev, created]);
+      }
+
+      setNewService({ name: '', description: '', duration: '30', price: '', category: '' });
+      setShowAddService(false);
+    } catch (error) {
+      console.error('Error adding service:', error);
+    }
   };
 
-  const removeService = (serviceId: string) => {
+  const handleRemoveService = async (serviceId: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setSettings((prev) => ({
-      ...prev,
-      services: prev.services.filter((s) => s.id !== serviceId),
-    }));
+
+    try {
+      const success = await deleteBusinessService(serviceId);
+      if (success) {
+        setServices(prev => prev.filter(s => s.id !== serviceId));
+      }
+    } catch (error) {
+      console.error('Error removing service:', error);
+    }
   };
 
-  const addBlockedTime = () => {
+  const handleAddFromTemplates = async (selectedTemplates: DbServiceTemplate[]) => {
+    if (!businessId || selectedTemplates.length === 0) return;
+
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const blockedSlot = {
-      id: Date.now().toString(),
-      day: newBlockedTime.day,
-      startTime: newBlockedTime.startTime,
-      endTime: newBlockedTime.endTime,
-      reason: newBlockedTime.reason,
-    };
 
-    setSettings((prev) => ({
-      ...prev,
-      blockedTimeSlots: [...(prev.blockedTimeSlots || []), blockedSlot],
-    }));
-
-    setNewBlockedTime({
-      day: 'everyday',
-      startTime: '12:00',
-      endTime: '13:00',
-      reason: 'Lunch Break',
-    });
-    setShowBlockTimeModal(false);
+    try {
+      const created = await createServicesFromTemplates(businessId, selectedTemplates);
+      setServices(prev => [...prev, ...created]);
+      setShowTemplatesModal(false);
+    } catch (error) {
+      console.error('Error adding services from templates:', error);
+    }
   };
 
-  const removeBlockedTime = (slotId: string) => {
+  const handleAddBlockedTime = async () => {
+    if (!businessId) return;
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    try {
+      const slot = await addBlockedSlot(businessId, {
+        day_of_week: newBlockedTime.day === 'everyday' ? undefined : DAYS_OF_WEEK.indexOf(newBlockedTime.day),
+        start_time: newBlockedTime.startTime,
+        end_time: newBlockedTime.endTime,
+        reason: newBlockedTime.reason,
+        is_recurring: true,
+      });
+
+      if (slot) {
+        setBlockedSlots(prev => [...prev, slot]);
+      }
+
+      setNewBlockedTime({
+        day: 'everyday',
+        startTime: '12:00',
+        endTime: '13:00',
+        reason: 'Lunch Break',
+      });
+      setShowBlockTimeModal(false);
+    } catch (error) {
+      console.error('Error adding blocked time:', error);
+    }
+  };
+
+  const handleRemoveBlockedTime = async (slotId: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setSettings((prev) => ({
-      ...prev,
-      blockedTimeSlots: (prev.blockedTimeSlots || []).filter((s) => s.id !== slotId),
-    }));
+
+    try {
+      const success = await removeBlockedSlot(slotId);
+      if (success) {
+        setBlockedSlots(prev => prev.filter(s => s.id !== slotId));
+      }
+    } catch (error) {
+      console.error('Error removing blocked time:', error);
+    }
   };
 
   const goToBusinessPro = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     router.push('/business-pro-paywall');
   };
+
+  if (isLoading) {
+    return (
+      <View className="flex-1 bg-cream justify-center items-center">
+        <ActivityIndicator size="large" color="#1B4D3E" />
+        <Text className="text-warmBrown mt-4">Loading booking settings...</Text>
+      </View>
+    );
+  }
 
   return (
     <View className="flex-1 bg-cream">
@@ -218,9 +354,14 @@ export default function ManageBookingCalendarScreen() {
             </View>
             <Pressable
               onPress={handleSave}
-              className="bg-forest-600 rounded-full px-4 py-2"
+              disabled={isSaving}
+              className={`rounded-full px-4 py-2 ${isSaving ? 'bg-gray-400' : 'bg-forest-600'}`}
             >
-              <Text className="text-white font-semibold">Save</Text>
+              {isSaving ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Text className="text-white font-semibold">Save</Text>
+              )}
             </Pressable>
           </View>
         </Animated.View>
@@ -250,7 +391,7 @@ export default function ManageBookingCalendarScreen() {
                   </View>
                 </LinearGradient>
               </Pressable>
-            ) : settings.hasBusinessPro ? (
+            ) : bookingSettings?.has_business_pro ? (
               <View className="bg-gradient-to-r from-amber-50 to-yellow-50 rounded-2xl p-4 border border-amber-200">
                 <View className="flex-row items-center">
                   <View className="bg-amber-100 rounded-full p-2">
@@ -280,7 +421,7 @@ export default function ManageBookingCalendarScreen() {
                 <View className="mt-3 bg-forest-200 rounded-full h-2">
                   <View
                     className="bg-forest-600 rounded-full h-2"
-                    style={{ width: `${(settings.totalBookingsReceived / FREE_BOOKING_LIMIT) * 100}%` }}
+                    style={{ width: `${((bookingSettings?.total_bookings_received || 0) / FREE_BOOKING_LIMIT) * 100}%` }}
                   />
                 </View>
               </View>
@@ -301,10 +442,10 @@ export default function ManageBookingCalendarScreen() {
                   </View>
                 </View>
                 <Switch
-                  value={settings.isBookingEnabled && !needsSubscription}
+                  value={bookingSettings?.is_booking_enabled && !needsSubscription}
                   onValueChange={(value) => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    setSettings((prev) => ({ ...prev, isBookingEnabled: value }));
+                    setBookingSettings(prev => prev ? { ...prev, is_booking_enabled: value } : null);
                   }}
                   trackColor={{ false: '#E5E7EB', true: '#10B981' }}
                   thumbColor="#FFFFFF"
@@ -318,32 +459,32 @@ export default function ManageBookingCalendarScreen() {
           <Animated.View entering={FadeInUp.duration(400).delay(200)} className="px-5 mt-4">
             <Text className="text-lg font-semibold text-warmBrown mb-3">Business Hours</Text>
             <View className="bg-white rounded-2xl shadow-sm overflow-hidden">
-              {settings.bookingHours.map((hours, index) => (
+              {hours.map((h, index) => (
                 <View
-                  key={hours.day}
+                  key={h.day}
                   className={`flex-row items-center p-4 ${
-                    index < settings.bookingHours.length - 1 ? 'border-b border-gray-100' : ''
+                    index < hours.length - 1 ? 'border-b border-gray-100' : ''
                   }`}
                 >
                   <Pressable
-                    onPress={() => toggleDayOpen(hours.day)}
+                    onPress={() => toggleDayOpen(h.dayIndex)}
                     className={`w-12 h-12 rounded-full items-center justify-center ${
-                      hours.isOpen ? 'bg-forest-600' : 'bg-gray-200'
+                      h.isOpen ? 'bg-forest-600' : 'bg-gray-200'
                     }`}
                   >
-                    <Text className={`font-bold text-sm ${hours.isOpen ? 'text-white' : 'text-gray-500'}`}>
-                      {DAY_LABELS[hours.day]}
+                    <Text className={`font-bold text-sm ${h.isOpen ? 'text-white' : 'text-gray-500'}`}>
+                      {DAY_LABELS[h.day]}
                     </Text>
                   </Pressable>
 
-                  {hours.isOpen ? (
+                  {h.isOpen ? (
                     <View className="flex-1 flex-row items-center justify-end">
                       <View className="bg-gray-100 rounded-lg px-3 py-2">
-                        <Text className="text-warmBrown font-medium">{hours.openTime}</Text>
+                        <Text className="text-warmBrown font-medium">{h.openTime}</Text>
                       </View>
                       <Text className="mx-2 text-gray-400">to</Text>
                       <View className="bg-gray-100 rounded-lg px-3 py-2">
-                        <Text className="text-warmBrown font-medium">{hours.closeTime}</Text>
+                        <Text className="text-warmBrown font-medium">{h.closeTime}</Text>
                       </View>
                     </View>
                   ) : (
@@ -358,18 +499,31 @@ export default function ManageBookingCalendarScreen() {
           <Animated.View entering={FadeInUp.duration(400).delay(250)} className="px-5 mt-6">
             <View className="flex-row items-center justify-between mb-3">
               <Text className="text-lg font-semibold text-warmBrown">Services</Text>
-              <Pressable
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  setShowAddService(true);
-                }}
-                className="bg-forest-600 rounded-full p-2"
-              >
-                <Plus size={18} color="#FFFFFF" />
-              </Pressable>
+              <View className="flex-row">
+                {serviceTemplates.length > 0 && services.length === 0 && (
+                  <Pressable
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setShowTemplatesModal(true);
+                    }}
+                    className="bg-blue-500 rounded-full p-2 mr-2"
+                  >
+                    <RefreshCw size={18} color="#FFFFFF" />
+                  </Pressable>
+                )}
+                <Pressable
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setShowAddService(true);
+                  }}
+                  className="bg-forest-600 rounded-full p-2"
+                >
+                  <Plus size={18} color="#FFFFFF" />
+                </Pressable>
+              </View>
             </View>
 
-            {settings.services.length === 0 ? (
+            {services.length === 0 ? (
               <View className="bg-white rounded-2xl p-6 items-center shadow-sm">
                 <View className="bg-gray-100 rounded-full p-4 mb-3">
                   <DollarSign size={32} color="#9CA3AF" />
@@ -378,14 +532,24 @@ export default function ManageBookingCalendarScreen() {
                 <Text className="text-gray-500 text-sm text-center mt-1">
                   Add services that customers can book
                 </Text>
+                {serviceTemplates.length > 0 && (
+                  <Pressable
+                    onPress={() => setShowTemplatesModal(true)}
+                    className="bg-blue-50 rounded-xl px-4 py-3 mt-4"
+                  >
+                    <Text className="text-blue-600 font-medium text-center">
+                      Load {serviceTemplates.length} suggested services for your business type
+                    </Text>
+                  </Pressable>
+                )}
               </View>
             ) : (
               <View className="bg-white rounded-2xl shadow-sm overflow-hidden">
-                {settings.services.map((service, index) => (
+                {services.map((service, index) => (
                   <View
                     key={service.id}
                     className={`p-4 ${
-                      index < settings.services.length - 1 ? 'border-b border-gray-100' : ''
+                      index < services.length - 1 ? 'border-b border-gray-100' : ''
                     }`}
                   >
                     <View className="flex-row items-start justify-between">
@@ -403,10 +567,15 @@ export default function ManageBookingCalendarScreen() {
                             <DollarSign size={12} color="#10B981" />
                             <Text className="text-emerald-700 text-xs">{service.price}</Text>
                           </View>
+                          {service.category && (
+                            <View className="bg-blue-100 rounded-full px-2 py-1 ml-2">
+                              <Text className="text-blue-700 text-xs">{service.category}</Text>
+                            </View>
+                          )}
                         </View>
                       </View>
                       <Pressable
-                        onPress={() => removeService(service.id)}
+                        onPress={() => handleRemoveService(service.id)}
                         className="bg-red-100 rounded-full p-1.5"
                       >
                         <X size={16} color="#DC2626" />
@@ -437,6 +606,14 @@ export default function ManageBookingCalendarScreen() {
                   className="bg-gray-100 rounded-xl px-4 py-3 text-warmBrown mb-2"
                   placeholderTextColor="#9CA3AF"
                   multiline
+                />
+
+                <TextInput
+                  placeholder="Category (optional, e.g., Haircuts)"
+                  value={newService.category}
+                  onChangeText={(text) => setNewService((prev) => ({ ...prev, category: text }))}
+                  className="bg-gray-100 rounded-xl px-4 py-3 text-warmBrown mb-2"
+                  placeholderTextColor="#9CA3AF"
                 />
 
                 <View className="flex-row space-x-2 mb-3">
@@ -472,7 +649,7 @@ export default function ManageBookingCalendarScreen() {
                     <Text className="text-gray-600 font-medium">Cancel</Text>
                   </Pressable>
                   <Pressable
-                    onPress={addService}
+                    onPress={handleAddService}
                     className="flex-1 bg-forest-600 rounded-xl py-3 items-center"
                   >
                     <Text className="text-white font-medium">Add Service</Text>
@@ -492,7 +669,7 @@ export default function ManageBookingCalendarScreen() {
                   <Text className="text-gray-500 text-sm">How far ahead customers can book</Text>
                 </View>
                 <View className="bg-gray-100 rounded-lg px-3 py-2">
-                  <Text className="text-warmBrown font-medium">{settings.advanceBookingDays} days</Text>
+                  <Text className="text-warmBrown font-medium">{bookingSettings?.advance_booking_days || 30} days</Text>
                 </View>
               </View>
 
@@ -502,7 +679,7 @@ export default function ManageBookingCalendarScreen() {
                   <Text className="text-gray-500 text-sm">Time between appointments</Text>
                 </View>
                 <View className="bg-gray-100 rounded-lg px-3 py-2">
-                  <Text className="text-warmBrown font-medium">{settings.appointmentBuffer} min</Text>
+                  <Text className="text-warmBrown font-medium">{bookingSettings?.appointment_buffer || 15} min</Text>
                 </View>
               </View>
             </View>
@@ -526,7 +703,7 @@ export default function ManageBookingCalendarScreen() {
               </Pressable>
             </View>
 
-            {(settings.blockedTimeSlots || []).length === 0 ? (
+            {blockedSlots.length === 0 ? (
               <View className="bg-white rounded-2xl p-6 items-center shadow-sm">
                 <View className="bg-gray-100 rounded-full p-4 mb-3">
                   <Coffee size={32} color="#9CA3AF" />
@@ -538,11 +715,11 @@ export default function ManageBookingCalendarScreen() {
               </View>
             ) : (
               <View className="bg-white rounded-2xl shadow-sm overflow-hidden">
-                {(settings.blockedTimeSlots || []).map((slot, index) => (
+                {blockedSlots.map((slot, index) => (
                   <View
                     key={slot.id}
                     className={`p-4 flex-row items-center ${
-                      index < (settings.blockedTimeSlots || []).length - 1 ? 'border-b border-gray-100' : ''
+                      index < blockedSlots.length - 1 ? 'border-b border-gray-100' : ''
                     }`}
                   >
                     <View className="bg-red-100 rounded-full p-2">
@@ -552,16 +729,20 @@ export default function ManageBookingCalendarScreen() {
                       <Text className="text-warmBrown font-semibold">{slot.reason || 'Blocked'}</Text>
                       <View className="flex-row items-center mt-1">
                         <Text className="text-gray-500 text-sm capitalize">
-                          {slot.day === 'everyday' ? 'Every day' : slot.day}
+                          {slot.is_recurring
+                            ? slot.day_of_week !== null
+                              ? DAYS_OF_WEEK[slot.day_of_week]
+                              : 'Every day'
+                            : slot.date || 'One-time'}
                         </Text>
                         <Text className="text-gray-400 mx-1">•</Text>
                         <Text className="text-gray-500 text-sm">
-                          {slot.startTime} - {slot.endTime}
+                          {slot.start_time} - {slot.end_time}
                         </Text>
                       </View>
                     </View>
                     <Pressable
-                      onPress={() => removeBlockedTime(slot.id)}
+                      onPress={() => handleRemoveBlockedTime(slot.id)}
                       className="bg-gray-100 rounded-full p-2"
                     >
                       <Trash2 size={16} color="#6B7280" />
@@ -573,7 +754,7 @@ export default function ManageBookingCalendarScreen() {
           </Animated.View>
 
           {/* Upgrade CTA */}
-          {!settings.hasBusinessPro && (
+          {!bookingSettings?.has_business_pro && (
             <Animated.View entering={FadeInUp.duration(400).delay(350)} className="px-5 mb-8">
               <Pressable onPress={goToBusinessPro}>
                 <LinearGradient
@@ -614,7 +795,7 @@ export default function ManageBookingCalendarScreen() {
               <Text className="text-gray-500 text-base">Cancel</Text>
             </Pressable>
             <Text className="text-warmBrown font-bold text-lg">Block Time</Text>
-            <Pressable onPress={addBlockedTime}>
+            <Pressable onPress={handleAddBlockedTime}>
               <Text className="text-forest-600 font-semibold text-base">Add</Text>
             </Pressable>
           </View>
@@ -765,6 +946,64 @@ export default function ManageBookingCalendarScreen() {
                 </View>
               </View>
             </View>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
+      {/* Service Templates Modal */}
+      <Modal
+        visible={showTemplatesModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowTemplatesModal(false)}
+      >
+        <SafeAreaView className="flex-1 bg-cream">
+          <View className="px-5 py-4 border-b border-gray-200 flex-row items-center justify-between">
+            <Pressable onPress={() => setShowTemplatesModal(false)}>
+              <Text className="text-gray-500 text-base">Cancel</Text>
+            </Pressable>
+            <Text className="text-warmBrown font-bold text-lg">Service Templates</Text>
+            <Pressable onPress={() => handleAddFromTemplates(serviceTemplates)}>
+              <Text className="text-forest-600 font-semibold text-base">Add All</Text>
+            </Pressable>
+          </View>
+
+          <ScrollView className="flex-1 px-5 pt-4">
+            <Text className="text-gray-600 mb-4">
+              These are suggested services for your business type. You can add all of them or customize after.
+            </Text>
+            {serviceTemplates.map((template, index) => (
+              <View
+                key={template.id}
+                className={`bg-white rounded-xl p-4 mb-3 ${
+                  index === serviceTemplates.length - 1 ? 'mb-8' : ''
+                }`}
+              >
+                <View className="flex-row items-start justify-between">
+                  <View className="flex-1">
+                    <Text className="text-warmBrown font-semibold">{template.name}</Text>
+                    {template.description && (
+                      <Text className="text-gray-500 text-sm mt-0.5">{template.description}</Text>
+                    )}
+                    <View className="flex-row items-center mt-2">
+                      <View className="flex-row items-center bg-gray-100 rounded-full px-2 py-1">
+                        <Clock size={12} color="#6B7280" />
+                        <Text className="text-gray-600 text-xs ml-1">{template.suggested_duration} min</Text>
+                      </View>
+                      <View className="flex-row items-center bg-emerald-100 rounded-full px-2 py-1 ml-2">
+                        <DollarSign size={12} color="#10B981" />
+                        <Text className="text-emerald-700 text-xs">{template.suggested_price}</Text>
+                      </View>
+                      {template.service_category && (
+                        <View className="bg-blue-100 rounded-full px-2 py-1 ml-2">
+                          <Text className="text-blue-700 text-xs">{template.service_category}</Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                </View>
+              </View>
+            ))}
           </ScrollView>
         </SafeAreaView>
       </Modal>

@@ -11,125 +11,82 @@ import {
   CreditCard,
   Banknote,
   CheckCircle,
-  ChevronLeft,
-  ChevronRight,
   Gem,
+  Store,
 } from 'lucide-react-native';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ServiceCard } from '@/components/ServiceCard';
-import { useStore, type BusinessService, type Appointment, MOCK_USERS } from '@/lib/store';
-import { purchaseBusinessService, priceToGems, gemsToPrice, calculateFeeBreakdown } from '@/lib/marketplacePayments';
+import { useStore, type BusinessService } from '@/lib/store';
+import { purchaseBusinessService, priceToGems, calculateFeeBreakdown } from '@/lib/marketplacePayments';
 import { getGemBalance } from '@/lib/giftService';
-
-// Mock business with services for demo
-const MOCK_BARBERSHOP = {
-  id: 'barber_1',
-  name: "King's Kutz Barbershop",
-  image: 'https://images.unsplash.com/photo-1585747860715-2ba37e788b70?w=800&h=400&fit=crop',
-  logo: 'https://images.unsplash.com/photo-1622286342621-4bd786c2447c?w=200&h=200&fit=crop',
-  address: '1234 Martin Luther King Blvd, Denver, CO 80205',
-  rating: 4.9,
-  reviews: 156,
-};
-
-const MOCK_SERVICES: BusinessService[] = [
-  {
-    id: 'svc_1',
-    businessId: 'barber_1',
-    name: 'Classic Haircut',
-    description: 'Traditional haircut with clippers and scissors, includes hot towel and neck shave',
-    duration: 30,
-    price: 25,
-    currency: 'USD',
-    category: 'Haircuts',
-    isActive: true,
-  },
-  {
-    id: 'svc_2',
-    businessId: 'barber_1',
-    name: 'Haircut + Beard Trim',
-    description: 'Full haircut with precision beard shaping and line-up',
-    duration: 45,
-    price: 40,
-    currency: 'USD',
-    category: 'Haircuts',
-    isActive: true,
-  },
-  {
-    id: 'svc_3',
-    businessId: 'barber_1',
-    name: 'Kids Haircut',
-    description: 'Haircut for children 12 and under',
-    duration: 20,
-    price: 18,
-    currency: 'USD',
-    category: 'Haircuts',
-    isActive: true,
-  },
-  {
-    id: 'svc_4',
-    businessId: 'barber_1',
-    name: 'Hot Towel Shave',
-    description: 'Luxurious straight razor shave with hot towel treatment',
-    duration: 30,
-    price: 30,
-    currency: 'USD',
-    category: 'Shaves',
-    isActive: true,
-  },
-  {
-    id: 'svc_5',
-    businessId: 'barber_1',
-    name: 'Beard Trim & Shape',
-    description: 'Professional beard grooming and shaping',
-    duration: 20,
-    price: 15,
-    currency: 'USD',
-    category: 'Beard',
-    isActive: true,
-  },
-  {
-    id: 'svc_6',
-    businessId: 'barber_1',
-    name: 'The Works',
-    description: 'Haircut, beard trim, hot towel shave, and scalp massage',
-    duration: 75,
-    price: 65,
-    currency: 'USD',
-    category: 'Packages',
-    image: 'https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=400&h=300&fit=crop',
-    isActive: true,
-  },
-];
-
-const TIME_SLOTS = [
-  '9:00 AM', '9:30 AM', '10:00 AM', '10:30 AM', '11:00 AM', '11:30 AM',
-  '12:00 PM', '12:30 PM', '1:00 PM', '1:30 PM', '2:00 PM', '2:30 PM',
-  '3:00 PM', '3:30 PM', '4:00 PM', '4:30 PM', '5:00 PM', '5:30 PM',
-];
+import { getBusiness } from '@/lib/marketplace-api';
+import {
+  getBusinessServices,
+  getAvailableTimeSlots,
+  createAppointment,
+  calculateEndTime,
+  type DbBusinessService,
+} from '@/lib/booking-api';
 
 type PaymentMethod = 'in_app' | 'cash' | 'card_on_site' | 'gems';
 
+// Convert DB service to store BusinessService format
+function dbServiceToBusinessService(dbService: DbBusinessService): BusinessService {
+  return {
+    id: dbService.id,
+    businessId: dbService.business_id,
+    name: dbService.name,
+    description: dbService.description || '',
+    duration: dbService.duration,
+    price: dbService.price,
+    currency: dbService.currency,
+    category: dbService.category || 'general',
+    image: dbService.image || undefined,
+    isActive: dbService.is_active,
+  };
+}
+
 export default function BookAppointmentScreen() {
-  const params = useLocalSearchParams<{ businessId?: string }>();
+  const params = useLocalSearchParams<{ businessId?: string; businessName?: string }>();
+  const businessId = params.businessId || '';
+
+  // Loading states
+  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingSlots, setIsLoadingSlots] = useState(false);
+
+  // Business and services data
+  const [business, setBusiness] = useState<{
+    id: string;
+    name: string;
+    image: string;
+    logo?: string;
+    address: string;
+    owner_id: string;
+  } | null>(null);
+  const [services, setServices] = useState<BusinessService[]>([]);
+
+  // Booking state
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [selectedService, setSelectedService] = useState<BusinessService | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
+  const [availableSlots, setAvailableSlots] = useState<string[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [notes, setNotes] = useState('');
   const [isBooking, setIsBooking] = useState(false);
 
   // Gem payment state
   const [gemBalance, setGemBalance] = useState(0);
-  const [showGemPaymentModal, setShowGemPaymentModal] = useState(false);
-  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [buyerPaysFee, setBuyerPaysFee] = useState(false);
 
   const currentUser = useStore((s) => s.currentUser);
-  const addAppointment = useStore((s) => s.addAppointment);
+
+  // Load business and services on mount
+  useEffect(() => {
+    loadBusinessData();
+  }, [businessId]);
 
   // Load gem balance
   useEffect(() => {
@@ -137,6 +94,65 @@ export default function BookAppointmentScreen() {
       getGemBalance(currentUser.id).then(setGemBalance);
     }
   }, [currentUser?.id]);
+
+  // Load available slots when date or service changes
+  useEffect(() => {
+    if (selectedService && businessId) {
+      loadAvailableSlots();
+    }
+  }, [selectedDate, selectedService, businessId]);
+
+  const loadBusinessData = async () => {
+    if (!businessId) {
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const [businessData, servicesData] = await Promise.all([
+        getBusiness(businessId),
+        getBusinessServices(businessId),
+      ]);
+
+      if (businessData) {
+        setBusiness({
+          id: businessData.id,
+          name: businessData.name,
+          image: businessData.image || 'https://images.unsplash.com/photo-1585747860715-2ba37e788b70?w=800&h=400&fit=crop',
+          logo: businessData.logo,
+          address: businessData.address || businessData.location || 'Contact for address',
+          owner_id: businessData.owner_id,
+        });
+      }
+
+      setServices(servicesData.map(dbServiceToBusinessService));
+    } catch (error) {
+      console.error('Error loading business data:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loadAvailableSlots = async () => {
+    if (!selectedService || !businessId) return;
+
+    setIsLoadingSlots(true);
+    try {
+      const dateStr = selectedDate.toISOString().split('T')[0];
+      const slots = await getAvailableTimeSlots(businessId, dateStr, selectedService.duration);
+      setAvailableSlots(slots);
+      // Reset time if previously selected time is no longer available
+      if (selectedTime && !slots.includes(selectedTime)) {
+        setSelectedTime(null);
+      }
+    } catch (error) {
+      console.error('Error loading available slots:', error);
+      setAvailableSlots([]);
+    } finally {
+      setIsLoadingSlots(false);
+    }
+  };
 
   // Generate dates for the next 14 days
   const availableDates = useMemo(() => {
@@ -149,25 +165,6 @@ export default function BookAppointmentScreen() {
     }
     return dates;
   }, []);
-
-  // Simulate some time slots being unavailable
-  const availableTimeSlots = useMemo((): { time: string; available: boolean }[] => {
-    const dayOfWeek = selectedDate.getDay();
-    // Sunday closed
-    if (dayOfWeek === 0) return [];
-    // Saturdays have limited hours
-    if (dayOfWeek === 6) {
-      return TIME_SLOTS.slice(0, 8).map((time) => ({
-        time,
-        available: Math.random() > 0.3,
-      }));
-    }
-    // Randomly mark some slots as taken for demo
-    return TIME_SLOTS.map((time) => ({
-      time,
-      available: Math.random() > 0.3, // 70% availability
-    }));
-  }, [selectedDate]);
 
   const formatDate = (date: Date): string => {
     return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
@@ -209,89 +206,95 @@ export default function BookAppointmentScreen() {
   };
 
   const handleConfirmBooking = async () => {
-    if (!selectedService || !selectedTime || !currentUser) return;
+    if (!selectedService || !selectedTime || !currentUser || !business) return;
 
     setIsBooking(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
 
-    // Handle gem payment
-    if (paymentMethod === 'gems') {
-      const gemPrice = priceToGems(selectedService.price);
-      const feeBreakdown = calculateFeeBreakdown(gemPrice, buyerPaysFee);
+    try {
+      // Handle gem payment
+      if (paymentMethod === 'gems') {
+        const gemPrice = priceToGems(selectedService.price);
+        const feeBreakdown = calculateFeeBreakdown(gemPrice, buyerPaysFee);
 
-      // Check balance (including fee if buyer pays it)
-      if (gemBalance < feeBreakdown.totalBuyerPays) {
-        setIsBooking(false);
-        Alert.alert(
-          'Insufficient Gems',
-          `You need ${(feeBreakdown.totalBuyerPays - gemBalance).toLocaleString()} more gems to book this service.`,
-          [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Get Gems', onPress: () => router.push('/gem-store') }
-          ]
+        // Check balance
+        if (gemBalance < feeBreakdown.totalBuyerPays) {
+          setIsBooking(false);
+          Alert.alert(
+            'Insufficient Gems',
+            `You need ${(feeBreakdown.totalBuyerPays - gemBalance).toLocaleString()} more gems to book this service.`,
+            [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Get Gems', onPress: () => router.push('/gem-store') }
+            ]
+          );
+          return;
+        }
+
+        // Process gem payment
+        const result = await purchaseBusinessService(
+          currentUser.id,
+          currentUser.name ?? 'User',
+          business.owner_id,
+          business.name,
+          selectedService.id,
+          selectedService.name,
+          gemPrice,
+          buyerPaysFee
         );
-        return;
+
+        if (!result.success) {
+          setIsBooking(false);
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+          Alert.alert('Payment Failed', result.error ?? 'Could not process payment. Please try again.');
+          return;
+        }
+
+        setGemBalance(result.newBuyerBalance ?? gemBalance - feeBreakdown.totalBuyerPays);
       }
 
-      // Process gem payment with buyerPaysFee flag
-      const result = await purchaseBusinessService(
-        currentUser.id,
-        currentUser.name ?? 'User',
-        MOCK_BARBERSHOP.id, // In real app, this would be the actual business owner ID
-        MOCK_BARBERSHOP.name,
-        selectedService.id,
-        selectedService.name,
-        gemPrice,
-        buyerPaysFee
+      // Calculate end time
+      const endTime = calculateEndTime(selectedTime, selectedService.duration);
+
+      // Create appointment in database
+      const appointment = await createAppointment({
+        business_id: business.id,
+        service_id: selectedService.id,
+        customer_id: currentUser.id,
+        date: selectedDate.toISOString().split('T')[0],
+        start_time: selectedTime,
+        end_time: endTime,
+        payment_method: paymentMethod === 'gems' ? 'gems' : paymentMethod === 'card_on_site' ? 'card_on_site' : 'cash',
+        payment_amount: selectedService.price,
+        gems_paid: paymentMethod === 'gems' ? priceToGems(selectedService.price) : undefined,
+        notes: notes || undefined,
+        customer_phone: currentUser.phone || undefined,
+      });
+
+      if (!appointment) {
+        throw new Error('Failed to create appointment');
+      }
+
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+      const paymentMessage = paymentMethod === 'gems'
+        ? ' Payment has been processed.'
+        : paymentMethod === 'cash'
+        ? ' Remember to pay at the location.'
+        : '';
+
+      Alert.alert(
+        'Appointment Booked!',
+        `Your appointment for ${selectedService.name} on ${formatDate(selectedDate)} at ${selectedTime} has been confirmed.${paymentMessage}`,
+        [{ text: 'OK', onPress: () => router.back() }]
       );
-
-      if (!result.success) {
-        setIsBooking(false);
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        Alert.alert('Payment Failed', result.error ?? 'Could not process payment. Please try again.');
-        return;
-      }
-
-      // Update local balance
-      setGemBalance(result.newBuyerBalance ?? gemBalance - feeBreakdown.totalBuyerPays);
+    } catch (error) {
+      console.error('Error booking appointment:', error);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('Booking Failed', 'Could not complete your booking. Please try again.');
+    } finally {
+      setIsBooking(false);
     }
-
-    // Create appointment
-    const appointment: Appointment = {
-      id: `apt_${Date.now()}`,
-      businessId: MOCK_BARBERSHOP.id,
-      businessName: MOCK_BARBERSHOP.name,
-      businessImage: MOCK_BARBERSHOP.image,
-      customerId: currentUser.id,
-      customerName: currentUser.name,
-      customerAvatar: currentUser.avatar,
-      customerPhone: currentUser.phone,
-      service: selectedService,
-      date: selectedDate.toISOString().split('T')[0],
-      time: selectedTime,
-      status: 'confirmed',
-      isPaid: paymentMethod === 'in_app' || paymentMethod === 'gems',
-      paymentMethod,
-      notes: notes || undefined,
-      createdAt: new Date().toISOString(),
-    };
-
-    addAppointment(appointment);
-    setIsBooking(false);
-
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-
-    const paymentMessage = paymentMethod === 'gems'
-      ? ' Payment has been processed.'
-      : paymentMethod === 'cash'
-      ? ' Remember to pay at the location.'
-      : '';
-
-    Alert.alert(
-      'Appointment Booked!',
-      `Your appointment for ${selectedService.name} on ${formatDate(selectedDate)} at ${selectedTime} has been confirmed.${paymentMessage}`,
-      [{ text: 'View My Appointments', onPress: () => router.replace('/my-appointments' as any) }]
-    );
   };
 
   const canProceed = (): boolean => {
@@ -301,7 +304,6 @@ export default function BookAppointmentScreen() {
       case 2:
         return selectedTime !== null;
       case 3:
-        // If gems selected, ensure enough balance (including fee if buyer pays it)
         if (paymentMethod === 'gems' && selectedService) {
           const gemPrice = priceToGems(selectedService.price);
           const feeBreakdown = calculateFeeBreakdown(gemPrice, buyerPaysFee);
@@ -338,6 +340,40 @@ export default function BookAppointmentScreen() {
     </View>
   );
 
+  if (isLoading) {
+    return (
+      <View className="flex-1 bg-cream justify-center items-center">
+        <ActivityIndicator size="large" color="#E07A5F" />
+        <Text className="text-warmBrown mt-4">Loading business...</Text>
+      </View>
+    );
+  }
+
+  if (!business) {
+    return (
+      <View className="flex-1 bg-cream justify-center items-center px-6">
+        <Store size={64} color="#9CA3AF" />
+        <Text className="text-warmBrown text-lg text-center mt-4">Business not found</Text>
+        <Pressable onPress={() => router.back()} className="mt-4 bg-terracotta-500 px-6 py-3 rounded-full">
+          <Text className="text-white font-semibold">Go Back</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  if (services.length === 0) {
+    return (
+      <View className="flex-1 bg-cream justify-center items-center px-6">
+        <Calendar size={64} color="#9CA3AF" />
+        <Text className="text-warmBrown text-lg text-center mt-4">This business hasn't set up booking yet</Text>
+        <Text className="text-gray-500 text-center mt-2">They may not have any services available for booking</Text>
+        <Pressable onPress={() => router.back()} className="mt-6 bg-terracotta-500 px-6 py-3 rounded-full">
+          <Text className="text-white font-semibold">Go Back</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
   return (
     <View className="flex-1 bg-cream">
       <SafeAreaView edges={['top']} className="flex-1">
@@ -364,16 +400,16 @@ export default function BookAppointmentScreen() {
         <Animated.View entering={FadeInUp.duration(400)} className="px-5 mb-4">
           <View className="bg-white rounded-xl p-3 flex-row items-center shadow-sm">
             <Image
-              source={{ uri: MOCK_BARBERSHOP.logo }}
+              source={{ uri: business.logo || business.image }}
               style={{ width: 50, height: 50, borderRadius: 25 }}
               contentFit="cover"
             />
             <View className="flex-1 ml-3">
-              <Text className="text-warmBrown font-semibold">{MOCK_BARBERSHOP.name}</Text>
+              <Text className="text-warmBrown font-semibold">{business.name}</Text>
               <View className="flex-row items-center mt-0.5">
                 <MapPin size={12} color="#9CA3AF" />
                 <Text className="text-gray-500 text-xs ml-1" numberOfLines={1}>
-                  {MOCK_BARBERSHOP.address}
+                  {business.address}
                 </Text>
               </View>
             </View>
@@ -385,7 +421,7 @@ export default function BookAppointmentScreen() {
           {step === 1 && (
             <Animated.View entering={FadeInUp.duration(400).delay(100)} className="px-5">
               <Text className="text-warmBrown font-bold text-lg mb-3">Select a Service</Text>
-              {MOCK_SERVICES.map((service) => (
+              {services.map((service) => (
                 <ServiceCard
                   key={service.id}
                   service={service}
@@ -442,36 +478,32 @@ export default function BookAppointmentScreen() {
               </ScrollView>
 
               <Text className="text-warmBrown font-bold text-lg mb-3">Select Time</Text>
-              {availableTimeSlots.length === 0 ? (
+              {isLoadingSlots ? (
+                <View className="bg-gray-100 rounded-xl p-6 items-center">
+                  <ActivityIndicator size="small" color="#E07A5F" />
+                  <Text className="text-gray-500 text-center mt-2">Loading available times...</Text>
+                </View>
+              ) : availableSlots.length === 0 ? (
                 <View className="bg-gray-100 rounded-xl p-6 items-center">
                   <Text className="text-gray-500 text-center">
-                    Closed on this day. Please select another date.
+                    No available times on this day. Please select another date.
                   </Text>
                 </View>
               ) : (
                 <View className="flex-row flex-wrap">
-                  {availableTimeSlots.map(({ time, available }) => {
+                  {availableSlots.map((time) => {
                     const isSelected = time === selectedTime;
                     return (
                       <Pressable
                         key={time}
-                        onPress={() => available && handleSelectTime(time)}
-                        disabled={!available}
+                        onPress={() => handleSelectTime(time)}
                         className={`rounded-lg px-4 py-2.5 mr-2 mb-2 ${
-                          isSelected
-                            ? 'bg-terracotta-500'
-                            : available
-                            ? 'bg-white'
-                            : 'bg-gray-100'
+                          isSelected ? 'bg-terracotta-500' : 'bg-white'
                         }`}
                       >
                         <Text
                           className={`font-medium ${
-                            isSelected
-                              ? 'text-white'
-                              : available
-                              ? 'text-warmBrown'
-                              : 'text-gray-300'
+                            isSelected ? 'text-white' : 'text-warmBrown'
                           }`}
                         >
                           {time}
@@ -499,41 +531,36 @@ export default function BookAppointmentScreen() {
                   <Banknote size={24} color="#10B981" />
                 </View>
                 <View className="flex-1 ml-3">
-                  <Text className="text-warmBrown font-semibold">Pay at Location</Text>
-                  <Text className="text-gray-500 text-sm">Cash or card when you arrive</Text>
+                  <Text className="text-warmBrown font-semibold">Pay with Cash</Text>
+                  <Text className="text-gray-500 text-sm">Pay at the location</Text>
                 </View>
                 {paymentMethod === 'cash' && (
-                  <View className="bg-terracotta-500 rounded-full p-1">
-                    <CheckCircle size={18} color="#FFFFFF" />
-                  </View>
+                  <CheckCircle size={20} color="#E07A5F" />
                 )}
               </Pressable>
 
               <Pressable
-                onPress={() => setPaymentMethod('in_app')}
+                onPress={() => setPaymentMethod('card_on_site')}
                 className={`bg-white rounded-xl p-4 mb-3 flex-row items-center border-2 ${
-                  paymentMethod === 'in_app' ? 'border-terracotta-500' : 'border-transparent'
+                  paymentMethod === 'card_on_site' ? 'border-terracotta-500' : 'border-transparent'
                 }`}
               >
-                <View className="bg-terracotta-50 rounded-full p-3">
-                  <CreditCard size={24} color="#D4673A" />
+                <View className="bg-blue-100 rounded-full p-3">
+                  <CreditCard size={24} color="#3B82F6" />
                 </View>
                 <View className="flex-1 ml-3">
-                  <Text className="text-warmBrown font-semibold">Pay Now</Text>
-                  <Text className="text-gray-500 text-sm">Secure payment through app</Text>
+                  <Text className="text-warmBrown font-semibold">Pay with Card</Text>
+                  <Text className="text-gray-500 text-sm">Card payment at the location</Text>
                 </View>
-                {paymentMethod === 'in_app' && (
-                  <View className="bg-terracotta-500 rounded-full p-1">
-                    <CheckCircle size={18} color="#FFFFFF" />
-                  </View>
+                {paymentMethod === 'card_on_site' && (
+                  <CheckCircle size={20} color="#E07A5F" />
                 )}
               </Pressable>
 
-              {/* Pay with Gems option */}
               <Pressable
                 onPress={() => setPaymentMethod('gems')}
                 className={`bg-white rounded-xl p-4 mb-3 flex-row items-center border-2 ${
-                  paymentMethod === 'gems' ? 'border-purple-500' : 'border-transparent'
+                  paymentMethod === 'gems' ? 'border-terracotta-500' : 'border-transparent'
                 }`}
               >
                 <View className="bg-purple-100 rounded-full p-3">
@@ -541,218 +568,124 @@ export default function BookAppointmentScreen() {
                 </View>
                 <View className="flex-1 ml-3">
                   <Text className="text-warmBrown font-semibold">Pay with Gems</Text>
-                  <View className="flex-row items-center flex-wrap">
-                    <Text className="text-gray-500 text-sm">
-                      {selectedService ? (() => {
-                        const gemPrice = priceToGems(selectedService.price);
-                        const total = calculateFeeBreakdown(gemPrice, buyerPaysFee).totalBuyerPays;
-                        return `${total.toLocaleString()} gems${buyerPaysFee ? ' (incl. fee)' : ''}`;
-                      })() : 'Use your gem balance'}
+                  <Text className="text-gray-500 text-sm">
+                    Balance: {gemBalance.toLocaleString()} gems
+                  </Text>
+                  {selectedService && (
+                    <Text className="text-purple-600 text-sm font-medium">
+                      Cost: {priceToGems(selectedService.price).toLocaleString()} gems
                     </Text>
-                    <Text className="text-purple-500 text-sm ml-2">
-                      (Balance: {gemBalance.toLocaleString()})
-                    </Text>
-                  </View>
+                  )}
                 </View>
                 {paymentMethod === 'gems' && (
-                  <View className="bg-purple-500 rounded-full p-1">
-                    <CheckCircle size={18} color="#FFFFFF" />
-                  </View>
+                  <CheckCircle size={20} color="#E07A5F" />
                 )}
               </Pressable>
 
-              {/* Support Business Toggle - only shown when gems selected */}
               {paymentMethod === 'gems' && selectedService && (
-                <Pressable
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    setBuyerPaysFee(!buyerPaysFee);
-                  }}
-                  className={`rounded-xl p-3 mb-3 flex-row items-center justify-between ${
-                    buyerPaysFee ? 'bg-green-50 border border-green-200' : 'bg-white border border-gray-200'
-                  }`}
-                >
-                  <View className="flex-1 mr-3">
-                    <Text className={`font-semibold ${buyerPaysFee ? 'text-green-700' : 'text-warmBrown'}`}>
-                      Support the business
-                    </Text>
-                    <Text className="text-xs text-gray-500 mt-0.5">
-                      {buyerPaysFee
-                        ? 'You pay the 5% fee - business keeps 100%!'
-                        : 'Tap to cover the 5% fee for the business'}
-                    </Text>
-                  </View>
-                  <View className={`w-12 h-7 rounded-full ${buyerPaysFee ? 'bg-green-500' : 'bg-gray-300'} justify-center`}>
-                    <View className={`w-5 h-5 rounded-full bg-white shadow ${buyerPaysFee ? 'self-end mr-1' : 'self-start ml-1'}`} />
-                  </View>
-                </Pressable>
+                <View className="bg-purple-50 rounded-xl p-4 mb-3">
+                  <Text className="text-purple-800 text-sm">
+                    5% platform fee applies. The business will receive{' '}
+                    {Math.floor(priceToGems(selectedService.price) * 0.95).toLocaleString()} gems.
+                  </Text>
+                </View>
               )}
 
-              <Text className="text-warmBrown font-bold text-lg mt-4 mb-3">
-                Additional Notes (Optional)
-              </Text>
-              <TextInput
-                value={notes}
-                onChangeText={setNotes}
-                placeholder="Any special requests or preferences..."
-                placeholderTextColor="#9CA3AF"
-                multiline
-                numberOfLines={3}
-                className="bg-white rounded-xl p-4 text-warmBrown min-h-[100px]"
-                style={{ textAlignVertical: 'top' }}
-              />
+              <View className="mt-4">
+                <Text className="text-warmBrown font-semibold mb-2">Notes (optional)</Text>
+                <TextInput
+                  placeholder="Any special requests or notes..."
+                  placeholderTextColor="#9CA3AF"
+                  value={notes}
+                  onChangeText={setNotes}
+                  multiline
+                  numberOfLines={3}
+                  className="bg-white rounded-xl p-4 text-warmBrown min-h-[100]"
+                  style={{ textAlignVertical: 'top' }}
+                />
+              </View>
             </Animated.View>
           )}
 
           {/* Step 4: Confirmation */}
           {step === 4 && selectedService && (
             <Animated.View entering={FadeInUp.duration(400).delay(100)} className="px-5">
-              <Text className="text-warmBrown font-bold text-lg mb-4">Confirm Booking</Text>
+              <Text className="text-warmBrown font-bold text-lg mb-3">Confirm Booking</Text>
 
-              <View className="bg-white rounded-2xl p-5 shadow-sm">
-                <View className="flex-row items-center pb-4 border-b border-gray-100">
-                  <Image
-                    source={{ uri: MOCK_BARBERSHOP.logo }}
-                    style={{ width: 50, height: 50, borderRadius: 25 }}
-                  />
+              <View className="bg-white rounded-xl p-4 mb-4">
+                <View className="flex-row items-center pb-3 mb-3 border-b border-gray-100">
+                  <Calendar size={20} color="#E07A5F" />
                   <View className="ml-3">
-                    <Text className="text-warmBrown font-bold">{MOCK_BARBERSHOP.name}</Text>
-                    <Text className="text-gray-500 text-sm">{MOCK_BARBERSHOP.address}</Text>
+                    <Text className="text-gray-500 text-sm">Date & Time</Text>
+                    <Text className="text-warmBrown font-semibold">
+                      {formatDate(selectedDate)} at {selectedTime}
+                    </Text>
                   </View>
                 </View>
 
-                <View className="py-4 border-b border-gray-100">
-                  <Text className="text-gray-500 text-sm">Service</Text>
-                  <Text className="text-warmBrown font-semibold text-lg">{selectedService.name}</Text>
-                  <Text className="text-gray-500 text-sm mt-1">
-                    {selectedService.duration} min • ${selectedService.price}
+                <View className="flex-row items-center pb-3 mb-3 border-b border-gray-100">
+                  <Clock size={20} color="#E07A5F" />
+                  <View className="ml-3">
+                    <Text className="text-gray-500 text-sm">Service</Text>
+                    <Text className="text-warmBrown font-semibold">{selectedService.name}</Text>
+                    <Text className="text-gray-500 text-sm">{selectedService.duration} minutes</Text>
+                  </View>
+                </View>
+
+                <View className="flex-row items-center justify-between">
+                  <Text className="text-gray-500">Total</Text>
+                  <Text className="text-warmBrown font-bold text-xl">
+                    {paymentMethod === 'gems'
+                      ? `${priceToGems(selectedService.price).toLocaleString()} gems`
+                      : `$${selectedService.price.toFixed(2)}`}
                   </Text>
                 </View>
-
-                <View className="py-4 border-b border-gray-100 flex-row">
-                  <View className="flex-1">
-                    <Text className="text-gray-500 text-sm">Date</Text>
-                    <View className="flex-row items-center mt-1">
-                      <Calendar size={16} color="#D4673A" />
-                      <Text className="text-warmBrown font-medium ml-2">
-                        {formatDate(selectedDate)}
-                      </Text>
-                    </View>
-                  </View>
-                  <View className="flex-1">
-                    <Text className="text-gray-500 text-sm">Time</Text>
-                    <View className="flex-row items-center mt-1">
-                      <Clock size={16} color="#D4673A" />
-                      <Text className="text-warmBrown font-medium ml-2">{selectedTime}</Text>
-                    </View>
-                  </View>
-                </View>
-
-                <View className="py-4">
-                  <Text className="text-gray-500 text-sm">Payment</Text>
-                  <View className="flex-row items-center mt-1">
-                    {paymentMethod === 'gems' ? (
-                      <>
-                        <Gem size={16} color="#8B5CF6" />
-                        <Text className="text-purple-600 font-medium ml-2">
-                          Pay with Gems{buyerPaysFee ? ' (Supporting business)' : ''}
-                        </Text>
-                      </>
-                    ) : (
-                      <Text className="text-warmBrown font-medium">
-                        {paymentMethod === 'cash' ? 'Pay at Location' : 'Pay Now'}
-                      </Text>
-                    )}
-                  </View>
-                  {paymentMethod === 'gems' && buyerPaysFee && (
-                    <Text className="text-green-600 text-xs mt-1">
-                      Business receives 100% - you're covering the 5% fee!
-                    </Text>
-                  )}
-                </View>
-
-                {notes && (
-                  <View className="pt-4 border-t border-gray-100">
-                    <Text className="text-gray-500 text-sm">Notes</Text>
-                    <Text className="text-warmBrown mt-1">{notes}</Text>
-                  </View>
-                )}
-
-                <View className="mt-4 pt-4 border-t border-gray-100 flex-row justify-between items-center">
-                  <Text className="text-warmBrown font-bold text-lg">Total</Text>
-                  {paymentMethod === 'gems' ? (
-                    <View className="flex-row items-center">
-                      <Gem size={20} color="#8B5CF6" />
-                      <Text className="text-purple-600 font-bold text-xl ml-2">
-                        {calculateFeeBreakdown(priceToGems(selectedService.price), buyerPaysFee).totalBuyerPays.toLocaleString()}
-                      </Text>
-                    </View>
-                  ) : (
-                    <Text className="text-terracotta-500 font-bold text-xl">
-                      ${selectedService.price}
-                    </Text>
-                  )}
-                </View>
-
-                {/* Fee breakdown when buyer pays fee */}
-                {paymentMethod === 'gems' && buyerPaysFee && (
-                  <View className="mt-2">
-                    <View className="flex-row justify-between">
-                      <Text className="text-gray-400 text-xs">Service price</Text>
-                      <Text className="text-gray-400 text-xs">{priceToGems(selectedService.price).toLocaleString()} gems</Text>
-                    </View>
-                    <View className="flex-row justify-between">
-                      <Text className="text-gray-400 text-xs">Platform fee (5%)</Text>
-                      <Text className="text-gray-400 text-xs">+{calculateFeeBreakdown(priceToGems(selectedService.price), buyerPaysFee).platformFee.toLocaleString()} gems</Text>
-                    </View>
-                  </View>
-                )}
-
-                {/* Gem balance warning */}
-                {paymentMethod === 'gems' && (() => {
-                  const feeBreakdown = calculateFeeBreakdown(priceToGems(selectedService.price), buyerPaysFee);
-                  return gemBalance < feeBreakdown.totalBuyerPays ? (
-                    <View className="mt-3 bg-red-50 rounded-xl p-3">
-                      <Text className="text-red-500 text-sm text-center">
-                        Insufficient gems. You need {(feeBreakdown.totalBuyerPays - gemBalance).toLocaleString()} more gems.
-                      </Text>
-                      <Pressable
-                        onPress={() => router.push('/gem-store')}
-                        className="mt-2 bg-purple-500 rounded-lg py-2"
-                      >
-                        <Text className="text-white font-medium text-center">Get More Gems</Text>
-                      </Pressable>
-                    </View>
-                  ) : null;
-                })()}
               </View>
+
+              {notes && (
+                <View className="bg-gray-100 rounded-xl p-4 mb-4">
+                  <Text className="text-gray-500 text-sm mb-1">Notes</Text>
+                  <Text className="text-warmBrown">{notes}</Text>
+                </View>
+              )}
             </Animated.View>
           )}
 
           <View className="h-32" />
         </ScrollView>
 
-        {/* Bottom Button */}
-        <View className="absolute bottom-0 left-0 right-0 bg-cream px-5 pt-3 pb-8 border-t border-gray-100">
+        {/* Bottom Action Button */}
+        <View className="absolute bottom-0 left-0 right-0 bg-cream border-t border-gray-100 px-5 pt-3 pb-8">
           {step < 4 ? (
             <Pressable
               onPress={handleNextStep}
               disabled={!canProceed()}
               className={`rounded-full py-4 items-center ${
-                canProceed() ? 'bg-terracotta-500' : 'bg-gray-300'
+                canProceed() ? 'bg-terracotta-500' : 'bg-gray-200'
               }`}
             >
-              <Text className="text-white font-semibold text-lg">Continue</Text>
+              <Text className={`font-bold ${canProceed() ? 'text-white' : 'text-gray-400'}`}>
+                Continue
+              </Text>
             </Pressable>
           ) : (
             <Pressable
               onPress={handleConfirmBooking}
               disabled={isBooking}
-              className="bg-forest-700 rounded-full py-4 items-center"
+              className="rounded-full overflow-hidden"
             >
-              <Text className="text-white font-semibold text-lg">
-                {isBooking ? 'Booking...' : 'Confirm Booking'}
-              </Text>
+              <LinearGradient
+                colors={isBooking ? ['#9CA3AF', '#6B7280'] : ['#E07A5F', '#C96347']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={{ paddingVertical: 16, alignItems: 'center' }}
+              >
+                {isBooking ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text className="text-white font-bold text-lg">Confirm Booking</Text>
+                )}
+              </LinearGradient>
             </Pressable>
           )}
         </View>
