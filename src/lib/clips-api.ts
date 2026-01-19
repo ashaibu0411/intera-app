@@ -240,34 +240,60 @@ export async function uploadClipVideo(
     const extMatch = uriLower.match(/\.(mp4|mov)(?:$|\?|#)/);
     const ext = extMatch?.[1] || 'mp4';
     const fileName = `${userId}/${Date.now()}.${ext}`;
+    const contentType = ext === 'mov' || ext === 'qt' ? 'video/quicktime' : 'video/mp4';
 
-    // Fetch the video file
-    const response = await fetch(videoUri);
-    if (!response.ok) {
-      console.error('Error fetching video for upload:', response.status, response.statusText);
+    console.log('[clips-api] Starting video upload:', { videoUri, fileName, contentType });
+
+    // Use FileSystem to read the file as base64 - more reliable than fetch() for local files
+    const FileSystem = await import('expo-file-system');
+
+    // Verify the file exists and get its info
+    const fileInfo = await FileSystem.getInfoAsync(videoUri);
+    if (!fileInfo.exists) {
+      console.error('[clips-api] Video file does not exist:', videoUri);
       return null;
     }
-    const blob = await response.blob();
-    const contentType =
-      blob.type ||
-      (ext === 'mov' || ext === 'qt' ? 'video/quicktime' : 'video/mp4');
+    console.log('[clips-api] File info:', { size: fileInfo.size, uri: fileInfo.uri });
+
+    // Read file as base64
+    const base64Data = await FileSystem.readAsStringAsync(videoUri, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+
+    if (!base64Data || base64Data.length < 100) {
+      console.error('[clips-api] Failed to read video file or file is too small');
+      return null;
+    }
+
+    console.log('[clips-api] Read video file, base64 length:', base64Data.length);
+
+    // Convert base64 to ArrayBuffer for upload
+    const binaryString = atob(base64Data);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+
+    console.log('[clips-api] Converted to bytes, uploading to Supabase...');
 
     const { data, error } = await supabase.storage
       .from('clips')
-      .upload(fileName, blob, {
+      .upload(fileName, bytes.buffer, {
         contentType,
         upsert: false,
       });
 
     if (error) {
-      console.error('Error uploading video:', error);
+      console.error('[clips-api] Error uploading video:', error);
       return null;
     }
+
+    console.log('[clips-api] Upload successful:', fileName);
 
     // Store the object path in DB (more robust than storing a public URL).
     return fileName;
   } catch (error) {
-    console.error('Error in uploadClipVideo:', error);
+    console.error('[clips-api] Error in uploadClipVideo:', error);
     return null;
   }
 }
