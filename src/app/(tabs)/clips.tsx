@@ -45,7 +45,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import * as Haptics from 'expo-haptics';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import * as DropdownMenu from 'zeego/dropdown-menu';
 import { useStore } from '@/lib/store';
 import { reportBlockedUser } from '@/lib/reports';
@@ -920,100 +920,108 @@ export default function ClipsTabScreen() {
   const [selectedReason, setSelectedReason] = useState<ViolationType | 'other' | null>(null);
   const [showBlockConfirmModal, setShowBlockConfirmModal] = useState(false);
   const [selectedClipUser, setSelectedClipUser] = useState<{ id: string; name: string; avatar: string } | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const isGuest = useStore((s) => s.isGuest);
   const currentUser = useStore((s) => s.currentUser);
   const blockUser = useStore((s) => s.blockUser);
   const blockedUserIds = useStore((s) => s.blockedUserIds);
 
-  // Load real clips from Supabase (falls back to mocks if empty)
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        setLoading(true);
-        const db = await getClips(50, 0);
-        if (cancelled) return;
+  // Function to load clips
+  const loadClips = useCallback(async () => {
+    try {
+      setLoading(true);
+      const db = await getClips(50, 0);
 
-        const mappedPromises = (db ?? [])
-          // Skip bad local-only URIs that won't load after upload
-          .filter((c) => !String(c.video_url || '').startsWith('file://') && !String(c.video_url || '').startsWith('ph://'))
-          .map(async (c) => {
-            let resolved = '';
-            let validUrl = false;
-            try {
-              resolved = await resolveClipVideoUrl(c.video_url, { expiresInSeconds: 60 * 60 });
-              // Check if the URL contains 'Object not found' indicator or is empty
-              validUrl = !!resolved && !resolved.includes('undefined') && resolved.length > 10;
+      const mappedPromises = (db ?? [])
+        // Skip bad local-only URIs that won't load after upload
+        .filter((c) => !String(c.video_url || '').startsWith('file://') && !String(c.video_url || '').startsWith('ph://'))
+        .map(async (c) => {
+          let resolved = '';
+          let validUrl = false;
+          try {
+            resolved = await resolveClipVideoUrl(c.video_url, { expiresInSeconds: 60 * 60 });
+            // Check if the URL contains 'Object not found' indicator or is empty
+            validUrl = !!resolved && !resolved.includes('undefined') && resolved.length > 10;
 
-              // Verify the video actually exists by doing a HEAD request
-              if (validUrl && resolved) {
-                try {
-                  const checkRes = await fetch(resolved, { method: 'HEAD' });
-                  validUrl = checkRes.ok;
-                  if (!checkRes.ok) {
-                    console.log('[clips] Video not accessible:', c.video_url, 'status:', checkRes.status);
-                  }
-                } catch (fetchErr) {
-                  console.log('[clips] Could not verify video URL:', c.video_url);
-                  // Still try to use it - might work on device
-                  validUrl = true;
+            // Verify the video actually exists by doing a HEAD request
+            if (validUrl && resolved) {
+              try {
+                const checkRes = await fetch(resolved, { method: 'HEAD' });
+                validUrl = checkRes.ok;
+                if (!checkRes.ok) {
+                  console.log('[clips] Video not accessible:', c.video_url, 'status:', checkRes.status);
                 }
+              } catch (fetchErr) {
+                console.log('[clips] Could not verify video URL:', c.video_url);
+                // Still try to use it - might work on device
+                validUrl = true;
               }
-            } catch {
-              resolved = String(c.video_url || '');
-              validUrl = false;
             }
+          } catch {
+            resolved = String(c.video_url || '');
+            validUrl = false;
+          }
 
-            return {
-              id: c.id,
-              user: {
-                id: c.user_id,
-                name: c.user?.name ?? 'Someone',
-                username: c.user?.username ?? 'user',
-                avatar:
-                  c.user?.avatar_url ??
-                  'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&h=200&fit=crop&crop=face',
-                isVerified: false,
-                isFollowing: false,
-              },
-              rawVideoUrl: String(c.video_url || ''),
-              videoUrl: validUrl ? resolved : undefined,
-              thumbnail:
-                c.thumbnail_url ??
-                'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=800&h=1400&fit=crop',
-              description: c.description,
-              music: c.music_tag ? `Original Audio • ${c.music_tag}` : 'Original Audio',
-              likes: c.likes_count ?? 0,
-              comments: c.comments_count ?? 0,
-              shares: c.shares_count ?? 0,
-              views: c.views_count ?? 0,
-              isLiked: false,
-              isSaved: false,
-              createdAt: c.created_at,
-              _validVideo: validUrl,
-            };
-          });
+          return {
+            id: c.id,
+            user: {
+              id: c.user_id,
+              name: c.user?.name ?? 'Someone',
+              username: c.user?.username ?? 'user',
+              avatar:
+                c.user?.avatar_url ??
+                'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&h=200&fit=crop&crop=face',
+              isVerified: false,
+              isFollowing: false,
+            },
+            rawVideoUrl: String(c.video_url || ''),
+            videoUrl: validUrl ? resolved : undefined,
+            thumbnail:
+              c.thumbnail_url ??
+              'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=800&h=1400&fit=crop',
+            description: c.description,
+            music: c.music_tag ? `Original Audio • ${c.music_tag}` : 'Original Audio',
+            likes: c.likes_count ?? 0,
+            comments: c.comments_count ?? 0,
+            shares: c.shares_count ?? 0,
+            views: c.views_count ?? 0,
+            isLiked: false,
+            isSaved: false,
+            createdAt: c.created_at,
+            _validVideo: validUrl,
+          };
+        });
 
-        const mapped = (await Promise.all(mappedPromises)) as Clip[];
+      const mapped = (await Promise.all(mappedPromises)) as Clip[];
 
-        // Filter to only show clips with valid videos, or fall back to showing thumbnail-only
-        const validClips = mapped.filter((c) => (c as any)._validVideo || c.thumbnail);
+      // Filter to only show clips with valid videos, or fall back to showing thumbnail-only
+      const validClips = mapped.filter((c) => (c as any)._validVideo || c.thumbnail);
 
-        setFeedClips(validClips.length ? validClips : MOCK_CLIPS);
-      } catch (e: any) {
-        if (!cancelled) {
-          setFeedClips(MOCK_CLIPS);
-          Alert.alert('Clips', String(e?.message ?? 'Could not load clips.'));
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+      setFeedClips(validClips.length ? validClips : MOCK_CLIPS);
+    } catch (e: any) {
+      setFeedClips(MOCK_CLIPS);
+      console.log('[clips] Error loading clips:', e?.message);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  // Load clips on mount
+  useEffect(() => {
+    loadClips();
+  }, [loadClips]);
+
+  // Refresh clips when screen comes into focus (e.g., after posting a new clip)
+  useFocusEffect(
+    useCallback(() => {
+      // Only refresh if we've already loaded once and this is a return visit
+      if (feedClips.length > 0) {
+        console.log('[clips] Screen focused, refreshing clips...');
+        loadClips();
+      }
+    }, [loadClips, feedClips.length])
+  );
 
   // Filter out clips from blocked users
   const filteredClips = useMemo(() => {
