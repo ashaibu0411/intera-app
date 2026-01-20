@@ -208,6 +208,16 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
   // Check if LiveKit is available for audio
   const liveKitEnabled = isLiveKitAvailable();
 
+  // Safe navigation back
+  const goBack = () => {
+    try {
+      router.replace('/(tabs)' as never);
+    } catch {
+      // Fallback if navigation context isn't ready
+      router.replace('/(tabs)');
+    }
+  };
+
   const me = useMemo(() => {
     if (!currentUser?.id || !id) return null;
     return participants.find((p) => p.user_id === currentUser.id) ?? null;
@@ -506,7 +516,7 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
         text: 'End room',
         style: 'destructive',
         onPress: async () => {
-          try { await endVoiceRoom(room.id); } finally { router.back(); }
+          try { await endVoiceRoom(room.id); } finally { goBack(); }
         },
       },
     ]);
@@ -520,7 +530,7 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
         text: 'Delete',
         style: 'destructive',
         onPress: async () => {
-          try { await deleteVoiceRoom(room.id); } finally { router.back(); }
+          try { await deleteVoiceRoom(room.id); } finally { goBack(); }
         },
       },
     ]);
@@ -559,7 +569,7 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
         ) : !room ? (
           <View className="flex-1 px-5 items-center justify-center">
             <Text className="text-warmBrown font-bold text-lg">Room not found</Text>
-            <Pressable onPress={() => router.back()} className="mt-4 bg-terracotta-500 rounded-xl px-6 py-3">
+            <Pressable onPress={goBack} className="mt-4 bg-terracotta-500 rounded-xl px-6 py-3">
               <Text className="text-white font-semibold">Go back</Text>
             </Pressable>
           </View>
@@ -592,7 +602,7 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
                   <Text className="text-gold-600 font-medium ml-1.5">{audienceCount} listening</Text>
                 </View>
                 <Pressable
-                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.back(); }}
+                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); goBack(); }}
                   className="bg-gray-100 rounded-full px-4 py-2"
                 >
                   <Text className="text-gray-600 font-medium">Leave</Text>
@@ -977,16 +987,16 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
 }
 
 export default function VoiceRoomScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
   const [isReady, setIsReady] = useState(false);
-  const [roomId, setRoomId] = useState<string | null>(null);
 
   useEffect(() => {
     // Delay to ensure navigation context is fully mounted
-    const timer = setTimeout(() => setIsReady(true), 100);
+    const timer = setTimeout(() => setIsReady(true), 50);
     return () => clearTimeout(timer);
   }, []);
 
-  // Only call useLocalSearchParams after navigation is ready
+  // Show loading while navigation context initializes
   if (!isReady) {
     return (
       <View style={{ flex: 1, backgroundColor: '#FBF9F7', alignItems: 'center', justifyContent: 'center' }}>
@@ -995,13 +1005,6 @@ export default function VoiceRoomScreen() {
       </View>
     );
   }
-
-  return <VoiceRoomScreenInner />;
-}
-
-// Inner component that can safely use navigation hooks
-function VoiceRoomScreenInner() {
-  const { id } = useLocalSearchParams<{ id: string }>();
 
   if (!id) {
     return (

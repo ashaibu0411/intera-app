@@ -614,6 +614,7 @@ These 10 major features make Diaspora superior to Facebook, Nextdoor, and any ot
 - Schedule rooms in advance with topics and descriptions
 - See who's speaking and who's listening
 - Categories: Culture Chat, Business Talk, Wellness, Faith, Community, Politics
+- **Note**: Live audio functionality requires LiveKit integration (coming soon). Currently shows real-time presence, hand raises, and room features via Supabase Realtime.
 - **Gift System**: Send virtual gifts to hosts and speakers to show support
   - 6 gift types: Heart (1 gem), Star (5), Fire (10), Diamond (50), Crown (100), Sparkle (500)
   - Floating gift animations in the room

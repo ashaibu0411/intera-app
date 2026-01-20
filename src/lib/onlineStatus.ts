@@ -18,9 +18,9 @@ export async function setUserOnline(isOnline: boolean): Promise<void> {
       .eq('id', user.id);
 
     if (error) {
+      // Silently ignore if is_online column doesn't exist yet
+      if (error.code === 'PGRST204') return;
       console.log('[OnlineStatus] Error updating status:', error);
-    } else {
-      console.log(`[OnlineStatus] User is now ${isOnline ? 'online' : 'offline'}`);
     }
   } catch (err) {
     console.log('[OnlineStatus] Error:', err);
