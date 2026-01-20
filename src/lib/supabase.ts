@@ -5,9 +5,44 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://cvizplvfcdfhjlfryrwu.supabase.co';
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN2aXpwbHZmY2RmaGpsZnJ5cnd1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYwODkzMDMsImV4cCI6MjA4MTY2NTMwM30.AEl3xV4Cz_pgmhtlgdcQnjQyyC-vb9b6-1Xjl7IlVMA';
 
+// Safe storage wrapper that handles blob errors
+const safeStorage = {
+  getItem: async (key: string): Promise<string | null> => {
+    try {
+      return await AsyncStorage.getItem(key);
+    } catch (error) {
+      // Handle blob resolution errors - clear corrupted data
+      const errorMsg = String(error);
+      if (errorMsg.includes('blob') || errorMsg.includes('Unable to resolve')) {
+        console.log('[Supabase] Clearing corrupted storage for key:', key);
+        try {
+          await AsyncStorage.removeItem(key);
+        } catch {
+          // Ignore removal errors
+        }
+      }
+      return null;
+    }
+  },
+  setItem: async (key: string, value: string): Promise<void> => {
+    try {
+      await AsyncStorage.setItem(key, value);
+    } catch (error) {
+      console.log('[Supabase] Storage setItem error:', error);
+    }
+  },
+  removeItem: async (key: string): Promise<void> => {
+    try {
+      await AsyncStorage.removeItem(key);
+    } catch (error) {
+      console.log('[Supabase] Storage removeItem error:', error);
+    }
+  },
+};
+
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    storage: AsyncStorage,
+    storage: safeStorage,
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,
