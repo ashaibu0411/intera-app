@@ -4,8 +4,7 @@ import { Stack, useLocalSearchParams, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import * as Haptics from 'expo-haptics';
-import { Mic, MicOff, Hand, Gift, Crown, UserPlus, X, Users, AudioLines, Trash2, Square, ChevronDown, Volume2, VolumeX, UserMinus, MoreVertical } from 'lucide-react-native';
-import { LiveKitRoom, useRoomContext } from '@/lib/livekit-wrapper';
+import { Mic, MicOff, Hand, Gift, Crown, UserPlus, X, Users, AudioLines, Trash2, Square, ChevronDown, Volume2, VolumeX, UserMinus, MoreVertical, Radio } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Audio } from 'expo-av';
 import { useStore } from '@/lib/store';
@@ -14,7 +13,6 @@ import type { DbVoiceRoom, DbVoiceRoomHandRaise, DbGiftTransaction } from '@/lib
 import {
   deleteVoiceRoom,
   endVoiceRoom,
-  getLiveKitToken,
   leaveRoom,
   lowerHand,
   raiseHand,
@@ -27,6 +25,7 @@ import {
   type ParticipantWithProfile
 } from '@/lib/voiceRooms';
 import { sendGift } from '@/lib/giftService';
+import { isLiveKitAvailable } from '@/lib/livekit-wrapper';
 
 const GIFTS = [
   { id: 'heart', name: 'Heart', value: 1, emoji: '❤️' },
@@ -36,44 +35,6 @@ const GIFTS = [
   { id: 'crown', name: 'Crown', value: 100, emoji: '👑' },
   { id: 'sparkle', name: 'Sparkle', value: 500, emoji: '✨' },
 ] as const;
-
-function MicSync({ enabled }: { enabled: boolean }) {
-  const room = useRoomContext() as { localParticipant?: { setMicrophoneEnabled?: (enabled: boolean) => Promise<void> } } | null;
-  useEffect(() => {
-    room?.localParticipant?.setMicrophoneEnabled?.(enabled)?.catch?.(() => null);
-  }, [enabled, room]);
-  return null;
-}
-
-// LiveKit room context type for speaking detection
-interface LiveKitRoomContext {
-  localParticipant?: {
-    isSpeaking?: boolean;
-    on?: (event: string, handler: () => void) => void;
-    off?: (event: string, handler: () => void) => void;
-  };
-  on?: (event: string, handler: () => void) => void;
-  off?: (event: string, handler: () => void) => void;
-}
-
-function LiveKitSpeakingBridge({ onSpeakingChange }: { onSpeakingChange: (speaking: boolean) => void }) {
-  const room = useRoomContext() as LiveKitRoomContext | null;
-  useEffect(() => {
-    if (!room?.localParticipant) return;
-    const lp = room.localParticipant;
-    const sync = () => onSpeakingChange(!!lp.isSpeaking);
-    sync();
-    const onSpeaking = () => sync();
-    const onActiveSpeakers = () => sync();
-    lp.on?.('isSpeakingChanged', onSpeaking);
-    room.on?.('activeSpeakersChanged', onActiveSpeakers);
-    return () => {
-      lp.off?.('isSpeakingChanged', onSpeaking);
-      room.off?.('activeSpeakersChanged', onActiveSpeakers);
-    };
-  }, [onSpeakingChange, room]);
-  return null;
-}
 
 function MicStatusIndicator({ micEnabled, speaking }: { micEnabled: boolean; speaking?: boolean | null }) {
   const tone = !micEnabled ? 'off' : speaking ? 'on' : 'idle';
@@ -234,20 +195,18 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
   const [giftsOpen, setGiftsOpen] = useState(false);
   const [peopleOpen, setPeopleOpen] = useState(false);
   const [testMicOpen, setTestMicOpen] = useState(false);
-  const [lkSpeaking, setLkSpeaking] = useState<boolean | null>(null);
-
   const [testRecording, setTestRecording] = useState<Audio.Recording | null>(null);
   const [testRecordingUri, setTestRecordingUri] = useState<string | null>(null);
   const [testSound, setTestSound] = useState<Audio.Sound | null>(null);
   const [testBusy, setTestBusy] = useState(false);
   const [testSeconds, setTestSeconds] = useState(0);
-  const [pauseLiveKitForTest, setPauseLiveKitForTest] = useState(false);
   const [testPermGranted, setTestPermGranted] = useState<boolean | null>(null);
 
-  const [lkUrl, setLkUrl] = useState<string | null>(null);
-  const [lkToken, setLkToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [micEnabled, setMicEnabled] = useState(false);
+
+  // Check if LiveKit is available for audio
+  const liveKitEnabled = isLiveKitAvailable();
 
   const me = useMemo(() => {
     if (!currentUser?.id || !id) return null;
@@ -341,52 +300,26 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
     return () => { supabase.removeChannel(channel); };
   }, [id]);
 
-  // Join room and get LiveKit token
+  // Join room as participant
   useEffect(() => {
     if (!id || !currentUser?.id || !room) return;
     if (room.status === 'ended') return;
-    let cancelled = false;
 
     const join = async () => {
       const role = room.creator_id === currentUser.id ? 'host' : 'listener';
       await upsertParticipant({ roomId: id, userId: currentUser.id, role });
-
-      const tokenResp = await getLiveKitToken({
-        roomName: room.provider_room_name,
-        identity: currentUser.id,
-        name: currentUser.name ?? undefined,
-        canPublish: role !== 'listener',
-      });
-
-      if (cancelled) return;
-      setLkUrl(tokenResp.url);
-      setLkToken(tokenResp.token);
     };
 
     join().catch(() => {});
-    return () => { cancelled = true; };
-  }, [currentUser?.id, currentUser?.name, id, room]);
+  }, [currentUser?.id, id, room]);
 
-  // Refresh token when role changes
+  // Update mic permissions when role changes
   useEffect(() => {
-    if (!id || !currentUser?.id || !room || !me?.role) return;
-    let cancelled = false;
-    (async () => {
-      const tokenResp = await getLiveKitToken({
-        roomName: room.provider_room_name,
-        identity: currentUser.id,
-        name: currentUser.name ?? undefined,
-        canPublish: me.role === 'host' || me.role === 'moderator' || me.role === 'speaker',
-      });
-      if (cancelled) return;
-      setLkUrl(tokenResp.url);
-      setLkToken(tokenResp.token);
-      if (!(me.role === 'host' || me.role === 'moderator' || me.role === 'speaker')) {
-        setMicEnabled(false);
-      }
-    })().catch(() => null);
-    return () => { cancelled = true; };
-  }, [currentUser?.id, currentUser?.name, id, me?.role, room]);
+    if (!me?.role) return;
+    if (!(me.role === 'host' || me.role === 'moderator' || me.role === 'speaker')) {
+      setMicEnabled(false);
+    }
+  }, [me?.role]);
 
   // Leave room on unmount
   useEffect(() => {
@@ -489,7 +422,6 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
     setTestBusy(true);
     try {
       setMicEnabled(false);
-      setPauseLiveKitForTest(true);
       await cleanupTestAudio();
       await cleanupTestRecording();
       setTestRecordingUri(null);
@@ -514,8 +446,9 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
 
       const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
       setTestRecording(recording);
-    } catch (e: any) {
-      Alert.alert('Mic test failed', String(e?.message ?? e));
+    } catch (e: unknown) {
+      const errorMessage = e instanceof Error ? e.message : String(e);
+      Alert.alert('Mic test failed', errorMessage);
     } finally {
       setTestBusy(false);
     }
@@ -667,24 +600,16 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
               </View>
             </View>
 
-            {/* LiveKit Connection */}
-            {lkUrl && lkToken ? (
-              <LiveKitRoom
-                key={`${lkToken}:${pauseLiveKitForTest ? 'paused' : 'on'}`}
-                serverUrl={lkUrl}
-                token={lkToken}
-                connect={!pauseLiveKitForTest}
-                audio={true}
-                video={false}
-              >
-                <MicSync enabled={!!(canSpeakEffective && micEnabled)} />
-                <LiveKitSpeakingBridge onSpeakingChange={setLkSpeaking} />
-                <View className="h-0 w-0" />
-              </LiveKitRoom>
-            ) : (
-              <View className="mx-4 mt-3 bg-gold-50 border border-gold-200 rounded-xl p-4">
-                <Text className="text-gold-800 font-semibold">Connecting audio...</Text>
-                <Text className="text-gold-600 text-sm mt-1">Please wait while we connect you to the room.</Text>
+            {/* Audio Status Banner */}
+            {!liveKitEnabled && (
+              <View className="mx-4 mt-3 bg-amber-50 border border-amber-200 rounded-xl p-4">
+                <View className="flex-row items-center">
+                  <Radio size={20} color="#D97706" />
+                  <Text className="text-amber-800 font-semibold ml-2">Voice Coming Soon</Text>
+                </View>
+                <Text className="text-amber-700 text-sm mt-1">
+                  Live audio is coming soon! For now, enjoy real-time presence, hand raises, and room features.
+                </Text>
               </View>
             )}
 
@@ -780,9 +705,9 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
             {/* Bottom Controls */}
             <View className="absolute left-0 right-0 bottom-0 bg-cream/95 border-t border-gray-100 px-4 pb-6 pt-3">
               {/* Mic Status */}
-              {canSpeakEffective && (
+              {canSpeakEffective && liveKitEnabled && (
                 <View className="items-center mb-3">
-                  <MicStatusIndicator micEnabled={micEnabled} speaking={lkSpeaking} />
+                  <MicStatusIndicator micEnabled={micEnabled} speaking={null} />
                 </View>
               )}
 
@@ -982,14 +907,12 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
               onRequestClose={() => {
                 cleanupTestAudio();
                 cleanupTestRecording();
-                setPauseLiveKitForTest(false);
                 setTestMicOpen(false);
               }}
             >
               <Pressable className="flex-1 bg-black/40" onPress={() => {
                 cleanupTestAudio();
                 cleanupTestRecording();
-                setPauseLiveKitForTest(false);
                 setTestMicOpen(false);
               }}>
                 <View className="flex-1 justify-end">
@@ -1000,18 +923,11 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
                         <Pressable onPress={async () => {
                           await cleanupTestAudio();
                           await cleanupTestRecording();
-                          setPauseLiveKitForTest(false);
                           setTestMicOpen(false);
                         }}>
                           <X size={24} color="#2D1F1A" />
                         </Pressable>
                       </View>
-
-                      {pauseLiveKitForTest && (
-                        <View className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4">
-                          <Text className="text-amber-800 font-medium">Room audio paused while testing</Text>
-                        </View>
-                      )}
 
                       <View className="bg-white rounded-xl p-4 mb-4">
                         <Text className="text-warmBrown font-semibold mb-2">Record & Playback</Text>
