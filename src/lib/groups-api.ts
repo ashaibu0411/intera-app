@@ -73,7 +73,7 @@ export const DEFAULT_GROUP_SETTINGS: GroupSettings = {
 export async function getGroups(limit = 50): Promise<DbGroup[]> {
   const { data, error } = await supabase
     .from('groups')
-    .select('*, creator:profiles!creator_id(*)')
+    .select('*')
     .order('member_count', { ascending: false })
     .limit(limit);
 
@@ -87,7 +87,7 @@ export async function getGroups(limit = 50): Promise<DbGroup[]> {
 export async function getGroupsByCategory(category: string, limit = 50): Promise<DbGroup[]> {
   const { data, error } = await supabase
     .from('groups')
-    .select('*, creator:profiles!creator_id(*)')
+    .select('*')
     .eq('category', category)
     .order('member_count', { ascending: false })
     .limit(limit);
@@ -102,7 +102,7 @@ export async function getGroupsByCategory(category: string, limit = 50): Promise
 export async function getGroupsByCity(city: string, limit = 50): Promise<DbGroup[]> {
   const { data, error } = await supabase
     .from('groups')
-    .select('*, creator:profiles!creator_id(*)')
+    .select('*')
     .ilike('city', `%${city}%`)
     .order('member_count', { ascending: false })
     .limit(limit);
@@ -117,7 +117,7 @@ export async function getGroupsByCity(city: string, limit = 50): Promise<DbGroup
 export async function getStudyGroups(limit = 50): Promise<DbGroup[]> {
   const { data, error } = await supabase
     .from('groups')
-    .select('*, creator:profiles!creator_id(*)')
+    .select('*')
     .or(`category.eq.other,name.ilike.%study%,name.ilike.%students%`)
     .order('member_count', { ascending: false })
     .limit(limit);
@@ -132,7 +132,7 @@ export async function getStudyGroups(limit = 50): Promise<DbGroup[]> {
 export async function getGroup(groupId: string): Promise<DbGroup | null> {
   const { data, error } = await supabase
     .from('groups')
-    .select('*, creator:profiles!creator_id(*)')
+    .select('*')
     .eq('id', groupId)
     .single();
 
@@ -140,6 +140,20 @@ export async function getGroup(groupId: string): Promise<DbGroup | null> {
     console.error('Error fetching group:', error);
     return null;
   }
+
+  // Fetch creator profile separately if needed
+  if (data?.creator_id) {
+    const { data: creator } = await supabase
+      .from('profiles')
+      .select('id, name, avatar_url')
+      .eq('id', data.creator_id)
+      .single();
+
+    if (creator) {
+      return { ...data, creator } as DbGroup;
+    }
+  }
+
   return data as DbGroup;
 }
 
