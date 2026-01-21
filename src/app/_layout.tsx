@@ -5,7 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useEffect, useState, useRef } from 'react';
-import { AppState, AppStateStatus } from 'react-native';
+import { AppState, AppStateStatus, View } from 'react-native';
 import { requestNotificationPermissions } from '@/lib/notifications';
 import { syncPushTokenFromStore } from '@/lib/pushTokens';
 import { useMessageNotifications } from '@/lib/useMessageNotifications';
@@ -13,6 +13,7 @@ import { useCommunityNotifications } from '@/lib/useCommunityNotifications';
 import { useStore } from '@/lib/store';
 import { markUserOnline, markUserOffline } from '@/lib/onlineStatus';
 import { clearInvalidSession } from '@/lib/supabase';
+import { FloatingAskIntera } from '@/components/FloatingAskIntera';
 
 export const unstable_settings = {
   initialRouteName: '(tabs)',
@@ -129,8 +130,9 @@ function RootLayoutNav() {
 
   return (
     <ThemeProvider value={DiasporaTheme}>
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="(tabs)" />
+      <View style={{ flex: 1 }}>
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="(tabs)" />
         <Stack.Screen name="story" options={{ animation: 'fade' }} />
         <Stack.Screen name="welcome" options={{ animation: 'fade' }} />
         <Stack.Screen name="location-select" options={{ animation: 'slide_from_right' }} />
@@ -155,6 +157,7 @@ function RootLayoutNav() {
         <Stack.Screen name="become-mentor" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="post-internship" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="new-arrival-help" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="newcomer-journey" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="create-listing" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="register-business" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="create-faith-event" options={{ animation: 'slide_from_bottom' }} />
@@ -236,7 +239,9 @@ function RootLayoutNav() {
         <Stack.Screen name="photo-booth" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="talk-to-someone" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="privacy-policy" options={{ animation: 'slide_from_right' }} />
-      </Stack>
+        </Stack>
+        <FloatingAskIntera />
+      </View>
     </ThemeProvider>
   );
 }

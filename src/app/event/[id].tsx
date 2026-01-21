@@ -10,6 +10,8 @@ import { parseEventMetadata } from '@/lib/eventMetadata';
 import { useStore } from '@/lib/store';
 import * as ImagePicker from 'expo-image-picker';
 import { uploadImages } from '@/lib/posts';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { aiSummarizeCard, type AiSummaryResult } from '@/lib/aiSummarizeCard';
 
 type DisplayEvent = {
   id?: string;
@@ -35,6 +37,8 @@ export default function EventDetailScreen() {
   const [myRsvp, setMyRsvp] = useState<'interested' | 'going' | null>(null);
   const [isUpdatingRsvp, setIsUpdatingRsvp] = useState(false);
   const [isUpdatingFlyer, setIsUpdatingFlyer] = useState(false);
+  const [aiSummary, setAiSummary] = useState<AiSummaryResult | null>(null);
+  const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
 
   const currentUser = useStore((s) => s.currentUser);
   const isGuest = useStore((s) => s.isGuest);
@@ -114,6 +118,43 @@ export default function EventDetailScreen() {
     };
     load();
   }, [rawId, isFaithEvent]);
+
+  // Load cached AI summary (per-event)
+  useEffect(() => {
+    if (!rawId) return;
+    const cacheKey = `ai_summary:event:${rawId}`;
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(cacheKey);
+        if (!raw) return;
+        const parsed = JSON.parse(raw) as AiSummaryResult;
+        if (parsed?.bullets?.length) setAiSummary(parsed);
+      } catch {
+        // ignore cache parse errors
+      }
+    })();
+  }, [rawId]);
+
+  const generateSummary = async () => {
+    if (!event || !rawId || aiSummaryLoading) return;
+    setAiSummaryLoading(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      const res = await aiSummarizeCard({
+        kind: 'event',
+        title: event.title,
+        description: event.description,
+        locationLabel: event.location || event.address,
+        category: event.category,
+      });
+      setAiSummary(res);
+      await AsyncStorage.setItem(`ai_summary:event:${rawId}`, JSON.stringify(res));
+    } catch (e) {
+      console.log('[Event] AI summary error:', e);
+    } finally {
+      setAiSummaryLoading(false);
+    }
+  };
 
   const isOwner = !!currentUser?.id && !isFaithEvent && !!event?.creatorId && currentUser.id === event.creatorId;
 
@@ -341,6 +382,37 @@ export default function EventDetailScreen() {
                 </Text>
               </View>
             )}
+
+            {/* AI Summary */}
+            <View className="mx-4 mt-4 bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+              <View className="flex-row items-center justify-between">
+                <Text className="text-warmBrown font-bold">AI Summary</Text>
+                <Pressable onPress={generateSummary} disabled={aiSummaryLoading}>
+                  <Text className={`font-semibold ${aiSummaryLoading ? 'text-gray-400' : 'text-terracotta-500'}`}>
+                    {aiSummary?.bullets?.length ? 'Refresh' : aiSummaryLoading ? 'Working…' : 'Generate'}
+                  </Text>
+                </Pressable>
+              </View>
+
+              {aiSummary?.bullets?.length ? (
+                <View className="mt-3">
+                  {aiSummary.bullets.slice(0, 5).map((b, i) => (
+                    <Text key={i} className="text-gray-700 leading-6">
+                      • {b}
+                    </Text>
+                  ))}
+                  {aiSummary.caution ? (
+                    <View className="mt-3 bg-amber-50 border border-amber-200 rounded-xl p-3">
+                      <Text className="text-amber-800 text-sm">{aiSummary.caution}</Text>
+                    </View>
+                  ) : null}
+                </View>
+              ) : (
+                <Text className="text-gray-500 mt-2 text-sm">
+                  Tap “Generate” for a quick summary of this event.
+                </Text>
+              )}
+            </View>
 
             {/* Description */}
             <View className="px-5 mt-4">

@@ -13,6 +13,8 @@ export async function aiLanguageBridge(input: {
   sourceLang?: string;
   targetLang: string;
   context?: string;
+  profile?: { cityLabel?: string; isNewArrival?: boolean; arrivalCity?: string };
+  history?: Array<{ from: string; to: string; source: string; target: string }>;
 }) {
   const invokeOptions: { body: typeof input; headers?: Record<string, string> } = { body: input };
   // Always send anon JWT/apikey. This works for guests and avoids Edge Function gateway

@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Plane, ChevronRight, HelpCircle, Users } from 'lucide-react-native';
+import { Plane, ChevronRight, HelpCircle, Users, Sparkles } from 'lucide-react-native';
 import Animated, {
   FadeInUp,
   useAnimatedStyle,
@@ -142,6 +142,19 @@ export function ArrivalModeBanner({ onPress }: ArrivalModeBannerProps) {
                 </Text>
               </Pressable>
             </View>
+
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push('/newcomer-journey');
+              }}
+              className="mt-2 bg-white/20 rounded-xl py-2.5 flex-row items-center justify-center"
+            >
+              <Sparkles size={16} color="#FFFFFF" />
+              <Text className="text-white font-medium text-sm ml-1.5">
+                30‑Day Plan
+              </Text>
+            </Pressable>
           </LinearGradient>
         </Animated.View>
       </Pressable>

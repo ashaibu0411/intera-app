@@ -30,6 +30,8 @@ import {
 import Animated, { FadeIn, FadeInDown, FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
+import { askImmigrationAssistant } from '@/lib/immigrationAssistantAi';
+import { useStore } from '@/lib/store';
 
 interface Message {
   id: string;
@@ -202,21 +204,70 @@ When answering:
 Always be supportive - these are life-changing decisions and users need clear, accurate guidance.`;
 
 export default function ImmigrationAssistantScreen() {
+  const selectedLocation = useStore((s) => s.selectedLocation);
+  const currentUser = useStore((s) => s.currentUser);
+  const newcomerJourney = useStore((s) => s.newcomerJourney);
+  const persisted = useStore((s) => s.immigrationAssistant);
+  const setPersistedMessages = useStore((s) => s.setImmigrationAssistantMessages);
+  const clearPersisted = useStore((s) => s.clearImmigrationAssistant);
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
 
-  useEffect(() => {
-    // Add welcome message
-    const welcomeMessage: Message = {
+  const locationLabel = useMemo(() => {
+    const city = selectedLocation?.city?.trim();
+    const country = selectedLocation?.country?.trim();
+    if (city && country) return `${city}, ${country}`;
+    return city || country || 'your area';
+  }, [selectedLocation?.city, selectedLocation?.country]);
+
+  const welcomeMessage = useMemo<Message>(() => {
+    return {
       id: 'welcome',
       role: 'assistant',
-      content: "Hello! I'm your Immigration Assistant. I can help answer questions about:\n\n• Work visas and sponsorship\n• Professional licensing abroad\n• Study abroad and scholarships\n• Document requirements\n• Job search for international positions\n\nWhat would you like to know?",
+      content:
+        "Hello! I'm your Immigration Assistant.\n\n" +
+        "I can help answer questions about:\n\n" +
+        "• Work visas and sponsorship\n" +
+        "• Professional licensing abroad\n" +
+        "• Study abroad and scholarships\n" +
+        "• Document requirements\n" +
+        "• Job search for international positions\n\n" +
+        `Tell me your goal + country of origin (if relevant). (You’re in ${locationLabel}.)`,
       timestamp: new Date(),
     };
-    setMessages([welcomeMessage]);
-  }, []);
+  }, [locationLabel]);
+
+  // Restore chat history from storage (if any), otherwise show welcome.
+  useEffect(() => {
+    const saved = persisted?.messages || [];
+    if (Array.isArray(saved) && saved.length > 0) {
+      const restored: Message[] = saved.map((m) => ({
+        id: m.id,
+        role: m.role,
+        content: m.content,
+        timestamp: new Date(m.timestamp),
+      }));
+      if (restored[0]?.id !== 'welcome') restored.unshift(welcomeMessage);
+      setMessages(restored);
+    } else {
+      setMessages([welcomeMessage]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [welcomeMessage]);
+
+  // Persist chat history
+  useEffect(() => {
+    const serializable = messages.map((m) => ({
+      id: m.id,
+      role: m.role,
+      content: m.content,
+      timestamp: m.timestamp.toISOString(),
+    }));
+    setPersistedMessages(serializable as any);
+  }, [messages, setPersistedMessages]);
 
   const sendMessage = async (text: string) => {
     if (!text.trim() || isLoading) return;
@@ -240,40 +291,37 @@ export default function ImmigrationAssistantScreen() {
     }, 100);
 
     try {
-      const response = await fetch('https://api.openai.com/v1/responses', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${process.env.EXPO_PUBLIC_VIBECODE_OPENAI_API_KEY}`,
+      const prior = messages
+        .filter((m) => m.id !== 'welcome')
+        .slice(-14)
+        .map((m) => ({ role: m.role, content: m.content })) as Array<{ role: 'user' | 'assistant'; content: string }>;
+
+      const day = currentUser?.arrivalDate
+        ? Math.max(
+            1,
+            Math.min(
+              30,
+              Math.floor((Date.now() - new Date(currentUser.arrivalDate).getTime()) / (1000 * 60 * 60 * 24)) + 1
+            )
+          )
+        : undefined;
+
+      const { answer } = await askImmigrationAssistant({
+        query: text.trim(),
+        messages: prior,
+        profile: {
+          cityLabel: locationLabel,
+          isNewArrival: !!currentUser?.isNewArrival,
+          arrivalCity: currentUser?.arrivalCity,
+          lookingForHelp: currentUser?.lookingForHelp,
+          newcomerDay: day,
+          newcomerCompletedDays: newcomerJourney?.completedDays || [],
         },
-        body: JSON.stringify({
-          model: 'gpt-5.2',
-          input: [
-            { role: 'system', content: SYSTEM_PROMPT },
-            ...messages.filter(m => m.id !== 'welcome').map(m => ({
-              role: m.role,
-              content: m.content,
-            })),
-            { role: 'user', content: text.trim() },
-          ],
-        }),
       });
 
-      const data = await response.json();
-      console.log('AI Response:', JSON.stringify(data, null, 2));
-
-      let assistantContent = "I apologize, but I'm having trouble connecting right now. Please try again in a moment.";
-
-      // Parse response - check multiple possible formats
-      if (data.output_text) {
-        assistantContent = data.output_text;
-      } else if (data.output?.[0]?.content?.[0]?.text) {
-        // New API format: output[0].content[0].text
-        assistantContent = data.output[0].content[0].text;
-      } else if (data.error) {
-        console.error('API Error:', data.error);
-        assistantContent = "I'm having trouble connecting to the AI service. Please make sure the OpenAI API is configured in the API tab.";
-      }
+      const assistantContent =
+        answer ||
+        "I apologize, but I'm having trouble connecting right now. Please try again in a moment.";
 
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -289,7 +337,10 @@ export default function ImmigrationAssistantScreen() {
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: "I'm sorry, I couldn't process your request. Please check your internet connection and try again.",
+        content:
+          "I'm sorry, I couldn't process your request.\n\n" +
+          "Fix: deploy the Supabase Edge Function `immigration-assistant` and ensure the `OPENAI_API_KEY` secret exists.\n\n" +
+          `Error: ${String((error as any)?.message ?? error)}`,
         timestamp: new Date(),
       };
       setMessages(prev => [...prev, errorMessage]);
@@ -342,6 +393,17 @@ export default function ImmigrationAssistantScreen() {
                 </View>
               </View>
             </View>
+
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                clearPersisted();
+                setMessages([welcomeMessage]);
+              }}
+              className="px-3 py-2 rounded-full bg-slate-800"
+            >
+              <Text className="text-white text-xs font-semibold">Reset</Text>
+            </Pressable>
 
             <Pressable
               onPress={() => {

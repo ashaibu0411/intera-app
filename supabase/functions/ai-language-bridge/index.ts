@@ -12,6 +12,17 @@ type Body = {
   sourceLang?: string; // ISO-ish (e.g. en, fr, sw, yo, ig, ha, am, wo, zu, xh, tw, ar)
   targetLang: string;
   context?: string; // e.g. "chat", "formal", "business", "immigration", etc.
+  profile?: {
+    cityLabel?: string;
+    isNewArrival?: boolean;
+    arrivalCity?: string;
+  };
+  history?: Array<{
+    from: string;
+    to: string;
+    source: string;
+    target: string;
+  }>;
 };
 
 type Result = {
@@ -48,6 +59,8 @@ async function openaiTranslate(opts: {
   sourceLang?: string;
   targetLang: string;
   context?: string;
+  profileLine?: string;
+  historyLine?: string;
 }): Promise<Result> {
   const system = [
     'You are an expert translator and cultural bridge.',
@@ -67,6 +80,8 @@ async function openaiTranslate(opts: {
     `Source language (if known): ${opts.sourceLang || 'auto'}`,
     `Target language: ${opts.targetLang}`,
     `Context: ${opts.context || 'general'}`,
+    ...(opts.profileLine ? [`User context: ${opts.profileLine}`] : []),
+    ...(opts.historyLine ? ['Recent translations:', opts.historyLine] : []),
     'Text to translate:',
     compact(opts.text, 4000),
   ].join('\n');
@@ -137,6 +152,8 @@ Deno.serve(async (req) => {
     const targetLang = String(body?.targetLang ?? '').trim();
     const sourceLang = body?.sourceLang ? String(body.sourceLang).trim() : undefined;
     const context = body?.context ? String(body.context).trim() : undefined;
+    const profile = body?.profile ?? {};
+    const history = Array.isArray(body?.history) ? body.history : [];
 
     if (!text) {
       return new Response(JSON.stringify({ error: 'text is required' }), {
@@ -151,7 +168,31 @@ Deno.serve(async (req) => {
       });
     }
 
-    const result = await openaiTranslate({ apiKey: OPENAI_API_KEY, text, sourceLang, targetLang, context });
+    const profileLine = [
+      profile?.cityLabel ? `City: ${profile.cityLabel}` : null,
+      profile?.isNewArrival ? `New arrival: yes` : null,
+      profile?.arrivalCity ? `Arrived in: ${profile.arrivalCity}` : null,
+    ]
+      .filter(Boolean)
+      .join(' • ');
+
+    const historyLine =
+      history.length > 0
+        ? history
+            .slice(0, 6)
+            .map((h) => `${h.from}→${h.to}: "${compact(h.source, 60)}" → "${compact(h.target, 60)}"`)
+            .join('\n')
+        : '';
+
+    const result = await openaiTranslate({
+      apiKey: OPENAI_API_KEY,
+      text,
+      sourceLang,
+      targetLang,
+      context,
+      profileLine: profileLine || undefined,
+      historyLine: historyLine || undefined,
+    });
     return new Response(JSON.stringify(result), {
       status: 200,
       headers: { ...corsHeaders, 'content-type': 'application/json' },

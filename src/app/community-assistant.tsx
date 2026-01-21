@@ -5,9 +5,10 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Bot, Send, Sparkles, ArrowLeft, ExternalLink } from 'lucide-react-native';
 import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useStore } from '@/lib/store';
 import { askAiCommunityAssistant, type AiAssistantSource } from '@/lib/aiCommunityAssistant';
+import { clearCommunityAssistantCloud, loadCommunityAssistantCloud, saveCommunityAssistantCloud } from '@/lib/communityAssistantCloud';
 
 type Message = {
   id: string;
@@ -25,11 +26,19 @@ const SUGGESTED = [
 ];
 
 export default function CommunityAssistantScreen() {
+  const { q } = useLocalSearchParams<{ q?: string }>();
   const selectedLocation = useStore((s) => s.selectedLocation);
+  const currentUser = useStore((s) => s.currentUser);
+  const isGuest = useStore((s) => s.isGuest);
+  const newcomerJourney = useStore((s) => s.newcomerJourney);
+  const persisted = useStore((s) => s.communityAssistant);
+  const setPersistedMessages = useStore((s) => s.setCommunityAssistantMessages);
+  const clearPersisted = useStore((s) => s.clearCommunityAssistant);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
+  const [didAutoSend, setDidAutoSend] = useState(false);
 
   const locationLabel = useMemo(() => {
     const city = selectedLocation?.city?.trim();
@@ -38,8 +47,8 @@ export default function CommunityAssistantScreen() {
     return city || country || 'your area';
   }, [selectedLocation?.city, selectedLocation?.country]);
 
-  useEffect(() => {
-    const welcome: Message = {
+  const welcomeMessage = useMemo<Message>(() => {
+    return {
       id: 'welcome',
       role: 'assistant',
       content:
@@ -48,8 +57,113 @@ export default function CommunityAssistantScreen() {
         `I’ll answer using community posts + listings + businesses (no guessing).`,
       timestamp: new Date(),
     };
-    setMessages([welcome]);
   }, [locationLabel]);
+
+  // Restore chat history from storage (if any), otherwise show welcome.
+  useEffect(() => {
+    const saved = persisted?.messages || [];
+    if (Array.isArray(saved) && saved.length > 0) {
+      const restored: Message[] = saved.map((m) => ({
+        id: m.id,
+        role: m.role,
+        content: m.content,
+        sources: m.sources as any,
+        timestamp: new Date(m.timestamp),
+      }));
+      // Ensure we always have a welcome message at the top.
+      if (restored[0]?.id !== 'welcome') restored.unshift(welcomeMessage);
+      setMessages(restored);
+    } else {
+      setMessages([welcomeMessage]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [welcomeMessage]);
+
+  // Persist chat history (keep last 60, omit transient loading).
+  useEffect(() => {
+    const serializable = messages
+      .filter((m) => m.id !== 'welcome' || m.content.length > 0)
+      .map((m) => ({
+        id: m.id,
+        role: m.role,
+        content: m.content,
+        timestamp: m.timestamp.toISOString(),
+        sources: m.sources?.map((s) => ({
+          type: s.type,
+          id: s.id,
+          title: s.title,
+          snippet: s.snippet,
+          route: s.route,
+        })),
+      }));
+    setPersistedMessages(serializable as any);
+  }, [messages, setPersistedMessages]);
+
+  // Cloud sync (logged-in users): load on mount and prefer newest (cloud vs local)
+  useEffect(() => {
+    if (isGuest) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const remote = await loadCommunityAssistantCloud();
+        if (!remote || cancelled) return;
+
+        const localUpdated = persisted?.updatedAt ? new Date(persisted.updatedAt).getTime() : 0;
+        const remoteUpdated = remote.updated_at ? new Date(remote.updated_at).getTime() : 0;
+
+        // If cloud is newer, replace local + UI
+        if (remoteUpdated > localUpdated) {
+          const restored: Message[] = (Array.isArray(remote.messages) ? remote.messages : []).map((m: any) => ({
+            id: String(m.id),
+            role: m.role === 'user' ? 'user' : 'assistant',
+            content: String(m.content ?? ''),
+            sources: m.sources,
+            timestamp: new Date(String(m.timestamp || new Date().toISOString())),
+          }));
+          if (restored[0]?.id !== 'welcome') restored.unshift(welcomeMessage);
+          setMessages(restored);
+          setPersistedMessages((remote.messages || []) as any);
+        } else if (localUpdated > remoteUpdated && (persisted?.messages?.length || 0) > 0) {
+          // If local is newer, push local up
+          await saveCommunityAssistantCloud({ messages: persisted.messages, updated_at: persisted.updatedAt || undefined });
+        }
+      } catch (e) {
+        console.log('[CommunityAssistant] Cloud load failed:', e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Cloud sync (logged-in users): debounce saves
+  const cloudSaveRef = useRef<any>(null);
+  useEffect(() => {
+    if (isGuest) return;
+    if (!persisted?.messages) return;
+    if (cloudSaveRef.current) clearTimeout(cloudSaveRef.current);
+    cloudSaveRef.current = setTimeout(() => {
+      saveCommunityAssistantCloud({
+        messages: persisted.messages,
+        updated_at: persisted.updatedAt || undefined,
+      }).catch((e) => console.log('[CommunityAssistant] Cloud save failed:', e));
+    }, 1200);
+    return () => {
+      if (cloudSaveRef.current) clearTimeout(cloudSaveRef.current);
+    };
+  }, [persisted?.messages, persisted?.updatedAt, isGuest]);
+
+  // If this screen is opened with a prefilled question (?q=...), auto-send once.
+  useEffect(() => {
+    const prefill = typeof q === 'string' ? q.trim() : '';
+    if (!prefill || didAutoSend) return;
+    setDidAutoSend(true);
+    // small delay so welcome message renders first
+    setTimeout(() => {
+      sendMessage(prefill);
+    }, 50);
+  }, [q, didAutoSend]);
 
   const sendMessage = async (text: string) => {
     const q = text.trim();
@@ -70,6 +184,15 @@ export default function CommunityAssistantScreen() {
     setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 50);
 
     try {
+      const day = currentUser?.arrivalDate
+        ? Math.max(1, Math.min(30, Math.floor((Date.now() - new Date(currentUser.arrivalDate).getTime()) / (1000 * 60 * 60 * 24)) + 1))
+        : undefined;
+
+      const history = messages
+        .filter((m) => m.id !== 'welcome')
+        .slice(-10)
+        .map((m) => ({ role: m.role, content: m.content }));
+
       const res = await askAiCommunityAssistant({
         query: q,
         location: {
@@ -77,6 +200,15 @@ export default function CommunityAssistantScreen() {
           city: selectedLocation?.city ?? null,
           neighborhood: selectedLocation?.neighborhood ?? null,
         },
+        profile: {
+          cityLabel: locationLabel,
+          isNewArrival: !!currentUser?.isNewArrival,
+          arrivalCity: currentUser?.arrivalCity,
+          lookingForHelp: currentUser?.lookingForHelp,
+          newcomerDay: day,
+          newcomerCompletedDays: newcomerJourney?.completedDays || [],
+        },
+        history,
       });
 
       const assistantMessage: Message = {
@@ -152,6 +284,19 @@ export default function CommunityAssistantScreen() {
             <Text className="text-white text-xl font-bold">Community Assistant</Text>
             <Text className="text-gray-400 text-sm">Powered by your community • {locationLabel}</Text>
           </View>
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              clearPersisted();
+              setMessages([welcomeMessage]);
+              if (!isGuest) {
+                clearCommunityAssistantCloud().catch((e) => console.log('[CommunityAssistant] Cloud clear failed:', e));
+              }
+            }}
+            className="mr-2 bg-white/10 rounded-full px-3 py-2"
+          >
+            <Text className="text-white text-xs font-semibold">Reset</Text>
+          </Pressable>
           <View className="w-10 h-10 rounded-full bg-emerald-500/20 items-center justify-center">
             <Bot size={18} color="#10B981" />
           </View>

@@ -20,6 +20,8 @@ import Animated, { FadeInDown, FadeInUp, useSharedValue, useAnimatedStyle, withR
 import * as Haptics from 'expo-haptics';
 import * as Speech from 'expo-speech';
 import { aiLanguageBridge } from '@/lib/aiLanguageBridge';
+import { useStore } from '@/lib/store';
+import { loadTranslatorCloudState, saveTranslatorCloudState } from '@/lib/translatorCloud';
 
 interface Language {
   code: string;
@@ -295,6 +297,14 @@ const TRANSLATIONS: Record<string, Record<string, string>> = {
 
 export default function TranslatorScreen() {
   const router = useRouter();
+  const translator = useStore((s) => s.translator);
+  const setTranslatorPrefs = useStore((s) => s.setTranslatorPrefs);
+  const addTranslatorRecent = useStore((s) => s.addTranslatorRecent);
+  const clearTranslatorRecents = useStore((s) => s.clearTranslatorRecents);
+  const currentUser = useStore((s) => s.currentUser);
+  const selectedLocation = useStore((s) => s.selectedLocation);
+  const isGuest = useStore((s) => s.isGuest);
+
   const [sourceText, setSourceText] = useState('');
   const [translatedText, setTranslatedText] = useState('');
   const [toneNotes, setToneNotes] = useState<string[]>([]);
@@ -309,6 +319,111 @@ export default function TranslatorScreen() {
   const [isListening, setIsListening] = useState(false);
   const [copied, setCopied] = useState(false);
   const [recentTranslations, setRecentTranslations] = useState<Array<{source: string; target: string; from: Language; to: Language}>>([]);
+
+  // Restore persisted prefs + recents once
+  useEffect(() => {
+    const src = translator?.sourceLangCode;
+    const tgt = translator?.targetLangCode;
+    const savedUseAi = translator?.useAi;
+    if (typeof savedUseAi === 'boolean') setUseAi(savedUseAi);
+
+    const srcObj = LANGUAGES.find((l) => l.code === src) || LANGUAGES[0];
+    const tgtObj = LANGUAGES.find((l) => l.code === tgt) || LANGUAGES[1] || LANGUAGES[0];
+    setSourceLang(srcObj);
+    setTargetLang(tgtObj);
+
+    const recents = Array.isArray(translator?.recents) ? translator.recents : [];
+    if (recents.length) {
+      setRecentTranslations(
+        recents
+          .map((r) => ({
+            source: r.source,
+            target: r.target,
+            from: LANGUAGES.find((l) => l.code === r.fromCode) || srcObj,
+            to: LANGUAGES.find((l) => l.code === r.toCode) || tgtObj,
+          }))
+          .slice(0, 5)
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Cloud sync (logged-in users): load once on mount
+  useEffect(() => {
+    if (isGuest) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const remote = await loadTranslatorCloudState();
+        if (!remote || cancelled) return;
+
+        if (remote.source_lang_code) {
+          const srcObj = LANGUAGES.find((l) => l.code === remote.source_lang_code) || sourceLang;
+          setSourceLang(srcObj);
+        }
+        if (remote.target_lang_code) {
+          const tgtObj = LANGUAGES.find((l) => l.code === remote.target_lang_code) || targetLang;
+          setTargetLang(tgtObj);
+        }
+        if (typeof remote.use_ai === 'boolean') setUseAi(remote.use_ai);
+
+        if (Array.isArray(remote.recents) && remote.recents.length) {
+          // Persist into local store too
+          const mapped = remote.recents.slice(0, 20).map((r: any) => ({
+            source: String(r.source || ''),
+            target: String(r.target || ''),
+            fromCode: String(r.fromCode || r.from || remote.source_lang_code || 'en'),
+            toCode: String(r.toCode || r.to || remote.target_lang_code || 'sw'),
+            createdAt: String(r.createdAt || new Date().toISOString()),
+          }));
+          // Seed local recents list
+          clearTranslatorRecents();
+          mapped.forEach((m: any) => addTranslatorRecent(m));
+          setRecentTranslations(
+            mapped.slice(0, 5).map((m: any) => ({
+              source: m.source,
+              target: m.target,
+              from: LANGUAGES.find((l) => l.code === m.fromCode) || LANGUAGES[0],
+              to: LANGUAGES.find((l) => l.code === m.toCode) || LANGUAGES[1] || LANGUAGES[0],
+            }))
+          );
+        }
+      } catch (e) {
+        console.log('[Translator] Cloud load failed:', e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Cloud sync (logged-in users): debounce saves
+  const cloudSaveRef = useRef<any>(null);
+  useEffect(() => {
+    if (isGuest) return;
+    if (cloudSaveRef.current) clearTimeout(cloudSaveRef.current);
+    cloudSaveRef.current = setTimeout(() => {
+      saveTranslatorCloudState({
+        source_lang_code: translator.sourceLangCode,
+        target_lang_code: translator.targetLangCode,
+        use_ai: translator.useAi,
+        recents: translator.recents,
+      }).catch((e) => console.log('[Translator] Cloud save failed:', e));
+    }, 1200);
+    return () => {
+      if (cloudSaveRef.current) clearTimeout(cloudSaveRef.current);
+    };
+  }, [translator.sourceLangCode, translator.targetLangCode, translator.useAi, translator.recents, isGuest]);
+
+  // Persist prefs whenever they change
+  useEffect(() => {
+    setTranslatorPrefs({
+      sourceLangCode: sourceLang.code,
+      targetLangCode: targetLang.code,
+      useAi,
+    });
+  }, [sourceLang.code, targetLang.code, useAi, setTranslatorPrefs]);
 
   // Listening animation
   const pulseScale = useSharedValue(1);
@@ -332,13 +447,13 @@ export default function TranslatorScreen() {
     transform: [{ scale: pulseScale.value }],
   }));
 
-  const translate = async (text: string) => {
+  const translate = async (text: string): Promise<string | null> => {
     if (!text.trim()) {
       setTranslatedText('');
       setToneNotes([]);
       setCulturalNotes([]);
       setRomanization(null);
-      return;
+      return null;
     }
 
     if (sourceLang.code === targetLang.code) {
@@ -346,7 +461,7 @@ export default function TranslatorScreen() {
       setToneNotes([]);
       setCulturalNotes([]);
       setRomanization(null);
-      return;
+      return text.trim();
     }
 
     const lowerText = text.toLowerCase().trim();
@@ -355,17 +470,31 @@ export default function TranslatorScreen() {
     if (useAi) {
       setIsAiTranslating(true);
       try {
+        const cityLabel = [selectedLocation?.city, selectedLocation?.country].filter(Boolean).join(', ');
+        const history = (translator?.recents || []).slice(0, 6).map((r) => ({
+          from: r.fromCode,
+          to: r.toCode,
+          source: r.source,
+          target: r.target,
+        }));
+
         const res = await aiLanguageBridge({
           text,
           sourceLang: sourceLang.code,
           targetLang: targetLang.code,
           context: 'chat',
+          profile: {
+            cityLabel: cityLabel || undefined,
+            isNewArrival: !!currentUser?.isNewArrival,
+            arrivalCity: currentUser?.arrivalCity,
+          },
+          history,
         });
         setTranslatedText(res.translation);
         setToneNotes(res.tone_notes || []);
         setCulturalNotes(res.cultural_notes || []);
         setRomanization(res.romanization ?? null);
-        return;
+        return res.translation;
       } catch (e) {
         // Fall back to local dictionary if Edge Function isn't deployed yet.
         console.log('[Translator] AI translation failed, falling back to local dictionary:', e);
@@ -376,11 +505,12 @@ export default function TranslatorScreen() {
 
     // Check for exact matches first
     if (TRANSLATIONS[lowerText] && TRANSLATIONS[lowerText][targetLang.code]) {
-      setTranslatedText(TRANSLATIONS[lowerText][targetLang.code]);
+      const out = TRANSLATIONS[lowerText][targetLang.code];
+      setTranslatedText(out);
       setToneNotes([]);
       setCulturalNotes([]);
       setRomanization(null);
-      return;
+      return out;
     }
 
     // Check for partial matches
@@ -391,28 +521,31 @@ export default function TranslatorScreen() {
         setToneNotes([]);
         setCulturalNotes([]);
         setRomanization(null);
-        return;
+        return translated;
       }
     }
 
     // If no match found, show a helpful message
-    setTranslatedText(`[Translation: ${text}]`);
+    const fallback = `[Translation: ${text}]`;
+    setTranslatedText(fallback);
     setToneNotes([]);
     setCulturalNotes([]);
     setRomanization(null);
+    return fallback;
   };
 
   const handleTranslate = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const before = sourceText.trim();
     if (!before) return;
-    const prev = translatedText;
-    await translate(before);
-    // Add to recents (best-effort) after state updates
-    setRecentTranslations(prevList => [
-      { source: before, target: prev || translatedText || '', from: sourceLang, to: targetLang },
-      ...prevList.slice(0, 4),
-    ].filter((x) => x.target));
+    const out = await translate(before);
+    if (out) {
+      addTranslatorRecent({ source: before, target: out, fromCode: sourceLang.code, toCode: targetLang.code });
+      setRecentTranslations((prevList) => [
+        { source: before, target: out, from: sourceLang, to: targetLang },
+        ...prevList,
+      ].slice(0, 5));
+    }
   };
 
   const swapLanguages = () => {
@@ -617,6 +750,16 @@ export default function TranslatorScreen() {
               >
                 <Sparkles size={16} color={useAi ? '#4ADE80' : 'white'} />
                 <Text className="text-white ml-2 text-sm">{useAi ? 'AI' : 'Basic'}</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  clearTranslatorRecents();
+                  setRecentTranslations([]);
+                }}
+                className="px-3 py-2 rounded-full mr-1 bg-white/10"
+              >
+                <Text className="text-white text-sm font-semibold">Reset</Text>
               </Pressable>
               <Pressable onPress={speakTranslation} className="p-2 mr-1">
                 <Volume2 size={20} color="white" />

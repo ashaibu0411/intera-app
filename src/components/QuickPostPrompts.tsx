@@ -10,7 +10,7 @@ import {
   Plus,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
-import { router } from 'expo-router';
+import { router, usePathname } from 'expo-router';
 
 interface PostPrompt {
   id: string;
@@ -75,6 +75,7 @@ interface QuickPostPromptsProps {
 }
 
 export function QuickPostPrompts({ onPromptSelect }: QuickPostPromptsProps) {
+  const pathname = usePathname();
   const handlePromptPress = (prompt: PostPrompt) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     if (onPromptSelect) {
@@ -83,7 +84,7 @@ export function QuickPostPrompts({ onPromptSelect }: QuickPostPromptsProps) {
     // Navigate to create screen with pre-filled prompt type
     router.push({
       pathname: '/create',
-      params: { promptType: prompt.type, placeholder: prompt.placeholder },
+      params: { promptType: prompt.type, placeholder: prompt.placeholder, returnTo: pathname },
     });
   };
 

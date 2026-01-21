@@ -42,9 +42,11 @@ import {
   type Post,
 } from '@/lib/store';
 import { getPost, getComments, createComment } from '@/lib/posts';
+import { moderateText } from '@/lib/contentModeration';
+import { aiModerateContent } from '@/lib/aiModerateContent';
 
 export default function PostDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, returnTo } = useLocalSearchParams<{ id: string; returnTo?: string }>();
   const scrollViewRef = useRef<ScrollView>(null);
   const commentInputRef = useRef<TextInput>(null);
   const [commentText, setCommentText] = useState('');
@@ -294,6 +296,10 @@ export default function PostDetailScreen() {
 
   const handleBack = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (typeof returnTo === 'string' && returnTo.trim().length > 0) {
+      router.replace(returnTo as any);
+      return;
+    }
     router.back();
   };
 
@@ -334,6 +340,31 @@ export default function PostDetailScreen() {
 
     const commentContent = commentText.trim();
     const tempId = `temp-comment-${Date.now()}`;
+
+    // Moderation gate (local + AI)
+    try {
+      const local = moderateText(commentContent);
+      if (local.action === 'blocked') {
+        Alert.alert('Cannot post this comment', local.message || 'This comment violates our community guidelines.');
+        return;
+      }
+      const ai = await aiModerateContent({ text: commentContent, context: 'comment' });
+      if (ai.action === 'block') {
+        Alert.alert('Cannot post this comment', ai.reasons?.[0] || 'This comment violates our community guidelines.');
+        return;
+      }
+      if (ai.action === 'warn') {
+        const tips = (ai.redaction_tips || []).slice(0, 3);
+        Alert.alert(
+          'Quick safety check',
+          [ai.reasons?.[0] || 'Consider editing before posting.', tips.length ? `\n\nTips:\n- ${tips.join('\n- ')}` : '']
+            .filter(Boolean)
+            .join('')
+        );
+      }
+    } catch (e) {
+      console.log('[PostDetail] Moderation skipped:', e);
+    }
 
     const newComment: Comment = {
       id: tempId,

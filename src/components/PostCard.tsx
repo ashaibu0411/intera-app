@@ -17,7 +17,7 @@ import Animated, {
   FadeInUp,
 } from 'react-native-reanimated';
 import { formatDistanceToNow } from 'date-fns';
-import { router } from 'expo-router';
+import { router, usePathname } from 'expo-router';
 import * as DropdownMenu from 'zeego/dropdown-menu';
 import { useStore, MOCK_COMMENTS, type Post } from '@/lib/store';
 import { getCommentsCount, getLikesCount, likePost, unlikePost, checkIfLiked } from '@/lib/posts';
@@ -217,6 +217,7 @@ interface BurstEmoji {
 }
 
 export function PostCard({ post, onLike, onComment, onShare, showGuidelines = false }: PostCardProps) {
+  const pathname = usePathname();
   const likedPostIds = useStore((s) => s.likedPostIds);
   const toggleLikePost = useStore((s) => s.toggleLikePost);
   const savedPostIds = useStore((s) => s.savedPostIds);
@@ -464,12 +465,18 @@ export function PostCard({ post, onLike, onComment, onShare, showGuidelines = fa
 
   const handleOpenPost = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push(`/post/${post.id}`);
+    router.push({
+      pathname: '/post/[id]' as any,
+      params: { id: post.id, returnTo: pathname },
+    } as any);
   };
 
   const handleComment = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push(`/post/${post.id}`);
+    router.push({
+      pathname: '/post/[id]' as any,
+      params: { id: post.id, returnTo: pathname },
+    } as any);
     onComment?.(post.id);
   };
 

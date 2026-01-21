@@ -20,6 +20,15 @@ type Location = {
 type Body = {
   query: string;
   location?: Location;
+  profile?: {
+    cityLabel?: string;
+    isNewArrival?: boolean;
+    arrivalCity?: string;
+    lookingForHelp?: string[];
+    newcomerDay?: number;
+    newcomerCompletedDays?: number[];
+  };
+  history?: Array<{ role: 'user' | 'assistant'; content: string }>;
 };
 
 type Source = {
@@ -154,6 +163,8 @@ Deno.serve(async (req) => {
     const city = (location?.city ?? '').trim();
     const country = (location?.country ?? '').trim();
     const neighborhood = (location?.neighborhood ?? '').trim();
+    const profile = body?.profile ?? {};
+    const history = Array.isArray(body?.history) ? body.history : [];
 
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
@@ -383,9 +394,30 @@ Deno.serve(async (req) => {
           .join('\n')
       : '(no matching community sources found)';
 
+    const profileLine = [
+      profile?.cityLabel ? `City: ${profile.cityLabel}` : null,
+      profile?.isNewArrival ? `Newcomer day ${profile.newcomerDay ?? 'unknown'}/30` : null,
+      Array.isArray(profile?.lookingForHelp) && profile.lookingForHelp.length
+        ? `Looking for help with: ${profile.lookingForHelp.join(', ')}`
+        : null,
+      Array.isArray(profile?.newcomerCompletedDays) && profile.newcomerCompletedDays.length
+        ? `Journey progress: ${profile.newcomerCompletedDays.length}/30 completed`
+        : null,
+    ]
+      .filter(Boolean)
+      .join(' • ');
+
+    const historyBlock = history.length
+      ? history
+          .slice(-10)
+          .map((m) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${compact(m.content ?? '', 260)}`)
+          .join('\n')
+      : '(no prior chat)';
+
     const system = [
       'You are Intera, an AI community assistant for a neighborhood/community app.',
       'Use ONLY the provided community sources to make recommendations; do not invent businesses, addresses, or claims.',
+      'Use the user profile context to personalize your answer (tone, priorities), but do not invent facts.',
       'If sources are insufficient, ask 1-2 clarifying questions OR suggest how to ask the community.',
       'Output format:',
       '## Answer',
@@ -399,7 +431,11 @@ Deno.serve(async (req) => {
 
     const user = [
       `User location (if known): ${locationLine || 'unknown'}`,
+      `User profile: ${profileLine || 'none'}`,
       `User question: ${query}`,
+      '',
+      'Prior chat (most recent last):',
+      historyBlock,
       '',
       'Community sources:',
       contextBlock,

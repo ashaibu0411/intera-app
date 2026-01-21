@@ -18,6 +18,7 @@ import {
   Church,
   Check,
   ChevronRight,
+  Sparkles,
 } from 'lucide-react-native';
 import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -184,6 +185,27 @@ export default function ArrivalModeScreen() {
                 </View>
               )}
             </LinearGradient>
+
+            {isActivated && daysRemaining > 0 && (
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  router.push('/newcomer-journey');
+                }}
+                className="mt-3 bg-white rounded-2xl p-4 shadow-sm flex-row items-center justify-between"
+              >
+                <View className="flex-row items-center">
+                  <View className="w-10 h-10 rounded-full bg-emerald-100 items-center justify-center">
+                    <Sparkles size={18} color="#059669" />
+                  </View>
+                  <View className="ml-3">
+                    <Text className="text-warmBrown font-bold">30‑Day Newcomer Journey</Text>
+                    <Text className="text-gray-500 text-sm mt-0.5">Daily steps + one‑tap “Ask Intera”</Text>
+                  </View>
+                </View>
+                <ChevronRight size={20} color="#6B7280" />
+              </Pressable>
+            )}
           </Animated.View>
 
           {/* What Arrival Mode Gives You */}

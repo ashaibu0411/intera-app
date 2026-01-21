@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, ScrollView, Pressable, KeyboardAvoidingView, Platform, Modal, Switch } from 'react-native';
+import { View, Text, TextInput, ScrollView, Pressable, KeyboardAvoidingView, Platform, Modal, Switch, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import {
@@ -11,6 +11,7 @@ import {
   FileText,
   ShoppingBag,
   Calendar,
+  ChevronLeft,
   ChevronRight,
   Clock,
   Users,
@@ -27,15 +28,19 @@ import * as ImagePicker from 'expo-image-picker';
 import * as MediaLibrary from 'expo-media-library';
 import * as FileSystem from 'expo-file-system';
 import { useStore, MOCK_COMMUNITIES, MARKETPLACE_CATEGORIES, EVENT_CATEGORIES } from '@/lib/store';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { createPost as createDbPost, uploadImages, uploadVideo } from '@/lib/posts';
 import { sendRemotePushAlert } from '@/lib/pushAlerts';
+import { aiPostCopilot } from '@/lib/aiPostCopilot';
+import { aiModerateContent } from '@/lib/aiModerateContent';
+import { moderateText } from '@/lib/contentModeration';
 
 type CreateMode = 'select' | 'post' | 'sell' | 'event';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 export default function CreateScreen() {
+  const { returnTo } = useLocalSearchParams<{ returnTo?: string }>();
   const [mode, setMode] = useState<CreateMode>('select');
   const [postAsBusinessId, setPostAsBusinessId] = useState<string | null>(null);
   const currentUser = useStore((s) => s.currentUser);
@@ -45,12 +50,25 @@ export default function CreateScreen() {
 
   const displayCommunity = currentCommunity ?? MOCK_COMMUNITIES[0];
 
+  const exitTo = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const target = typeof returnTo === 'string' && returnTo.trim().length > 0 ? returnTo : '/community';
+    router.replace(target as any);
+  };
+
   // Check if user is logged in
   if (!currentUser || isGuest) {
     return (
       <View className="flex-1 bg-cream">
         <SafeAreaView edges={['top']} className="flex-1 justify-center items-center px-6">
           <Animated.View entering={FadeIn.duration(400)} className="items-center">
+            <Pressable
+              onPress={exitTo}
+              className="self-start mb-6 bg-white rounded-full p-2 shadow-sm"
+              style={{ position: 'absolute', top: -6, left: -6 }}
+            >
+              <ChevronLeft size={22} color="#2D1F1A" />
+            </Pressable>
             <View className="bg-terracotta-100 rounded-full p-6 mb-6">
               <FileText size={48} color="#D4673A" />
             </View>
@@ -85,6 +103,7 @@ export default function CreateScreen() {
     return (
       <CreateSelectScreen
         onSelect={setMode}
+        onClose={exitTo}
         user={currentUser}
         businesses={userBusinesses}
         postAsBusinessId={postAsBusinessId}
@@ -120,12 +139,14 @@ export default function CreateScreen() {
 // Selection Screen
 function CreateSelectScreen({
   onSelect,
+  onClose,
   user,
   businesses,
   postAsBusinessId,
   setPostAsBusinessId,
 }: {
   onSelect: (mode: CreateMode) => void;
+  onClose: () => void;
   user: any;
   businesses: any[];
   postAsBusinessId: string | null;
@@ -158,9 +179,19 @@ function CreateSelectScreen({
   return (
     <View className="flex-1 bg-cream">
       <SafeAreaView edges={['top']} className="flex-1">
-        <Animated.View entering={FadeIn.duration(300)} className="px-5 pt-6 pb-4">
-          <Text className="text-2xl font-bold text-warmBrown">Create</Text>
-          <Text className="text-gray-500 mt-1">What would you like to share today?</Text>
+        <Animated.View entering={FadeIn.duration(300)} className="px-5 pt-4 pb-4">
+          <View className="flex-row items-center">
+            <Pressable
+              onPress={onClose}
+              className="bg-white rounded-full p-2 shadow-sm mr-3"
+            >
+              <ChevronLeft size={22} color="#2D1F1A" />
+            </Pressable>
+            <View>
+              <Text className="text-2xl font-bold text-warmBrown">Create</Text>
+              <Text className="text-gray-500 mt-1">What would you like to share today?</Text>
+            </View>
+          </View>
         </Animated.View>
 
         <ScrollView className="flex-1 px-5" showsVerticalScrollIndicator={false}>
@@ -256,8 +287,38 @@ function CreatePostForm({ user, community, onBack, business }: { user: any; comm
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
   const [selectedVideo, setSelectedVideo] = useState<string | null>(null);
   const [sendPushToArea, setSendPushToArea] = useState(false);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiNotes, setAiNotes] = useState<string[]>([]);
   const buttonScale = useSharedValue(1);
   const addPost = useStore((s) => s.addPost);
+
+  const runCopilot = async (mode: 'rewrite' | 'shorten' | 'expand') => {
+    if (!content.trim() || aiBusy) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setAiBusy(true);
+    setAiNotes([]);
+    try {
+      const state = useStore.getState();
+      const selectedLocation = state.selectedLocation;
+      const cityLabel = [selectedLocation?.city, selectedLocation?.country].filter(Boolean).join(', ');
+      const res = await aiPostCopilot({
+        text: content.trim(),
+        mode,
+        profile: {
+          cityLabel: cityLabel || undefined,
+          isNewArrival: !!state.currentUser?.isNewArrival,
+          arrivalCity: state.currentUser?.arrivalCity,
+        },
+      });
+      if (res?.text) setContent(res.text);
+      if (Array.isArray(res?.safety_notes) && res.safety_notes.length) setAiNotes(res.safety_notes.slice(0, 3));
+    } catch (e: any) {
+      console.log('[CreatePost] AI copilot error:', e);
+      setAiNotes(['AI assist failed — try again in a moment.']);
+    } finally {
+      setAiBusy(false);
+    }
+  };
 
   const handlePickImage = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -329,6 +390,32 @@ function CreatePostForm({ user, community, onBack, business }: { user: any; comm
 
     const formattedContent =
       business?.name ? `🏪 ${business.name}\n\n${content.trim()}` : content.trim();
+
+    // Moderation gate (local fast filter + AI check)
+    try {
+      const local = moderateText(formattedContent);
+      if (local.action === 'blocked') {
+        Alert.alert('Cannot post this', local.message || 'This content violates our community guidelines.');
+        return;
+      }
+      const ai = await aiModerateContent({ text: formattedContent, context: 'post' });
+      if (ai.action === 'block') {
+        Alert.alert('Cannot post this', ai.reasons?.[0] || 'This content violates our community guidelines.');
+        return;
+      }
+      if (ai.action === 'warn') {
+        const tips = (ai.redaction_tips || []).slice(0, 3);
+        Alert.alert(
+          'Quick safety check',
+          [ai.reasons?.[0] || 'Consider editing before posting.', tips.length ? `\n\nTips:\n- ${tips.join('\n- ')}` : '']
+            .filter(Boolean)
+            .join('')
+        );
+      }
+    } catch (e) {
+      // If moderation is down, don't block posting.
+      console.log('[CreatePost] Moderation skipped:', e);
+    }
 
     let postId = `post_${Date.now()}`;
     let savedToDb = false;
@@ -520,6 +607,58 @@ function CreatePostForm({ user, community, onBack, business }: { user: any; comm
                 style={{ textAlignVertical: 'top' }}
                 autoFocus
               />
+            </View>
+
+            {/* AI Post Copilot */}
+            <View className="px-5 pt-3">
+              <View className="flex-row items-center justify-between">
+                <Text className="text-gray-500 text-sm">AI Assist</Text>
+                {aiBusy ? (
+                  <View className="flex-row items-center">
+                    <ActivityIndicator size="small" color="#10B981" />
+                    <Text className="text-gray-500 text-sm ml-2">Rewriting…</Text>
+                  </View>
+                ) : null}
+              </View>
+              <View className="flex-row mt-2">
+                <Pressable
+                  onPress={() => runCopilot('rewrite')}
+                  disabled={!content.trim() || aiBusy}
+                  className={`px-4 py-2 rounded-full mr-2 ${!content.trim() || aiBusy ? 'bg-gray-100' : 'bg-emerald-50'}`}
+                >
+                  <Text className={`${!content.trim() || aiBusy ? 'text-gray-400' : 'text-emerald-700'} font-semibold`}>
+                    Polish
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => runCopilot('shorten')}
+                  disabled={!content.trim() || aiBusy}
+                  className={`px-4 py-2 rounded-full mr-2 ${!content.trim() || aiBusy ? 'bg-gray-100' : 'bg-emerald-50'}`}
+                >
+                  <Text className={`${!content.trim() || aiBusy ? 'text-gray-400' : 'text-emerald-700'} font-semibold`}>
+                    Shorten
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => runCopilot('expand')}
+                  disabled={!content.trim() || aiBusy}
+                  className={`px-4 py-2 rounded-full ${!content.trim() || aiBusy ? 'bg-gray-100' : 'bg-emerald-50'}`}
+                >
+                  <Text className={`${!content.trim() || aiBusy ? 'text-gray-400' : 'text-emerald-700'} font-semibold`}>
+                    Expand
+                  </Text>
+                </Pressable>
+              </View>
+              {aiNotes.length ? (
+                <View className="mt-3 bg-amber-50 border border-amber-200 rounded-2xl p-3">
+                  <Text className="text-amber-900 font-semibold text-xs">NOTES</Text>
+                  {aiNotes.map((n, i) => (
+                    <Text key={i} className="text-amber-800 mt-1">
+                      • {n}
+                    </Text>
+                  ))}
+                </View>
+              ) : null}
             </View>
 
             {/* Selected Images */}

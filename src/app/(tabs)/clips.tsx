@@ -49,9 +49,13 @@ import * as Haptics from 'expo-haptics';
 import { router, useFocusEffect } from 'expo-router';
 import * as DropdownMenu from 'zeego/dropdown-menu';
 import { useStore } from '@/lib/store';
+import { supabase } from '@/lib/supabase';
 import { reportBlockedUser } from '@/lib/reports';
 import type { ViolationType } from '@/lib/contentModeration';
+import { moderateText } from '@/lib/contentModeration';
+import { aiModerateContent } from '@/lib/aiModerateContent';
 import { getClips, resolveClipVideoUrl, deleteClip } from '@/lib/clips-api';
+import { aiClipCaptionsFromVideoUrl, type AiClipCaptionsResult } from '@/lib/aiClipCaptions';
 
 // Report reasons for App Store Guideline 1.2 compliance
 const REPORT_REASONS: { id: ViolationType | 'other'; label: string; description: string }[] = [
@@ -248,6 +252,7 @@ interface ClipItemProps {
   onShare: () => void;
   onDelete?: () => void;
   isOwnClip?: boolean;
+  currentUserId?: string;
   itemHeight: number;
   itemWidth: number;
 }
@@ -295,7 +300,7 @@ class ClipsErrorBoundary extends React.Component<
   }
 }
 
-function ClipItem({ clip, isActive, isMuted, onToggleMute, onBlockUser, onReportUser, onComment, onShare, onDelete, isOwnClip, itemHeight, itemWidth }: ClipItemProps) {
+function ClipItem({ clip, isActive, isMuted, onToggleMute, onBlockUser, onReportUser, onComment, onShare, onDelete, isOwnClip, currentUserId, itemHeight, itemWidth }: ClipItemProps) {
   const insets = useSafeAreaInsets();
   const [liked, setLiked] = useState(clip.isLiked);
   const [saved, setSaved] = useState(clip.isSaved);
@@ -312,6 +317,9 @@ function ClipItem({ clip, isActive, isMuted, onToggleMute, onBlockUser, onReport
   const [isFollowing, setIsFollowing] = useState(clip.user.isFollowing || false);
   const videoRef = useRef<ExpoVideo>(null);
   const hasProbedRef = useRef(false);
+  const [captions, setCaptions] = useState<AiClipCaptionsResult | null>(null);
+  const [captionsLoading, setCaptionsLoading] = useState(false);
+  const [captionsEnabled, setCaptionsEnabled] = useState(true);
 
   const heartScale = useSharedValue(1);
   const doubleTapHeart = useSharedValue(0);
@@ -323,6 +331,86 @@ function ClipItem({ clip, isActive, isMuted, onToggleMute, onBlockUser, onReport
     setPlayUrl(clip.videoUrl);
     hasRetriedWithFreshUrl.current = false;
   }, [clip.videoUrl, clip.id]);
+
+  // Load captions when clip becomes active
+  useEffect(() => {
+    if (!isActive) return;
+    let mounted = true;
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('clip_captions')
+          .select('language, transcript, segments')
+          .eq('clip_id', clip.id)
+          .order('updated_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (!mounted) return;
+        if (!error && data?.transcript) {
+          setCaptions({
+            language: data.language ?? null,
+            text: data.transcript,
+            segments: Array.isArray(data.segments) ? data.segments : [],
+            translation: null,
+          });
+          return;
+        }
+      } catch {
+        // ignore
+      }
+
+      try {
+        const raw = await AsyncStorage.getItem(`clip_caption:${clip.id}`);
+        if (!mounted) return;
+        if (raw) setCaptions(JSON.parse(raw));
+      } catch {
+        // ignore
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [isActive, clip.id]);
+
+  const currentCaptionText = useMemo(() => {
+    if (!captionsEnabled) return '';
+    if (!captions?.segments?.length) return '';
+    const t = playbackPosition;
+    const seg = captions.segments.find((s: any) => t >= Number(s?.start ?? 0) && t < Number(s?.end ?? 0));
+    return String(seg?.text ?? '').trim();
+  }, [captions, playbackPosition, captionsEnabled]);
+
+  const generateCaptions = useCallback(async () => {
+    if (!playUrl || captionsLoading) return;
+    setCaptionsLoading(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      const res = await aiClipCaptionsFromVideoUrl({ videoUrl: playUrl, targetLang: 'en' });
+      setCaptions(res);
+      setCaptionsEnabled(true);
+      AsyncStorage.setItem(`clip_caption:${clip.id}`, JSON.stringify(res)).catch(() => {});
+
+      if (currentUserId) {
+        const language = (res.language || 'und').trim() || 'und';
+        await supabase.from('clip_captions').upsert(
+          {
+            clip_id: clip.id,
+            language,
+            transcript: res.text,
+            segments: res.segments,
+            created_by: currentUserId,
+          },
+          { onConflict: 'clip_id,language' }
+        );
+      }
+    } catch (e: any) {
+      console.log('[Clips] Caption generation failed:', e?.message ?? e);
+      Alert.alert('Could not generate captions', 'Please try again in a moment.');
+    } finally {
+      setCaptionsLoading(false);
+    }
+  }, [playUrl, captionsLoading, clip.id, currentUserId]);
 
   // Auto-play/pause based on visibility.
   // IMPORTANT: don't call loadAsync repeatedly — it can break scrolling/perf.
@@ -743,6 +831,24 @@ function ClipItem({ clip, isActive, isMuted, onToggleMute, onBlockUser, onReport
               </Pressable>
             </DropdownMenu.Trigger>
             <DropdownMenu.Content>
+              <DropdownMenu.Item
+                key="captions"
+                onSelect={() => {
+                  if (captions?.segments?.length) {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setCaptionsEnabled((v) => !v);
+                  } else {
+                    void generateCaptions();
+                  }
+                }}
+              >
+                <DropdownMenu.ItemIcon ios={{ name: 'text.bubble' }}>
+                  <Sparkles size={18} color="#1B4D3E" />
+                </DropdownMenu.ItemIcon>
+                <DropdownMenu.ItemTitle>
+                  {captions?.segments?.length ? (captionsEnabled ? 'Hide Captions' : 'Show Captions') : 'Generate Captions (AI)'}
+                </DropdownMenu.ItemTitle>
+              </DropdownMenu.Item>
               {isOwnClip && onDelete && (
                 <DropdownMenu.Item key="delete" onSelect={onDelete} destructive>
                   <DropdownMenu.ItemIcon ios={{ name: 'trash' }}>
@@ -786,6 +892,20 @@ function ClipItem({ clip, isActive, isMuted, onToggleMute, onBlockUser, onReport
             )}
           </View>
 
+          {/* Captions */}
+          {captionsLoading ? (
+            <View style={{ backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8, marginBottom: 10 }}>
+              <Text style={{ color: '#fff', fontWeight: '800' }}>Generating captions…</Text>
+            </View>
+          ) : currentCaptionText ? (
+            <View style={{ backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8, marginBottom: 10 }}>
+              <Text style={{ color: '#fff', fontWeight: '800' }}>{currentCaptionText}</Text>
+              {captions?.translation?.text ? (
+                <Text style={{ color: 'rgba(255,255,255,0.85)', marginTop: 4 }}>{captions.translation.text}</Text>
+              ) : null}
+            </View>
+          ) : null}
+
           {/* Description - Enhanced */}
           <Text className="text-white text-sm leading-5 mb-3" numberOfLines={3} style={{ textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 }}>
             {clip.description}
@@ -827,14 +947,57 @@ function CommentsModal({ visible, clip, onClose }: { visible: boolean; clip: Cli
   const handleSendComment = () => {
     if (commentText.trim()) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      setComments([{
-        id: Date.now().toString(),
-        user: { name: 'You', avatar: '', username: 'you' },
-        text: commentText,
-        likes: 0,
-        timeAgo: 'just now',
-      }, ...comments]);
-      setCommentText('');
+      const text = commentText.trim();
+
+      // Moderation gate (local + AI). Clips comments are local-only right now.
+      (async () => {
+        try {
+          const local = moderateText(text);
+          if (local.action === 'blocked') {
+            Alert.alert('Cannot post this comment', local.message || 'This comment violates our community guidelines.');
+            return;
+          }
+          const ai = await aiModerateContent({ text, context: 'comment' });
+          if (ai.action === 'block') {
+            Alert.alert('Cannot post this comment', ai.reasons?.[0] || 'This comment violates our community guidelines.');
+            return;
+          }
+          if (ai.action === 'warn') {
+            const tips = (ai.redaction_tips || []).slice(0, 3);
+            Alert.alert(
+              'Quick safety check',
+              [ai.reasons?.[0] || 'Consider editing before posting.', tips.length ? `\n\nTips:\n- ${tips.join('\n- ')}` : '']
+                .filter(Boolean)
+                .join('')
+            );
+          }
+
+          setComments([
+            {
+              id: Date.now().toString(),
+              user: { name: 'You', avatar: '', username: 'you' },
+              text,
+              likes: 0,
+              timeAgo: 'just now',
+            },
+            ...comments,
+          ]);
+          setCommentText('');
+        } catch (e) {
+          console.log('[Clips] Moderation skipped:', e);
+          setComments([
+            {
+              id: Date.now().toString(),
+              user: { name: 'You', avatar: '', username: 'you' },
+              text,
+              likes: 0,
+              timeAgo: 'just now',
+            },
+            ...comments,
+          ]);
+          setCommentText('');
+        }
+      })();
     }
   };
 

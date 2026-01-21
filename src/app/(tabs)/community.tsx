@@ -17,6 +17,7 @@ import {
   Heart,
   Store,
   UserCheck,
+  Sparkles,
 } from 'lucide-react-native';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -167,7 +168,7 @@ export default function HomeScreen() {
 
   const askForHelpRoute = useMemo(() => {
     const placeholder = `I’m new in ${displayCommunity.city}. Looking for...`;
-    return `/create?promptType=request&placeholder=${encodeURIComponent(placeholder)}`;
+    return `/create?returnTo=${encodeURIComponent('/community')}&promptType=request&placeholder=${encodeURIComponent(placeholder)}`;
   }, [displayCommunity.city]);
 
   const communityMemberCount = useMemo(() => {
@@ -403,6 +404,36 @@ export default function HomeScreen() {
             />
           }
         >
+          {/* Community Assistant shortcut */}
+          <View className="px-4 pt-4">
+            <Pressable
+              onPress={() => navigateTo('/community-assistant')}
+              className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"
+            >
+              <LinearGradient
+                colors={['#10B981', '#059669']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={{ padding: 16 }}
+              >
+                <View className="flex-row items-center justify-between">
+                  <View className="flex-row items-center">
+                    <View className="bg-white/20 rounded-full p-3">
+                      <Sparkles size={20} color="#FFFFFF" />
+                    </View>
+                    <View className="ml-3">
+                      <Text className="text-white font-bold text-base">Ask Intera</Text>
+                      <Text className="text-white/85 text-xs mt-0.5">
+                        Get community-backed answers in seconds
+                      </Text>
+                    </View>
+                  </View>
+                  <ChevronRight size={22} color="#FFFFFF" />
+                </View>
+              </LinearGradient>
+            </Pressable>
+          </View>
+
           {/* Stories Row */}
           <View className="bg-white border-b border-gray-100 py-3">
             <ScrollView
@@ -698,7 +729,7 @@ export default function HomeScreen() {
                   Introduce yourself, ask a question, or invite people out—{displayCommunity.city} will answer.
                 </Text>
                 <Pressable
-                  onPress={() => navigateTo('/create')}
+                  onPress={() => navigateTo(`/create?returnTo=${encodeURIComponent('/community')}`)}
                   className="mt-4 bg-gray-900 px-6 py-3 rounded-full"
                 >
                   <Text className="text-white font-semibold">Post to {displayCommunity.city}</Text>
@@ -712,7 +743,7 @@ export default function HomeScreen() {
 
         {/* Floating Create Button */}
         <Pressable
-          onPress={() => navigateTo('/create')}
+          onPress={() => navigateTo(`/create?returnTo=${encodeURIComponent('/community')}`)}
           className="absolute bottom-6 right-6"
           style={{
             shadowColor: '#D4673A',

@@ -70,6 +70,53 @@ export interface DailyRewardsState {
   weekStartDate: string | null;
 }
 
+export interface NewcomerJourneyState {
+  // Tracks which "days" the user completed (1-30).
+  completedDays: number[];
+  lastOpenedAt: string | null;
+}
+
+export interface CommunityAssistantMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: string; // ISO string for persistence
+  // Keep sources lightweight so we can show "cards" again after restart.
+  sources?: Array<{ type: string; id: string; title: string; snippet: string; route: string }>;
+}
+
+export interface CommunityAssistantState {
+  messages: CommunityAssistantMessage[];
+  updatedAt: string | null;
+}
+
+export interface ImmigrationAssistantMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: string; // ISO string for persistence
+}
+
+export interface ImmigrationAssistantState {
+  messages: ImmigrationAssistantMessage[];
+  updatedAt: string | null;
+}
+
+export interface TranslatorRecentItem {
+  source: string;
+  target: string;
+  fromCode: string;
+  toCode: string;
+  createdAt: string;
+}
+
+export interface TranslatorState {
+  sourceLangCode: string;
+  targetLangCode: string;
+  useAi: boolean;
+  recents: TranslatorRecentItem[];
+}
+
 export interface Post {
   id: string;
   author: User;
@@ -625,6 +672,18 @@ interface AppState {
   // Daily Rewards state
   dailyRewards: DailyRewardsState;
 
+  // 30-day Newcomer Journey state (Arrival Mode companion)
+  newcomerJourney: NewcomerJourneyState;
+
+  // Community Assistant persistence (chat history + sources)
+  communityAssistant: CommunityAssistantState;
+
+  // Immigration Assistant persistence (chat history)
+  immigrationAssistant: ImmigrationAssistantState;
+
+  // Translator persistence (preferred languages + history)
+  translator: TranslatorState;
+
   // Stories state
   userStories: UserStory[];
   storyBlockedUserIds: string[]; // Users blocked from seeing current user's stories
@@ -704,6 +763,23 @@ interface AppState {
   // Daily Rewards actions
   claimDailyReward: (dayNumber: number, gemAmount: number) => void;
   resetWeeklyRewards: () => void;
+  // Newcomer Journey actions
+  completeNewcomerJourneyDay: (dayNumber: number) => void;
+  setNewcomerJourneyLastOpenedAt: (iso: string) => void;
+  resetNewcomerJourney: () => void;
+
+  // Community Assistant actions
+  setCommunityAssistantMessages: (messages: CommunityAssistantMessage[]) => void;
+  clearCommunityAssistant: () => void;
+
+  // Immigration Assistant actions
+  setImmigrationAssistantMessages: (messages: ImmigrationAssistantMessage[]) => void;
+  clearImmigrationAssistant: () => void;
+
+  // Translator actions
+  setTranslatorPrefs: (prefs: Partial<Pick<TranslatorState, 'sourceLangCode' | 'targetLangCode' | 'useAi'>>) => void;
+  addTranslatorRecent: (item: Omit<TranslatorRecentItem, 'createdAt'> & { createdAt?: string }) => void;
+  clearTranslatorRecents: () => void;
   logout: () => void;
 }
 
@@ -763,6 +839,24 @@ export const useStore = create<AppState>()(
         claimedDays: [],
         weekStartDate: null,
       } as DailyRewardsState,
+      newcomerJourney: {
+        completedDays: [],
+        lastOpenedAt: null,
+      } as NewcomerJourneyState,
+      communityAssistant: {
+        messages: [],
+        updatedAt: null,
+      } as CommunityAssistantState,
+      immigrationAssistant: {
+        messages: [],
+        updatedAt: null,
+      } as ImmigrationAssistantState,
+      translator: {
+        sourceLangCode: 'en',
+        targetLangCode: 'sw',
+        useAi: true,
+        recents: [],
+      } as TranslatorState,
       userStories: MOCK_USER_STORIES as UserStory[],
       storyBlockedUserIds: [] as string[],
       markStoryAsSeen: (userId) => set((state) => ({
@@ -1226,12 +1320,88 @@ export const useStore = create<AppState>()(
           weekStartDate: new Date().toISOString().split('T')[0],
         },
       })),
-      logout: () => set({ currentUser: null, isOnboarded: false, isGuest: false }),
+      // Newcomer Journey actions
+      completeNewcomerJourneyDay: (dayNumber: number) => set((state) => {
+        const d = Math.max(1, Math.min(30, Math.floor(dayNumber)));
+        const setDays = new Set(state.newcomerJourney.completedDays || []);
+        setDays.add(d);
+        return {
+          newcomerJourney: {
+            ...state.newcomerJourney,
+            completedDays: Array.from(setDays).sort((a, b) => a - b),
+          },
+        };
+      }),
+      setNewcomerJourneyLastOpenedAt: (iso: string) => set((state) => ({
+        newcomerJourney: {
+          ...state.newcomerJourney,
+          lastOpenedAt: iso,
+        },
+      })),
+      resetNewcomerJourney: () => set(() => ({
+        newcomerJourney: { completedDays: [], lastOpenedAt: null },
+      })),
+      // Community Assistant actions
+      setCommunityAssistantMessages: (messages) => set(() => ({
+        communityAssistant: {
+          messages: Array.isArray(messages) ? messages.slice(-60) : [],
+          updatedAt: new Date().toISOString(),
+        },
+      })),
+      clearCommunityAssistant: () => set(() => ({
+        communityAssistant: { messages: [], updatedAt: new Date().toISOString() },
+      })),
+      // Immigration Assistant actions
+      setImmigrationAssistantMessages: (messages) => set(() => ({
+        immigrationAssistant: {
+          messages: Array.isArray(messages) ? messages.slice(-80) : [],
+          updatedAt: new Date().toISOString(),
+        },
+      })),
+      clearImmigrationAssistant: () => set(() => ({
+        immigrationAssistant: { messages: [], updatedAt: new Date().toISOString() },
+      })),
+      // Translator actions
+      setTranslatorPrefs: (prefs) => set((state) => ({
+        translator: {
+          ...state.translator,
+          ...prefs,
+        },
+      })),
+      addTranslatorRecent: (item) => set((state) => {
+        const createdAt = item.createdAt || new Date().toISOString();
+        const next: TranslatorRecentItem = {
+          source: item.source,
+          target: item.target,
+          fromCode: item.fromCode,
+          toCode: item.toCode,
+          createdAt,
+        };
+        const prev = Array.isArray(state.translator.recents) ? state.translator.recents : [];
+        return {
+          translator: {
+            ...state.translator,
+            recents: [next, ...prev].slice(0, 20),
+          },
+        };
+      }),
+      clearTranslatorRecents: () => set((state) => ({
+        translator: { ...state.translator, recents: [] },
+      })),
+      logout: () => set({
+        currentUser: null,
+        isOnboarded: false,
+        isGuest: false,
+        newcomerJourney: { completedDays: [], lastOpenedAt: null },
+        communityAssistant: { messages: [], updatedAt: null },
+        immigrationAssistant: { messages: [], updatedAt: null },
+        translator: { sourceLangCode: 'en', targetLangCode: 'sw', useAi: true, recents: [] },
+      }),
     }),
     {
       name: 'diaspora-storage',
       storage: createJSONStorage(() => AsyncStorage),
-      version: 2,
+      version: 6,
       migrate: (persistedState: any, version: number) => {
         // Backwards compatibility:
         // - feedFilter used to be 'local' | 'global'
@@ -1242,6 +1412,10 @@ export const useStore = create<AppState>()(
         // Ensure defaults
         if (!persistedState?.feedFilter) persistedState.feedFilter = 'city';
         if (!persistedState?.recentNeighborhoodsByCity) persistedState.recentNeighborhoodsByCity = {};
+        if (!persistedState?.newcomerJourney) persistedState.newcomerJourney = { completedDays: [], lastOpenedAt: null };
+        if (!persistedState?.communityAssistant) persistedState.communityAssistant = { messages: [], updatedAt: null };
+        if (!persistedState?.immigrationAssistant) persistedState.immigrationAssistant = { messages: [], updatedAt: null };
+        if (!persistedState?.translator) persistedState.translator = { sourceLangCode: 'en', targetLangCode: 'sw', useAi: true, recents: [] };
         return persistedState;
       },
       partialize: (state) => ({
@@ -1276,6 +1450,10 @@ export const useStore = create<AppState>()(
         recentNeighborhoodsByCity: state.recentNeighborhoodsByCity,
         giftTransactions: state.giftTransactions,
         dailyRewards: state.dailyRewards,
+        newcomerJourney: state.newcomerJourney,
+        communityAssistant: state.communityAssistant,
+        immigrationAssistant: state.immigrationAssistant,
+        translator: state.translator,
       }),
     }
   )

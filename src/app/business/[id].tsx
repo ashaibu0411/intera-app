@@ -12,6 +12,8 @@ import { TrustScoreBadge } from '@/components/TrustScoreBadge';
 import { ReviewHistoryBadge } from '@/components/ReviewHistoryBadge';
 import { getOrCreateConversation } from '@/lib/messages';
 import Animated, { FadeInUp } from 'react-native-reanimated';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { aiSummarizeCard, type AiSummaryResult } from '@/lib/aiSummarizeCard';
 
 interface InventoryItem {
   id: string;
@@ -43,6 +45,8 @@ export default function BusinessDetailScreen() {
   const [loadingInventory, setLoadingInventory] = useState(true);
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
   const [ownerTrustScore, setOwnerTrustScore] = useState<DbUserTrustScore | null>(null);
+  const [aiSummary, setAiSummary] = useState<AiSummaryResult | null>(null);
+  const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
 
   const canInteract = !!currentUser?.id && !isGuest;
 
@@ -71,6 +75,43 @@ export default function BusinessDetailScreen() {
     load().finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [businessId]);
+
+  // Load cached AI summary
+  useEffect(() => {
+    if (!businessId) return;
+    const cacheKey = `ai_summary:business:${businessId}`;
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(cacheKey);
+        if (!raw) return;
+        const parsed = JSON.parse(raw) as AiSummaryResult;
+        if (parsed?.bullets?.length) setAiSummary(parsed);
+      } catch {
+        // ignore
+      }
+    })();
+  }, [businessId]);
+
+  const generateSummary = async () => {
+    if (!business || !businessId || aiSummaryLoading) return;
+    setAiSummaryLoading(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      const res = await aiSummarizeCard({
+        kind: 'business',
+        title: business.name,
+        description: business.description,
+        locationLabel: displayLocation,
+        category: business.category || business.type || undefined,
+      });
+      setAiSummary(res);
+      await AsyncStorage.setItem(`ai_summary:business:${businessId}`, JSON.stringify(res));
+    } catch (e) {
+      console.log('[Business] AI summary error:', e);
+    } finally {
+      setAiSummaryLoading(false);
+    }
+  };
 
   const displayLocation = useMemo(() => business?.location || '', [business]);
 
@@ -237,6 +278,37 @@ export default function BusinessDetailScreen() {
                 )}
               </View>
               <Text className="text-gray-600 mt-2">{business.description}</Text>
+
+              {/* AI Summary */}
+              <View className="mt-4 bg-gray-50 rounded-2xl p-4 border border-gray-100">
+                <View className="flex-row items-center justify-between">
+                  <Text className="text-warmBrown font-bold">AI Summary</Text>
+                  <Pressable onPress={generateSummary} disabled={aiSummaryLoading}>
+                    <Text className={`font-semibold ${aiSummaryLoading ? 'text-gray-400' : 'text-terracotta-500'}`}>
+                      {aiSummary?.bullets?.length ? 'Refresh' : aiSummaryLoading ? 'Working…' : 'Generate'}
+                    </Text>
+                  </Pressable>
+                </View>
+
+                {aiSummary?.bullets?.length ? (
+                  <View className="mt-3">
+                    {aiSummary.bullets.slice(0, 5).map((b, i) => (
+                      <Text key={i} className="text-gray-700 leading-6">
+                        • {b}
+                      </Text>
+                    ))}
+                    {aiSummary.caution ? (
+                      <View className="mt-3 bg-amber-50 border border-amber-200 rounded-xl p-3">
+                        <Text className="text-amber-800 text-sm">{aiSummary.caution}</Text>
+                      </View>
+                    ) : null}
+                  </View>
+                ) : (
+                  <Text className="text-gray-500 mt-2 text-sm">
+                    Tap “Generate” for a quick overview of this business.
+                  </Text>
+                )}
+              </View>
 
               <View className="flex-row items-center mt-3">
                 <Star size={16} color="#C9A227" fill="#C9A227" />
