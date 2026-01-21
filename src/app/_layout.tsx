@@ -4,7 +4,6 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { useEffect, useState, useRef } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
 import { requestNotificationPermissions } from '@/lib/notifications';
@@ -113,6 +112,9 @@ function RootLayoutNav() {
   useEffect(() => {
     if (!isHydrated) return;
     if (segments.length === 0) return;
+
+    // Now that hydration and routing are ready, hide the splash screen.
+    SplashScreen.hideAsync().catch(() => {});
 
     const isLoggedIn = !!currentUser?.id;
     const needsWelcome = !isLoggedIn && !hasSeenWelcome;
@@ -243,10 +245,8 @@ export default function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
       <GestureHandlerRootView style={{ flex: 1 }}>
-        <KeyboardProvider>
-          <StatusBar style="dark" />
-          <RootLayoutNav />
-        </KeyboardProvider>
+        <StatusBar style="dark" />
+        <RootLayoutNav />
       </GestureHandlerRootView>
     </QueryClientProvider>
   );
