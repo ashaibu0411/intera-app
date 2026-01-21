@@ -5,6 +5,10 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://cvizplvfcdfhjlfryrwu.supabase.co';
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN2aXpwbHZmY2RmaGpsZnJ5cnd1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYwODkzMDMsImV4cCI6MjA4MTY2NTMwM30.AEl3xV4Cz_pgmhtlgdcQnjQyyC-vb9b6-1Xjl7IlVMA';
 
+// Exported for Edge Function calls that may need explicit auth headers (guest mode).
+export const SUPABASE_URL = supabaseUrl;
+export const SUPABASE_ANON_KEY = supabaseAnonKey;
+
 // Safe storage wrapper that handles blob errors
 const safeStorage = {
   getItem: async (key: string): Promise<string | null> => {

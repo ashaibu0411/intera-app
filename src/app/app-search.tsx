@@ -9,7 +9,7 @@ import {
   Calendar, DollarSign, Scale, UtensilsCrossed, Camera, MessageCircle,
   Swords, BarChart3, Music2, Radio, Gamepad2, HandCoins, CalendarDays,
   Repeat, Car, Dog, Clock, Home, SearchX, Award, BookOpen, Dumbbell,
-  Brain, Phone, Languages, Leaf, Sparkles, ShoppingCart, Shirt, TrendingUp,
+  Brain, Phone, Languages, Leaf, Sparkles, ShoppingCart, Shirt, TrendingUp, Bot,
   MapPin, Wallet, CreditCard, HelpCircle, Settings, Bell, User, Star,
   UserPlus, CheckCircle, BadgeCheck,
 } from 'lucide-react-native';
@@ -53,6 +53,16 @@ const ICON_COLOR = '#fff';
 
 const APP_FEATURES: AppFeature[] = [
   // Main Features
+  {
+    id: 'community-assistant',
+    name: 'Community Assistant',
+    description: 'Ask local questions, get community-backed answers',
+    route: '/community-assistant',
+    icon: <Bot size={ICON_SIZE} color={ICON_COLOR} />,
+    category: 'Community',
+    keywords: ['ai', 'assistant', 'ask', 'help', 'community', 'local', 'recommendations', 'neighbors'],
+    gradient: ['#10B981', '#059669'],
+  },
   {
     id: 'marketplace',
     name: 'Marketplace',

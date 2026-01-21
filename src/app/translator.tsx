@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { View, Text, ScrollView, Pressable, TextInput, Modal, Alert } from 'react-native';
+import { View, Text, ScrollView, Pressable, TextInput, Modal, Alert, ActivityIndicator } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -19,6 +19,7 @@ import {
 import Animated, { FadeInDown, FadeInUp, useSharedValue, useAnimatedStyle, withRepeat, withTiming, withSequence } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import * as Speech from 'expo-speech';
+import { aiLanguageBridge } from '@/lib/aiLanguageBridge';
 
 interface Language {
   code: string;
@@ -28,7 +29,29 @@ interface Language {
 }
 
 const LANGUAGES: Language[] = [
+  // Top 10 (by total speakers; makes the picker feel universal)
   { code: 'en', name: 'English', nativeName: 'English', flag: '🇺🇸' },
+  { code: 'zh', name: 'Chinese', nativeName: '中文', flag: '🇨🇳' },
+  { code: 'hi', name: 'Hindi', nativeName: 'हिन्दी', flag: '🇮🇳' },
+  { code: 'es', name: 'Spanish', nativeName: 'Español', flag: '🇪🇸' },
+  { code: 'fr', name: 'French', nativeName: 'Français', flag: '🇫🇷' },
+  { code: 'ar', name: 'Arabic', nativeName: 'العربية', flag: '🇪🇬' },
+  { code: 'bn', name: 'Bengali', nativeName: 'বাংলা', flag: '🇧🇩' },
+  { code: 'pt', name: 'Portuguese', nativeName: 'Português', flag: '🇵🇹' },
+  { code: 'ru', name: 'Russian', nativeName: 'Русский', flag: '🇷🇺' },
+  { code: 'id', name: 'Indonesian', nativeName: 'Bahasa Indonesia', flag: '🇮🇩' },
+
+  // Other popular / community languages (still available)
+  { code: 'ur', name: 'Urdu', nativeName: 'اردو', flag: '🇵🇰' },
+  { code: 'pa', name: 'Punjabi', nativeName: 'ਪੰਜਾਬੀ', flag: '🇮🇳' },
+  { code: 'de', name: 'German', nativeName: 'Deutsch', flag: '🇩🇪' },
+  { code: 'it', name: 'Italian', nativeName: 'Italiano', flag: '🇮🇹' },
+  { code: 'nl', name: 'Dutch', nativeName: 'Nederlands', flag: '🇳🇱' },
+  { code: 'tr', name: 'Turkish', nativeName: 'Türkçe', flag: '🇹🇷' },
+  { code: 'ja', name: 'Japanese', nativeName: '日本語', flag: '🇯🇵' },
+  { code: 'ko', name: 'Korean', nativeName: '한국어', flag: '🇰🇷' },
+
+  // African languages (core to Intera’s mission)
   { code: 'sw', name: 'Swahili', nativeName: 'Kiswahili', flag: '🇰🇪' },
   { code: 'yo', name: 'Yoruba', nativeName: 'Yorùbá', flag: '🇳🇬' },
   { code: 'ig', name: 'Igbo', nativeName: 'Igbo', flag: '🇳🇬' },
@@ -38,9 +61,6 @@ const LANGUAGES: Language[] = [
   { code: 'zu', name: 'Zulu', nativeName: 'isiZulu', flag: '🇿🇦' },
   { code: 'xh', name: 'Xhosa', nativeName: 'isiXhosa', flag: '🇿🇦' },
   { code: 'tw', name: 'Twi', nativeName: 'Twi', flag: '🇬🇭' },
-  { code: 'fr', name: 'French', nativeName: 'Français', flag: '🇫🇷' },
-  { code: 'pt', name: 'Portuguese', nativeName: 'Português', flag: '🇵🇹' },
-  { code: 'ar', name: 'Arabic', nativeName: 'العربية', flag: '🇪🇬' },
   { code: 'so', name: 'Somali', nativeName: 'Soomaali', flag: '🇸🇴' },
   { code: 'rw', name: 'Kinyarwanda', nativeName: 'Ikinyarwanda', flag: '🇷🇼' },
 ];
@@ -277,6 +297,11 @@ export default function TranslatorScreen() {
   const router = useRouter();
   const [sourceText, setSourceText] = useState('');
   const [translatedText, setTranslatedText] = useState('');
+  const [toneNotes, setToneNotes] = useState<string[]>([]);
+  const [culturalNotes, setCulturalNotes] = useState<string[]>([]);
+  const [romanization, setRomanization] = useState<string | null>(null);
+  const [isAiTranslating, setIsAiTranslating] = useState(false);
+  const [useAi, setUseAi] = useState(true);
   const [sourceLang, setSourceLang] = useState<Language>(LANGUAGES[0]);
   const [targetLang, setTargetLang] = useState<Language>(LANGUAGES[1]);
   const [showSourcePicker, setShowSourcePicker] = useState(false);
@@ -307,17 +332,54 @@ export default function TranslatorScreen() {
     transform: [{ scale: pulseScale.value }],
   }));
 
-  const translate = (text: string) => {
+  const translate = async (text: string) => {
     if (!text.trim()) {
       setTranslatedText('');
+      setToneNotes([]);
+      setCulturalNotes([]);
+      setRomanization(null);
+      return;
+    }
+
+    if (sourceLang.code === targetLang.code) {
+      setTranslatedText(text.trim());
+      setToneNotes([]);
+      setCulturalNotes([]);
+      setRomanization(null);
       return;
     }
 
     const lowerText = text.toLowerCase().trim();
 
+    // AI translation path (preferred)
+    if (useAi) {
+      setIsAiTranslating(true);
+      try {
+        const res = await aiLanguageBridge({
+          text,
+          sourceLang: sourceLang.code,
+          targetLang: targetLang.code,
+          context: 'chat',
+        });
+        setTranslatedText(res.translation);
+        setToneNotes(res.tone_notes || []);
+        setCulturalNotes(res.cultural_notes || []);
+        setRomanization(res.romanization ?? null);
+        return;
+      } catch (e) {
+        // Fall back to local dictionary if Edge Function isn't deployed yet.
+        console.log('[Translator] AI translation failed, falling back to local dictionary:', e);
+      } finally {
+        setIsAiTranslating(false);
+      }
+    }
+
     // Check for exact matches first
     if (TRANSLATIONS[lowerText] && TRANSLATIONS[lowerText][targetLang.code]) {
       setTranslatedText(TRANSLATIONS[lowerText][targetLang.code]);
+      setToneNotes([]);
+      setCulturalNotes([]);
+      setRomanization(null);
       return;
     }
 
@@ -326,24 +388,31 @@ export default function TranslatorScreen() {
       if (lowerText.includes(phrase) && translations[targetLang.code]) {
         const translated = lowerText.replace(phrase, translations[targetLang.code]);
         setTranslatedText(translated);
+        setToneNotes([]);
+        setCulturalNotes([]);
+        setRomanization(null);
         return;
       }
     }
 
     // If no match found, show a helpful message
     setTranslatedText(`[Translation: ${text}]`);
+    setToneNotes([]);
+    setCulturalNotes([]);
+    setRomanization(null);
   };
 
-  const handleTranslate = () => {
+  const handleTranslate = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    translate(sourceText);
-
-    if (sourceText.trim() && translatedText) {
-      setRecentTranslations(prev => [
-        { source: sourceText, target: translatedText, from: sourceLang, to: targetLang },
-        ...prev.slice(0, 4),
-      ]);
-    }
+    const before = sourceText.trim();
+    if (!before) return;
+    const prev = translatedText;
+    await translate(before);
+    // Add to recents (best-effort) after state updates
+    setRecentTranslations(prevList => [
+      { source: before, target: prev || translatedText || '', from: sourceLang, to: targetLang },
+      ...prevList.slice(0, 4),
+    ].filter((x) => x.target));
   };
 
   const swapLanguages = () => {
@@ -539,6 +608,16 @@ export default function TranslatorScreen() {
           <View className="flex-row items-center justify-between mb-2">
             <Text className="text-emerald-200 text-sm">{targetLang.name}</Text>
             <View className="flex-row">
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setUseAi((v) => !v);
+                }}
+                className={`px-3 py-2 rounded-full mr-1 flex-row items-center ${useAi ? 'bg-white/15' : 'bg-white/5'}`}
+              >
+                <Sparkles size={16} color={useAi ? '#4ADE80' : 'white'} />
+                <Text className="text-white ml-2 text-sm">{useAi ? 'AI' : 'Basic'}</Text>
+              </Pressable>
               <Pressable onPress={speakTranslation} className="p-2 mr-1">
                 <Volume2 size={20} color="white" />
               </Pressable>
@@ -549,8 +628,38 @@ export default function TranslatorScreen() {
           </View>
 
           <View className="bg-white/10 rounded-xl p-4 min-h-[100px]">
-            {translatedText ? (
-              <Text className="text-white text-lg">{translatedText}</Text>
+            {isAiTranslating ? (
+              <View className="flex-row items-center">
+                <ActivityIndicator color="#ffffff" />
+                <Text className="text-white/80 ml-3">Translating…</Text>
+              </View>
+            ) : translatedText ? (
+              <View>
+                <Text className="text-white text-lg">{translatedText}</Text>
+                {romanization ? (
+                  <Text className="text-emerald-100 mt-2">{romanization}</Text>
+                ) : null}
+                {toneNotes.length ? (
+                  <View className="mt-3">
+                    <Text className="text-emerald-200 text-xs font-semibold">TONE</Text>
+                    {toneNotes.slice(0, 3).map((t, i) => (
+                      <Text key={i} className="text-white/90 mt-1">
+                        • {t}
+                      </Text>
+                    ))}
+                  </View>
+                ) : null}
+                {culturalNotes.length ? (
+                  <View className="mt-3">
+                    <Text className="text-emerald-200 text-xs font-semibold">CULTURE</Text>
+                    {culturalNotes.slice(0, 3).map((t, i) => (
+                      <Text key={i} className="text-white/90 mt-1">
+                        • {t}
+                      </Text>
+                    ))}
+                  </View>
+                ) : null}
+              </View>
             ) : (
               <Text className="text-white/50 text-lg">Translation will appear here...</Text>
             )}

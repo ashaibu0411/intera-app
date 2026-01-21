@@ -1,26 +1,56 @@
 /**
  * LiveKit Wrapper
  *
- * LiveKit is not currently available in Vibecode.
- * This wrapper provides stub functions so the voice room UI can work
- * without the native LiveKit module.
- *
- * When LiveKit becomes available:
- * 1. Add @livekit/react-native to package.json
- * 2. Update this file to dynamically import it
+ * Loads `@livekit/react-native` lazily so Metro doesn't crash when
+ * native modules aren't present (Expo Go, web, etc.).
  */
 
 import React, { ReactNode } from 'react';
+import { Platform } from 'react-native';
 
-// LiveKit is not currently installed
-const liveKitAvailable = false;
+const isWeb = Platform.OS === 'web';
 
-// Re-export stub hook
+let LiveKitRoomComponent:
+  | React.ComponentType<{
+      serverUrl: string;
+      token: string;
+      connect: boolean;
+      audio: boolean;
+      video: boolean;
+      children?: ReactNode;
+    }>
+  | null = null;
+
+let _useRoomContext: (() => unknown) | null = null;
+let _initialized = false;
+let _available = false;
+
+function initializeLiveKit() {
+  if (_initialized) return;
+  _initialized = true;
+
+  try {
+    if (isWeb) {
+      _available = false;
+      return;
+    }
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const livekit = require('@livekit/react-native');
+    LiveKitRoomComponent = livekit.LiveKitRoom;
+    _useRoomContext = livekit.useRoomContext;
+    _available = true;
+  } catch (e) {
+    console.log('[LiveKit] Not available in this build:', String((e as any)?.message ?? e));
+    _available = false;
+  }
+}
+
 export function useRoomContext(): unknown {
+  initializeLiveKit();
+  if (_available && _useRoomContext) return _useRoomContext();
   return null;
 }
 
-// Props for our wrapper component
 interface LiveKitRoomWrapperProps {
   serverUrl: string;
   token: string;
@@ -30,15 +60,27 @@ interface LiveKitRoomWrapperProps {
   children: ReactNode;
 }
 
-// Export a safe LiveKitRoom wrapper that just renders children
 export function LiveKitRoom({
-  children
+  serverUrl,
+  token,
+  connect,
+  audio,
+  video,
+  children,
 }: LiveKitRoomWrapperProps): React.ReactElement {
-  // LiveKit is not available, just render children
+  initializeLiveKit();
+  if (_available && LiveKitRoomComponent) {
+    const LK = LiveKitRoomComponent;
+    return (
+      <LK serverUrl={serverUrl} token={token} connect={connect} audio={audio} video={video}>
+        {children}
+      </LK>
+    );
+  }
   return <>{children}</>;
 }
 
-// Check if LiveKit is available
 export function isLiveKitAvailable(): boolean {
-  return liveKitAvailable;
+  initializeLiveKit();
+  return _available;
 }
