@@ -23,6 +23,7 @@ import { useStore, MOCK_COMMENTS, type Post } from '@/lib/store';
 import { getCommentsCount, getLikesCount, likePost, unlikePost, checkIfLiked } from '@/lib/posts';
 import { StoryAvatar } from '@/components/StoryAvatar';
 import { reportPost } from '@/lib/reports';
+import { extractVoiceRoomIdFromText, stripVoiceRoomMarkers } from '@/lib/voiceRoomMarkers';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -630,7 +631,9 @@ export function PostCard({ post, onLike, onComment, onShare, showGuidelines = fa
   });
 
   const orgHeader = parseOrgHeader(post.content);
-  const displayContent = orgHeader?.body || post.content;
+  const rawContent = orgHeader?.body || post.content;
+  const voiceRoomId = extractVoiceRoomIdFromText(rawContent);
+  const displayContent = stripVoiceRoomMarkers(rawContent);
 
   // Detect post type and get impact text (ignore org header line)
   const postType = detectPostType(displayContent);
@@ -735,6 +738,37 @@ export function PostCard({ post, onLike, onComment, onShare, showGuidelines = fa
       <View className="px-4 pb-3">
         <Text className="text-warmBrown text-lg leading-7">{displayContent}</Text>
       </View>
+
+      {/* Voice room recap CTA */}
+      {voiceRoomId ? (
+        <View className="px-4 pb-3">
+          <View className="bg-forest-50 border border-forest-200 rounded-2xl p-3">
+            <Text className="text-forest-900 font-bold">From a Voice Room</Text>
+            <View className="flex-row mt-2">
+              <Pressable
+                onPress={(e: any) => {
+                  e?.stopPropagation?.();
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  router.push(`/voice-room/${voiceRoomId}` as any);
+                }}
+                className="flex-1 bg-forest-700 rounded-xl px-4 py-2.5 items-center mr-2"
+              >
+                <Text className="text-white font-semibold">Open room</Text>
+              </Pressable>
+              <Pressable
+                onPress={(e: any) => {
+                  e?.stopPropagation?.();
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  router.push(`/voice-room-recap/${voiceRoomId}` as any);
+                }}
+                className="flex-1 bg-white border border-forest-300 rounded-xl px-4 py-2.5 items-center"
+              >
+                <Text className="text-forest-900 font-semibold">Recap</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      ) : null}
 
       {/* Image with double-tap to like */}
       {post.images.length > 0 && (

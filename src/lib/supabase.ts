@@ -471,6 +471,12 @@ export interface DbVoiceRoom {
   starts_at: string | null;
   ended_at: string | null;
   expires_at?: string | null;
+  pinned_title?: string | null;
+  pinned_route?: string | null;
+  rules?: string | null;
+  resources?: string[]; // text[]
+  require_speaker_approval?: boolean;
+  record_highlights?: boolean;
   provider: string;
   provider_room_name: string;
   created_at: string;
@@ -492,7 +498,35 @@ export interface DbVoiceRoomHandRaise {
   id: string;
   room_id: string;
   user_id: string;
+  intent?: 'question' | 'insight' | 'announcement' | 'testimony' | null;
   created_at: string;
+}
+
+export interface DbVoiceRoomReaction {
+  id: string;
+  room_id: string;
+  user_id: string;
+  kind: 'agree' | 'heart' | 'clap' | 'fire';
+  created_at: string;
+}
+
+export interface DbVoiceRoomNote {
+  id: string;
+  room_id: string;
+  user_id: string;
+  content: string;
+  created_at: string;
+}
+
+export interface DbVoiceRoomRecap {
+  id: string;
+  room_id: string;
+  created_by: string;
+  summary: string;
+  highlights: string[];
+  published: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 // Community Groups (Churches, Associations, etc.)

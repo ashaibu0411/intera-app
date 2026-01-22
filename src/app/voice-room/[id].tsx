@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, Pressable, ActivityIndicator, ScrollView, Modal, Alert, Linking } from 'react-native';
+import { View, Text, Pressable, ActivityIndicator, ScrollView, Modal, Alert, Linking, TextInput } from 'react-native';
 import { Stack, useLocalSearchParams, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import * as Haptics from 'expo-haptics';
-import { Mic, MicOff, Hand, Gift, Crown, UserPlus, X, Users, AudioLines, Trash2, Square, ChevronDown, Volume2, VolumeX, UserMinus, MoreVertical } from 'lucide-react-native';
+import { Mic, MicOff, Hand, Gift, Crown, UserPlus, X, Users, AudioLines, Trash2, Square, ChevronDown, Volume2, VolumeX, UserMinus, MoreVertical, HelpCircle, Lightbulb, Megaphone, Sparkles, Pin, FileText, MessageSquare, ThumbsUp, Flame, HeartHandshake, HandClap } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Audio } from 'expo-av';
 import { useStore } from '@/lib/store';
@@ -17,13 +17,21 @@ import {
   leaveRoom,
   lowerHand,
   raiseHand,
+  restartVoiceRoom,
+  updateVoiceRoomContext,
+  sendReaction,
+  getReactionCounts,
+  sendNoteToHost,
+  listNotes,
+  getRecap,
   upsertParticipant,
   updateParticipantRole,
   listParticipantsWithProfiles,
   muteParticipant,
   kickParticipant,
   demoteToListener,
-  type ParticipantWithProfile
+  type ParticipantWithProfile,
+  type HandRaiseIntent
 } from '@/lib/voiceRooms';
 import { sendGift } from '@/lib/giftService';
 import { LiveKitRoom, useRoomContext, isLiveKitAvailable } from '@/lib/livekit-wrapper';
@@ -248,6 +256,21 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
   const [joinNonce, setJoinNonce] = useState(0);
   const [loading, setLoading] = useState(true);
   const [micEnabled, setMicEnabled] = useState(false);
+  const [intentOpen, setIntentOpen] = useState(false);
+  const [contextOpen, setContextOpen] = useState(false);
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [noteText, setNoteText] = useState('');
+  const [notesOpen, setNotesOpen] = useState(false);
+  const [notes, setNotes] = useState<Array<{ id: string; user_id: string; content: string; created_at: string }>>([]);
+  const [reactions, setReactions] = useState<{ agree: number; heart: number; clap: number; fire: number }>({
+    agree: 0, heart: 0, clap: 0, fire: 0,
+  });
+  const [recap, setRecap] = useState<any>(null);
+
+  const [ctxPinnedTitle, setCtxPinnedTitle] = useState('');
+  const [ctxPinnedRoute, setCtxPinnedRoute] = useState('');
+  const [ctxRules, setCtxRules] = useState('');
+  const [ctxResources, setCtxResources] = useState('');
 
   const liveKitEnabled = isLiveKitAvailable();
 
@@ -332,6 +355,51 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
     })();
 
     return () => { supabase.removeChannel(channel); };
+  }, [id]);
+
+  // Load reactions + subscribe to reaction inserts
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+
+    const loadCounts = async () => {
+      try {
+        const counts = await getReactionCounts(id);
+        if (!cancelled) setReactions(counts);
+      } catch {}
+    };
+
+    const channel = supabase
+      .channel(`voice-room-reactions:${id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'voice_room_reactions', filter: `room_id=eq.${id}` }, loadCounts)
+      .subscribe();
+
+    loadCounts();
+    return () => {
+      cancelled = true;
+      supabase.removeChannel(channel);
+    };
+  }, [id]);
+
+  // Load recap (public or host) + subscribe to changes
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const r = await getRecap(id);
+        if (!cancelled) setRecap(r);
+      } catch {}
+    };
+    const channel = supabase
+      .channel(`voice-room-recap:${id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'voice_room_recaps', filter: `room_id=eq.${id}` }, load)
+      .subscribe();
+    load();
+    return () => {
+      cancelled = true;
+      supabase.removeChannel(channel);
+    };
   }, [id]);
 
   // Subscribe to gifts
@@ -451,7 +519,13 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const already = !!hands.find((h) => h.user_id === currentUser.id);
     if (already) await lowerHand(id, currentUser.id);
-    else await raiseHand(id, currentUser.id);
+    else setIntentOpen(true);
+  };
+
+  const submitRaiseIntent = async (intent: HandRaiseIntent) => {
+    if (!id || !currentUser?.id) return;
+    setIntentOpen(false);
+    await raiseHand(id, currentUser.id, intent);
   };
 
   const promote = async (userId: string) => {
@@ -609,10 +683,29 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
         text: 'End room',
         style: 'destructive',
         onPress: async () => {
-          try { await endVoiceRoom(room.id); } finally { goBack(); }
+          try {
+            await endVoiceRoom(room.id);
+            router.replace(`/voice-room-recap/${room.id}` as any);
+          } catch {
+            goBack();
+          }
         },
       },
     ]);
+  };
+
+  const hostReopenRoom = async () => {
+    if (!room?.id) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      await restartVoiceRoom(room.id);
+      // Reload room + force token refresh
+      const { data } = await supabase.from('voice_rooms').select('*').eq('id', room.id).single();
+      setRoom((data as DbVoiceRoom) ?? null);
+      setJoinNonce((n) => n + 1);
+    } catch (e: any) {
+      Alert.alert('Could not reopen room', String(e?.message ?? e));
+    }
   };
 
   const hostDeleteRoom = async () => {
@@ -642,6 +735,18 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
     return { ...h, profile: participant?.profile };
   });
 
+  const intentLabel = (intent?: string | null) =>
+    intent === 'insight' ? 'Insight'
+    : intent === 'announcement' ? 'Announcement'
+    : intent === 'testimony' ? 'Testimony'
+    : 'Question';
+
+  const intentIcon = (intent?: string | null) =>
+    intent === 'insight' ? Lightbulb
+    : intent === 'announcement' ? Megaphone
+    : intent === 'testimony' ? Sparkles
+    : HelpCircle;
+
   return (
     <View className="flex-1 bg-cream">
       <Stack.Screen
@@ -668,6 +773,19 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
           </View>
         ) : (
           <>
+            {/* Room ended banner */}
+            {room.status === 'ended' ? (
+              <View className="mx-4 mt-3 bg-gray-100 border border-gray-200 rounded-2xl p-4">
+                <Text className="text-warmBrown font-bold">This room has ended</Text>
+                <Text className="text-gray-600 mt-1">Hosts can reopen it anytime.</Text>
+                {isHost ? (
+                  <Pressable onPress={hostReopenRoom} className="mt-3 bg-forest-700 rounded-xl px-4 py-3 items-center">
+                    <Text className="text-white font-semibold">Reopen room</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            ) : null}
+
             {/* Header Card */}
             <View className="mx-4 mt-2 bg-white rounded-2xl p-4 shadow-sm">
               <View className="flex-row items-start justify-between">
@@ -701,6 +819,73 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
                   <Text className="text-gray-600 font-medium">Leave</Text>
                 </Pressable>
               </View>
+            </View>
+
+            {/* Context Panel */}
+            <View className="mx-4 mt-3 bg-white rounded-2xl p-4 border border-gray-100">
+              <View className="flex-row items-center justify-between">
+                <View className="flex-row items-center">
+                  <Pin size={16} color="#1B4D3E" />
+                  <Text className="text-warmBrown font-bold ml-2">Context</Text>
+                </View>
+                {isHost ? (
+                  <Pressable
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setCtxPinnedTitle(String((room as any).pinned_title || ''));
+                      setCtxPinnedRoute(String((room as any).pinned_route || ''));
+                      setCtxRules(String((room as any).rules || ''));
+                      setCtxResources(((room as any).resources || []).join('\n'));
+                      setContextOpen(true);
+                    }}
+                  >
+                    <Text className="text-terracotta-500 font-semibold">Edit</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+
+              {room.description ? (
+                <Text className="text-gray-700 mt-2 leading-6">{room.description}</Text>
+              ) : (
+                <Text className="text-gray-500 mt-2">No description yet.</Text>
+              )}
+
+              {(room as any).pinned_title && (room as any).pinned_route ? (
+                <Pressable
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    router.push(String((room as any).pinned_route) as any);
+                  }}
+                  className="mt-3 bg-forest-50 border border-forest-200 rounded-xl p-3"
+                >
+                  <View className="flex-row items-center">
+                    <FileText size={16} color="#1B4D3E" />
+                    <Text className="text-forest-800 font-semibold ml-2">Pinned: {String((room as any).pinned_title)}</Text>
+                  </View>
+                </Pressable>
+              ) : null}
+
+              {Array.isArray((room as any).resources) && (room as any).resources.length > 0 ? (
+                <View className="mt-3">
+                  <Text className="text-gray-500 text-sm font-medium">Resources</Text>
+                  {((room as any).resources as string[]).slice(0, 4).map((u) => (
+                    <Pressable
+                      key={u}
+                      onPress={() => Linking.openURL(u).catch(() => null)}
+                      className="mt-2 bg-gray-50 border border-gray-100 rounded-xl p-3"
+                    >
+                      <Text className="text-terracotta-500 font-semibold" numberOfLines={1}>{u}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              ) : null}
+
+              {(room as any).rules ? (
+                <View className="mt-3 bg-amber-50 border border-amber-200 rounded-xl p-3">
+                  <Text className="text-amber-800 font-semibold">Room rules</Text>
+                  <Text className="text-amber-800 mt-1">{String((room as any).rules)}</Text>
+                </View>
+              ) : null}
             </View>
 
             {/* LiveKit Connection */}
@@ -750,6 +935,25 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
             )}
 
             <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 200 }} showsVerticalScrollIndicator={false}>
+              {/* Recap card (if published or host) */}
+              {recap?.summary ? (
+                <View className="px-4 mt-4">
+                  <View className="bg-white rounded-2xl p-4 border border-gray-100">
+                    <View className="flex-row items-center justify-between">
+                      <Text className="text-warmBrown font-bold">Recap</Text>
+                      <Pressable
+                        onPress={() => router.push(`/voice-room-recap/${id}` as any)}
+                      >
+                        <Text className="text-terracotta-500 font-semibold">Open</Text>
+                      </Pressable>
+                    </View>
+                    <Text className="text-gray-700 leading-6 mt-2" numberOfLines={4}>
+                      {recap.summary}
+                    </Text>
+                  </View>
+                </View>
+              ) : null}
+
               {/* Stage Section */}
               <View className="px-4 mt-4">
                 <Text className="text-warmBrown font-bold text-lg mb-3">On Stage</Text>
@@ -787,6 +991,12 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
                           <Text className="text-warmBrown font-medium ml-2">
                             {h.profile?.name || 'Anonymous'}
                           </Text>
+                          <View className="ml-2 bg-white/80 border border-gold-200 rounded-full px-2 py-1 flex-row items-center">
+                            {React.createElement(intentIcon((h as any).intent), { size: 12, color: '#92400E' })}
+                            <Text className="text-amber-800 text-xs font-semibold ml-1">
+                              {intentLabel((h as any).intent)}
+                            </Text>
+                          </View>
                         </View>
                         <Pressable
                           onPress={() => promote(h.user_id)}
@@ -913,7 +1123,253 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
                   </Text>
                 </Pressable>
               </View>
+
+              {/* Silent participation */}
+              <View className="flex-row mt-3 gap-2">
+                <Pressable
+                  onPress={async () => {
+                    if (!currentUser?.id || !id) return;
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    try { await sendReaction(id, currentUser.id, 'agree'); } catch {}
+                  }}
+                  className="flex-1 bg-white border border-gray-200 rounded-xl py-3 flex-row items-center justify-center"
+                >
+                  <ThumbsUp size={16} color="#1B4D3E" />
+                  <Text className="text-warmBrown font-semibold ml-2">Agree</Text>
+                  <Text className="text-gray-500 font-semibold ml-2">{reactions.agree || 0}</Text>
+                </Pressable>
+                <Pressable
+                  onPress={async () => {
+                    if (!currentUser?.id || !id) return;
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    try { await sendReaction(id, currentUser.id, 'heart'); } catch {}
+                  }}
+                  className="w-16 bg-white border border-gray-200 rounded-xl py-3 items-center justify-center"
+                >
+                  <HeartHandshake size={18} color="#C45C26" />
+                  <Text className="text-gray-500 font-semibold text-xs mt-1">{reactions.heart || 0}</Text>
+                </Pressable>
+                <Pressable
+                  onPress={async () => {
+                    if (!currentUser?.id || !id) return;
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    try { await sendReaction(id, currentUser.id, 'clap'); } catch {}
+                  }}
+                  className="w-16 bg-white border border-gray-200 rounded-xl py-3 items-center justify-center"
+                >
+                  <HandClap size={18} color="#C9A227" />
+                  <Text className="text-gray-500 font-semibold text-xs mt-1">{reactions.clap || 0}</Text>
+                </Pressable>
+                <Pressable
+                  onPress={async () => {
+                    if (!currentUser?.id || !id) return;
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    try { await sendReaction(id, currentUser.id, 'fire'); } catch {}
+                  }}
+                  className="w-16 bg-white border border-gray-200 rounded-xl py-3 items-center justify-center"
+                >
+                  <Flame size={18} color="#DC2626" />
+                  <Text className="text-gray-500 font-semibold text-xs mt-1">{reactions.fire || 0}</Text>
+                </Pressable>
+              </View>
+
+              {/* Note to host */}
+              <View className="flex-row mt-3 gap-2">
+                <Pressable
+                  onPress={() => {
+                    if (!currentUser?.id) {
+                      Alert.alert('Sign in required', 'Please sign in to send a note.');
+                      return;
+                    }
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setNoteOpen(true);
+                  }}
+                  className="flex-1 bg-white border border-gray-200 rounded-xl py-3 flex-row items-center justify-center"
+                >
+                  <MessageSquare size={16} color="#2D1F1A" />
+                  <Text className="text-warmBrown font-medium ml-2">Note to host</Text>
+                </Pressable>
+                {isHost ? (
+                  <Pressable
+                    onPress={async () => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      try {
+                        const n = await listNotes(id, 50);
+                        setNotes(n);
+                        setNotesOpen(true);
+                      } catch (e: any) {
+                        Alert.alert('Could not load notes', String(e?.message ?? e));
+                      }
+                    }}
+                    className="bg-forest-600 rounded-xl px-4 py-3 flex-row items-center justify-center"
+                  >
+                    <Text className="text-white font-semibold">View notes</Text>
+                  </Pressable>
+                ) : null}
+              </View>
             </View>
+
+            {/* Context edit modal */}
+            <Modal visible={contextOpen} transparent animationType="slide" onRequestClose={() => setContextOpen(false)}>
+              <Pressable className="flex-1 bg-black/40" onPress={() => setContextOpen(false)}>
+                <View className="flex-1 justify-end">
+                  <Pressable onPress={(e) => e.stopPropagation()}>
+                    <View className="bg-cream rounded-t-3xl p-5">
+                      <View className="flex-row items-center justify-between mb-3">
+                        <Text className="text-warmBrown font-bold text-lg">Edit room context</Text>
+                        <Pressable onPress={() => setContextOpen(false)}>
+                          <X size={22} color="#2D1F1A" />
+                        </Pressable>
+                      </View>
+
+                      <Text className="text-gray-500 text-sm">Pinned title</Text>
+                      <TextInput value={ctxPinnedTitle} onChangeText={setCtxPinnedTitle} className="mt-2 bg-white border border-gray-200 rounded-xl px-4 py-3 text-warmBrown" />
+
+                      <Text className="text-gray-500 text-sm mt-3">Pinned route (example: /event/uuid)</Text>
+                      <TextInput value={ctxPinnedRoute} onChangeText={setCtxPinnedRoute} autoCapitalize="none" className="mt-2 bg-white border border-gray-200 rounded-xl px-4 py-3 text-warmBrown" />
+
+                      <Text className="text-gray-500 text-sm mt-3">Room rules</Text>
+                      <TextInput value={ctxRules} onChangeText={setCtxRules} multiline className="mt-2 bg-white border border-gray-200 rounded-xl px-4 py-3 text-warmBrown" style={{ minHeight: 80, textAlignVertical: 'top' }} />
+
+                      <Text className="text-gray-500 text-sm mt-3">Resources (one URL per line)</Text>
+                      <TextInput value={ctxResources} onChangeText={setCtxResources} multiline autoCapitalize="none" className="mt-2 bg-white border border-gray-200 rounded-xl px-4 py-3 text-warmBrown" style={{ minHeight: 80, textAlignVertical: 'top' }} />
+
+                      <Pressable
+                        onPress={async () => {
+                          if (!room?.id) return;
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                          try {
+                            const resources = ctxResources
+                              .split('\n')
+                              .map((s) => s.trim())
+                              .filter(Boolean);
+                            await updateVoiceRoomContext(room.id, {
+                              pinned_title: ctxPinnedTitle.trim() || null,
+                              pinned_route: ctxPinnedRoute.trim() || null,
+                              rules: ctxRules.trim() || null,
+                              resources,
+                            } as any);
+                            const { data } = await supabase.from('voice_rooms').select('*').eq('id', room.id).single();
+                            setRoom((data as DbVoiceRoom) ?? null);
+                            setContextOpen(false);
+                          } catch (e: any) {
+                            Alert.alert('Could not save context', String(e?.message ?? e));
+                          }
+                        }}
+                        className="mt-4 bg-forest-700 rounded-xl py-3 items-center"
+                      >
+                        <Text className="text-white font-semibold">Save</Text>
+                      </Pressable>
+                    </View>
+                  </Pressable>
+                </View>
+              </Pressable>
+            </Modal>
+
+            {/* Note-to-host modal */}
+            <Modal visible={noteOpen} transparent animationType="slide" onRequestClose={() => setNoteOpen(false)}>
+              <Pressable className="flex-1 bg-black/40" onPress={() => setNoteOpen(false)}>
+                <View className="flex-1 justify-end">
+                  <Pressable onPress={(e) => e.stopPropagation()}>
+                    <View className="bg-cream rounded-t-3xl p-5">
+                      <View className="flex-row items-center justify-between mb-3">
+                        <Text className="text-warmBrown font-bold text-lg">Note to host</Text>
+                        <Pressable onPress={() => setNoteOpen(false)}>
+                          <X size={22} color="#2D1F1A" />
+                        </Pressable>
+                      </View>
+                      <TextInput
+                        value={noteText}
+                        onChangeText={setNoteText}
+                        placeholder="Send a short note (question, request, etc.)"
+                        placeholderTextColor="#9CA3AF"
+                        multiline
+                        className="bg-white border border-gray-200 rounded-xl px-4 py-3 text-warmBrown"
+                        style={{ minHeight: 110, textAlignVertical: 'top' }}
+                      />
+                      <Pressable
+                        onPress={async () => {
+                          if (!currentUser?.id || !id) return;
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                          try {
+                            await sendNoteToHost(id, currentUser.id, noteText);
+                            setNoteText('');
+                            setNoteOpen(false);
+                          } catch (e: any) {
+                            Alert.alert('Could not send note', String(e?.message ?? e));
+                          }
+                        }}
+                        className="mt-4 bg-terracotta-500 rounded-xl py-3 items-center"
+                      >
+                        <Text className="text-white font-semibold">Send</Text>
+                      </Pressable>
+                    </View>
+                  </Pressable>
+                </View>
+              </Pressable>
+            </Modal>
+
+            {/* Notes list modal (host/mod) */}
+            <Modal visible={notesOpen} transparent animationType="slide" onRequestClose={() => setNotesOpen(false)}>
+              <Pressable className="flex-1 bg-black/40" onPress={() => setNotesOpen(false)}>
+                <View className="flex-1 justify-end">
+                  <Pressable onPress={(e) => e.stopPropagation()}>
+                    <View className="bg-cream rounded-t-3xl p-5 max-h-[70%]">
+                      <View className="flex-row items-center justify-between mb-3">
+                        <Text className="text-warmBrown font-bold text-lg">Notes</Text>
+                        <Pressable onPress={() => setNotesOpen(false)}>
+                          <X size={22} color="#2D1F1A" />
+                        </Pressable>
+                      </View>
+                      <ScrollView showsVerticalScrollIndicator={false}>
+                        {notes.length === 0 ? (
+                          <Text className="text-gray-500">No notes yet.</Text>
+                        ) : (
+                          notes.map((n) => (
+                            <View key={n.id} className="bg-white border border-gray-100 rounded-xl p-3 mb-2">
+                              <Text className="text-gray-700">{n.content}</Text>
+                              <Text className="text-gray-400 text-xs mt-2">{new Date(n.created_at).toLocaleString()}</Text>
+                            </View>
+                          ))
+                        )}
+                      </ScrollView>
+                    </View>
+                  </Pressable>
+                </View>
+              </Pressable>
+            </Modal>
+
+            {/* Intent picker modal */}
+            <Modal visible={intentOpen} transparent animationType="fade" onRequestClose={() => setIntentOpen(false)}>
+              <Pressable className="flex-1 bg-black/40 items-center justify-center px-5" onPress={() => setIntentOpen(false)}>
+                <Pressable onPress={(e) => e.stopPropagation()} className="w-full">
+                  <View className="bg-cream rounded-3xl p-5">
+                    <Text className="text-warmBrown font-bold text-xl">Raise hand as…</Text>
+                    <Text className="text-gray-500 mt-1">Choose why you want to speak so the host knows.</Text>
+
+                    {([
+                      { id: 'question' as const, label: 'Question', icon: HelpCircle },
+                      { id: 'insight' as const, label: 'Insight', icon: Lightbulb },
+                      { id: 'announcement' as const, label: 'Announcement', icon: Megaphone },
+                      { id: 'testimony' as const, label: 'Testimony / Story', icon: Sparkles },
+                    ]).map((o) => (
+                      <Pressable
+                        key={o.id}
+                        onPress={() => submitRaiseIntent(o.id)}
+                        className="mt-3 bg-white border border-gray-200 rounded-2xl p-4 flex-row items-center"
+                      >
+                        <o.icon size={18} color="#1B4D3E" />
+                        <Text className="text-warmBrown font-semibold ml-3">{o.label}</Text>
+                      </Pressable>
+                    ))}
+
+                    <Pressable onPress={() => setIntentOpen(false)} className="mt-4 bg-gray-100 rounded-xl p-4 items-center">
+                      <Text className="text-gray-600 font-medium">Cancel</Text>
+                    </Pressable>
+                  </View>
+                </Pressable>
+              </Pressable>
+            </Modal>
 
             {/* Gifts Modal */}
             <Modal visible={giftsOpen} transparent animationType="slide" onRequestClose={() => setGiftsOpen(false)}>

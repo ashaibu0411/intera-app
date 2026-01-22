@@ -48,6 +48,7 @@ import { aiModerateContent } from '@/lib/aiModerateContent';
 import { translateForUi } from '@/lib/aiUiTranslate';
 import { aiReplyCopilot } from '@/lib/aiReplyCopilot';
 import { aiPostCopilot } from '@/lib/aiPostCopilot';
+import { extractVoiceRoomIdFromText, stripVoiceRoomMarkers } from '@/lib/voiceRoomMarkers';
 
 export default function PostDetailScreen() {
   const { id, returnTo } = useLocalSearchParams<{ id: string; returnTo?: string }>();
@@ -179,6 +180,9 @@ export default function PostDetailScreen() {
     // Return database post if found
     return dbPost;
   }, [id, userPosts, dbPost]);
+
+  const voiceRoomId = useMemo(() => extractVoiceRoomIdFromText(post?.content || ''), [post?.content]);
+  const cleanedPostContent = useMemo(() => stripVoiceRoomMarkers(post?.content || ''), [post?.content]);
 
   const comments = useMemo(() => {
     // Combine all comment sources, avoiding duplicates
@@ -576,9 +580,41 @@ export default function PostDetailScreen() {
                   </Pressable>
                 </View>
                 <Text className="text-warmBrown text-base leading-6">
-                  {showTranslatedPost && postTranslation ? postTranslation : post.content}
+                  {showTranslatedPost && postTranslation ? postTranslation : cleanedPostContent}
                 </Text>
               </View>
+
+              {/* Voice room link card (if recap post) */}
+              {voiceRoomId ? (
+                <View className="px-4 pb-3">
+                  <View className="bg-forest-50 border border-forest-200 rounded-2xl p-4">
+                    <Text className="text-forest-900 font-bold">Voice Room</Text>
+                    <Text className="text-forest-800 mt-1">
+                      This post was shared from a voice room recap.
+                    </Text>
+                    <View className="flex-row mt-3">
+                      <Pressable
+                        onPress={() => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          router.push(`/voice-room/${voiceRoomId}` as any);
+                        }}
+                        className="flex-1 bg-forest-700 rounded-xl px-4 py-3 items-center mr-2"
+                      >
+                        <Text className="text-white font-semibold">Open room</Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={() => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          router.push(`/voice-room-recap/${voiceRoomId}` as any);
+                        }}
+                        className="flex-1 bg-white border border-forest-300 rounded-xl px-4 py-3 items-center"
+                      >
+                        <Text className="text-forest-900 font-semibold">Open recap</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                </View>
+              ) : null}
 
               {/* Post Image */}
               {post.images.length > 0 && (

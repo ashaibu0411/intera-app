@@ -1,8 +1,18 @@
 import { supabase } from '@/lib/supabase';
-import type { DbVoiceRoom, DbVoiceRoomParticipant, DbVoiceRoomHandRaise } from '@/lib/supabase';
+import type {
+  DbVoiceRoom,
+  DbVoiceRoomParticipant,
+  DbVoiceRoomHandRaise,
+  DbVoiceRoomReaction,
+  DbVoiceRoomNote,
+  DbVoiceRoomRecap,
+} from '@/lib/supabase';
 import { v4 as uuidv4 } from 'uuid';
 
 export type VoiceRole = DbVoiceRoomParticipant['role'];
+export type HandRaiseIntent = NonNullable<DbVoiceRoomHandRaise['intent']> extends never
+  ? 'question' | 'insight' | 'announcement' | 'testimony'
+  : NonNullable<DbVoiceRoomHandRaise['intent']>;
 
 export async function listLiveVoiceRooms(limit: number = 50): Promise<DbVoiceRoom[]> {
   const nowIso = new Date().toISOString();
@@ -83,10 +93,44 @@ export async function endVoiceRoom(roomId: string): Promise<void> {
     .update({ status: 'ended', ended_at: new Date().toISOString() })
     .eq('id', roomId);
   if (error) throw error;
+
+  // Best-effort cleanup (requires host/mod delete policy)
+  try {
+    await supabase.from('voice_room_hand_raises').delete().eq('room_id', roomId);
+  } catch {}
+  try {
+    await supabase.from('voice_room_participants').delete().eq('room_id', roomId);
+  } catch {}
 }
 
 export async function deleteVoiceRoom(roomId: string): Promise<void> {
   const { error } = await supabase.from('voice_rooms').delete().eq('id', roomId);
+  if (error) throw error;
+}
+
+export async function restartVoiceRoom(roomId: string): Promise<void> {
+  const providerRoomName = `room_${uuidv4()}`;
+  const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(); // 2 hours
+
+  // Clear state first (best-effort)
+  try {
+    await supabase.from('voice_room_hand_raises').delete().eq('room_id', roomId);
+  } catch {}
+  try {
+    await supabase.from('voice_room_participants').delete().eq('room_id', roomId);
+  } catch {}
+
+  const { error } = await supabase
+    .from('voice_rooms')
+    .update({
+      status: 'live',
+      ended_at: null,
+      starts_at: null,
+      provider_room_name: providerRoomName,
+      expires_at: expiresAt,
+    })
+    .eq('id', roomId);
+
   if (error) throw error;
 }
 
@@ -131,12 +175,13 @@ export async function leaveRoom(roomId: string, userId: string): Promise<void> {
   if (error) throw error;
 }
 
-export async function raiseHand(roomId: string, userId: string): Promise<void> {
+export async function raiseHand(roomId: string, userId: string, intent: HandRaiseIntent = 'question'): Promise<void> {
   await upsertParticipant({ roomId, userId, role: 'listener', handRaised: true });
   const { error } = await supabase.from('voice_room_hand_raises').upsert(
     {
       room_id: roomId,
       user_id: userId,
+      intent,
     },
     { onConflict: 'room_id,user_id' }
   );
@@ -305,6 +350,85 @@ export async function listHandRaises(roomId: string): Promise<DbVoiceRoomHandRai
     .order('created_at', { ascending: true });
   if (error) throw error;
   return (data ?? []) as DbVoiceRoomHandRaise[];
+}
+
+export async function updateVoiceRoomContext(roomId: string, patch: Partial<Pick<DbVoiceRoom, 'pinned_title' | 'pinned_route' | 'rules' | 'resources' | 'require_speaker_approval' | 'record_highlights'>>) {
+  const { error } = await supabase.from('voice_rooms').update(patch).eq('id', roomId);
+  if (error) throw error;
+}
+
+export type VoiceRoomReactionKind = DbVoiceRoomReaction['kind'];
+
+export async function sendReaction(roomId: string, userId: string, kind: VoiceRoomReactionKind) {
+  const { error } = await supabase.from('voice_room_reactions').insert({
+    room_id: roomId,
+    user_id: userId,
+    kind,
+  });
+  if (error) throw error;
+}
+
+export async function getReactionCounts(roomId: string) {
+  const kinds: VoiceRoomReactionKind[] = ['agree', 'heart', 'clap', 'fire'];
+  const results = await Promise.all(
+    kinds.map(async (kind) => {
+      const { count } = await supabase
+        .from('voice_room_reactions')
+        .select('id', { head: true, count: 'exact' })
+        .eq('room_id', roomId)
+        .eq('kind', kind);
+      return [kind, count ?? 0] as const;
+    })
+  );
+  return Object.fromEntries(results) as Record<VoiceRoomReactionKind, number>;
+}
+
+export async function sendNoteToHost(roomId: string, userId: string, content: string) {
+  const trimmed = (content || '').trim();
+  if (!trimmed) return;
+  const { error } = await supabase.from('voice_room_notes').insert({
+    room_id: roomId,
+    user_id: userId,
+    content: trimmed,
+  });
+  if (error) throw error;
+}
+
+export async function listNotes(roomId: string, limit: number = 50): Promise<DbVoiceRoomNote[]> {
+  const { data, error } = await supabase
+    .from('voice_room_notes')
+    .select('*')
+    .eq('room_id', roomId)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return (data ?? []) as DbVoiceRoomNote[];
+}
+
+export async function getRecap(roomId: string): Promise<DbVoiceRoomRecap | null> {
+  const { data, error } = await supabase.from('voice_room_recaps').select('*').eq('room_id', roomId).maybeSingle();
+  if (error) throw error;
+  return (data ?? null) as DbVoiceRoomRecap | null;
+}
+
+export async function upsertRecap(input: {
+  roomId: string;
+  userId: string;
+  summary: string;
+  highlights: string[];
+  published: boolean;
+}) {
+  const { error } = await supabase.from('voice_room_recaps').upsert(
+    {
+      room_id: input.roomId,
+      created_by: input.userId,
+      summary: input.summary || '',
+      highlights: (input.highlights || []).filter(Boolean),
+      published: !!input.published,
+    },
+    { onConflict: 'room_id' }
+  );
+  if (error) throw error;
 }
 
 export async function getLiveKitToken(input: {
