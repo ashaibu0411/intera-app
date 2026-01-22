@@ -1462,6 +1462,7 @@ export default function ClipsTabScreen() {
               onShare={() => handleShare(item)}
               onDelete={() => handleDeleteClip(item)}
               isOwnClip={item.user.id === currentUser?.id}
+              currentUserId={currentUser?.id}
               itemHeight={pagerHeight}
               itemWidth={SCREEN_WIDTH}
             />

@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, ScrollView, Pressable, TextInput, Modal, ActivityIndicator, Alert, FlatList } from 'react-native';
+import { View, Text, ScrollView, Pressable, TextInput, Modal, ActivityIndicator, Alert, FlatList, Share } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
-import { ChevronLeft, MapPin, Star, CheckCircle, ShieldCheck, Phone, MessageCircle, Navigation, Plus, Package, ShoppingBag, CheckCircle2 } from 'lucide-react-native';
+import { ChevronLeft, MapPin, Star, CheckCircle, ShieldCheck, Phone, MessageCircle, Navigation, Plus, Package, ShoppingBag, CheckCircle2, Sparkles, Lock } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useStore } from '@/lib/store';
@@ -14,6 +14,9 @@ import { getOrCreateConversation } from '@/lib/messages';
 import Animated, { FadeInUp } from 'react-native-reanimated';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { aiSummarizeCard, type AiSummaryResult } from '@/lib/aiSummarizeCard';
+import { aiBusinessBooster, type AiBusinessBoosterResult } from '@/lib/aiBusinessBooster';
+import { hasEntitlement, isRevenueCatEnabled } from '@/lib/revenuecatClient';
+import { getBusinessBookingSettings, type DbBusinessBookingSettings } from '@/lib/booking-api';
 
 interface InventoryItem {
   id: string;
@@ -47,8 +50,15 @@ export default function BusinessDetailScreen() {
   const [ownerTrustScore, setOwnerTrustScore] = useState<DbUserTrustScore | null>(null);
   const [aiSummary, setAiSummary] = useState<AiSummaryResult | null>(null);
   const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
+  const [bookingSettings, setBookingSettings] = useState<DbBusinessBookingSettings | null>(null);
+  const [businessProActive, setBusinessProActive] = useState(false);
+  const [checkingBusinessPro, setCheckingBusinessPro] = useState(false);
+  const [showBooster, setShowBooster] = useState(false);
+  const [boosterLoading, setBoosterLoading] = useState(false);
+  const [boosterResult, setBoosterResult] = useState<AiBusinessBoosterResult | null>(null);
 
   const canInteract = !!currentUser?.id && !isGuest;
+  const isOwner = !!currentUser?.id && !!business?.owner_id && currentUser.id === business.owner_id;
 
   const load = async () => {
     if (!businessId) return;
@@ -75,6 +85,90 @@ export default function BusinessDetailScreen() {
     load().finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [businessId]);
+
+  // Load booking settings + Business Pro status (owner-only)
+  useEffect(() => {
+    if (!businessId) return;
+    if (!isOwner) return;
+    let mounted = true;
+    (async () => {
+      setCheckingBusinessPro(true);
+      try {
+        const settings = await getBusinessBookingSettings(businessId);
+        if (!mounted) return;
+        setBookingSettings(settings);
+
+        let entitled = false;
+        if (isRevenueCatEnabled()) {
+          const rc = await hasEntitlement('business_pro');
+          entitled = rc.ok && rc.data;
+        }
+        setBusinessProActive(entitled || !!settings?.has_business_pro);
+      } catch (e) {
+        console.log('[BusinessBooster] Pro check failed:', e);
+        if (mounted) setBusinessProActive(false);
+      } finally {
+        if (mounted) setCheckingBusinessPro(false);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [businessId, isOwner]);
+
+  const openBooster = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (!businessProActive) {
+      router.push('/business-pro-paywall');
+      return;
+    }
+    setShowBooster(true);
+  };
+
+  const generateBooster = async () => {
+    if (!business || boosterLoading) return;
+    setBoosterLoading(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      const res = await aiBusinessBooster({
+        business: {
+          name: business.name,
+          description: business.description,
+          category: business.category || business.type || undefined,
+          locationLabel: displayLocation || undefined,
+          phone: business.phone || undefined,
+          website: business.website || business.url || undefined,
+        },
+        goal: 'more_messages',
+        voice: 'community',
+      });
+      setBoosterResult(res);
+    } catch (e) {
+      console.log('[BusinessBooster] Generate failed:', e);
+      Alert.alert('AI Booster failed', 'Please try again in a moment.');
+    } finally {
+      setBoosterLoading(false);
+    }
+  };
+
+  const shareBooster = async () => {
+    if (!boosterResult || !business) return;
+    try {
+      await Share.share({
+        message: [
+          boosterResult.tagline,
+          '',
+          boosterResult.instagram_captions?.[0] || '',
+          '',
+          boosterResult.hashtags?.length ? boosterResult.hashtags.join(' ') : '',
+        ]
+          .filter(Boolean)
+          .join('\n'),
+      });
+    } catch {
+      // ignore
+    }
+  };
 
   // Load cached AI summary
   useEffect(() => {
@@ -309,6 +403,30 @@ export default function BusinessDetailScreen() {
                   </Text>
                 )}
               </View>
+
+              {/* Business Booster (Pro) - owner only */}
+              {isOwner ? (
+                <View className="mt-4 bg-white rounded-2xl p-4 border border-gray-100">
+                  <View className="flex-row items-center justify-between">
+                    <View className="flex-row items-center flex-1 pr-3">
+                      <View className={`rounded-full p-2 ${businessProActive ? 'bg-emerald-50' : 'bg-gray-100'}`}>
+                        {businessProActive ? <Sparkles size={18} color="#10B981" /> : <Lock size={18} color="#6B7280" />}
+                      </View>
+                      <View className="ml-3 flex-1">
+                        <Text className="text-warmBrown font-bold">AI Business Booster</Text>
+                        <Text className="text-gray-500 text-sm" numberOfLines={2}>
+                          {businessProActive ? 'Generate promo captions, flyer copy, and hashtags' : 'Unlock with Business Pro'}
+                        </Text>
+                      </View>
+                    </View>
+                    <Pressable onPress={openBooster} disabled={checkingBusinessPro}>
+                      <Text className={`font-semibold ${checkingBusinessPro ? 'text-gray-400' : 'text-terracotta-500'}`}>
+                        {businessProActive ? 'Open' : 'Upgrade'}
+                      </Text>
+                    </Pressable>
+                  </View>
+                </View>
+              ) : null}
 
               <View className="flex-row items-center mt-3">
                 <Star size={16} color="#C9A227" fill="#C9A227" />
@@ -555,6 +673,85 @@ export default function BusinessDetailScreen() {
               <View className="h-20" />
             </ScrollView>
           </SafeAreaView>
+        </Modal>
+
+        {/* AI Business Booster Modal */}
+        <Modal visible={showBooster} transparent animationType="slide" onRequestClose={() => setShowBooster(false)}>
+          <View className="flex-1 bg-black/50">
+            <Pressable className="flex-1" onPress={() => setShowBooster(false)} />
+            <View className="bg-cream rounded-t-3xl max-h-[82%]">
+              <View className="flex-row items-center justify-between px-5 py-4 border-b border-gray-100">
+                <Text className="text-lg font-bold text-warmBrown">AI Business Booster</Text>
+                <Pressable onPress={() => setShowBooster(false)} className="bg-white rounded-full p-2 shadow-sm">
+                  <ChevronLeft size={22} color="#2D1F1A" />
+                </Pressable>
+              </View>
+
+              <ScrollView className="px-5 py-4" showsVerticalScrollIndicator={false}>
+                <View className="bg-white rounded-2xl p-4 border border-gray-100">
+                  <View className="flex-row items-center justify-between">
+                    <Text className="text-warmBrown font-bold">Promo Pack</Text>
+                    <Pressable onPress={generateBooster} disabled={boosterLoading}>
+                      <Text className={`font-semibold ${boosterLoading ? 'text-gray-400' : 'text-forest-700'}`}>
+                        {boosterResult ? 'Regenerate' : boosterLoading ? 'Working…' : 'Generate'}
+                      </Text>
+                    </Pressable>
+                  </View>
+                  <Text className="text-gray-500 text-sm mt-1">
+                    Built from your business profile. No fake claims added.
+                  </Text>
+                </View>
+
+                {boosterResult ? (
+                  <View className="mt-4">
+                    <View className="bg-white rounded-2xl p-4 border border-gray-100">
+                      <Text className="text-gray-500 text-xs font-semibold">TAGLINE</Text>
+                      <Text className="text-warmBrown font-bold text-lg mt-1">{boosterResult.tagline}</Text>
+                      <Text className="text-gray-500 text-xs font-semibold mt-4">SHORT BIO</Text>
+                      <Text className="text-gray-700 mt-1">{boosterResult.short_bio}</Text>
+                    </View>
+
+                    <View className="bg-white rounded-2xl p-4 border border-gray-100 mt-3">
+                      <Text className="text-gray-500 text-xs font-semibold">INSTAGRAM CAPTIONS</Text>
+                      {boosterResult.instagram_captions?.slice(0, 3).map((c, i) => (
+                        <Text key={i} className="text-gray-700 mt-2">• {c}</Text>
+                      ))}
+                    </View>
+
+                    <View className="bg-white rounded-2xl p-4 border border-gray-100 mt-3">
+                      <Text className="text-gray-500 text-xs font-semibold">FLYER</Text>
+                      <Text className="text-warmBrown font-bold text-base mt-1">{boosterResult.flyer?.headline}</Text>
+                      {boosterResult.flyer?.bullets?.slice(0, 6).map((b, i) => (
+                        <Text key={i} className="text-gray-700 mt-1">• {b}</Text>
+                      ))}
+                    </View>
+
+                    <View className="bg-white rounded-2xl p-4 border border-gray-100 mt-3">
+                      <Text className="text-gray-500 text-xs font-semibold">HASHTAGS</Text>
+                      <Text className="text-gray-700 mt-2">
+                        {(boosterResult.hashtags || []).slice(0, 20).join(' ')}
+                      </Text>
+                    </View>
+
+                    {boosterResult.safety_note ? (
+                      <View className="bg-amber-50 rounded-2xl p-4 border border-amber-200 mt-3">
+                        <Text className="text-amber-800">{boosterResult.safety_note}</Text>
+                      </View>
+                    ) : null}
+
+                    <Pressable onPress={shareBooster} className="mt-4 bg-terracotta-500 rounded-2xl py-4 items-center">
+                      <Text className="text-white font-bold">Share Promo</Text>
+                    </Pressable>
+                  </View>
+                ) : (
+                  <View className="mt-4 items-center">
+                    {boosterLoading ? <ActivityIndicator color="#1B4D3E" /> : null}
+                    <Text className="text-gray-500 mt-2">Tap “Generate” to create your promo pack.</Text>
+                  </View>
+                )}
+              </ScrollView>
+            </View>
+          </View>
         </Modal>
 
         {/* Item Detail Modal */}

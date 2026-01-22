@@ -74,9 +74,9 @@ export default function BusinessProPaywallScreen() {
 
     const result = await getOfferings();
     if (result.ok) {
-      // Try to get seller_pro offering, fall back to default
-      const sellerProOffering = result.data.all?.['seller_pro'];
-      const offering = sellerProOffering || result.data.current;
+      // Try to get business_pro offering, fall back to current
+      const businessProOffering = result.data.all?.['business_pro'];
+      const offering = businessProOffering || result.data.current;
 
       if (offering) {
         const availablePackages = offering.availablePackages;
@@ -118,8 +118,8 @@ export default function BusinessProPaywallScreen() {
     const result = await restorePurchases();
 
     if (result.ok) {
-      const hasActive = Object.keys(result.data.entitlements.active || {}).length > 0;
-      if (hasActive) {
+      const hasBusinessPro = result.data.entitlements.active?.['business_pro'];
+      if (hasBusinessPro) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         Alert.alert(
           'Purchases Restored',
