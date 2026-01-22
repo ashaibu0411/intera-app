@@ -9,6 +9,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useStore } from '@/lib/store';
 import { askAiCommunityAssistant, type AiAssistantSource } from '@/lib/aiCommunityAssistant';
 import { clearCommunityAssistantCloud, loadCommunityAssistantCloud, saveCommunityAssistantCloud } from '@/lib/communityAssistantCloud';
+import { FormattedAiText } from '@/components/FormattedAiText';
 
 type Message = {
   id: string;
@@ -349,7 +350,7 @@ export default function CommunityAssistantScreen() {
                     <Text className="text-gray-300 font-semibold">Assistant</Text>
                   </View>
                   <View className="bg-white/5 border border-white/10 rounded-2xl px-4 py-3">
-                    <Text className="text-gray-100 text-[15px] leading-6">{m.content}</Text>
+                    <FormattedAiText content={m.content} variant="dark" hideSourcesSection />
                   </View>
                 </View>
               )}

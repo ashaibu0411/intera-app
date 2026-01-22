@@ -1,9 +1,9 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, Pressable, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Settings, MapPin, Calendar, Edit3, Users, FileText, Bookmark, LogOut, Star, ChevronRight, Play, Briefcase, Plus, Store, Crown, Plane, Heart } from 'lucide-react-native';
+import { Settings, MapPin, Calendar, Edit3, Users, FileText, Bookmark, LogOut, Star, ChevronRight, Play, Briefcase, Plus, Store, Crown, Plane, Heart, Sparkles } from 'lucide-react-native';
 import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
@@ -13,6 +13,7 @@ import { usePremium } from '@/hooks/usePremium';
 import { StoryAvatar } from '@/components/StoryAvatar';
 import { RoleBadges, HelperBadge } from '@/components/RoleBadge';
 import { ArrivalModeCompactBadge } from '@/components/ArrivalModeBanner';
+import { supabase } from '@/lib/supabase';
 
 export default function ProfileScreen() {
   const currentUser = useStore((s) => s.currentUser);
@@ -24,9 +25,30 @@ export default function ProfileScreen() {
   const lifeEvents = useStore((s) => s.lifeEvents);
   const userBusinesses = useStore((s) => s.userBusinesses);
   const { isPremium, isEnabled: isPremiumEnabled } = usePremium();
+  const [isAdmin, setIsAdmin] = useState(false);
 
   // Use current user if logged in, otherwise show mock user for guests
   const user = currentUser || MOCK_USERS[0];
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        if (isGuest || !currentUser) {
+          if (mounted) setIsAdmin(false);
+          return;
+        }
+        const { data, error } = await supabase.rpc('is_admin');
+        if (error) throw error;
+        if (mounted) setIsAdmin(Boolean(data));
+      } catch {
+        if (mounted) setIsAdmin(false);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [isGuest, currentUser]);
 
   // Filter life events for current user
   const userLifeEvents = lifeEvents.filter((e) => e.userId === currentUser?.id);
@@ -539,6 +561,77 @@ export default function ProfileScreen() {
               </Pressable>
             )}
           </Animated.View>
+
+          {/* Community Digest */}
+          <Animated.View entering={FadeInUp.duration(400).delay(475)} className="mx-5 mt-4">
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push('/digests');
+              }}
+            >
+              <View className="bg-white rounded-2xl p-4 shadow-sm flex-row items-center justify-between">
+                <View className="flex-row items-center">
+                  <View className="bg-terracotta-50 rounded-full p-2.5">
+                    <Sparkles size={18} color="#C45C26" />
+                  </View>
+                  <View className="ml-3">
+                    <Text className="text-warmBrown font-bold">Community Digest</Text>
+                    <Text className="text-gray-500 text-sm">Daily/weekly highlights (AI)</Text>
+                  </View>
+                </View>
+                <ChevronRight size={20} color="#9CA3AF" />
+              </View>
+            </Pressable>
+          </Animated.View>
+
+          {/* Impact Stories */}
+          <Animated.View entering={FadeInUp.duration(400).delay(490)} className="mx-5 mt-4">
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push('/impact-stories');
+              }}
+            >
+              <View className="bg-white rounded-2xl p-4 shadow-sm flex-row items-center justify-between">
+                <View className="flex-row items-center">
+                  <View className="bg-emerald-50 rounded-full p-2.5">
+                    <Heart size={18} color="#059669" />
+                  </View>
+                  <View className="ml-3">
+                    <Text className="text-warmBrown font-bold">Impact Stories</Text>
+                    <Text className="text-gray-500 text-sm">Schools & nonprofits fundraising</Text>
+                  </View>
+                </View>
+                <ChevronRight size={20} color="#9CA3AF" />
+              </View>
+            </Pressable>
+          </Animated.View>
+
+          {/* Admin: Impact Story Review */}
+          {isAdmin ? (
+            <Animated.View entering={FadeInUp.duration(400).delay(505)} className="mx-5 mt-4">
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  router.push('/admin/impact-review');
+                }}
+              >
+                <View className="bg-white rounded-2xl p-4 shadow-sm flex-row items-center justify-between border border-gray-100">
+                  <View className="flex-row items-center">
+                    <View className="bg-forest-50 rounded-full p-2.5">
+                      <Crown size={18} color="#1B4D3E" />
+                    </View>
+                    <View className="ml-3">
+                      <Text className="text-warmBrown font-bold">Admin Review</Text>
+                      <Text className="text-gray-500 text-sm">Approve Impact Stories</Text>
+                    </View>
+                  </View>
+                  <ChevronRight size={20} color="#9CA3AF" />
+                </View>
+              </Pressable>
+            </Animated.View>
+          ) : null}
 
           {/* Logout / Sign Up */}
           <Animated.View

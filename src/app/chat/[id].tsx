@@ -40,6 +40,7 @@ import {
 import { markConversationAsRead } from '@/lib/useUnreadMessages';
 import { reportBlockedUser } from '@/lib/reports';
 import type { ViolationType } from '@/lib/contentModeration';
+import { aiTrustSafety, type AiTrustSafetyResult } from '@/lib/aiTrustSafety';
 
 // Report reasons for App Store Guideline 1.2 compliance
 const REPORT_REASONS: { id: ViolationType | 'other'; label: string; description: string }[] = [
@@ -78,6 +79,9 @@ export default function ChatScreen() {
   const [reportStep, setReportStep] = useState<'reason' | 'confirm' | 'done'>('reason');
   const [selectedReason, setSelectedReason] = useState<ViolationType | 'other' | null>(null);
   const [showBlockConfirmModal, setShowBlockConfirmModal] = useState(false);
+  const [showSafetyModal, setShowSafetyModal] = useState(false);
+  const [safetyBusy, setSafetyBusy] = useState(false);
+  const [safetyResult, setSafetyResult] = useState<AiTrustSafetyResult | null>(null);
 
   const currentUser = useStore((s) => s.currentUser);
   const blockUser = useStore((s) => s.blockUser);
@@ -251,6 +255,27 @@ export default function ChatScreen() {
     }
   };
 
+  const runThreadSafetyCheck = async () => {
+    if (safetyBusy) return;
+    setSafetyBusy(true);
+    setSafetyResult(null);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      const last = messages
+        .slice(-12)
+        .map((m) => `${m.senderId === currentUser?.id ? 'Me' : 'Them'}: ${m.content}`)
+        .join('\n');
+      const res = await aiTrustSafety({ kind: 'dm_thread', text: last || messageText || '' });
+      setSafetyResult(res);
+      setShowSafetyModal(true);
+    } catch (e) {
+      console.log('[Chat] safety check failed:', e);
+      Alert.alert('Safety check failed', 'Please try again in a moment.');
+    } finally {
+      setSafetyBusy(false);
+    }
+  };
+
   const handleBlockUser = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setShowBlockConfirmModal(true);
@@ -370,6 +395,10 @@ export default function ChatScreen() {
               </Pressable>
             </DropdownMenu.Trigger>
             <DropdownMenu.Content>
+              <DropdownMenu.Item key="safety" onSelect={runThreadSafetyCheck}>
+                <DropdownMenu.ItemIcon ios={{ name: 'shield' }} />
+                <DropdownMenu.ItemTitle>Safety check (AI)</DropdownMenu.ItemTitle>
+              </DropdownMenu.Item>
               <DropdownMenu.Item key="report" onSelect={handleReportUser}>
                 <DropdownMenu.ItemIcon ios={{ name: 'flag' }} />
                 <DropdownMenu.ItemTitle>Report User</DropdownMenu.ItemTitle>
@@ -670,6 +699,55 @@ export default function ChatScreen() {
             </ScrollView>
           </Animated.View>
         </View>
+      </Modal>
+
+      {/* AI Safety Result Modal */}
+      <Modal visible={showSafetyModal} transparent animationType="slide" onRequestClose={() => setShowSafetyModal(false)}>
+        <Pressable className="flex-1 bg-black/60 justify-end" onPress={() => setShowSafetyModal(false)}>
+          <Pressable className="bg-white rounded-t-3xl px-5 pt-5 pb-8" onPress={(e) => e.stopPropagation()}>
+            <View className="flex-row items-center justify-between">
+              <Text className="text-lg font-bold text-warmBrown">Safety Check</Text>
+              <Pressable onPress={() => setShowSafetyModal(false)} className="p-2">
+                <X size={20} color="#6B7280" />
+              </Pressable>
+            </View>
+
+            {safetyResult ? (
+              <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>
+                <View className="mt-3 bg-gray-50 rounded-2xl p-4">
+                  <Text className="text-gray-500 text-xs font-bold">RISK</Text>
+                  <Text className="text-warmBrown font-bold text-xl mt-1">
+                    {safetyResult.risk.toUpperCase()} ({safetyResult.score}/100)
+                  </Text>
+                  <Text className="text-gray-600 mt-2">{safetyResult.recommendation}</Text>
+                </View>
+
+                {safetyResult.red_flags?.length ? (
+                  <View className="mt-3">
+                    <Text className="text-warmBrown font-bold mb-2">Red flags</Text>
+                    {safetyResult.red_flags.map((x, i) => (
+                      <Text key={i} className="text-gray-700">• {x}</Text>
+                    ))}
+                  </View>
+                ) : null}
+
+                {safetyResult.suggested_questions?.length ? (
+                  <View className="mt-3">
+                    <Text className="text-warmBrown font-bold mb-2">Questions to ask</Text>
+                    {safetyResult.suggested_questions.map((x, i) => (
+                      <Text key={i} className="text-gray-700">• {x}</Text>
+                    ))}
+                  </View>
+                ) : null}
+              </ScrollView>
+            ) : (
+              <View className="py-8 items-center">
+                <ActivityIndicator />
+                <Text className="text-gray-500 mt-2">Working…</Text>
+              </View>
+            )}
+          </Pressable>
+        </Pressable>
       </Modal>
     </View>
   );

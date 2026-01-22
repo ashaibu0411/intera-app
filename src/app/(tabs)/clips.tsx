@@ -56,6 +56,7 @@ import { moderateText } from '@/lib/contentModeration';
 import { aiModerateContent } from '@/lib/aiModerateContent';
 import { getClips, resolveClipVideoUrl, deleteClip } from '@/lib/clips-api';
 import { aiClipCaptionsFromVideoUrl, type AiClipCaptionsResult } from '@/lib/aiClipCaptions';
+import { translateForUi } from '@/lib/aiUiTranslate';
 
 // Report reasons for App Store Guideline 1.2 compliance
 const REPORT_REASONS: { id: ViolationType | 'other'; label: string; description: string }[] = [
@@ -320,6 +321,10 @@ function ClipItem({ clip, isActive, isMuted, onToggleMute, onBlockUser, onReport
   const [captions, setCaptions] = useState<AiClipCaptionsResult | null>(null);
   const [captionsLoading, setCaptionsLoading] = useState(false);
   const [captionsEnabled, setCaptionsEnabled] = useState(true);
+  const translatorPrefs = useStore((s) => s.translator);
+  const [descTranslation, setDescTranslation] = useState<string | null>(null);
+  const [descTranslated, setDescTranslated] = useState(false);
+  const [descBusy, setDescBusy] = useState(false);
 
   const heartScale = useSharedValue(1);
   const doubleTapHeart = useSharedValue(0);
@@ -411,6 +416,35 @@ function ClipItem({ clip, isActive, isMuted, onToggleMute, onBlockUser, onReport
       setCaptionsLoading(false);
     }
   }, [playUrl, captionsLoading, clip.id, currentUserId]);
+
+  const targetLang = translatorPrefs?.targetLangCode || 'en';
+
+  const toggleTranslateDesc = async () => {
+    if (descBusy) return;
+    if (descTranslation) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      setDescTranslated((v) => !v);
+      return;
+    }
+    const text = String(clip.description || '').trim();
+    if (!text) return;
+    setDescBusy(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      const res = await translateForUi({
+        text,
+        to: targetLang,
+        scope: `clip:${clip.id}:desc`,
+        context: 'Translate this short clip description. Keep hashtags/emojis.',
+      });
+      setDescTranslation(res.translation);
+      setDescTranslated(true);
+    } catch (e) {
+      console.log('[Clips] translate desc failed:', e);
+    } finally {
+      setDescBusy(false);
+    }
+  };
 
   // Auto-play/pause based on visibility.
   // IMPORTANT: don't call loadAsync repeatedly — it can break scrolling/perf.
@@ -907,9 +941,14 @@ function ClipItem({ clip, isActive, isMuted, onToggleMute, onBlockUser, onReport
           ) : null}
 
           {/* Description - Enhanced */}
-          <Text className="text-white text-sm leading-5 mb-3" numberOfLines={3} style={{ textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 }}>
-            {clip.description}
-          </Text>
+          <Pressable onPress={() => void toggleTranslateDesc()} className="active:opacity-90">
+            <Text className="text-white/80 text-xs font-bold mb-1" style={{ textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 }}>
+              {descTranslation ? (descTranslated ? 'Showing translation • Tap for original' : 'Showing original • Tap for translation') : descBusy ? 'Translating…' : `Tap to translate (${targetLang})`}
+            </Text>
+            <Text className="text-white text-sm leading-5 mb-3" numberOfLines={3} style={{ textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 }}>
+              {descTranslated && descTranslation ? descTranslation : clip.description}
+            </Text>
+          </Pressable>
 
           {/* Music - Enhanced */}
           <Pressable className="flex-row items-center mb-2">

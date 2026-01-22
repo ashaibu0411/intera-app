@@ -95,6 +95,125 @@ function isEventIntent(raw: string) {
   return t.includes('event') || t.includes('weekend') || t.includes('happening') || t.includes('meetup') || t.includes('concert');
 }
 
+function isWeatherIntent(raw: string) {
+  const t = String(raw || '').toLowerCase();
+  return (
+    t.includes('weather') ||
+    t.includes('forecast') ||
+    t.includes('temperature') ||
+    t.includes('rain') ||
+    t.includes('snow') ||
+    t.includes('wind')
+  );
+}
+
+function weatherCodeToText(code: number | null | undefined) {
+  const c = typeof code === 'number' ? code : Number(code);
+  if (!Number.isFinite(c)) return 'Unknown conditions';
+  // Open-Meteo WMO codes (subset)
+  if (c === 0) return 'Clear sky';
+  if (c === 1) return 'Mainly clear';
+  if (c === 2) return 'Partly cloudy';
+  if (c === 3) return 'Overcast';
+  if (c === 45 || c === 48) return 'Fog';
+  if (c === 51 || c === 53 || c === 55) return 'Drizzle';
+  if (c === 56 || c === 57) return 'Freezing drizzle';
+  if (c === 61 || c === 63 || c === 65) return 'Rain';
+  if (c === 66 || c === 67) return 'Freezing rain';
+  if (c === 71 || c === 73 || c === 75) return 'Snow';
+  if (c === 77) return 'Snow grains';
+  if (c === 80 || c === 81 || c === 82) return 'Rain showers';
+  if (c === 85 || c === 86) return 'Snow showers';
+  if (c === 95) return 'Thunderstorm';
+  if (c === 96 || c === 99) return 'Thunderstorm with hail';
+  return 'Mixed conditions';
+}
+
+function usesFahrenheit(country: string) {
+  const c = String(country || '').trim();
+  if (!c) return false;
+  const upper = c.toUpperCase();
+  const lower = c.toLowerCase();
+  // Country codes (Open-Meteo uses ISO-3166-1 alpha-2 codes).
+  if (upper === 'US') return true;
+  if (upper === 'BS') return true; // Bahamas
+  if (upper === 'BZ') return true; // Belize
+  if (upper === 'KY') return true; // Cayman Islands
+  if (upper === 'PW') return true; // Palau
+  if (upper === 'FM') return true; // Micronesia
+  if (upper === 'MH') return true; // Marshall Islands
+
+  // Name fallbacks (in case we only have a label).
+  if (lower.includes('united states')) return true;
+  if (lower === 'usa' || lower === 'u.s.a.' || lower === 'u.s.' || lower === 'us') return true;
+  if (lower.includes('bahamas')) return true;
+  if (lower.includes('belize')) return true;
+  if (lower.includes('cayman')) return true;
+  if (lower.includes('palau')) return true;
+  if (lower.includes('micronesia')) return true;
+  if (lower.includes('marshall islands')) return true;
+  return false;
+}
+
+async function fetchWeather(placeQuery: string, fallbackCountryHint?: string) {
+  // Geocode -> forecast via Open-Meteo (no API key).
+  const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(placeQuery)}&count=1&language=en&format=json`;
+  const geoResp = await fetch(geoUrl);
+  if (!geoResp.ok) throw new Error(`Geocoding failed: HTTP ${geoResp.status}`);
+  const geoJson = (await geoResp.json()) as any;
+  const hit = Array.isArray(geoJson?.results) ? geoJson.results[0] : null;
+  if (!hit) return null;
+
+  const latitude = Number(hit.latitude);
+  const longitude = Number(hit.longitude);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+
+  const countryCode = String(hit.country_code ?? '').trim().toUpperCase();
+  const countryName = String(hit.country ?? '').trim();
+  const useF = usesFahrenheit(countryCode || countryName || fallbackCountryHint || '');
+  const temperature_unit = useF ? 'fahrenheit' : 'celsius';
+  const wind_speed_unit = useF ? 'mph' : 'kmh';
+
+  const labelParts = [hit.name, hit.admin1, hit.country].filter(Boolean).map((x: any) => String(x).trim()).filter(Boolean);
+  const label = labelParts.join(', ');
+
+  const forecastUrl =
+    `https://api.open-meteo.com/v1/forecast?latitude=${encodeURIComponent(String(latitude))}` +
+    `&longitude=${encodeURIComponent(String(longitude))}` +
+    `&temperature_unit=${encodeURIComponent(temperature_unit)}` +
+    `&wind_speed_unit=${encodeURIComponent(wind_speed_unit)}` +
+    `&current=temperature_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m` +
+    `&daily=temperature_2m_max,temperature_2m_min,precipitation_sum` +
+    `&timezone=auto`;
+  const wxResp = await fetch(forecastUrl);
+  if (!wxResp.ok) throw new Error(`Forecast failed: HTTP ${wxResp.status}`);
+  const wxJson = (await wxResp.json()) as any;
+
+  const current = wxJson?.current ?? {};
+  const daily = wxJson?.daily ?? {};
+
+  const out = {
+    label,
+    units: { temperature_unit, wind_speed_unit },
+    country: { code: countryCode || null, name: countryName || null },
+    current: {
+      temperature_2m: typeof current.temperature_2m === 'number' ? current.temperature_2m : Number(current.temperature_2m),
+      apparent_temperature: typeof current.apparent_temperature === 'number' ? current.apparent_temperature : Number(current.apparent_temperature),
+      precipitation: typeof current.precipitation === 'number' ? current.precipitation : Number(current.precipitation),
+      wind_speed_10m: typeof current.wind_speed_10m === 'number' ? current.wind_speed_10m : Number(current.wind_speed_10m),
+      weather_code: typeof current.weather_code === 'number' ? current.weather_code : Number(current.weather_code),
+      time: String(current.time ?? '').trim(),
+    },
+    today: {
+      max: Array.isArray(daily.temperature_2m_max) ? Number(daily.temperature_2m_max[0]) : NaN,
+      min: Array.isArray(daily.temperature_2m_min) ? Number(daily.temperature_2m_min[0]) : NaN,
+      precip_sum: Array.isArray(daily.precipitation_sum) ? Number(daily.precipitation_sum[0]) : NaN,
+    },
+    sources: { geoUrl, forecastUrl },
+  };
+  return out;
+}
+
 async function openaiChat(opts: { apiKey: string; system: string; user: string }) {
   const resp = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -165,6 +284,103 @@ Deno.serve(async (req) => {
     const neighborhood = (location?.neighborhood ?? '').trim();
     const profile = body?.profile ?? {};
     const history = Array.isArray(body?.history) ? body.history : [];
+
+    // Real-time weather (external source). Avoids "no sources" confusion for weather questions.
+    if (isWeatherIntent(query)) {
+      const placeQuery = [city || neighborhood, country].filter(Boolean).join(', ').trim();
+      if (!placeQuery) {
+        const answer = [
+          '## Answer',
+          '- I can grab live weather, but I need a city (and ideally country).',
+          '- Please enable location in the app or ask like: “What’s the weather in Aurora, Canada?”',
+          '',
+          '## Sources',
+          '- None (missing location).',
+        ].join('\n');
+        return new Response(
+          JSON.stringify({
+            answer,
+            sources: [],
+            location: { city, country, neighborhood },
+            debug: { intent: 'weather' },
+          }),
+          { status: 200, headers: { ...corsHeaders, 'content-type': 'application/json' } }
+        );
+      }
+
+      try {
+        const wx = await fetchWeather(placeQuery, country || undefined);
+        if (!wx) {
+          const answer = [
+            '## Answer',
+            `- I couldn’t find weather data for “${placeQuery}”.`,
+            '- Try adding more detail (city + country), or check spelling.',
+            '',
+            '## Sources',
+            '- Open‑Meteo geocoding (no match).',
+          ].join('\n');
+          return new Response(
+            JSON.stringify({
+              answer,
+              sources: [],
+              location: { city, country, neighborhood },
+              debug: { intent: 'weather', placeQuery },
+            }),
+            { status: 200, headers: { ...corsHeaders, 'content-type': 'application/json' } }
+          );
+        }
+
+        const unitLetter = wx?.units?.temperature_unit === 'fahrenheit' ? 'F' : 'C';
+        const windUnit = wx?.units?.wind_speed_unit === 'mph' ? 'mph' : 'km/h';
+        const cond = weatherCodeToText(wx.current.weather_code);
+        const temp = Number.isFinite(wx.current.temperature_2m) ? `${Math.round(wx.current.temperature_2m)}°${unitLetter}` : '—';
+        const feels = Number.isFinite(wx.current.apparent_temperature) ? `${Math.round(wx.current.apparent_temperature)}°${unitLetter}` : '—';
+        const wind = Number.isFinite(wx.current.wind_speed_10m) ? `${Math.round(wx.current.wind_speed_10m)} ${windUnit}` : '—';
+        const precipNow = Number.isFinite(wx.current.precipitation) ? `${wx.current.precipitation} mm` : '—';
+        const hi = Number.isFinite(wx.today.max) ? `${Math.round(wx.today.max)}°${unitLetter}` : '—';
+        const lo = Number.isFinite(wx.today.min) ? `${Math.round(wx.today.min)}°${unitLetter}` : '—';
+        const precipDay = Number.isFinite(wx.today.precip_sum) ? `${wx.today.precip_sum} mm` : '—';
+
+        const answer = [
+          '## Answer',
+          `- **${wx.label || placeQuery}**: ${cond}.`,
+          `- Current: **${temp}** (feels like **${feels}**).`,
+          `- Wind: **${wind}**.`,
+          `- Precipitation: **${precipNow}** right now; **${precipDay}** expected today.`,
+          `- Today: high **${hi}**, low **${lo}**.`,
+          '',
+          '## Sources',
+          '- Open‑Meteo (live forecast).',
+        ].join('\n');
+
+        return new Response(
+          JSON.stringify({
+            answer,
+            sources: [],
+            location: { city, country, neighborhood },
+            debug: { intent: 'weather', placeQuery, sources: wx.sources },
+          }),
+          { status: 200, headers: { ...corsHeaders, 'content-type': 'application/json' } }
+        );
+      } catch (e) {
+        const answer = [
+          '## Answer',
+          "- I couldn’t fetch live weather right now. Please try again in a moment.",
+          '',
+          '## Sources',
+          '- Open‑Meteo (request failed).',
+        ].join('\n');
+        return new Response(
+          JSON.stringify({
+            answer,
+            sources: [],
+            location: { city, country, neighborhood },
+            debug: { intent: 'weather', placeQuery, error: String(e) },
+          }),
+          { status: 200, headers: { ...corsHeaders, 'content-type': 'application/json' } }
+        );
+      }
+    }
 
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 

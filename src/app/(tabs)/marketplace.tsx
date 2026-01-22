@@ -17,6 +17,7 @@ import {
   CheckCircle,
   Gem,
   Store,
+  Shield,
 } from 'lucide-react-native';
 import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -31,6 +32,7 @@ import { getMarketplaceListings, deleteMarketplaceListing as deleteMarketplaceLi
 import { getOrCreateConversation } from '@/lib/messages';
 import { purchaseMarketplaceListing, priceToGems, calculateFeeBreakdown } from '@/lib/marketplacePayments';
 import { getGemBalance } from '@/lib/giftService';
+import { aiTrustSafety, type AiTrustSafetyResult } from '@/lib/aiTrustSafety';
 
 interface DbListing {
   id: string;
@@ -80,6 +82,9 @@ export default function MarketplaceTabScreen() {
   const [showSoldModal, setShowSoldModal] = useState(false);
   const [listingToModify, setListingToModify] = useState<MarketplaceListing | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showSafetyModal, setShowSafetyModal] = useState(false);
+  const [safetyBusy, setSafetyBusy] = useState(false);
+  const [safetyResult, setSafetyResult] = useState<AiTrustSafetyResult | null>(null);
 
   const handleOpenDeleteModal = () => {
     if (!selectedListing) return;
@@ -221,6 +226,31 @@ export default function MarketplaceTabScreen() {
     } catch (error) {
       console.error('Error creating conversation:', error);
       Alert.alert('Error', 'Could not start conversation. Please try again.');
+    }
+  };
+
+  const runSafetyCheck = async () => {
+    if (!selectedListing || safetyBusy) return;
+    setSafetyBusy(true);
+    setSafetyResult(null);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      const payload = [
+        `Title: ${selectedListing.title}`,
+        `Price: ${selectedListing.price} ${selectedListing.currency}`,
+        `Category: ${selectedListing.category}`,
+        `Condition: ${selectedListing.condition}`,
+        `Description: ${selectedListing.description}`,
+        `Seller: ${selectedListing.seller?.name} (@${selectedListing.seller?.username})`,
+      ].join('\n');
+      const res = await aiTrustSafety({ kind: 'marketplace_listing', text: payload });
+      setSafetyResult(res);
+      setShowSafetyModal(true);
+    } catch (e) {
+      console.log('[Marketplace] safety check failed:', e);
+      Alert.alert('Safety check failed', 'Please try again in a moment.');
+    } finally {
+      setSafetyBusy(false);
     }
   };
 
@@ -591,6 +621,16 @@ export default function MarketplaceTabScreen() {
                           {priceToGems(parseFloat(selectedListing.price)).toLocaleString()} Gems
                         </Text>
                       </View>
+                      <Pressable
+                        onPress={runSafetyCheck}
+                        disabled={safetyBusy}
+                        className={`flex-row items-center justify-center mb-3 rounded-xl py-3 ${safetyBusy ? 'bg-gray-100' : 'bg-amber-50'}`}
+                      >
+                        <Shield size={18} color={safetyBusy ? '#9CA3AF' : '#D97706'} />
+                        <Text className={`font-bold ml-2 ${safetyBusy ? 'text-gray-400' : 'text-amber-700'}`}>
+                          {safetyBusy ? 'Checking…' : 'AI Safety Check'}
+                        </Text>
+                      </Pressable>
                       <View className="flex-row">
                         <Pressable onPress={handleBuyNow} className="flex-1 mr-2">
                           <LinearGradient
@@ -622,6 +662,64 @@ export default function MarketplaceTabScreen() {
               </SafeAreaView>
             </View>
           )}
+        </Modal>
+
+        {/* AI Safety Result Modal */}
+        <Modal visible={showSafetyModal} transparent animationType="slide" onRequestClose={() => setShowSafetyModal(false)}>
+          <Pressable className="flex-1 bg-black/60 justify-end" onPress={() => setShowSafetyModal(false)}>
+            <Pressable className="bg-white rounded-t-3xl px-5 pt-5 pb-8" onPress={(e) => e.stopPropagation()}>
+              <View className="flex-row items-center justify-between">
+                <Text className="text-lg font-bold text-warmBrown">Safety Check</Text>
+                <Pressable onPress={() => setShowSafetyModal(false)} className="p-2">
+                  <X size={20} color="#6B7280" />
+                </Pressable>
+              </View>
+
+              {safetyResult ? (
+                <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>
+                  <View className="mt-3 bg-gray-50 rounded-2xl p-4">
+                    <Text className="text-gray-500 text-xs font-bold">RISK</Text>
+                    <Text className="text-warmBrown font-bold text-xl mt-1">
+                      {safetyResult.risk.toUpperCase()} ({safetyResult.score}/100)
+                    </Text>
+                    <Text className="text-gray-600 mt-2">{safetyResult.recommendation}</Text>
+                  </View>
+
+                  {safetyResult.red_flags?.length ? (
+                    <View className="mt-3">
+                      <Text className="text-warmBrown font-bold mb-2">Red flags</Text>
+                      {safetyResult.red_flags.map((x, i) => (
+                        <Text key={i} className="text-gray-700">• {x}</Text>
+                      ))}
+                    </View>
+                  ) : null}
+
+                  {safetyResult.safe_signals?.length ? (
+                    <View className="mt-3">
+                      <Text className="text-warmBrown font-bold mb-2">Good signs</Text>
+                      {safetyResult.safe_signals.map((x, i) => (
+                        <Text key={i} className="text-gray-700">• {x}</Text>
+                      ))}
+                    </View>
+                  ) : null}
+
+                  {safetyResult.suggested_questions?.length ? (
+                    <View className="mt-3">
+                      <Text className="text-warmBrown font-bold mb-2">Questions to ask</Text>
+                      {safetyResult.suggested_questions.map((x, i) => (
+                        <Text key={i} className="text-gray-700">• {x}</Text>
+                      ))}
+                    </View>
+                  ) : null}
+                </ScrollView>
+              ) : (
+                <View className="py-8 items-center">
+                  <ActivityIndicator />
+                  <Text className="text-gray-500 mt-2">Working…</Text>
+                </View>
+              )}
+            </Pressable>
+          </Pressable>
         </Modal>
 
         {/* Delete Modal */}

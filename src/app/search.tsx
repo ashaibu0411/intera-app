@@ -8,6 +8,7 @@ import * as Haptics from 'expo-haptics';
 import { MOCK_POSTS, MOCK_COMMUNITIES, useStore } from '@/lib/store';
 import { supabase, DbUser } from '@/lib/supabase';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { aiSmartSearch, type AiSmartSearchItem } from '@/lib/aiSmartSearch';
 
 type SearchCategory = 'all' | 'people' | 'online' | 'posts' | 'events' | 'businesses';
 
@@ -44,6 +45,8 @@ export default function SearchScreen() {
   const [hasSearched, setHasSearched] = useState(false);
   const [isLoadingOnline, setIsLoadingOnline] = useState(false);
   const [selectedOpener, setSelectedOpener] = useState('');
+  const [aiResults, setAiResults] = useState<AiSmartSearchItem[]>([]);
+  const [aiBusy, setAiBusy] = useState(false);
 
   const isGuest = useStore((s) => s.isGuest);
   const currentUser = useStore((s) => s.currentUser);
@@ -139,14 +142,35 @@ export default function SearchScreen() {
     const searchTimeout = setTimeout(() => {
       if (query.trim().length >= 1) {
         searchUsers(query.trim());
+        // AI search for non-people categories
+        if (activeCategory === 'posts' || activeCategory === 'events' || activeCategory === 'businesses' || activeCategory === 'all') {
+          void runAiSearch(query.trim());
+        } else {
+          setAiResults([]);
+        }
       } else {
         setSearchResults([]);
         setHasSearched(false);
+        setAiResults([]);
       }
     }, 300); // Debounce search by 300ms
 
     return () => clearTimeout(searchTimeout);
   }, [query, activeCategory]);
+
+  const runAiSearch = async (q: string) => {
+    if (!q.trim()) return;
+    setAiBusy(true);
+    try {
+      const res = await aiSmartSearch({ query: q.trim(), limit: 18 });
+      setAiResults(Array.isArray(res?.results) ? res.results : []);
+    } catch (e) {
+      console.log('[AI Smart Search] failed:', e);
+      setAiResults([]);
+    } finally {
+      setAiBusy(false);
+    }
+  };
 
   const searchUsers = async (searchQuery: string) => {
     setIsSearching(true);
@@ -199,6 +223,12 @@ export default function SearchScreen() {
     setQuery('');
     setSearchResults([]);
     setHasSearched(false);
+    setAiResults([]);
+  };
+
+  const handleAiResultPress = (item: AiSmartSearchItem) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push(item.route as any);
   };
 
   const handleUserPress = (user: DbUser) => {
@@ -225,9 +255,9 @@ export default function SearchScreen() {
     router.push(route as any);
   };
 
-  const filteredPosts = MOCK_POSTS.filter((post) =>
-    post.content.toLowerCase().includes(query.toLowerCase())
-  );
+  const filteredAiPosts = useMemo(() => aiResults.filter((r) => r.type === 'post'), [aiResults]);
+  const filteredAiEvents = useMemo(() => aiResults.filter((r) => r.type === 'event'), [aiResults]);
+  const filteredAiBusinesses = useMemo(() => aiResults.filter((r) => r.type === 'business'), [aiResults]);
 
   const renderUserCard = (user: DbUser, index: number, showOnlineStatus: boolean = true) => {
     const isOnline = user.is_online && user.show_online_status !== false;
@@ -425,29 +455,80 @@ export default function SearchScreen() {
               )}
 
               {/* Posts Results */}
-              {(activeCategory === 'all' || activeCategory === 'posts') && filteredPosts.length > 0 && (
+              {(activeCategory === 'all' || activeCategory === 'posts') && (
                 <Animated.View entering={FadeInUp.duration(400).delay(100)}>
                   <Text className="text-lg font-semibold text-warmBrown mb-3 mt-4">Posts</Text>
-                  {filteredPosts.map((post, index) => (
-                    <Animated.View
-                      key={post.id}
-                      entering={FadeInUp.duration(300).delay(index * 50)}
-                    >
-                      <Pressable className="bg-white rounded-2xl p-4 mb-3 shadow-sm">
-                        <View className="flex-row items-center mb-2">
-                          <Image
-                            source={{ uri: post.author.avatar }}
-                            style={{ width: 32, height: 32, borderRadius: 16 }}
-                            contentFit="cover"
-                          />
-                          <Text className="text-warmBrown font-medium ml-2">{post.author.name}</Text>
-                        </View>
-                        <Text className="text-gray-600" numberOfLines={3}>
-                          {post.content}
-                        </Text>
-                      </Pressable>
-                    </Animated.View>
-                  ))}
+                  {aiBusy ? (
+                    <View className="items-center py-6 bg-white rounded-2xl">
+                      <ActivityIndicator size="small" color="#C45C26" />
+                      <Text className="text-gray-500 mt-2">Searching posts…</Text>
+                    </View>
+                  ) : filteredAiPosts.length > 0 ? (
+                    filteredAiPosts.map((item, index) => (
+                      <Animated.View key={`${item.type}:${item.id}`} entering={FadeInUp.duration(300).delay(index * 50)}>
+                        <Pressable className="bg-white rounded-2xl p-4 mb-3 shadow-sm" onPress={() => handleAiResultPress(item)}>
+                          <Text className="text-warmBrown font-semibold">{item.title}</Text>
+                          <Text className="text-gray-600 mt-1" numberOfLines={3}>{item.snippet}</Text>
+                        </Pressable>
+                      </Animated.View>
+                    ))
+                  ) : hasSearched ? (
+                    <View className="items-center py-6 bg-white rounded-2xl">
+                      <Text className="text-gray-500">No post matches for "{query}"</Text>
+                    </View>
+                  ) : null}
+                </Animated.View>
+              )}
+
+              {/* Events Results */}
+              {(activeCategory === 'all' || activeCategory === 'events') && (
+                <Animated.View entering={FadeInUp.duration(400).delay(120)}>
+                  <Text className="text-lg font-semibold text-warmBrown mb-3 mt-4">Events</Text>
+                  {aiBusy ? (
+                    <View className="items-center py-6 bg-white rounded-2xl">
+                      <ActivityIndicator size="small" color="#C45C26" />
+                      <Text className="text-gray-500 mt-2">Searching events…</Text>
+                    </View>
+                  ) : filteredAiEvents.length > 0 ? (
+                    filteredAiEvents.map((item, index) => (
+                      <Animated.View key={`${item.type}:${item.id}`} entering={FadeInUp.duration(300).delay(index * 50)}>
+                        <Pressable className="bg-white rounded-2xl p-4 mb-3 shadow-sm" onPress={() => handleAiResultPress(item)}>
+                          <Text className="text-warmBrown font-semibold">{item.title}</Text>
+                          <Text className="text-gray-600 mt-1" numberOfLines={3}>{item.snippet}</Text>
+                        </Pressable>
+                      </Animated.View>
+                    ))
+                  ) : hasSearched ? (
+                    <View className="items-center py-6 bg-white rounded-2xl">
+                      <Text className="text-gray-500">No event matches for "{query}"</Text>
+                    </View>
+                  ) : null}
+                </Animated.View>
+              )}
+
+              {/* Businesses Results */}
+              {(activeCategory === 'all' || activeCategory === 'businesses') && (
+                <Animated.View entering={FadeInUp.duration(400).delay(140)}>
+                  <Text className="text-lg font-semibold text-warmBrown mb-3 mt-4">Businesses</Text>
+                  {aiBusy ? (
+                    <View className="items-center py-6 bg-white rounded-2xl">
+                      <ActivityIndicator size="small" color="#C45C26" />
+                      <Text className="text-gray-500 mt-2">Searching businesses…</Text>
+                    </View>
+                  ) : filteredAiBusinesses.length > 0 ? (
+                    filteredAiBusinesses.map((item, index) => (
+                      <Animated.View key={`${item.type}:${item.id}`} entering={FadeInUp.duration(300).delay(index * 50)}>
+                        <Pressable className="bg-white rounded-2xl p-4 mb-3 shadow-sm" onPress={() => handleAiResultPress(item)}>
+                          <Text className="text-warmBrown font-semibold">{item.title}</Text>
+                          <Text className="text-gray-600 mt-1" numberOfLines={3}>{item.snippet}</Text>
+                        </Pressable>
+                      </Animated.View>
+                    ))
+                  ) : hasSearched ? (
+                    <View className="items-center py-6 bg-white rounded-2xl">
+                      <Text className="text-gray-500">No business matches for "{query}"</Text>
+                    </View>
+                  ) : null}
                 </Animated.View>
               )}
             </View>

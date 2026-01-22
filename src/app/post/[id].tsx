@@ -29,6 +29,7 @@ import {
   Ban,
   Flag,
   X,
+  Languages,
 } from 'lucide-react-native';
 import Animated, { FadeIn, FadeInUp, useSharedValue, useAnimatedStyle, withSpring, withSequence } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -44,6 +45,9 @@ import {
 import { getPost, getComments, createComment } from '@/lib/posts';
 import { moderateText } from '@/lib/contentModeration';
 import { aiModerateContent } from '@/lib/aiModerateContent';
+import { translateForUi } from '@/lib/aiUiTranslate';
+import { aiReplyCopilot } from '@/lib/aiReplyCopilot';
+import { aiPostCopilot } from '@/lib/aiPostCopilot';
 
 export default function PostDetailScreen() {
   const { id, returnTo } = useLocalSearchParams<{ id: string; returnTo?: string }>();
@@ -58,6 +62,11 @@ export default function PostDetailScreen() {
   const [showOptionsModal, setShowOptionsModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportReason, setReportReason] = useState('');
+  const [postTranslation, setPostTranslation] = useState<string | null>(null);
+  const [isTranslatingPost, setIsTranslatingPost] = useState(false);
+  const [showTranslatedPost, setShowTranslatedPost] = useState(false);
+  const [replyIdeas, setReplyIdeas] = useState<string[]>([]);
+  const [replyIdeasBusy, setReplyIdeasBusy] = useState(false);
 
   const isGuest = useStore((s) => s.isGuest);
   const currentUser = useStore((s) => s.currentUser);
@@ -69,6 +78,7 @@ export default function PostDetailScreen() {
   const blockUser = useStore((s) => s.blockUser);
   const reportUser = useStore((s) => s.reportUser);
   const blockedUserIds = useStore((s) => s.blockedUserIds);
+  const translatorPrefs = useStore((s) => s.translator);
 
   // Fetch post and comments from database
   useEffect(() => {
@@ -207,6 +217,12 @@ export default function PostDetailScreen() {
       new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
     );
   }, [id, userComments, dbComments]);
+
+  const replyingToText = useMemo(() => {
+    if (!replyingTo?.id) return '';
+    const c = comments.find((x) => x.id === replyingTo.id);
+    return String(c?.content ?? '').trim();
+  }, [comments, replyingTo?.id]);
 
   // Get like count for a comment (base + 1 if user liked it)
   const getCommentLikeCount = (comment: Comment) => {
@@ -420,6 +436,61 @@ export default function PostDetailScreen() {
 
   const timeAgo = formatDistanceToNow(new Date(post.createdAt), { addSuffix: true });
 
+  const targetLang = translatorPrefs?.targetLangCode || 'en';
+
+  const translatePost = async () => {
+    if (!post?.content?.trim() || isTranslatingPost) return;
+    setIsTranslatingPost(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      const res = await translateForUi({
+        text: post.content,
+        to: targetLang,
+        scope: `post:${id}`,
+        context: `Translate this community post for display. Keep tone and emojis.`,
+      });
+      setPostTranslation(res.translation);
+      setShowTranslatedPost(true);
+    } catch (e) {
+      console.log('[PostDetail] translate failed:', e);
+      Alert.alert('Translate failed', 'Please try again in a moment.');
+    } finally {
+      setIsTranslatingPost(false);
+    }
+  };
+
+  const generateReplyIdeas = async () => {
+    if (!post?.content?.trim() || replyIdeasBusy) return;
+    setReplyIdeasBusy(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      const res = await aiReplyCopilot({
+        postText: post.content,
+        replyingToText: replyingToText || undefined,
+        goal: 'helpful',
+        voice: 'community',
+      });
+      setReplyIdeas(Array.isArray(res?.replies) ? res.replies.slice(0, 3) : []);
+    } catch (e) {
+      console.log('[PostDetail] reply copilot failed:', e);
+      Alert.alert('AI reply failed', 'Please try again in a moment.');
+    } finally {
+      setReplyIdeasBusy(false);
+    }
+  };
+
+  const rewriteCommentDraft = async (mode: 'rewrite' | 'shorten') => {
+    const text = commentText.trim();
+    if (!text) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      const res = await aiPostCopilot({ text, mode });
+      if (res?.text) setCommentText(res.text);
+    } catch (e) {
+      console.log('[PostDetail] rewrite draft failed:', e);
+    }
+  };
+
   return (
     <View className="flex-1 bg-cream">
       <SafeAreaView edges={['top']} className="flex-1">
@@ -486,8 +557,26 @@ export default function PostDetailScreen() {
 
               {/* Post Text */}
               <View className="px-4 pb-3">
+                <View className="flex-row items-center justify-between mb-2">
+                  <Pressable
+                    onPress={() => {
+                      if (postTranslation) {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        setShowTranslatedPost((v) => !v);
+                      } else {
+                        void translatePost();
+                      }
+                    }}
+                    className="flex-row items-center"
+                  >
+                    <Languages size={16} color="#6B7280" />
+                    <Text className="text-gray-500 font-semibold ml-2">
+                      {postTranslation ? (showTranslatedPost ? 'Show original' : 'Show translation') : isTranslatingPost ? 'Translating…' : `Translate (${targetLang})`}
+                    </Text>
+                  </Pressable>
+                </View>
                 <Text className="text-warmBrown text-base leading-6">
-                  {post.content}
+                  {showTranslatedPost && postTranslation ? postTranslation : post.content}
                 </Text>
               </View>
 
@@ -667,6 +756,58 @@ export default function PostDetailScreen() {
           {/* Comment Input */}
           <View className="bg-white border-t border-gray-100 px-4 py-3">
             <SafeAreaView edges={['bottom']}>
+              {/* Reply Copilot */}
+              {!isGuest && !!currentUser ? (
+                <View className="mb-2">
+                  <View className="flex-row items-center justify-between">
+                    <Pressable
+                      onPress={generateReplyIdeas}
+                      disabled={replyIdeasBusy}
+                      className="flex-row items-center"
+                    >
+                      <Text className="text-xs font-bold text-gray-500">
+                        {replyIdeasBusy ? 'Getting reply ideas…' : 'AI Reply Copilot'}
+                      </Text>
+                    </Pressable>
+                    <View className="flex-row items-center">
+                      <Pressable
+                        onPress={() => void rewriteCommentDraft('rewrite')}
+                        disabled={!commentText.trim()}
+                        className={`px-3 py-1 rounded-full mr-2 ${commentText.trim() ? 'bg-emerald-50' : 'bg-gray-100'}`}
+                      >
+                        <Text className={`${commentText.trim() ? 'text-emerald-700' : 'text-gray-400'} text-xs font-bold`}>Nicer</Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={() => void rewriteCommentDraft('shorten')}
+                        disabled={!commentText.trim()}
+                        className={`px-3 py-1 rounded-full ${commentText.trim() ? 'bg-emerald-50' : 'bg-gray-100'}`}
+                      >
+                        <Text className={`${commentText.trim() ? 'text-emerald-700' : 'text-gray-400'} text-xs font-bold`}>Shorter</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+
+                  {replyIdeas.length ? (
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
+                      {replyIdeas.map((idea, idx) => (
+                        <Pressable
+                          key={idx}
+                          onPress={() => {
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            setCommentText(idea);
+                            commentInputRef.current?.focus();
+                          }}
+                          className="mr-2 bg-gray-100 rounded-2xl px-3 py-2"
+                          style={{ maxWidth: 260 }}
+                        >
+                          <Text className="text-gray-700 text-sm">{idea}</Text>
+                        </Pressable>
+                      ))}
+                    </ScrollView>
+                  ) : null}
+                </View>
+              ) : null}
+
               {/* Reply indicator */}
               {replyingTo && (
                 <View className="flex-row items-center justify-between mb-2 bg-gray-50 rounded-lg px-3 py-2">

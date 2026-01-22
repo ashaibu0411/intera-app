@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -32,6 +32,7 @@ import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { askImmigrationAssistant } from '@/lib/immigrationAssistantAi';
 import { useStore } from '@/lib/store';
+import { FormattedAiText } from '@/components/FormattedAiText';
 
 interface Message {
   id: string;
@@ -49,101 +50,9 @@ interface QuickQuestion {
 // Simple markdown renderer for AI responses
 function FormattedMessage({ content, isUser }: { content: string; isUser: boolean }) {
   if (isUser) {
-    return (
-      <Text className="text-lg leading-7 text-white">
-        {content}
-      </Text>
-    );
+    return <Text className="text-lg leading-7 text-white">{content}</Text>;
   }
-
-  // Parse and render markdown-like content for assistant messages
-  const lines = content.split('\n');
-
-  return (
-    <View className="gap-2">
-      {lines.map((line, index) => {
-        const trimmedLine = line.trim();
-
-        // Skip empty lines
-        if (!trimmedLine) {
-          return <View key={index} className="h-2" />;
-        }
-
-        // Headers (## Header)
-        if (trimmedLine.startsWith('## ')) {
-          return (
-            <Text key={index} className="text-lg font-bold text-emerald-400 mt-2 mb-1">
-              {trimmedLine.replace('## ', '')}
-            </Text>
-          );
-        }
-
-        // Bold headers (###)
-        if (trimmedLine.startsWith('### ')) {
-          return (
-            <Text key={index} className="text-base font-semibold text-slate-100 mt-1">
-              {trimmedLine.replace('### ', '')}
-            </Text>
-          );
-        }
-
-        // Bullet points (- or •)
-        if (trimmedLine.startsWith('- ') || trimmedLine.startsWith('• ')) {
-          const bulletContent = trimmedLine.replace(/^[-•]\s*/, '');
-          return (
-            <View key={index} className="flex-row pl-2 pr-1">
-              <Text className="text-emerald-500 mr-2 text-base">•</Text>
-              <Text className="text-base leading-6 text-slate-200 flex-1">
-                {renderInlineFormatting(bulletContent)}
-              </Text>
-            </View>
-          );
-        }
-
-        // Numbered lists (1. 2. etc)
-        const numberedMatch = trimmedLine.match(/^(\d+)\)\s*(.*)/);
-        if (numberedMatch) {
-          return (
-            <View key={index} className="flex-row pl-2 pr-1">
-              <Text className="text-emerald-500 mr-2 text-base font-medium">{numberedMatch[1]}.</Text>
-              <Text className="text-base leading-6 text-slate-200 flex-1">
-                {renderInlineFormatting(numberedMatch[2])}
-              </Text>
-            </View>
-          );
-        }
-
-        // Horizontal rule (---)
-        if (trimmedLine === '---') {
-          return <View key={index} className="h-px bg-slate-600 my-3" />;
-        }
-
-        // Regular paragraph
-        return (
-          <Text key={index} className="text-base leading-7 text-slate-200">
-            {renderInlineFormatting(trimmedLine)}
-          </Text>
-        );
-      })}
-    </View>
-  );
-}
-
-// Helper to render inline formatting like **bold** and links
-function renderInlineFormatting(text: string): React.ReactNode {
-  // Simple bold text replacement
-  const parts = text.split(/(\*\*[^*]+\*\*)/g);
-
-  return parts.map((part, i) => {
-    if (part.startsWith('**') && part.endsWith('**')) {
-      return (
-        <Text key={i} className="font-semibold text-white">
-          {part.slice(2, -2)}
-        </Text>
-      );
-    }
-    return part;
-  });
+  return <FormattedAiText content={content} variant="dark" hideSourcesSection={false} />;
 }
 
 const QUICK_QUESTIONS: QuickQuestion[] = [

@@ -12,6 +12,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { uploadImages } from '@/lib/posts';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { aiSummarizeCard, type AiSummaryResult } from '@/lib/aiSummarizeCard';
+import { FormattedAiText } from '@/components/FormattedAiText';
 
 type DisplayEvent = {
   id?: string;
@@ -396,11 +397,11 @@ export default function EventDetailScreen() {
 
               {aiSummary?.bullets?.length ? (
                 <View className="mt-3">
-                  {aiSummary.bullets.slice(0, 5).map((b, i) => (
-                    <Text key={i} className="text-gray-700 leading-6">
-                      • {b}
-                    </Text>
-                  ))}
+                  <FormattedAiText
+                    content={aiSummary.bullets.slice(0, 5).map((b) => `- ${b}`).join('\n')}
+                    variant="light"
+                    hideSourcesSection={false}
+                  />
                   {aiSummary.caution ? (
                     <View className="mt-3 bg-amber-50 border border-amber-200 rounded-xl p-3">
                       <Text className="text-amber-800 text-sm">{aiSummary.caution}</Text>

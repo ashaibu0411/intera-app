@@ -58,6 +58,8 @@ import { useStore } from '@/lib/store';
 import { createClip, uploadClipVideo, uploadClipThumbnail } from '@/lib/clips-api';
 import * as MediaLibrary from 'expo-media-library';
 import * as FileSystem from 'expo-file-system';
+import { aiClipEnhancer } from '@/lib/aiClipEnhancer';
+import { aiClipCaptionsFromVideoUrl } from '@/lib/aiClipCaptions';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -125,6 +127,7 @@ export default function CreateClipScreen() {
   const [thumbnailUri, setThumbnailUri] = useState<string | null>(null);
   const [description, setDescription] = useState('');
   const [musicTag, setMusicTag] = useState('');
+  const [enhanceBusy, setEnhanceBusy] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -240,6 +243,39 @@ export default function CreateClipScreen() {
 
       setVideoUri(uri);
       setThumbnailUri(null);
+    }
+  };
+
+  const enhanceWithAi = async () => {
+    if (!videoUri || enhanceBusy) return;
+    setEnhanceBusy(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      // Generate transcript from the selected video (client -> Edge Function)
+      const caps = await aiClipCaptionsFromVideoUrl({ videoUrl: videoUri, targetLang: 'en' });
+      const transcript = caps?.text || '';
+      if (!transcript.trim()) {
+        Alert.alert('Could not enhance', 'No transcript found for this clip.');
+        return;
+      }
+
+      const res = await aiClipEnhancer({
+        transcript,
+        currentDescription: description,
+        goal: 'more_views',
+        voice: 'community',
+      });
+
+      if (res?.description) {
+        const tagStr = (res.hashtags || []).slice(0, 12).join(' ');
+        const merged = `${res.description}${tagStr ? `\n\n${tagStr}` : ''}`.trim();
+        setDescription(merged.slice(0, 500));
+      }
+    } catch (e) {
+      console.log('[CreateClip] AI enhance failed:', e);
+      Alert.alert('AI enhance failed', 'Please try again in a moment.');
+    } finally {
+      setEnhanceBusy(false);
     }
   };
 
@@ -882,7 +918,21 @@ export default function CreateClipScreen() {
             entering={FadeInUp.duration(400).delay(200)}
             className="px-5 mb-6"
           >
-            <Text className="text-white font-semibold mb-2">Description</Text>
+            <View className="flex-row items-center justify-between mb-2">
+              <Text className="text-white font-semibold">Description</Text>
+              <Pressable
+                onPress={enhanceWithAi}
+                disabled={!videoUri || enhanceBusy}
+                className={`flex-row items-center px-3 py-1.5 rounded-full ${
+                  !videoUri || enhanceBusy ? 'bg-white/10' : 'bg-terracotta'
+                }`}
+              >
+                <Sparkles size={14} color={!videoUri || enhanceBusy ? 'rgba(255,255,255,0.45)' : '#fff'} />
+                <Text className={`ml-2 text-xs font-bold ${!videoUri || enhanceBusy ? 'text-white/40' : 'text-white'}`}>
+                  {enhanceBusy ? 'Enhancing…' : 'AI Enhance'}
+                </Text>
+              </Pressable>
+            </View>
             <TextInput
               value={description}
               onChangeText={setDescription}

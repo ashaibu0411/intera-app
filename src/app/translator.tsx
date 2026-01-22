@@ -20,6 +20,7 @@ import Animated, { FadeInDown, FadeInUp, useSharedValue, useAnimatedStyle, withR
 import * as Haptics from 'expo-haptics';
 import * as Speech from 'expo-speech';
 import { aiLanguageBridge } from '@/lib/aiLanguageBridge';
+import { FormattedAiText } from '@/components/FormattedAiText';
 import { useStore } from '@/lib/store';
 import { loadTranslatorCloudState, saveTranslatorCloudState } from '@/lib/translatorCloud';
 
@@ -785,21 +786,17 @@ export default function TranslatorScreen() {
                 {toneNotes.length ? (
                   <View className="mt-3">
                     <Text className="text-emerald-200 text-xs font-semibold">TONE</Text>
-                    {toneNotes.slice(0, 3).map((t, i) => (
-                      <Text key={i} className="text-white/90 mt-1">
-                        • {t}
-                      </Text>
-                    ))}
+                    <View className="mt-2">
+                      <FormattedAiText content={toneNotes.slice(0, 3).map((t) => `- ${t}`).join('\n')} variant="dark" hideSourcesSection={false} />
+                    </View>
                   </View>
                 ) : null}
                 {culturalNotes.length ? (
                   <View className="mt-3">
                     <Text className="text-emerald-200 text-xs font-semibold">CULTURE</Text>
-                    {culturalNotes.slice(0, 3).map((t, i) => (
-                      <Text key={i} className="text-white/90 mt-1">
-                        • {t}
-                      </Text>
-                    ))}
+                    <View className="mt-2">
+                      <FormattedAiText content={culturalNotes.slice(0, 3).map((t) => `- ${t}`).join('\n')} variant="dark" hideSourcesSection={false} />
+                    </View>
                   </View>
                 ) : null}
               </View>
