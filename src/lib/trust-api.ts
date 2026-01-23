@@ -48,45 +48,60 @@ export interface DbUserBadge {
 // ==================== Trust Score API ====================
 
 export async function getUserTrustScore(userId: string): Promise<DbUserTrustScore | null> {
-  const { data, error } = await supabase
-    .from('user_trust_scores')
-    .select('*')
-    .eq('user_id', userId)
-    .single();
+  try {
+    const { data, error } = await supabase
+      .from('user_trust_scores')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
 
-  if (error) {
-    if (error.code === 'PGRST116') {
-      // No trust score found, return default
+    if (error) {
+      // Table doesn't exist or no record found - return null silently
+      if (error.code === 'PGRST116' || error.code === 'PGRST205' || error.code === '42P01') {
+        return null;
+      }
+      // Only log unexpected errors
+      console.error('Error fetching trust score:', error);
       return null;
     }
-    console.error('Error fetching trust score:', error);
+
+    return data as DbUserTrustScore;
+  } catch {
+    // Table doesn't exist - return null silently
     return null;
   }
-
-  return data as DbUserTrustScore;
 }
 
 export async function initializeUserTrustScore(userId: string): Promise<DbUserTrustScore | null> {
-  const { data, error } = await supabase
-    .from('user_trust_scores')
-    .insert({
-      user_id: userId,
-      overall_score: 20,
-      verification_level: 'basic',
-    })
-    .select()
-    .single();
+  try {
+    const { data, error } = await supabase
+      .from('user_trust_scores')
+      .insert({
+        user_id: userId,
+        overall_score: 20,
+        verification_level: 'basic',
+      })
+      .select()
+      .single();
 
-  if (error) {
-    // If already exists, fetch existing
-    if (error.code === '23505') {
-      return getUserTrustScore(userId);
+    if (error) {
+      // If already exists, fetch existing
+      if (error.code === '23505') {
+        return getUserTrustScore(userId);
+      }
+      // Table doesn't exist - return null silently
+      if (error.code === 'PGRST205' || error.code === '42P01') {
+        return null;
+      }
+      console.error('Error initializing trust score:', error);
+      return null;
     }
-    console.error('Error initializing trust score:', error);
+
+    return data as DbUserTrustScore;
+  } catch {
+    // Table doesn't exist - return null silently
     return null;
   }
-
-  return data as DbUserTrustScore;
 }
 
 export async function getOrCreateTrustScore(userId: string): Promise<DbUserTrustScore> {
