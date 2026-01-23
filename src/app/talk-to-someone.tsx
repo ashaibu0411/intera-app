@@ -22,7 +22,8 @@ import {
   Smile,
   HandHeart,
   Globe,
-  Lock
+  Lock,
+  ShieldOff
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import Animated, { FadeInDown, FadeIn, ZoomIn } from 'react-native-reanimated';
@@ -35,6 +36,7 @@ import {
   startTalkSession,
   listMyTalkSessions,
   endTalkSession,
+  submitTalkReview,
   hasConfirmedTalkAge18Plus,
   confirmTalkAge18Plus,
   listMyBlockedUserIds,
@@ -87,6 +89,10 @@ export default function TalkToSomeoneScreen() {
   const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [showAgeModal, setShowAgeModal] = useState(false);
   const [blockedIds, setBlockedIds] = useState<string[]>([]);
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [reviewSessionId, setReviewSessionId] = useState<string | null>(null);
+  const [reviewRating, setReviewRating] = useState<number>(5);
+  const [reviewComment, setReviewComment] = useState<string>('');
 
   const currentUser = useStore((s) => s.currentUser);
 
@@ -237,6 +243,36 @@ export default function TalkToSomeoneScreen() {
       Alert.alert('Reported', 'Thanks — our team will review this report.');
     } catch (e: any) {
       Alert.alert('Could not report', String(e?.message ?? e));
+    }
+  };
+
+  const openReview = (sessionId: string) => {
+    setReviewSessionId(sessionId);
+    setReviewRating(5);
+    setReviewComment('');
+    setShowReviewModal(true);
+  };
+
+  const submitReview = async () => {
+    if (!reviewSessionId) return;
+    try {
+      await submitTalkReview({ sessionId: reviewSessionId, rating: reviewRating, comment: reviewComment });
+      setShowReviewModal(false);
+      setReviewSessionId(null);
+      Alert.alert('Thanks!', 'Your review was submitted.');
+    } catch (e: any) {
+      const msg = String(e?.message ?? e);
+      if (msg.includes('already_reviewed')) {
+        setShowReviewModal(false);
+        setReviewSessionId(null);
+        Alert.alert('Already reviewed', 'You already left a review for this session.');
+        return;
+      }
+      if (msg.includes('session_not_ended')) {
+        Alert.alert('Not yet', 'You can review after the session ends.');
+        return;
+      }
+      Alert.alert('Could not submit review', msg);
     }
   };
 
@@ -586,6 +622,20 @@ export default function TalkToSomeoneScreen() {
                   <Text className="text-gray-500 text-sm">Rating</Text>
                 </View>
               </View>
+
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  router.push('/talk-blocked' as any);
+                }}
+                className="bg-white rounded-2xl p-4 flex-row items-center justify-between shadow-sm"
+              >
+                <View className="flex-row items-center">
+                  <ShieldOff size={18} color="#7C3AED" />
+                  <Text className="text-gray-900 font-bold ml-2">Blocked users</Text>
+                </View>
+                <Text className="text-gray-500 text-sm">{blockedIds.length}</Text>
+              </Pressable>
             </View>
           )}
 
@@ -663,6 +713,7 @@ export default function TalkToSomeoneScreen() {
                                   await endTalkSession(s.id);
                                   await load();
                                   Alert.alert('Session ended', 'Billing was applied in gems.');
+                                  openReview(s.id);
                                 } catch (e: any) {
                                   Alert.alert('Could not end session', String(e?.message ?? e));
                                 }
@@ -670,6 +721,13 @@ export default function TalkToSomeoneScreen() {
                               className="bg-gray-100 rounded-2xl px-4 items-center justify-center"
                             >
                               <Text className="text-gray-700 font-bold">End</Text>
+                            </Pressable>
+                          ) : (
+                            <Pressable
+                              onPress={() => openReview(s.id)}
+                              className="bg-gray-100 rounded-2xl px-4 items-center justify-center"
+                            >
+                              <Text className="text-gray-700 font-bold">Rate</Text>
                             </Pressable>
                           ) : null}
                         </View>
@@ -941,6 +999,72 @@ export default function TalkToSomeoneScreen() {
                     style={{ borderRadius: 16, paddingVertical: 16, alignItems: 'center' }}
                   >
                     <Text className="text-white font-bold">I’m 18+</Text>
+                  </LinearGradient>
+                </Pressable>
+              </View>
+            </Animated.View>
+          </View>
+        </Modal>
+
+        {/* Review Modal */}
+        <Modal visible={showReviewModal} transparent animationType="fade">
+          <View className="flex-1 bg-black/60 items-center justify-center px-5">
+            <Animated.View entering={ZoomIn.springify()} className="bg-white rounded-3xl p-6 w-full max-w-sm">
+              <View className="flex-row items-center justify-between mb-3">
+                <Text className="text-gray-900 font-bold text-lg">Rate this talk</Text>
+                <Pressable
+                  onPress={() => {
+                    setShowReviewModal(false);
+                    setReviewSessionId(null);
+                  }}
+                >
+                  <X size={22} color="#9CA3AF" />
+                </Pressable>
+              </View>
+
+              <Text className="text-gray-600 text-sm mb-3">How was your experience?</Text>
+
+              <View className="flex-row justify-between mb-4">
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <Pressable
+                    key={n}
+                    onPress={() => setReviewRating(n)}
+                    className={`flex-1 mx-1 rounded-2xl py-3 items-center ${
+                      reviewRating === n ? 'bg-violet-600' : 'bg-gray-100'
+                    }`}
+                  >
+                    <Text className={`${reviewRating === n ? 'text-white' : 'text-gray-700'} font-bold`}>{n}</Text>
+                  </Pressable>
+                ))}
+              </View>
+
+              <TextInput
+                value={reviewComment}
+                onChangeText={setReviewComment}
+                placeholder="Optional note (what went well / what didn’t)..."
+                multiline
+                numberOfLines={3}
+                className="bg-gray-100 rounded-2xl p-4 text-gray-900"
+                placeholderTextColor="#9CA3AF"
+                style={{ textAlignVertical: 'top', minHeight: 80 }}
+              />
+
+              <View className="flex-row gap-3 mt-4">
+                <Pressable
+                  onPress={() => {
+                    setShowReviewModal(false);
+                    setReviewSessionId(null);
+                  }}
+                  className="flex-1 bg-gray-100 rounded-2xl py-4 items-center"
+                >
+                  <Text className="text-gray-700 font-bold">Skip</Text>
+                </Pressable>
+                <Pressable onPress={submitReview} className="flex-1">
+                  <LinearGradient
+                    colors={['#7C3AED', '#6D28D9']}
+                    style={{ borderRadius: 16, paddingVertical: 16, alignItems: 'center' }}
+                  >
+                    <Text className="text-white font-bold">Submit</Text>
                   </LinearGradient>
                 </Pressable>
               </View>

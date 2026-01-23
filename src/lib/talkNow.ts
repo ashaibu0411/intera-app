@@ -176,6 +176,27 @@ export async function listMyBlockedUserIds(userId: string): Promise<string[]> {
   return (data ?? []).map((r: any) => String(r.blocked_id)).filter(Boolean);
 }
 
+export type BasicProfile = {
+  id: string;
+  name: string;
+  username: string;
+  avatar_url: string | null;
+  bio: string | null;
+  location: string | null;
+};
+
+export async function getProfilesByIds(userIds: string[]): Promise<BasicProfile[]> {
+  const ids = (userIds ?? []).map((x) => String(x)).filter(Boolean);
+  if (ids.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, name, username, avatar_url, bio, location')
+    .in('id', ids);
+  if (error) throw error;
+  return (data ?? []) as BasicProfile[];
+}
+
 export async function blockUser(input: { blockerId: string; blockedId: string }) {
   if (input.blockerId === input.blockedId) return;
   const { error } = await supabase.from('user_blocks').insert({
@@ -203,5 +224,15 @@ export async function reportUser(input: { reporterId: string; reportedId: string
     details: input.details ?? null,
   });
   if (error) throw error;
+}
+
+export async function submitTalkReview(input: { sessionId: string; rating: number; comment?: string }) {
+  const { data, error } = await supabase.rpc('submit_talk_review', {
+    session_id: input.sessionId,
+    rating: input.rating,
+    comment: input.comment ?? null,
+  });
+  if (error) throw error;
+  return data as any;
 }
 
