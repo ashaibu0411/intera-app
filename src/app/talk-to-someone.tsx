@@ -333,8 +333,11 @@ export default function TalkToSomeoneScreen() {
               <View className="absolute top-0 right-0 w-32 h-32 rounded-full bg-white/10" style={{ transform: [{ translateX: 40 }, { translateY: -40 }] }} />
 
               <Text className="text-white/80 text-sm mb-1">You're not alone</Text>
-              <Text className="text-white text-xl font-bold mb-2">
+              <Text className="text-white text-xl font-bold">
                 {availableCount} people available to connect
+              </Text>
+              <Text className="text-white/80 text-sm mt-1 mb-2">
+                Your status: {isAvailable ? 'Available' : 'Offline'}
               </Text>
               <Text className="text-white/70 text-sm mb-4">
                 Find someone to talk to or become a listening ear for others
