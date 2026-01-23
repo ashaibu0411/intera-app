@@ -821,14 +821,19 @@ export function PostCard({ post, onLike, onComment, onShare, showGuidelines = fa
             <Video
               ref={videoRef}
               source={{ uri: post.video }}
-              style={{ width: '100%', height: 250, borderRadius: 12, backgroundColor: '#000' }}
+              style={{ width: '100%', height: 250, borderRadius: 12, backgroundColor: '#1a1a1a' }}
               resizeMode={ResizeMode.CONTAIN}
               isLooping
               isMuted={isMuted}
+              shouldPlay={true}
+              useNativeControls={false}
               onPlaybackStatusUpdate={(status) => {
                 if (status.isLoaded) {
                   setIsPlaying(status.isPlaying);
                 }
+              }}
+              onError={(error) => {
+                console.log('Video playback error:', error);
               }}
             />
             {/* Play/Pause overlay */}
@@ -844,7 +849,10 @@ export function PostCard({ post, onLike, onComment, onShare, showGuidelines = fa
             )}
             {/* Mute button */}
             <Pressable
-              onPress={handleToggleMute}
+              onPress={(e) => {
+                e.stopPropagation();
+                handleToggleMute();
+              }}
               className="absolute bottom-3 right-3 bg-black/50 rounded-full p-2"
             >
               {isMuted ? (
