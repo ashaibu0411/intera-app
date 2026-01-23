@@ -36,6 +36,7 @@ import {
 import { startVoiceRoomHighlight, stopVoiceRoomHighlight } from '@/lib/voiceRoomEgress';
 import { createClip } from '@/lib/clips-api';
 import { buildVoiceRoomHighlightClipDescription } from '@/lib/voiceRoomMarkers';
+import { aiVoiceRoomContext } from '@/lib/aiVoiceRoomContext';
 import { sendGift } from '@/lib/giftService';
 import { LiveKitRoom, useRoomContext, isLiveKitAvailable } from '@/lib/livekit-wrapper';
 
@@ -272,8 +273,10 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
 
   const [ctxPinnedTitle, setCtxPinnedTitle] = useState('');
   const [ctxPinnedRoute, setCtxPinnedRoute] = useState('');
+  const [ctxDescription, setCtxDescription] = useState('');
   const [ctxRules, setCtxRules] = useState('');
   const [ctxResources, setCtxResources] = useState('');
+  const [ctxBusy, setCtxBusy] = useState(false);
 
   const [hlOpen, setHlOpen] = useState(false);
   const [hlLabel, setHlLabel] = useState('');
@@ -842,6 +845,7 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
                   <Pressable
                     onPress={() => {
                       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setCtxDescription(String(room.description || ''));
                       setCtxPinnedTitle(String((room as any).pinned_title || ''));
                       setCtxPinnedRoute(String((room as any).pinned_route || ''));
                       setCtxRules(String((room as any).rules || ''));
@@ -1300,6 +1304,66 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
                         </Pressable>
                       </View>
 
+                      <View className="flex-row gap-2">
+                        <Pressable
+                          onPress={async () => {
+                            if (!room?.id) return;
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            setCtxBusy(true);
+                            try {
+                              const existing = {
+                                description: ctxDescription || room.description || null,
+                                pinned_title: ctxPinnedTitle || (room as any).pinned_title || null,
+                                pinned_route: ctxPinnedRoute || (room as any).pinned_route || null,
+                                rules: ctxRules || (room as any).rules || null,
+                                resources: (ctxResources ? ctxResources.split('\n').map((s) => s.trim()).filter(Boolean) : (room as any).resources) || [],
+                              };
+                              const res = await aiVoiceRoomContext({ roomId: room.id, existing });
+                              setCtxDescription(res.description || '');
+                              setCtxPinnedTitle(res.pinned_title || '');
+                              setCtxPinnedRoute(res.pinned_route || '');
+                              setCtxRules(res.rules || '');
+                              setCtxResources((res.resources || []).join('\n'));
+                            } catch (e: any) {
+                              Alert.alert('AI failed', String(e?.message ?? e));
+                            } finally {
+                              setCtxBusy(false);
+                            }
+                          }}
+                          disabled={ctxBusy}
+                          className={`flex-1 rounded-xl py-3 items-center justify-center ${ctxBusy ? 'bg-gray-200' : 'bg-terracotta-500'}`}
+                        >
+                          <Text className={`${ctxBusy ? 'text-gray-500' : 'text-white'} font-semibold`}>
+                            {ctxBusy ? 'Generating…' : 'AI Generate'}
+                          </Text>
+                        </Pressable>
+
+                        <Pressable
+                          onPress={() => {
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            setCtxDescription(String(room?.description || ''));
+                            setCtxPinnedTitle(String((room as any).pinned_title || ''));
+                            setCtxPinnedRoute(String((room as any).pinned_route || ''));
+                            setCtxRules(String((room as any).rules || ''));
+                            setCtxResources(((room as any).resources || []).join('\n'));
+                          }}
+                          className="bg-gray-100 rounded-xl px-4 py-3 items-center justify-center"
+                        >
+                          <Text className="text-gray-700 font-semibold">Reset</Text>
+                        </Pressable>
+                      </View>
+
+                      <Text className="text-gray-500 text-sm mt-4">Description</Text>
+                      <TextInput
+                        value={ctxDescription}
+                        onChangeText={setCtxDescription}
+                        placeholder="1–2 sentences about what this room is for"
+                        placeholderTextColor="#9CA3AF"
+                        multiline
+                        className="mt-2 bg-white border border-gray-200 rounded-xl px-4 py-3 text-warmBrown"
+                        style={{ minHeight: 70, textAlignVertical: 'top' }}
+                      />
+
                       <Text className="text-gray-500 text-sm">Pinned title</Text>
                       <TextInput value={ctxPinnedTitle} onChangeText={setCtxPinnedTitle} className="mt-2 bg-white border border-gray-200 rounded-xl px-4 py-3 text-warmBrown" />
 
@@ -1322,6 +1386,7 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
                               .map((s) => s.trim())
                               .filter(Boolean);
                             await updateVoiceRoomContext(room.id, {
+                              description: ctxDescription.trim() || null,
                               pinned_title: ctxPinnedTitle.trim() || null,
                               pinned_route: ctxPinnedRoute.trim() || null,
                               rules: ctxRules.trim() || null,

@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, Pressable, Modal, TextInput } from 'react-native';
+import React, { useMemo, useState, useEffect } from 'react';
+import { View, Text, ScrollView, Pressable, Modal, TextInput, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Image } from 'expo-image';
@@ -27,118 +27,40 @@ import {
 import * as Haptics from 'expo-haptics';
 import Animated, { FadeInDown, FadeIn, ZoomIn } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useStore } from '@/lib/store';
+import {
+  listAvailableTalkers,
+  getMyAvailability,
+  upsertMyAvailability,
+  startTalkSession,
+  listMyTalkSessions,
+  endTalkSession,
+  hasConfirmedTalkAge18Plus,
+  confirmTalkAge18Plus,
+  listMyBlockedUserIds,
+  blockUser,
+  reportUser,
+  type TalkAvailability,
+  type TalkMode,
+  type TalkSession,
+} from '@/lib/talkNow';
+import { getOrCreateConversation } from '@/lib/messages';
 
-type UserMode = 'talk' | 'listen' | 'both';
 type ConnectionStatus = 'available' | 'busy' | 'offline';
 
-interface ListenerProfile {
-  id: string;
+type TalkPerson = {
+  userId: string;
   name: string;
+  username: string;
   avatar: string;
-  mode: UserMode;
+  mode: TalkMode;
   status: ConnectionStatus;
   bio: string;
   languages: string[];
   topics: string[];
-  rating: number;
-  conversations: number;
-  responseTime: string;
-  isVerified: boolean;
-  country: string;
-}
-
-const MOCK_LISTENERS: ListenerProfile[] = [
-  {
-    id: '1',
-    name: 'Amara Johnson',
-    avatar: 'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=200',
-    mode: 'listen',
-    status: 'available',
-    bio: "Here to listen without judgment. Sometimes we all just need someone to hear us. 💜",
-    languages: ['English', 'French'],
-    topics: ['Life', 'Relationships', 'Career', 'Family'],
-    rating: 4.9,
-    conversations: 127,
-    responseTime: '< 5 min',
-    isVerified: true,
-    country: '🇺🇸',
-  },
-  {
-    id: '2',
-    name: 'Kofi Mensah',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200',
-    mode: 'both',
-    status: 'available',
-    bio: "Fellow expat who gets it. Let's chat about anything - homesickness, adjusting, or just life!",
-    languages: ['English', 'Twi'],
-    topics: ['Expat Life', 'Homesickness', 'Culture', 'General'],
-    rating: 4.8,
-    conversations: 89,
-    responseTime: '< 10 min',
-    isVerified: true,
-    country: '🇬🇭',
-  },
-  {
-    id: '3',
-    name: 'Fatou Diallo',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200',
-    mode: 'listen',
-    status: 'available',
-    bio: "Mental health advocate. Your feelings are valid, and I'm here to support you. 🌸",
-    languages: ['English', 'French', 'Wolof'],
-    topics: ['Mental Health', 'Anxiety', 'Stress', 'Self-care'],
-    rating: 5.0,
-    conversations: 203,
-    responseTime: '< 5 min',
-    isVerified: true,
-    country: '🇸🇳',
-  },
-  {
-    id: '4',
-    name: 'David Okonkwo',
-    avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=200',
-    mode: 'talk',
-    status: 'available',
-    bio: "Looking for someone to chat with. New to the city and could use some friendly conversation!",
-    languages: ['English', 'Igbo'],
-    topics: ['Making Friends', 'New City', 'Sports', 'Music'],
-    rating: 4.7,
-    conversations: 34,
-    responseTime: '< 15 min',
-    isVerified: false,
-    country: '🇳🇬',
-  },
-  {
-    id: '5',
-    name: 'Aaliyah Williams',
-    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200',
-    mode: 'both',
-    status: 'busy',
-    bio: "Night owl here! Usually available late nights if you can't sleep and need to talk.",
-    languages: ['English'],
-    topics: ['Insomnia', 'Late Night Chats', 'Life', 'Dreams'],
-    rating: 4.6,
-    conversations: 156,
-    responseTime: '< 30 min',
-    isVerified: true,
-    country: '🇯🇲',
-  },
-  {
-    id: '6',
-    name: 'Yemi Adeyemi',
-    avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=200',
-    mode: 'listen',
-    status: 'available',
-    bio: "Big brother energy. Here to listen and offer perspective when needed. No judgment zone.",
-    languages: ['English', 'Yoruba'],
-    topics: ['Life Advice', 'Career', 'Relationships', 'Faith'],
-    rating: 4.9,
-    conversations: 178,
-    responseTime: '< 10 min',
-    isVerified: true,
-    country: '🇳🇬',
-  },
-];
+  rate: number;
+  location?: string | null;
+};
 
 const TOPICS = [
   { id: 'all', label: 'All Topics', icon: Globe },
@@ -154,33 +76,171 @@ export default function TalkToSomeoneScreen() {
   const [activeTab, setActiveTab] = useState<'find' | 'available' | 'chats'>('find');
   const [selectedTopic, setSelectedTopic] = useState('all');
   const [showModeModal, setShowModeModal] = useState(false);
-  const [myMode, setMyMode] = useState<UserMode | null>(null);
+  const [myMode, setMyMode] = useState<TalkMode | null>(null);
   const [isAvailable, setIsAvailable] = useState(false);
   const [showConnectModal, setShowConnectModal] = useState(false);
-  const [selectedPerson, setSelectedPerson] = useState<ListenerProfile | null>(null);
+  const [selectedPerson, setSelectedPerson] = useState<TalkPerson | null>(null);
   const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [talkers, setTalkers] = useState<TalkAvailability[]>([]);
+  const [sessions, setSessions] = useState<TalkSession[]>([]);
+  const [ageConfirmed, setAgeConfirmed] = useState(false);
+  const [showAgeModal, setShowAgeModal] = useState(false);
+  const [blockedIds, setBlockedIds] = useState<string[]>([]);
 
-  const filteredListeners = MOCK_LISTENERS.filter(listener => {
-    if (selectedTopic === 'all') return true;
-    return listener.topics.some(t => t.toLowerCase().includes(selectedTopic.toLowerCase()));
-  });
+  const currentUser = useStore((s) => s.currentUser);
 
-  const availableCount = MOCK_LISTENERS.filter(l => l.status === 'available').length;
+  const people: TalkPerson[] = useMemo(() => {
+    return (talkers || [])
+      .filter((t) => t.user_id !== currentUser?.id)
+      .filter((t) => !blockedIds.includes(t.user_id))
+      .map((t) => {
+        const p = t.profile;
+        return {
+          userId: t.user_id,
+          name: p?.name || 'User',
+          username: p?.username || 'user',
+          avatar: p?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&h=200&fit=crop',
+          mode: t.mode,
+          status: t.status as ConnectionStatus,
+          bio: p?.bio || 'Available to talk.',
+          languages: t.languages || [],
+          topics: t.topics || [],
+          rate: t.rate_gems_per_minute || 10,
+          location: p?.location || null,
+        };
+      });
+  }, [talkers, currentUser?.id, blockedIds]);
 
-  const handleConnect = (person: ListenerProfile) => {
+  const filteredListeners = useMemo(() => {
+    if (selectedTopic === 'all') return people;
+    const q = selectedTopic.toLowerCase();
+    return people.filter((p) => p.topics.some((t) => String(t).toLowerCase().includes(q)));
+  }, [people, selectedTopic]);
+
+  const availableCount = useMemo(() => people.filter((p) => p.status === 'available').length, [people]);
+
+  const load = async () => {
+    if (!currentUser?.id) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    try {
+      const [avail, mine, mySessions, is18, myBlocked] = await Promise.all([
+        listAvailableTalkers(50).catch(() => [] as TalkAvailability[]),
+        getMyAvailability(currentUser.id).catch(() => null),
+        listMyTalkSessions(currentUser.id, 20).catch(() => [] as TalkSession[]),
+        hasConfirmedTalkAge18Plus(currentUser.id).catch(() => false),
+        listMyBlockedUserIds(currentUser.id).catch(() => [] as string[]),
+      ]);
+      setTalkers(avail);
+      setSessions(mySessions);
+      setAgeConfirmed(!!is18);
+      setBlockedIds(myBlocked);
+      if (mine?.status === 'available') {
+        setIsAvailable(true);
+        setMyMode(mine.mode);
+      } else {
+        setIsAvailable(false);
+      }
+    } catch (e: any) {
+      Alert.alert('Talk Now unavailable', String(e?.message ?? e));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.id]);
+
+  const handleConnect = (person: TalkPerson) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (!ageConfirmed) {
+      setShowAgeModal(true);
+      return;
+    }
     setSelectedPerson(person);
     setShowConnectModal(true);
   };
 
-  const sendConnectionRequest = () => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setShowConnectModal(false);
-    setMessage('');
-    // In real app, would send request
+  const startPaidChat = async () => {
+    if (!currentUser?.id || !selectedPerson) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      if (!ageConfirmed) {
+        setShowAgeModal(true);
+        return;
+      }
+      // Create paid talk session (gems/min) and open chat
+      const session = await startTalkSession({
+        requesterId: currentUser.id,
+        providerId: selectedPerson.userId,
+        rateGemsPerMinute: selectedPerson.rate,
+      });
+      const convId = await getOrCreateConversation(currentUser.id, selectedPerson.userId);
+
+      setShowConnectModal(false);
+      setMessage('');
+
+      router.push({
+        pathname: `/chat/${selectedPerson.userId}` as any,
+        params: {
+          recipientId: selectedPerson.userId,
+          name: encodeURIComponent(selectedPerson.name),
+          avatar: encodeURIComponent(selectedPerson.avatar),
+          prefill: encodeURIComponent(message || 'Hi! Are you available to talk?'),
+          talkSessionId: session.id,
+        },
+      });
+    } catch (e: any) {
+      const msg = String(e?.message ?? e);
+      if (msg.includes('age_not_confirmed')) {
+        setShowAgeModal(true);
+        return;
+      }
+      if (msg.includes('rate_limited')) {
+        Alert.alert('Slow down', 'Too many session starts. Please wait a few minutes and try again.');
+        return;
+      }
+      if (msg.includes('blocked')) {
+        Alert.alert('Not available', 'You can’t start a session with this user.');
+        return;
+      }
+      if (msg.includes('provider_not_available')) {
+        Alert.alert('Not available', 'This person is no longer available. Try someone else.');
+        return;
+      }
+      Alert.alert('Could not start talk', msg);
+    }
   };
 
-  const getModeIcon = (mode: UserMode) => {
+  const doBlockUser = async (userId: string) => {
+    if (!currentUser?.id) return;
+    try {
+      await blockUser({ blockerId: currentUser.id, blockedId: userId });
+      setShowConnectModal(false);
+      setSelectedPerson(null);
+      await load();
+      Alert.alert('Blocked', 'You will no longer see this user in Talk Now.');
+    } catch (e: any) {
+      Alert.alert('Could not block', String(e?.message ?? e));
+    }
+  };
+
+  const doReportUser = async (userId: string, reason: string) => {
+    if (!currentUser?.id) return;
+    try {
+      await reportUser({ reporterId: currentUser.id, reportedId: userId, reason });
+      Alert.alert('Reported', 'Thanks — our team will review this report.');
+    } catch (e: any) {
+      Alert.alert('Could not report', String(e?.message ?? e));
+    }
+  };
+
+  const getModeIcon = (mode: TalkMode) => {
     switch (mode) {
       case 'talk': return MessageCircle;
       case 'listen': return Ear;
@@ -188,7 +248,7 @@ export default function TalkToSomeoneScreen() {
     }
   };
 
-  const getModeLabel = (mode: UserMode) => {
+  const getModeLabel = (mode: TalkMode) => {
     switch (mode) {
       case 'talk': return 'Wants to Talk';
       case 'listen': return 'Here to Listen';
@@ -196,7 +256,7 @@ export default function TalkToSomeoneScreen() {
     }
   };
 
-  const getModeColor = (mode: UserMode): [string, string] => {
+  const getModeColor = (mode: TalkMode): [string, string] => {
     switch (mode) {
       case 'talk': return ['#8B5CF6', '#7C3AED'];
       case 'listen': return ['#10B981', '#059669'];
@@ -248,6 +308,10 @@ export default function TalkToSomeoneScreen() {
                 <Pressable
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                    if (!ageConfirmed) {
+                      setShowAgeModal(true);
+                      return;
+                    }
                     setShowModeModal(true);
                   }}
                   className="flex-1 bg-white rounded-2xl py-3 flex-row items-center justify-center"
@@ -332,9 +396,25 @@ export default function TalkToSomeoneScreen() {
 
               {/* People List */}
               <View className="px-5 pb-6">
-                {filteredListeners.map((person, index) => (
+                {loading ? (
+                  <View className="py-10 items-center">
+                    <ActivityIndicator size="large" color="#7C3AED" />
+                    <Text className="text-gray-500 mt-3">Finding people available now…</Text>
+                  </View>
+                ) : filteredListeners.length === 0 ? (
+                  <View className="py-10 items-center">
+                    <View className="w-16 h-16 rounded-full bg-white items-center justify-center">
+                      <Users size={30} color="#7C3AED" />
+                    </View>
+                    <Text className="text-gray-900 font-bold mt-3">No one available right now</Text>
+                    <Text className="text-gray-500 text-center mt-1">
+                      Try again later — or go available and earn gems for listening.
+                    </Text>
+                  </View>
+                ) : (
+                  filteredListeners.map((person, index) => (
                   <Animated.View
-                    key={person.id}
+                    key={person.userId}
                     entering={FadeInDown.duration(400).delay(index * 100)}
                     className="mb-4"
                   >
@@ -361,12 +441,11 @@ export default function TalkToSomeoneScreen() {
                         <View className="flex-1 ml-3">
                           <View className="flex-row items-center">
                             <Text className="text-gray-900 font-bold text-base">{person.name}</Text>
-                            <Text className="ml-1">{person.country}</Text>
-                            {person.isVerified && (
-                              <View className="ml-1.5 bg-blue-100 rounded-full p-0.5">
-                                <Shield size={12} color="#3B82F6" />
-                              </View>
-                            )}
+                          {person.location ? (
+                            <Text className="ml-2 text-gray-400 text-xs" numberOfLines={1}>
+                              {person.location}
+                            </Text>
+                          ) : null}
                           </View>
 
                           {/* Mode Badge */}
@@ -380,7 +459,7 @@ export default function TalkToSomeoneScreen() {
                             </LinearGradient>
                             <View className="flex-row items-center ml-2">
                               <Clock size={12} color="#9CA3AF" />
-                              <Text className="text-gray-400 text-xs ml-1">{person.responseTime}</Text>
+                              <Text className="text-gray-400 text-xs ml-1">Available now</Text>
                             </View>
                           </View>
 
@@ -406,10 +485,10 @@ export default function TalkToSomeoneScreen() {
                           <View className="flex-row items-center mt-3">
                             <View className="flex-row items-center">
                               <Sparkles size={14} color="#F59E0B" />
-                              <Text className="text-gray-700 text-sm font-medium ml-1">{person.rating}</Text>
+                              <Text className="text-gray-700 text-sm font-medium ml-1">
+                                {person.rate} gems/min
+                              </Text>
                             </View>
-                            <View className="w-1 h-1 rounded-full bg-gray-300 mx-2" />
-                            <Text className="text-gray-500 text-sm">{person.conversations} conversations</Text>
                           </View>
                         </View>
                       </View>
@@ -432,7 +511,8 @@ export default function TalkToSomeoneScreen() {
                       </Pressable>
                     </Pressable>
                   </Animated.View>
-                ))}
+                ))
+                )}
               </View>
             </>
           )}
@@ -472,6 +552,10 @@ export default function TalkToSomeoneScreen() {
                   <Pressable
                     onPress={() => {
                       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                      if (!ageConfirmed) {
+                        setShowAgeModal(true);
+                        return;
+                      }
                       setShowModeModal(true);
                     }}
                   >
@@ -507,26 +591,93 @@ export default function TalkToSomeoneScreen() {
 
           {activeTab === 'chats' && (
             <View className="px-5 pb-6">
-              <View className="bg-white rounded-3xl p-8 items-center">
-                <View className="w-20 h-20 rounded-full bg-violet-100 items-center justify-center mb-4">
-                  <MessageCircle size={36} color="#7C3AED" />
+              {loading ? (
+                <View className="py-10 items-center">
+                  <ActivityIndicator size="large" color="#7C3AED" />
+                  <Text className="text-gray-500 mt-3">Loading your sessions…</Text>
                 </View>
-                <Text className="text-gray-900 font-bold text-lg text-center">No Active Chats</Text>
-                <Text className="text-gray-500 text-center mt-2">
-                  Connect with someone to start a supportive conversation
-                </Text>
-                <Pressable
-                  onPress={() => setActiveTab('find')}
-                  className="mt-4"
-                >
-                  <LinearGradient
-                    colors={['#7C3AED', '#6D28D9']}
-                    style={{ borderRadius: 20, paddingHorizontal: 24, paddingVertical: 12 }}
-                  >
-                    <Text className="text-white font-bold">Find Someone</Text>
-                  </LinearGradient>
-                </Pressable>
-              </View>
+              ) : sessions.length === 0 ? (
+                <View className="bg-white rounded-3xl p-8 items-center">
+                  <View className="w-20 h-20 rounded-full bg-violet-100 items-center justify-center mb-4">
+                    <MessageCircle size={36} color="#7C3AED" />
+                  </View>
+                  <Text className="text-gray-900 font-bold text-lg text-center">No sessions yet</Text>
+                  <Text className="text-gray-500 text-center mt-2">
+                    Start a Talk Now session to chat and support someone.
+                  </Text>
+                  <Pressable onPress={() => setActiveTab('find')} className="mt-4">
+                    <LinearGradient
+                      colors={['#7C3AED', '#6D28D9']}
+                      style={{ borderRadius: 20, paddingHorizontal: 24, paddingVertical: 12 }}
+                    >
+                      <Text className="text-white font-bold">Find Someone</Text>
+                    </LinearGradient>
+                  </Pressable>
+                </View>
+              ) : (
+                <View>
+                  {sessions.map((s) => {
+                    const otherId = s.requester_id === currentUser?.id ? s.provider_id : s.requester_id;
+                    const isActive = s.status === 'active' && !s.ended_at;
+                    return (
+                      <View key={s.id} className="bg-white rounded-3xl p-4 shadow-sm mb-3">
+                        <Text className="text-gray-900 font-bold">
+                          {isActive ? 'Active session' : 'Ended session'}
+                        </Text>
+                        <Text className="text-gray-500 text-sm mt-1">
+                          Rate: {s.rate_gems_per_minute} gems/min
+                        </Text>
+                        {s.ended_at ? (
+                          <Text className="text-gray-500 text-sm mt-1">
+                            Billed: {s.billed_gems} gems ({s.billed_minutes} min)
+                          </Text>
+                        ) : null}
+
+                        <View className="flex-row gap-2 mt-3">
+                          <Pressable
+                            onPress={() => {
+                              if (!otherId) return;
+                              router.push({
+                                pathname: `/chat/${otherId}` as any,
+                                params: {
+                                  recipientId: otherId,
+                                  talkSessionId: s.id,
+                                },
+                              });
+                            }}
+                            className="flex-1"
+                          >
+                            <LinearGradient
+                              colors={['#7C3AED', '#6D28D9']}
+                              style={{ borderRadius: 16, paddingVertical: 12, alignItems: 'center' }}
+                            >
+                              <Text className="text-white font-bold">Open chat</Text>
+                            </LinearGradient>
+                          </Pressable>
+
+                          {isActive ? (
+                            <Pressable
+                              onPress={async () => {
+                                try {
+                                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                                  await endTalkSession(s.id);
+                                  await load();
+                                  Alert.alert('Session ended', 'Billing was applied in gems.');
+                                } catch (e: any) {
+                                  Alert.alert('Could not end session', String(e?.message ?? e));
+                                }
+                              }}
+                              className="bg-gray-100 rounded-2xl px-4 items-center justify-center"
+                            >
+                              <Text className="text-gray-700 font-bold">End</Text>
+                            </Pressable>
+                          ) : null}
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
             </View>
           )}
 
@@ -560,9 +711,9 @@ export default function TalkToSomeoneScreen() {
 
               <View className="space-y-3 mb-4">
                 {[
-                  { mode: 'listen' as UserMode, title: 'Be a Listener', desc: "I'm here to listen to others", icon: Ear, colors: ['#10B981', '#059669'] as [string, string] },
-                  { mode: 'talk' as UserMode, title: 'Need to Talk', desc: 'I need someone to talk to', icon: MessageCircle, colors: ['#8B5CF6', '#7C3AED'] as [string, string] },
-                  { mode: 'both' as UserMode, title: 'Both', desc: 'Happy to talk or listen', icon: Users, colors: ['#F59E0B', '#D97706'] as [string, string] },
+                  { mode: 'listen' as TalkMode, title: 'Be a Listener', desc: "I'm here to listen to others", icon: Ear, colors: ['#10B981', '#059669'] as [string, string] },
+                  { mode: 'talk' as TalkMode, title: 'Need to Talk', desc: 'I need someone to talk to', icon: MessageCircle, colors: ['#8B5CF6', '#7C3AED'] as [string, string] },
+                  { mode: 'both' as TalkMode, title: 'Both', desc: 'Happy to talk or listen', icon: Users, colors: ['#F59E0B', '#D97706'] as [string, string] },
                 ].map((option) => (
                   <Pressable
                     key={option.mode}
@@ -596,6 +747,20 @@ export default function TalkToSomeoneScreen() {
               <Pressable
                 onPress={() => {
                   Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                  if (!currentUser?.id || !myMode) return;
+                  if (!ageConfirmed) {
+                    setShowAgeModal(true);
+                    return;
+                  }
+                  upsertMyAvailability({
+                    userId: currentUser.id,
+                    mode: myMode,
+                    status: 'available',
+                    rate_gems_per_minute: 1,
+                    min_billable_minutes: 1,
+                  })
+                    .then(() => load())
+                    .catch(() => null);
                   setIsAvailable(true);
                   setShowModeModal(false);
                 }}
@@ -646,6 +811,42 @@ export default function TalkToSomeoneScreen() {
 
                   <Text className="text-gray-600 text-center mb-4">{selectedPerson.bio}</Text>
 
+                  <View className="bg-violet-50 rounded-2xl p-3 mb-4">
+                    <Text className="text-violet-800 font-semibold">Paid talk</Text>
+                    <Text className="text-violet-700 text-sm mt-1">
+                      {selectedPerson.rate} gems per minute. You can end anytime.
+                    </Text>
+                  </View>
+
+                  <View className="flex-row gap-2 mb-4">
+                    <Pressable
+                      onPress={() => {
+                        Alert.alert('Report user', 'Why are you reporting this user?', [
+                          { text: 'Spam', onPress: () => doReportUser(selectedPerson.userId, 'spam') },
+                          { text: 'Harassment', onPress: () => doReportUser(selectedPerson.userId, 'harassment') },
+                          { text: 'Inappropriate', onPress: () => doReportUser(selectedPerson.userId, 'inappropriate') },
+                          { text: 'Other', onPress: () => doReportUser(selectedPerson.userId, 'other') },
+                          { text: 'Cancel', style: 'cancel' },
+                        ]);
+                      }}
+                      className="flex-1 bg-gray-100 rounded-2xl py-3 items-center"
+                    >
+                      <Text className="text-gray-700 font-bold">Report</Text>
+                    </Pressable>
+
+                    <Pressable
+                      onPress={() => {
+                        Alert.alert('Block user?', 'You will no longer see or match with this user in Talk Now.', [
+                          { text: 'Cancel', style: 'cancel' },
+                          { text: 'Block', style: 'destructive', onPress: () => doBlockUser(selectedPerson.userId) },
+                        ]);
+                      }}
+                      className="flex-1 bg-red-50 rounded-2xl py-3 items-center"
+                    >
+                      <Text className="text-red-600 font-bold">Block</Text>
+                    </Pressable>
+                  </View>
+
                   <View className="mb-4">
                     <Text className="text-gray-700 font-medium mb-2">Send a message to connect:</Text>
                     <TextInput
@@ -668,7 +869,7 @@ export default function TalkToSomeoneScreen() {
                       <Text className="text-gray-600 font-bold">Cancel</Text>
                     </Pressable>
                     <Pressable
-                      onPress={sendConnectionRequest}
+                      onPress={startPaidChat}
                       className="flex-1"
                     >
                       <LinearGradient
@@ -676,12 +877,73 @@ export default function TalkToSomeoneScreen() {
                         style={{ borderRadius: 16, paddingVertical: 16, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' }}
                       >
                         <Send size={18} color="#fff" />
-                        <Text className="text-white font-bold ml-2">Connect</Text>
+                        <Text className="text-white font-bold ml-2">Start Talk</Text>
                       </LinearGradient>
                     </Pressable>
                   </View>
                 </>
               )}
+            </Animated.View>
+          </View>
+        </Modal>
+
+        {/* 18+ Confirmation Modal */}
+        <Modal visible={showAgeModal} transparent animationType="fade">
+          <View className="flex-1 bg-black/60 items-center justify-center px-5">
+            <Animated.View entering={ZoomIn.springify()} className="bg-white rounded-3xl p-6 w-full max-w-sm">
+              <View className="flex-row items-center justify-between mb-3">
+                <View className="flex-row items-center">
+                  <Shield size={20} color="#7C3AED" />
+                  <Text className="text-gray-900 font-bold text-lg ml-2">Adults only (18+)</Text>
+                </View>
+                <Pressable onPress={() => setShowAgeModal(false)}>
+                  <X size={22} color="#9CA3AF" />
+                </Pressable>
+              </View>
+
+              <Text className="text-gray-600 text-sm mb-4">
+                To use Talk Now (paid talk sessions), you must confirm you are 18 or older.
+              </Text>
+
+              <View className="bg-gray-50 rounded-2xl p-4 mb-4">
+                <Text className="text-gray-700 font-semibold mb-2">Please confirm:</Text>
+                <Text className="text-gray-600 text-sm">
+                  I am 18 years old or older and agree to keep conversations in-app.
+                </Text>
+              </View>
+
+              <View className="flex-row gap-3">
+                <Pressable
+                  onPress={() => {
+                    setShowAgeModal(false);
+                    Alert.alert('Not eligible', 'You must be 18+ to use Talk Now.');
+                  }}
+                  className="flex-1 bg-gray-100 rounded-2xl py-4 items-center"
+                >
+                  <Text className="text-gray-700 font-bold">I’m under 18</Text>
+                </Pressable>
+
+                <Pressable
+                  onPress={async () => {
+                    if (!currentUser?.id) return;
+                    try {
+                      await confirmTalkAge18Plus(currentUser.id);
+                      setAgeConfirmed(true);
+                      setShowAgeModal(false);
+                    } catch (e: any) {
+                      Alert.alert('Could not confirm age', String(e?.message ?? e));
+                    }
+                  }}
+                  className="flex-1"
+                >
+                  <LinearGradient
+                    colors={['#7C3AED', '#6D28D9']}
+                    style={{ borderRadius: 16, paddingVertical: 16, alignItems: 'center' }}
+                  >
+                    <Text className="text-white font-bold">I’m 18+</Text>
+                  </LinearGradient>
+                </Pressable>
+              </View>
             </Animated.View>
           </View>
         </Modal>

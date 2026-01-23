@@ -352,7 +352,15 @@ export async function listHandRaises(roomId: string): Promise<DbVoiceRoomHandRai
   return (data ?? []) as DbVoiceRoomHandRaise[];
 }
 
-export async function updateVoiceRoomContext(roomId: string, patch: Partial<Pick<DbVoiceRoom, 'pinned_title' | 'pinned_route' | 'rules' | 'resources' | 'require_speaker_approval' | 'record_highlights'>>) {
+export async function updateVoiceRoomContext(
+  roomId: string,
+  patch: Partial<
+    Pick<
+      DbVoiceRoom,
+      'description' | 'pinned_title' | 'pinned_route' | 'rules' | 'resources' | 'require_speaker_approval' | 'record_highlights'
+    >
+  >
+) {
   const { error } = await supabase.from('voice_rooms').update(patch).eq('id', roomId);
   if (error) throw error;
 }

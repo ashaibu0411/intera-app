@@ -225,7 +225,16 @@ export default function ConnectionsScreen() {
                 <ConnectionCard
                   user={user}
                   onRemove={() => handleRemove(user.id)}
-                  onMessage={() => router.push(`/chat/${user.id}`)}
+                  onMessage={() =>
+                    router.push({
+                      pathname: `/chat/${user.id}` as any,
+                      params: {
+                        recipientId: user.id,
+                        name: encodeURIComponent(user.name),
+                        avatar: encodeURIComponent(user.avatar_url || ''),
+                      },
+                    })
+                  }
                   isRemoving={removingUserId === user.id}
                 />
               </Animated.View>

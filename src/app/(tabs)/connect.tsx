@@ -32,6 +32,7 @@ import {
   type UserWithConnectionStatus,
   type ConnectionStatus,
 } from '@/lib/connections-api';
+import { listAvailableTalkers, type TalkAvailability } from '@/lib/talkNow';
 
 type LookingForFilter = 'all' | 'friends' | 'dating' | 'networking';
 
@@ -64,7 +65,16 @@ function ConnectionCard({ user, onConnect, onAccept, onReject, isLoading }: Conn
       case 'connected':
         return (
           <Pressable
-            onPress={() => router.push(`/chat/${user.id}`)}
+            onPress={() =>
+              router.push({
+                pathname: `/chat/${user.id}` as any,
+                params: {
+                  recipientId: user.id,
+                  name: encodeURIComponent(user.name),
+                  avatar: encodeURIComponent(user.avatar_url || ''),
+                },
+              })
+            }
             className="bg-forest-600 rounded-xl px-4 py-2 flex-row items-center"
           >
             <MessageCircle size={16} color="#FFFFFF" />
@@ -166,6 +176,7 @@ export default function ConnectScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [users, setUsers] = useState<UserWithConnectionStatus[]>([]);
   const [pendingRequests, setPendingRequests] = useState<{ connection: any; user: any }[]>([]);
+  const [talkers, setTalkers] = useState<TalkAvailability[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadingUserId, setLoadingUserId] = useState<string | null>(null);
 
@@ -182,13 +193,15 @@ export default function ConnectScreen() {
 
     try {
       console.log('[connect] Loading discoverable users...');
-      const [fetchedUsers, pending] = await Promise.all([
+      const [fetchedUsers, pending, availableTalkers] = await Promise.all([
         getDiscoverableUsers(currentUser.id),
         getPendingRequests(currentUser.id),
+        listAvailableTalkers(12).catch(() => [] as TalkAvailability[]),
       ]);
       console.log('[connect] Loaded', fetchedUsers.length, 'users,', pending.length, 'pending requests');
       setUsers(fetchedUsers);
       setPendingRequests(pending);
+      setTalkers(availableTalkers);
     } catch (error) {
       console.error('[connect] Error loading users:', error);
     } finally {
@@ -309,6 +322,7 @@ export default function ConnectScreen() {
 
   const connectedCount = users.filter((u) => u.connectionStatus === 'connected').length;
   const pendingCount = pendingRequests.length;
+  const talkNowCount = talkers.length;
 
   return (
     <View className="flex-1 bg-cream">
@@ -463,6 +477,52 @@ export default function ConnectScreen() {
                 </View>
               </View>
             </View>
+          </Animated.View>
+
+          {/* Talk Now (instant, paid) */}
+          <Animated.View entering={FadeInUp.duration(500).delay(320)} className="mx-4 mb-4">
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                router.push('/talk-to-someone' as any);
+              }}
+            >
+              <LinearGradient
+                colors={['#7C3AED', '#6D28D9', '#5B21B6']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={{ borderRadius: 18, padding: 16 }}
+              >
+                <View className="flex-row items-center justify-between">
+                  <View className="flex-1 pr-3">
+                    <Text className="text-white font-bold text-lg">Talk Now</Text>
+                    <Text className="text-white/80 mt-1">
+                      Instant conversation with someone available now (gems/min).
+                    </Text>
+                    <Text className="text-white/70 mt-2 text-sm">
+                      {talkNowCount > 0 ? `${talkNowCount} available right now` : 'No one is available right now — you can go available too.'}
+                    </Text>
+                  </View>
+                  <View className="bg-white/15 rounded-2xl px-4 py-3">
+                    <Text className="text-white font-semibold">Open</Text>
+                  </View>
+                </View>
+
+                {talkers.length > 0 ? (
+                  <View className="flex-row mt-4">
+                    {talkers.slice(0, 5).map((t) => (
+                      <View key={t.user_id} className="mr-2">
+                        <Image
+                          source={{ uri: t.profile?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=80&h=80&fit=crop' }}
+                          style={{ width: 34, height: 34, borderRadius: 17, borderWidth: 2, borderColor: 'rgba(255,255,255,0.35)' }}
+                          contentFit="cover"
+                        />
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
+              </LinearGradient>
+            </Pressable>
           </Animated.View>
 
           {/* Pending Requests Section */}
