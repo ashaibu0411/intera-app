@@ -729,7 +729,7 @@ export default function TalkToSomeoneScreen() {
                             >
                               <Text className="text-gray-700 font-bold">Rate</Text>
                             </Pressable>
-                          ) : null}
+                          )}
                         </View>
                       </View>
                     );
