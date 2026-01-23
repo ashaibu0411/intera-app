@@ -1,7 +1,8 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { View, Text, Pressable, Share, Alert, Modal, Dimensions } from 'react-native';
 import { Image } from 'expo-image';
-import { Video, ResizeMode } from 'expo-av';
+import { useVideoPlayer, VideoView } from 'expo-video';
+import { useEvent } from 'expo';
 import { MessageCircle, Share2, MoreHorizontal, MapPin, Play, Volume2, VolumeX } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import * as Clipboard from 'expo-clipboard';
@@ -290,10 +291,19 @@ export function PostCard({ post, onLike, onComment, onShare, showGuidelines = fa
   // Use database count if available, otherwise use local counts
   const commentCount = dbCommentCount > 0 ? dbCommentCount : (mockCommentsCount + userCommentsCount + baseComments);
 
-  const [isPlaying, setIsPlaying] = React.useState(false);
   const [isMuted, setIsMuted] = React.useState(true);
-  const videoRef = useRef<Video>(null);
   const likeScale = useSharedValue(1);
+
+  // Video player setup using expo-video
+  const videoPlayer = useVideoPlayer(post.video || null, (player) => {
+    player.loop = true;
+    player.muted = true;
+    player.play();
+  });
+
+  const { isPlaying } = useEvent(videoPlayer, 'playingChange', {
+    isPlaying: videoPlayer.playing,
+  });
 
   const handleQuickLike = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -481,22 +491,21 @@ export function PostCard({ post, onLike, onComment, onShare, showGuidelines = fa
     onComment?.(post.id);
   };
 
-  const handleVideoPlayPause = async () => {
+  const handleVideoPlayPause = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (videoRef.current) {
+    if (videoPlayer) {
       if (isPlaying) {
-        await videoRef.current.pauseAsync();
+        videoPlayer.pause();
       } else {
-        await videoRef.current.playAsync();
+        videoPlayer.play();
       }
-      setIsPlaying(!isPlaying);
     }
   };
 
-  const handleToggleMute = async () => {
+  const handleToggleMute = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (videoRef.current) {
-      await videoRef.current.setIsMutedAsync(!isMuted);
+    if (videoPlayer) {
+      videoPlayer.muted = !isMuted;
       setIsMuted(!isMuted);
     }
   };
@@ -818,23 +827,11 @@ export function PostCard({ post, onLike, onComment, onShare, showGuidelines = fa
       {post.video && (
         <View className="px-4 pb-3">
           <Pressable onPress={handleVideoPlayPause} className="relative">
-            <Video
-              ref={videoRef}
-              source={{ uri: post.video }}
+            <VideoView
+              player={videoPlayer}
               style={{ width: '100%', height: 250, borderRadius: 12, backgroundColor: '#1a1a1a' }}
-              resizeMode={ResizeMode.CONTAIN}
-              isLooping
-              isMuted={isMuted}
-              shouldPlay={true}
-              useNativeControls={false}
-              onPlaybackStatusUpdate={(status) => {
-                if (status.isLoaded) {
-                  setIsPlaying(status.isPlaying);
-                }
-              }}
-              onError={(error) => {
-                console.log('Video playback error:', error);
-              }}
+              contentFit="contain"
+              nativeControls={false}
             />
             {/* Play/Pause overlay */}
             {!isPlaying && (
