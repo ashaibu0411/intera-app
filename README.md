@@ -180,6 +180,14 @@ Instead of showing posts first, your home feed now shows:
 - **Direct Messaging**: Contact business owners directly through the app with real conversations
 - **Register Business** (`/register-business`): 3-step form to register your business with logo, cover photo, contact info, and description
 - **Cultural Market Mode**: Special feature for grocery stores to manage real-time inventory
+- **Real-Time Business Status** (NEW!): Users can see if a business is truly available
+  - **Open Now** - Business is currently operating based on hours
+  - **Closed** - Outside business hours, shows when they open next
+  - **Temporarily Closed** - Short-term closure with custom message
+  - **On Vacation** - Extended time off with return date
+  - **By Appointment Only** - Contact to schedule
+  - Status badges displayed in Business Directory listings and detail pages
+  - Business owners can manage their status from the Booking Calendar settings
 - **Business Inventory Display**: Customers can view what's in stock when visiting a business page
   - Horizontal scroll of in-stock items with prices
   - Out-of-stock items shown separately

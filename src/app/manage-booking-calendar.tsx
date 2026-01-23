@@ -16,6 +16,8 @@ import {
   Coffee,
   Trash2,
   RefreshCw,
+  Palmtree,
+  Phone,
 } from 'lucide-react-native';
 import Animated, { FadeIn, FadeInUp, FadeInDown } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -40,6 +42,7 @@ import {
   type DbBusinessBookingSettings,
   type DbBlockedSlot,
   type DbServiceTemplate,
+  type BusinessStatusType,
 } from '@/lib/booking-api';
 
 const DAYS_OF_WEEK = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
@@ -453,6 +456,87 @@ export default function ManageBookingCalendarScreen() {
                 />
               </View>
             </View>
+          </Animated.View>
+
+          {/* Business Status */}
+          <Animated.View entering={FadeInUp.duration(400).delay(175)} className="px-5 mt-4">
+            <Text className="text-lg font-semibold text-warmBrown mb-3">Business Status</Text>
+            <Text className="text-gray-500 text-sm mb-3">
+              Let customers know your current availability
+            </Text>
+            <View className="bg-white rounded-2xl shadow-sm overflow-hidden">
+              {[
+                { id: 'open' as BusinessStatusType, label: 'Open', desc: 'Following regular hours', icon: Clock, color: '#10B981', bgColor: '#D1FAE5' },
+                { id: 'temporarily_closed' as BusinessStatusType, label: 'Temporarily Closed', desc: 'Short-term closure', icon: Ban, color: '#F59E0B', bgColor: '#FEF3C7' },
+                { id: 'vacation' as BusinessStatusType, label: 'On Vacation', desc: 'Extended time off', icon: Palmtree, color: '#8B5CF6', bgColor: '#EDE9FE' },
+                { id: 'by_appointment' as BusinessStatusType, label: 'By Appointment Only', desc: 'Contact to schedule', icon: Phone, color: '#3B82F6', bgColor: '#DBEAFE' },
+              ].map((status, index) => {
+                const Icon = status.icon;
+                const isSelected = (bookingSettings?.current_status || 'open') === status.id;
+                return (
+                  <Pressable
+                    key={status.id}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setBookingSettings(prev => prev ? { ...prev, current_status: status.id } : null);
+                    }}
+                    className={`flex-row items-center p-4 ${index < 3 ? 'border-b border-gray-100' : ''}`}
+                  >
+                    <View
+                      className="w-10 h-10 rounded-full items-center justify-center"
+                      style={{ backgroundColor: isSelected ? status.bgColor : '#F3F4F6' }}
+                    >
+                      <Icon size={20} color={isSelected ? status.color : '#9CA3AF'} />
+                    </View>
+                    <View className="flex-1 ml-3">
+                      <Text className={`font-semibold ${isSelected ? 'text-warmBrown' : 'text-gray-600'}`}>
+                        {status.label}
+                      </Text>
+                      <Text className="text-gray-500 text-sm">{status.desc}</Text>
+                    </View>
+                    <View
+                      className={`w-6 h-6 rounded-full border-2 items-center justify-center ${
+                        isSelected ? 'border-forest-600 bg-forest-600' : 'border-gray-300'
+                      }`}
+                    >
+                      {isSelected && <View className="w-2 h-2 rounded-full bg-white" />}
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {/* Status Message - shown for temp closed and vacation */}
+            {(bookingSettings?.current_status === 'temporarily_closed' || bookingSettings?.current_status === 'vacation') && (
+              <Animated.View entering={FadeInDown.duration(300)} className="mt-3">
+                <View className="bg-white rounded-2xl p-4 shadow-sm">
+                  <Text className="text-warmBrown font-medium mb-2">
+                    {bookingSettings?.current_status === 'vacation' ? 'Vacation Details' : 'Status Message'}
+                  </Text>
+                  <TextInput
+                    placeholder={bookingSettings?.current_status === 'vacation' ? "e.g., Back on Jan 15th" : "e.g., Closed for renovations"}
+                    value={bookingSettings?.status_message || ''}
+                    onChangeText={(text) => setBookingSettings(prev => prev ? { ...prev, status_message: text } : null)}
+                    className="bg-gray-100 rounded-xl px-4 py-3 text-warmBrown"
+                    placeholderTextColor="#9CA3AF"
+                  />
+                  {bookingSettings?.current_status === 'vacation' && (
+                    <View className="flex-row mt-3 space-x-2">
+                      <View className="flex-1">
+                        <Text className="text-gray-500 text-xs mb-1">Return Date (optional)</Text>
+                        <TextInput
+                          placeholder="YYYY-MM-DD"
+                          value={bookingSettings?.vacation_end || ''}
+                          onChangeText={(text) => setBookingSettings(prev => prev ? { ...prev, vacation_end: text } : null)}
+                          className="bg-gray-100 rounded-xl px-4 py-3 text-warmBrown"
+                          placeholderTextColor="#9CA3AF"
+                        />
+                      </View>
+                    </View>
+                  )}
+                </View>
+              </Animated.View>
+            )}
           </Animated.View>
 
           {/* Business Hours */}

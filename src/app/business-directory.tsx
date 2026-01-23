@@ -33,6 +33,9 @@ import { router } from 'expo-router';
 import { useStore, MOCK_COMMUNITIES } from '@/lib/store';
 import { getBusinesses } from '@/lib/marketplace-api';
 import { getOrCreateConversation } from '@/lib/messages';
+import { getBusinessHours, getBusinessBookingSettings, type DbBusinessHours, type DbBusinessBookingSettings } from '@/lib/booking-api';
+import { getBusinessStatus, type BusinessStatusInfo } from '@/lib/business-status';
+import { BusinessStatusBadge } from '@/components/BusinessStatusBadge';
 
 // Business categories
 const CATEGORIES = [
@@ -83,6 +86,7 @@ export default function BusinessDirectoryScreen() {
   const [dbBusinesses, setDbBusinesses] = useState<DbBusiness[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [businessStatuses, setBusinessStatuses] = useState<Record<string, BusinessStatusInfo>>({});
 
   const currentCommunity = useStore((s) => s.currentCommunity);
   const selectedLocation = useStore((s) => s.selectedLocation);
@@ -95,6 +99,30 @@ export default function BusinessDirectoryScreen() {
     try {
       const data = await getBusinesses();
       setDbBusinesses(data || []);
+
+      // Fetch status for each business
+      if (data && data.length > 0) {
+        const statusPromises = data.map(async (business) => {
+          try {
+            const [hours, settings] = await Promise.all([
+              getBusinessHours(business.id),
+              getBusinessBookingSettings(business.id),
+            ]);
+            const status = getBusinessStatus(hours, settings);
+            return { id: business.id, status };
+          } catch {
+            // Default status if fetch fails
+            return { id: business.id, status: getBusinessStatus([]) };
+          }
+        });
+
+        const statuses = await Promise.all(statusPromises);
+        const statusMap: Record<string, BusinessStatusInfo> = {};
+        statuses.forEach(({ id, status }) => {
+          statusMap[id] = status;
+        });
+        setBusinessStatuses(statusMap);
+      }
     } catch (error) {
       console.error('Error fetching businesses:', error);
     } finally {
@@ -445,13 +473,19 @@ export default function BusinessDirectoryScreen() {
                       <Text className="text-gray-500 text-sm mt-0.5" numberOfLines={2}>
                         {business.description}
                       </Text>
-                      <View className="flex-row items-center mt-2">
+                      <View className="flex-row items-center mt-2 flex-wrap gap-1">
                         <Star size={12} color="#C9A227" fill="#C9A227" />
                         <Text className="text-warmBrown font-medium text-sm ml-1">{business.rating}</Text>
                         <Text className="text-gray-400 text-xs ml-1">({business.reviews})</Text>
-                        <Text className="text-gray-300 mx-2">•</Text>
-                        <Clock size={12} color="#8B7355" />
-                        <Text className="text-gray-500 text-xs ml-1">{business.hours.split(':')[0]}</Text>
+                        <Text className="text-gray-300 mx-1">•</Text>
+                        {businessStatuses[business.id] ? (
+                          <BusinessStatusBadge status={businessStatuses[business.id]} size="sm" />
+                        ) : (
+                          <>
+                            <Clock size={12} color="#8B7355" />
+                            <Text className="text-gray-500 text-xs ml-1">{business.hours.split(':')[0]}</Text>
+                          </>
+                        )}
                       </View>
                     </View>
                     <Pressable

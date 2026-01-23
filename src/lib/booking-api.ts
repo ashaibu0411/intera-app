@@ -29,6 +29,8 @@ export interface DbBusinessHours {
   updated_at: string;
 }
 
+export type BusinessStatusType = 'open' | 'closed' | 'temporarily_closed' | 'vacation' | 'by_appointment';
+
 export interface DbBusinessBookingSettings {
   id: string;
   business_id: string;
@@ -38,6 +40,11 @@ export interface DbBusinessBookingSettings {
   advance_booking_days: number;
   total_bookings_received: number;
   blocked_dates: string[];
+  // Status override fields
+  current_status?: BusinessStatusType;
+  status_message?: string;
+  vacation_start?: string;
+  vacation_end?: string;
   created_at: string;
   updated_at: string;
 }
@@ -432,6 +439,10 @@ export async function updateBusinessBookingSettings(
     appointment_buffer: number;
     advance_booking_days: number;
     blocked_dates: string[];
+    current_status: BusinessStatusType;
+    status_message: string;
+    vacation_start: string;
+    vacation_end: string;
   }>
 ): Promise<DbBusinessBookingSettings | null> {
   const { data, error } = await supabase

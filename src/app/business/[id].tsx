@@ -17,7 +17,9 @@ import { aiSummarizeCard, type AiSummaryResult } from '@/lib/aiSummarizeCard';
 import { FormattedAiText } from '@/components/FormattedAiText';
 import { aiBusinessBooster, type AiBusinessBoosterResult } from '@/lib/aiBusinessBooster';
 import { hasEntitlement, isRevenueCatEnabled } from '@/lib/revenuecatClient';
-import { getBusinessBookingSettings, type DbBusinessBookingSettings } from '@/lib/booking-api';
+import { getBusinessBookingSettings, getBusinessHours, type DbBusinessBookingSettings } from '@/lib/booking-api';
+import { getBusinessStatus, type BusinessStatusInfo } from '@/lib/business-status';
+import { BusinessStatusBadge } from '@/components/BusinessStatusBadge';
 
 interface InventoryItem {
   id: string;
@@ -52,6 +54,7 @@ export default function BusinessDetailScreen() {
   const [aiSummary, setAiSummary] = useState<AiSummaryResult | null>(null);
   const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
   const [bookingSettings, setBookingSettings] = useState<DbBusinessBookingSettings | null>(null);
+  const [businessStatus, setBusinessStatus] = useState<BusinessStatusInfo | null>(null);
   const [businessProActive, setBusinessProActive] = useState(false);
   const [checkingBusinessPro, setCheckingBusinessPro] = useState(false);
   const [showBooster, setShowBooster] = useState(false);
@@ -64,16 +67,22 @@ export default function BusinessDetailScreen() {
   const load = async () => {
     if (!businessId) return;
     const b = await getBusiness(businessId);
-    const [r, t, inv] = await Promise.all([
+    const [r, t, inv, hours, settings] = await Promise.all([
       getBusinessReviews(businessId, 50),
       getBusinessTrustCounts(businessId),
       getBusinessInventory(businessId),
+      getBusinessHours(businessId),
+      getBusinessBookingSettings(businessId),
     ]);
     setBusiness(b);
     setReviews(r as any);
     setTrust(t);
     setInventory((inv || []) as InventoryItem[]);
     setLoadingInventory(false);
+
+    // Calculate and set business status
+    const status = getBusinessStatus(hours, settings);
+    setBusinessStatus(status);
 
     // Fetch owner's trust score if business has an owner
     if (b?.owner_id) {
@@ -363,14 +372,19 @@ export default function BusinessDetailScreen() {
           <View className="mx-5 mt-2 bg-white rounded-2xl overflow-hidden shadow-sm">
             <Image source={{ uri: business.image }} style={{ width: '100%', height: 180 }} contentFit="cover" />
             <View className="p-4">
-              <View className="flex-row items-center justify-between">
+              <View className="flex-row items-center justify-between flex-wrap gap-2">
                 <Text className="text-warmBrown font-bold text-lg">{business.name}</Text>
-                {business.is_verified && (
-                  <View className="flex-row items-center bg-forest-50 rounded-full px-3 py-1">
-                    <ShieldCheck size={14} color="#1B4D3E" />
-                    <Text className="text-forest-700 font-semibold ml-1 text-xs">Verified</Text>
-                  </View>
-                )}
+                <View className="flex-row items-center gap-2">
+                  {businessStatus && (
+                    <BusinessStatusBadge status={businessStatus} size="md" />
+                  )}
+                  {business.is_verified && (
+                    <View className="flex-row items-center bg-forest-50 rounded-full px-3 py-1">
+                      <ShieldCheck size={14} color="#1B4D3E" />
+                      <Text className="text-forest-700 font-semibold ml-1 text-xs">Verified</Text>
+                    </View>
+                  )}
+                </View>
               </View>
               <Text className="text-gray-600 mt-2">{business.description}</Text>
 
