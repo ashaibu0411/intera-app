@@ -34,3 +34,18 @@ export function buildVoiceRoomRecapPostContent(input: {
   return parts.join('\n\n').trim();
 }
 
+export function buildVoiceRoomHighlightClipDescription(input: {
+  roomId: string;
+  roomTitle: string;
+  label: string;
+}) {
+  const title = (input.roomTitle || '').trim() || 'Voice Room';
+  const label = (input.label || '').trim() || 'Highlight';
+  const parts: string[] = [];
+  parts.push(`🎙️ ${label}`);
+  parts.push(`From: ${title}`);
+  parts.push(`Open room: /voice-room/${input.roomId}`);
+  parts.push(`[[VOICE_ROOM_ID:${input.roomId}]]`);
+  return parts.join('\n').trim();
+}
+

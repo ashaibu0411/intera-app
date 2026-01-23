@@ -4,7 +4,7 @@ import { Stack, useLocalSearchParams, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import * as Haptics from 'expo-haptics';
-import { Mic, MicOff, Hand, Gift, Crown, UserPlus, X, Users, AudioLines, Trash2, Square, ChevronDown, Volume2, VolumeX, UserMinus, MoreVertical, HelpCircle, Lightbulb, Megaphone, Sparkles, Pin, FileText, MessageSquare, ThumbsUp, Flame, HeartHandshake, HandClap } from 'lucide-react-native';
+import { Mic, MicOff, Hand, Gift, Crown, UserPlus, X, Users, AudioLines, Trash2, Square, ChevronDown, Volume2, VolumeX, UserMinus, MoreVertical, HelpCircle, Lightbulb, Megaphone, Sparkles, Pin, FileText, MessageSquare, ThumbsUp, Flame, HeartHandshake } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Audio } from 'expo-av';
 import { useStore } from '@/lib/store';
@@ -33,6 +33,9 @@ import {
   type ParticipantWithProfile,
   type HandRaiseIntent
 } from '@/lib/voiceRooms';
+import { startVoiceRoomHighlight, stopVoiceRoomHighlight } from '@/lib/voiceRoomEgress';
+import { createClip } from '@/lib/clips-api';
+import { buildVoiceRoomHighlightClipDescription } from '@/lib/voiceRoomMarkers';
 import { sendGift } from '@/lib/giftService';
 import { LiveKitRoom, useRoomContext, isLiveKitAvailable } from '@/lib/livekit-wrapper';
 
@@ -271,6 +274,13 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
   const [ctxPinnedRoute, setCtxPinnedRoute] = useState('');
   const [ctxRules, setCtxRules] = useState('');
   const [ctxResources, setCtxResources] = useState('');
+
+  const [hlOpen, setHlOpen] = useState(false);
+  const [hlLabel, setHlLabel] = useState('');
+  const [hlBusy, setHlBusy] = useState(false);
+  const [hlEgressId, setHlEgressId] = useState<string | null>(null);
+  const [hlHighlightId, setHlHighlightId] = useState<string | null>(null);
+  const [hlStoragePath, setHlStoragePath] = useState<string | null>(null);
 
   const liveKitEnabled = isLiveKitAvailable();
 
@@ -1157,7 +1167,7 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
                   }}
                   className="w-16 bg-white border border-gray-200 rounded-xl py-3 items-center justify-center"
                 >
-                  <HandClap size={18} color="#C9A227" />
+                  <Text style={{ fontSize: 18 }}>👏</Text>
                   <Text className="text-gray-500 font-semibold text-xs mt-1">{reactions.clap || 0}</Text>
                 </Pressable>
                 <Pressable
@@ -1207,6 +1217,74 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
                   </Pressable>
                 ) : null}
               </View>
+
+              {/* Host highlight recording */}
+              {isHost ? (
+                <View className="flex-row mt-3 gap-2">
+                  <Pressable
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      if (hlEgressId) {
+                        // Already recording
+                        return;
+                      }
+                      setHlLabel('');
+                      setHlOpen(true);
+                    }}
+                    className={`flex-1 rounded-xl py-3 items-center justify-center ${hlEgressId ? 'bg-red-600' : 'bg-forest-700'}`}
+                  >
+                    <Text className="text-white font-semibold">
+                      {hlEgressId ? 'Recording highlight…' : 'Record highlight'}
+                    </Text>
+                  </Pressable>
+                  {hlEgressId ? (
+                    <Pressable
+                      onPress={async () => {
+                        if (!id || !hlEgressId || !hlHighlightId) return;
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                        setHlBusy(true);
+                        try {
+                          await stopVoiceRoomHighlight({ roomId: id, highlightId: hlHighlightId, egressId: hlEgressId });
+
+                          // Create clip entry pointing at the storage object path.
+                          if (currentUser?.id && room && hlStoragePath) {
+                            const desc = buildVoiceRoomHighlightClipDescription({
+                              roomId: id,
+                              roomTitle: room.title,
+                              label: hlLabel || 'Voice room highlight',
+                            });
+                            const clip = await createClip({
+                              user_id: currentUser.id,
+                              video_url: hlStoragePath,
+                              description: desc,
+                            });
+                            // Link highlight -> clip
+                            if (clip?.id) {
+                              await supabase
+                                .from('voice_room_highlights')
+                                .update({ status: 'ready', clip_id: clip.id, stopped_at: new Date().toISOString() })
+                                .eq('id', hlHighlightId);
+                            }
+                          }
+
+                          Alert.alert('Saved', 'Highlight is processing and will appear in Clips shortly.');
+                        } catch (e: any) {
+                          Alert.alert('Could not stop highlight', String(e?.message ?? e));
+                        } finally {
+                          setHlBusy(false);
+                          setHlEgressId(null);
+                          setHlHighlightId(null);
+                          setHlStoragePath(null);
+                        }
+                      }}
+                      disabled={hlBusy}
+                      className="bg-red-600 rounded-xl px-4 py-3 items-center justify-center"
+                    >
+                      <Text className="text-white font-semibold">{hlBusy ? 'Stopping…' : 'Stop'}</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              ) : null}
             </View>
 
             {/* Context edit modal */}
@@ -1333,6 +1411,56 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
                           ))
                         )}
                       </ScrollView>
+                    </View>
+                  </Pressable>
+                </View>
+              </Pressable>
+            </Modal>
+
+            {/* Start highlight modal */}
+            <Modal visible={hlOpen} transparent animationType="slide" onRequestClose={() => setHlOpen(false)}>
+              <Pressable className="flex-1 bg-black/40" onPress={() => setHlOpen(false)}>
+                <View className="flex-1 justify-end">
+                  <Pressable onPress={(e) => e.stopPropagation()}>
+                    <View className="bg-cream rounded-t-3xl p-5">
+                      <View className="flex-row items-center justify-between mb-3">
+                        <Text className="text-warmBrown font-bold text-lg">Record a highlight</Text>
+                        <Pressable onPress={() => setHlOpen(false)}>
+                          <X size={22} color="#2D1F1A" />
+                        </Pressable>
+                      </View>
+                      <Text className="text-gray-500 text-sm">
+                        This will record a short segment and upload it to your Clips bucket.
+                      </Text>
+                      <TextInput
+                        value={hlLabel}
+                        onChangeText={setHlLabel}
+                        placeholder="Label (optional): e.g. Best advice, Key takeaway"
+                        placeholderTextColor="#9CA3AF"
+                        className="mt-3 bg-white border border-gray-200 rounded-xl px-4 py-3 text-warmBrown"
+                      />
+                      <Pressable
+                        onPress={async () => {
+                          if (!id || !room) return;
+                          setHlBusy(true);
+                          try {
+                            const res = await startVoiceRoomHighlight({ roomId: id, label: hlLabel });
+                            setHlEgressId(res.egressId);
+                            setHlHighlightId(res.highlightId);
+                            setHlStoragePath(res.storagePath);
+                            setHlOpen(false);
+                            Alert.alert('Recording', 'Recording started. Tap Stop when you want to end the highlight.');
+                          } catch (e: any) {
+                            Alert.alert('Could not start highlight', String(e?.message ?? e));
+                          } finally {
+                            setHlBusy(false);
+                          }
+                        }}
+                        disabled={hlBusy}
+                        className="mt-4 bg-forest-700 rounded-xl py-3 items-center"
+                      >
+                        <Text className="text-white font-semibold">{hlBusy ? 'Starting…' : 'Start recording'}</Text>
+                      </Pressable>
                     </View>
                   </Pressable>
                 </View>
