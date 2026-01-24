@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { View, Text, ScrollView, Pressable, Image, Dimensions, Modal, TextInput, ActivityIndicator } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -108,10 +108,32 @@ export default function StoriesScreen() {
 
   const progress = useSharedValue(0);
 
-  // Get current user's stories
-  const myStories = userStories.find((s) => s.userId === currentUser?.id);
-  // Get other users' stories
-  const otherStories = userStories.filter((s) => s.userId !== currentUser?.id);
+  // Get current user's stories with sorted stories (newest first)
+  const myStories = useMemo(() => {
+    const found = userStories.find((s) => s.userId === currentUser?.id);
+    if (!found) return null;
+    return {
+      ...found,
+      stories: [...found.stories].sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      ),
+    };
+  }, [userStories, currentUser?.id]);
+
+  // Get other users' stories, sorted by lastUpdated (newest first), with their stories sorted too
+  const otherStories = useMemo(
+    () =>
+      userStories
+        .filter((s) => s.userId !== currentUser?.id)
+        .map((us) => ({
+          ...us,
+          stories: [...us.stories].sort(
+            (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          ),
+        }))
+        .sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime()),
+    [userStories, currentUser?.id]
+  );
 
   // Auto-play stories if userId param is passed
   useEffect(() => {

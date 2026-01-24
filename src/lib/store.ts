@@ -869,21 +869,26 @@ export const useStore = create<AppState>()(
         if (!currentUser) return state;
 
         const existingUserStory = state.userStories.find((us) => us.userId === currentUser.id);
+        const now = new Date().toISOString();
+
+        let updatedUserStories: UserStory[];
 
         if (existingUserStory) {
-          // Add to existing user's stories
-          return {
-            userStories: state.userStories.map((us) =>
-              us.userId === currentUser.id
-                ? {
-                    ...us,
-                    stories: [story, ...us.stories],
-                    hasUnseenStories: true,
-                    lastUpdated: new Date().toISOString(),
-                  }
-                : us
-            ),
-          };
+          // Add to existing user's stories - new story goes to the front
+          const updatedStories = [story, ...existingUserStory.stories].sort(
+            (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          );
+          
+          updatedUserStories = state.userStories.map((us) =>
+            us.userId === currentUser.id
+              ? {
+                  ...us,
+                  stories: updatedStories,
+                  hasUnseenStories: true,
+                  lastUpdated: now,
+                }
+              : us
+          );
         } else {
           // Create new user story entry
           const newUserStory: UserStory = {
@@ -892,13 +897,21 @@ export const useStore = create<AppState>()(
             userAvatar: currentUser.avatar,
             stories: [story],
             hasUnseenStories: true,
-            lastUpdated: new Date().toISOString(),
+            lastUpdated: now,
             blockedUserIds: state.storyBlockedUserIds,
           };
-          return {
-            userStories: [newUserStory, ...state.userStories],
-          };
+          updatedUserStories = [newUserStory, ...state.userStories];
         }
+
+        // Sort all user stories by lastUpdated (newest first), but keep current user's story at the front
+        const currentUserStory = updatedUserStories.find((us) => us.userId === currentUser.id);
+        const otherStories = updatedUserStories
+          .filter((us) => us.userId !== currentUser.id)
+          .sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime());
+
+        return {
+          userStories: currentUserStory ? [currentUserStory, ...otherStories] : otherStories,
+        };
       }),
       deleteStory: (storyId) => set((state) => {
         const currentUser = state.currentUser;

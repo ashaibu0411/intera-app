@@ -30,7 +30,7 @@ export function FloatingAskIntera() {
       style={{
         position: 'absolute',
         right: 16,
-        bottom: insets.bottom + 96,
+        bottom: insets.bottom + 120,
         zIndex: 1000,
       }}
     >
