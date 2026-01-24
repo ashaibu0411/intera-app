@@ -260,16 +260,21 @@ export async function notifyCommunityAboutNewEvent(
     // Try to insert notifications in batches
     const batchSize = 100;
     let insertedCount = 0;
+    let skipDbInserts = false;
+
     for (let i = 0; i < notifications.length; i += batchSize) {
+      if (skipDbInserts) break;
+
       const batch = notifications.slice(i, i + batchSize);
       const { error } = await supabase
         .from('notifications')
         .insert(batch);
 
       if (error) {
-        // If table doesn't exist, use realtime broadcast
-        if (error.code === '42P01') {
+        // If table doesn't exist (42P01 or PGRST205), skip DB inserts and use realtime only
+        if (error.code === '42P01' || error.code === 'PGRST205') {
           console.log('[CommunityNotifications] Notifications table does not exist. Using realtime broadcast instead.');
+          skipDbInserts = true;
           break;
         }
         console.error(`[CommunityNotifications] Error inserting event notifications batch ${i / batchSize + 1}:`, error);

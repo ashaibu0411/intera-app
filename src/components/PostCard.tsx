@@ -292,18 +292,30 @@ export function PostCard({ post, onLike, onComment, onShare, showGuidelines = fa
   const commentCount = dbCommentCount > 0 ? dbCommentCount : (mockCommentsCount + userCommentsCount + baseComments);
 
   const [isMuted, setIsMuted] = React.useState(true);
+  const [isPlaying, setIsPlaying] = React.useState(false);
   const likeScale = useSharedValue(1);
 
-  // Video player setup using expo-video
-  const videoPlayer = useVideoPlayer(post.video || null, (player) => {
-    player.loop = true;
-    player.muted = true;
-    player.play();
+  // Video player setup using expo-video - only create player when we have a video
+  const hasVideo = Boolean(post.video && post.video.length > 0);
+  const videoPlayer = useVideoPlayer(hasVideo ? post.video : null, (player) => {
+    if (hasVideo) {
+      player.loop = true;
+      player.muted = true;
+      player.play();
+    }
   });
 
-  const { isPlaying } = useEvent(videoPlayer, 'playingChange', {
-    isPlaying: videoPlayer.playing,
+  // Track playing state - only subscribe when we have a video player
+  const playingEvent = useEvent(videoPlayer, 'playingChange', {
+    isPlaying: videoPlayer?.playing ?? false,
   });
+
+  // Sync playing state from event when video exists
+  React.useEffect(() => {
+    if (hasVideo && playingEvent) {
+      setIsPlaying(playingEvent.isPlaying);
+    }
+  }, [hasVideo, playingEvent]);
 
   const handleQuickLike = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
