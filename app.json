@@ -9,6 +9,7 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": false,
     "ios": {
+      "bundleIdentifier": "com.vibecode.intera",
       "supportsTablet": true,
       "infoPlist": {
         "NSCameraUsageDescription": "Intera uses your camera to capture photos and videos that you can share with your community. For example, you can take a profile picture, create posts with photos of community events, record video clips for stories, or capture images when selling items in the marketplace.",
