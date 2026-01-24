@@ -96,7 +96,7 @@ export default function CreateImpactStoryScreen() {
       if (videoLocalUri) {
         const uploaded = await uploadImpactStoryVideo(videoLocalUri, currentUser.id);
         if (!uploaded) {
-          Alert.alert('Upload failed', 'Could not upload the video (max 25MB). Try a shorter/smaller video.');
+          Alert.alert('Upload failed', 'Could not upload the video (max 100MB). Try a shorter/smaller video.');
           setBusy(false);
           return;
         }
@@ -367,7 +367,7 @@ export default function CreateImpactStoryScreen() {
         <View className="mt-4 bg-white rounded-2xl p-4 border border-gray-100">
           <Text className="text-warmBrown font-bold">Media (optional)</Text>
           <Text className="text-gray-500 text-sm mt-1">
-            Add a cover image and/or a short video to tell your story (video max 25MB).
+            Add a cover image and/or a short video to tell your story (video max 100MB).
           </Text>
 
           {/* Cover image picker */}
@@ -459,7 +459,7 @@ export default function CreateImpactStoryScreen() {
                 </Pressable>
               </View>
             ) : (
-              <Text className="text-gray-500 text-sm mt-2">Optional: add a short video (max 25MB).</Text>
+              <Text className="text-gray-500 text-sm mt-2">Optional: add a short video (max 100MB).</Text>
             )}
           </View>
         </View>

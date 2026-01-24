@@ -57,7 +57,7 @@ export async function uploadImpactStoryVideo(uri: string, userId: string): Promi
     // Guardrail: videos can be large; avoid OOM by capping size
     const info = await FileSystem.getInfoAsync(uri, { size: true });
     const sizeBytes = typeof info.size === 'number' ? info.size : 0;
-    const MAX_BYTES = 25 * 1024 * 1024; // 25MB
+    const MAX_BYTES = 100 * 1024 * 1024; // 100MB (increased to match posts)
     if (sizeBytes > MAX_BYTES) {
       console.log(`[impactStoriesMedia] Video too large (${sizeBytes} bytes).`);
       return null;

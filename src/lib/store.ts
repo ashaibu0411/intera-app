@@ -1035,9 +1035,29 @@ export const useStore = create<AppState>()(
         };
       }),
       addPost: (post: Post) => set((state) => ({ userPosts: [post, ...state.userPosts] })),
-      deletePost: (postId: string) => set((state) => ({
-        userPosts: state.userPosts.filter((p) => p.id !== postId),
-      })),
+      deletePost: (postId: string) => {
+        // Remove from local state immediately
+        set((state) => ({
+          userPosts: state.userPosts.filter((p) => p.id !== postId),
+        }));
+        // Only delete from database if it's a valid UUID (not a local-only post)
+        // Local posts have IDs like "post_1234567890" which aren't in the database
+        const isValidUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(postId);
+        if (!isValidUuid) {
+          console.log('[Store] Skipping DB deletion for local-only post:', postId);
+          return;
+        }
+        // Delete from database (async, don't block UI)
+        (async () => {
+          try {
+            const { deletePost: deleteDbPost } = await import('./posts');
+            await deleteDbPost(postId);
+          } catch (error) {
+            console.error('[Store] Error deleting post from database:', error);
+            // If DB deletion fails, we could re-add to local state, but for now just log
+          }
+        })();
+      },
       toggleSavePost: (postId: string) => set((state) => ({
         savedPostIds: state.savedPostIds.includes(postId)
           ? state.savedPostIds.filter((id) => id !== postId)

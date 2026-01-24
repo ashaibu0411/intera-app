@@ -386,35 +386,38 @@ function CreatePostForm({ user, community, onBack, business }: { user: any; comm
   };
 
   const handlePost = async () => {
-    if (!content.trim()) return;
+    // Allow posting if there's content, video, or images
+    if (!content.trim() && !selectedVideo && selectedImages.length === 0) return;
 
     const formattedContent =
       business?.name ? `🏪 ${business.name}\n\n${content.trim()}` : content.trim();
 
-    // Moderation gate (local fast filter + AI check)
-    try {
-      const local = moderateText(formattedContent);
-      if (local.action === 'blocked') {
-        Alert.alert('Cannot post this', local.message || 'This content violates our community guidelines.');
-        return;
+    // Moderation gate (local fast filter + AI check) - only if there's text content
+    if (formattedContent.trim()) {
+      try {
+        const local = moderateText(formattedContent);
+        if (local.action === 'blocked') {
+          Alert.alert('Cannot post this', local.message || 'This content violates our community guidelines.');
+          return;
+        }
+        const ai = await aiModerateContent({ text: formattedContent, context: 'post' });
+        if (ai.action === 'block') {
+          Alert.alert('Cannot post this', ai.reasons?.[0] || 'This content violates our community guidelines.');
+          return;
+        }
+        if (ai.action === 'warn') {
+          const tips = (ai.redaction_tips || []).slice(0, 3);
+          Alert.alert(
+            'Quick safety check',
+            [ai.reasons?.[0] || 'Consider editing before posting.', tips.length ? `\n\nTips:\n- ${tips.join('\n- ')}` : '']
+              .filter(Boolean)
+              .join('')
+          );
+        }
+      } catch (e) {
+        // If moderation is down, don't block posting.
+        console.log('[CreatePost] Moderation skipped:', e);
       }
-      const ai = await aiModerateContent({ text: formattedContent, context: 'post' });
-      if (ai.action === 'block') {
-        Alert.alert('Cannot post this', ai.reasons?.[0] || 'This content violates our community guidelines.');
-        return;
-      }
-      if (ai.action === 'warn') {
-        const tips = (ai.redaction_tips || []).slice(0, 3);
-        Alert.alert(
-          'Quick safety check',
-          [ai.reasons?.[0] || 'Consider editing before posting.', tips.length ? `\n\nTips:\n- ${tips.join('\n- ')}` : '']
-            .filter(Boolean)
-            .join('')
-        );
-      }
-    } catch (e) {
-      // If moderation is down, don't block posting.
-      console.log('[CreatePost] Moderation skipped:', e);
     }
 
     let postId = `post_${Date.now()}`;
@@ -523,7 +526,7 @@ function CreatePostForm({ user, community, onBack, business }: { user: any; comm
     transform: [{ scale: buttonScale.value }],
   }));
 
-  const canPost = content.trim().length > 0;
+  const canPost = content.trim().length > 0 || selectedVideo !== null || selectedImages.length > 0;
 
   return (
     <View className="flex-1 bg-cream">

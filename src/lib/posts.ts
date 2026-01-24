@@ -52,9 +52,9 @@ export async function uploadVideo(uri: string, userId: string): Promise<string |
     // Guardrail: videos can be large; avoid OOM by capping size
     const info = await FileSystem.getInfoAsync(uri, { size: true });
     const sizeBytes = typeof info.size === 'number' ? info.size : 0;
-    const MAX_BYTES = 20 * 1024 * 1024; // 20MB
+    const MAX_BYTES = 100 * 1024 * 1024; // 100MB (increased from 20MB)
     if (sizeBytes > MAX_BYTES) {
-      console.log(`[Posts] Video too large to upload (${sizeBytes} bytes).`);
+      console.log(`[Posts] Video too large to upload (${sizeBytes} bytes). Maximum allowed: ${MAX_BYTES} bytes (100MB).`);
       return null;
     }
 
@@ -250,13 +250,114 @@ export async function createPost(
   return data;
 }
 
-export async function deletePost(postId: string) {
-  const { error } = await supabase
-    .from('posts')
-    .delete()
-    .eq('id', postId);
+// Helper to extract object path from Supabase Storage URL
+function extractStorageObjectPath(url: string, bucketName: string): string | null {
+  try {
+    // Handle full Supabase Storage URLs
+    // Format: https://[project].supabase.co/storage/v1/object/public/[bucket]/[path]
+    const publicUrlPattern = new RegExp(`/storage/v1/object/public/${bucketName}/(.+)`);
+    const match = url.match(publicUrlPattern);
+    if (match && match[1]) {
+      return decodeURIComponent(match[1]);
+    }
+    
+    // Handle signed URLs (they have a different format)
+    const signedUrlPattern = new RegExp(`/storage/v1/object/sign/${bucketName}/([^?]+)`);
+    const signedMatch = url.match(signedUrlPattern);
+    if (signedMatch && signedMatch[1]) {
+      return decodeURIComponent(signedMatch[1]);
+    }
+    
+    // If it's already just a path (userId/filename.ext), return as-is
+    if (!url.startsWith('http://') && !url.startsWith('https://') && url.includes('/')) {
+      return url;
+    }
+    
+    return null;
+  } catch (e) {
+    console.log('[deletePost] Error extracting path from URL:', url, e);
+    return null;
+  }
+}
 
-  if (error) throw error;
+export async function deletePost(postId: string) {
+  try {
+    // First, fetch the post to get video and image URLs
+    const { data: post, error: fetchError } = await supabase
+      .from('posts')
+      .select('video, images')
+      .eq('id', postId)
+      .single();
+
+    if (fetchError && fetchError.code !== 'PGRST116') {
+      console.log('[deletePost] Error fetching post:', fetchError);
+      // Continue with deletion even if fetch fails
+    }
+
+    // Delete video from storage if it exists
+    if (post?.video) {
+      try {
+        const videoPath = extractStorageObjectPath(post.video, 'post-videos');
+        if (videoPath) {
+          const { error: videoError } = await supabase.storage
+            .from('post-videos')
+            .remove([videoPath]);
+          
+          if (videoError) {
+            console.log('[deletePost] Error deleting video from storage:', videoError);
+            // Continue with post deletion even if video deletion fails
+          } else {
+            console.log('[deletePost] Successfully deleted video:', videoPath);
+          }
+        }
+      } catch (e) {
+        console.log('[deletePost] Error processing video deletion:', e);
+      }
+    }
+
+    // Delete images from storage if they exist
+    if (post?.images && Array.isArray(post.images) && post.images.length > 0) {
+      const imagePaths: string[] = [];
+      for (const imageUrl of post.images) {
+        if (typeof imageUrl === 'string' && imageUrl.startsWith('http')) {
+          const imagePath = extractStorageObjectPath(imageUrl, 'post-images');
+          if (imagePath) {
+            imagePaths.push(imagePath);
+          }
+        }
+      }
+      
+      if (imagePaths.length > 0) {
+        try {
+          const { error: imageError } = await supabase.storage
+            .from('post-images')
+            .remove(imagePaths);
+          
+          if (imageError) {
+            console.log('[deletePost] Error deleting images from storage:', imageError);
+            // Continue with post deletion even if image deletion fails
+          } else {
+            console.log('[deletePost] Successfully deleted images:', imagePaths.length);
+          }
+        } catch (e) {
+          console.log('[deletePost] Error processing image deletion:', e);
+        }
+      }
+    }
+
+    // Finally, delete the post from the database
+    const { error } = await supabase
+      .from('posts')
+      .delete()
+      .eq('id', postId);
+
+    if (error) throw error;
+    
+    console.log('[deletePost] Successfully deleted post:', postId);
+  } catch (error) {
+    console.error('[deletePost] Error deleting post:', error);
+    throw error;
+  }
 }
 
 // Comments API
