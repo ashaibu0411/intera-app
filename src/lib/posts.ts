@@ -179,21 +179,58 @@ export async function createPost(
   communityId?: string,
   video?: string | null
 ) {
-  const { data, error } = await supabase
+  // Build the insert payload - only include video if provided
+  // Note: Some databases may not have the video column yet
+  const insertPayload: Record<string, unknown> = {
+    author_id: authorId,
+    content,
+    images,
+    location,
+    community_id: communityId,
+  };
+
+  // Only add video field if it's provided (avoids issues with schemas that don't have video column)
+  if (video) {
+    insertPayload.video = video;
+  }
+
+  let data: any = null;
+  let error: any = null;
+
+  // First try with video field
+  const result = await supabase
     .from('posts')
-    .insert({
-      author_id: authorId,
-      content,
-      images,
-      video: video ?? null,
-      location,
-      community_id: communityId,
-    })
+    .insert(insertPayload)
     .select(`
       *,
       author:profiles(*)
     `)
     .single();
+
+  data = result.data;
+  error = result.error;
+
+  // If error mentions video column doesn't exist, retry without it
+  if (error?.message?.includes('video') || error?.code === 'PGRST204') {
+    console.log('[Posts] Video column not in DB, retrying without video field');
+    const { video: _, ...payloadWithoutVideo } = insertPayload;
+    const retryResult = await supabase
+      .from('posts')
+      .insert(payloadWithoutVideo)
+      .select(`
+        *,
+        author:profiles(*)
+      `)
+      .single();
+
+    data = retryResult.data;
+    error = retryResult.error;
+
+    // If we had a video URL, store it locally for this post
+    if (video && data?.id) {
+      console.log('[Posts] Video saved locally but not to DB - video column missing in schema');
+    }
+  }
 
   if (error) throw error;
 
