@@ -214,7 +214,17 @@ export default function SignUpScreen() {
     } catch (err: unknown) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       const errorMessage = err instanceof Error ? err.message : 'Failed to send verification code';
-      setError(errorMessage);
+
+      // Check for Twilio trial account error and provide user-friendly message
+      if (errorMessage.toLowerCase().includes('unverified') ||
+          errorMessage.toLowerCase().includes('trial') ||
+          errorMessage.toLowerCase().includes('21608')) {
+        setError('Phone verification is currently unavailable. Please use email or Apple sign-in instead.');
+      } else if (errorMessage.toLowerCase().includes('invalid') && errorMessage.toLowerCase().includes('phone')) {
+        setError('Please enter a valid phone number with country code (e.g., +1 for US).');
+      } else {
+        setError(errorMessage);
+      }
     } finally {
       setIsLoading(false);
     }

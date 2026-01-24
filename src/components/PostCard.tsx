@@ -824,13 +824,13 @@ export function PostCard({ post, onLike, onComment, onShare, showGuidelines = fa
       )}
 
       {/* Video */}
-      {post.video && (
+      {post.video && post.video.length > 0 && (
         <View className="px-4 pb-3">
           <Pressable onPress={handleVideoPlayPause} className="relative">
             <VideoView
               player={videoPlayer}
               style={{ width: '100%', height: 250, borderRadius: 12, backgroundColor: '#1a1a1a' }}
-              contentFit="contain"
+              contentFit="cover"
               nativeControls={false}
             />
             {/* Play/Pause overlay */}
