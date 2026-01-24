@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, ScrollView, Pressable, TextInput, ActivityIndicator, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ChevronLeft, Search, MapPin, Plus, Star, Users, Home, ChefHat, Wrench, GraduationCap, Sparkles } from 'lucide-react-native';
+import { ChevronLeft, Search, MapPin, Plus, Star, Users, Home, ChefHat, Wrench, GraduationCap, Sparkles, ShieldAlert } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { useStore } from '@/lib/store';
@@ -162,6 +162,21 @@ export default function TrustedProvidersScreen() {
             showsVerticalScrollIndicator={false}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           >
+            {/* Disclaimer Banner */}
+            <View className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-4">
+              <View className="flex-row items-start">
+                <View className="bg-amber-100 rounded-full p-2 mr-3">
+                  <ShieldAlert size={18} color="#B45309" />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-amber-900 font-semibold text-sm">Important Notice</Text>
+                  <Text className="text-amber-800 text-xs mt-1 leading-5">
+                    We do not conduct background checks on helpers listed here. Ratings and reviews are provided by community members. We recommend conducting your own background checks and due diligence before hiring.
+                  </Text>
+                </View>
+              </View>
+            </View>
+
             {filtered.length === 0 ? (
               <View className="bg-white rounded-2xl p-6 items-center mt-2">
                 <Users size={28} color="#1B4D3E" />
