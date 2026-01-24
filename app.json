@@ -98,8 +98,6 @@
       "eas": {
         "projectId": "090ff57c-7051-4df7-b53e-60eaa2cfe0f6"
       }
->>>>>>> 6c3f5be (Configure GitHub builds: add iOS bundleIdentifier, eas.json, and GitHub Actions workflow)
-    }
     },
     "owner": "znombre04"
   }
