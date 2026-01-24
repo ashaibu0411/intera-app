@@ -93,9 +93,9 @@
     },
     "extra": {
       "router": {},
-      "eas": {
-        "projectId": "090ff57c-7051-4df7-b53e-60eaa2cfe0f6"
-      }
+    "eas": {
+      "projectId": "37e50fab-c3cc-4a10-b6f8-7df3560140f0"
+    }
     },
     "owner": "znombre04"
   }
