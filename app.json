@@ -90,6 +90,13 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "090ff57c-7051-4df7-b53e-60eaa2cfe0f6"
+      }
+    },
+    "owner": "znombre04"
   }
 }
