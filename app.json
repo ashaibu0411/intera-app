@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "vibecode",
-    "slug": "vibecode",
+    "slug": "intera-community-app",
     "scheme": "vibecode",
     "icon": "./assets/icon.png",
     "version": "1.0.0",
