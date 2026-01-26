@@ -23,7 +23,7 @@
     },
     "android": {
       "package": "com.vibecode.intera",
-      "versionCode": 1,
+      "versionCode": 4,
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#062A1E"

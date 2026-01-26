@@ -171,6 +171,8 @@
   "patchedDependencies": {
     "react-native@0.79.6": "patches/react-native@0.79.6.patch",
     "@react-native-menu/menu@1.2.2": "patches/@react-native-menu+menu@1.2.2.patch",
+    "expo-asset@11.1.5": "patches/expo-asset@11.1.5.patch",
+    "react-native-enriched@0.1.6": "patches/react-native-enriched@0.1.6.patch",
   },
   "overrides": {
     "react-native-css-interop": "0.1.22",

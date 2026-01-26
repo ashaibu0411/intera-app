@@ -1,0 +1,11 @@
+diff --git a/android/src/main/new_arch/react/renderer/components/RNEnrichedTextInputViewSpec/conversions.h b/android/src/main/new_arch/react/renderer/components/RNEnrichedTextInputViewSpec/conversions.h
+--- a/android/src/main/new_arch/react/renderer/components/RNEnrichedTextInputViewSpec/conversions.h
++++ b/android/src/main/new_arch/react/renderer/components/RNEnrichedTextInputViewSpec/conversions.h
+@@ -1,7 +1,6 @@
+ #pragma once
+ 
+ #include <folly/dynamic.h>
+-#include <react/renderer/components/FBReactNativeSpec/Props.h>
+ #include <react/renderer/core/propsConversions.h>
+ #include <react/renderer/components/RNEnrichedTextInputViewSpec/Props.h>
+ 
