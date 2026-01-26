@@ -1,0 +1,10 @@
+diff --git a/android/src/main/java/com/reactnativemenu/MenuViewManagerBase.kt b/android/src/main/java/com/reactnativemenu/MenuViewManagerBase.kt
+--- a/android/src/main/java/com/reactnativemenu/MenuViewManagerBase.kt
++++ b/android/src/main/java/com/reactnativemenu/MenuViewManagerBase.kt
+@@ -1,4 +1,4 @@
+ @ReactProp(name = ViewProps.OVERFLOW)
+ fun setOverflow(view: ReactViewGroup, overflow: String?) {
+- view.overflow = overflow
++ view.setOverflow(overflow)
+ }
+
