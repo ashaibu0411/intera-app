@@ -14,12 +14,13 @@
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "Intera uses your camera to capture photos and videos that you can share with your community. For example, you can take a profile picture, create posts with photos of community events, record video clips for stories, or capture images when selling items in the marketplace.",
+        "NSCalendarsUsageDescription": "Intera uses your calendar to let you add community events and reminders (like meetups and appointments) to your device calendar, so you don’t miss important dates.",
         "NSPhotoLibraryUsageDescription": "Intera accesses your photo library to let you select and upload photos and videos to share with your community. For example, you can choose existing photos to use as your profile picture, add photos to posts about local events, select images when creating marketplace listings, or pick videos to share in stories and clips.",
         "NSLocationWhenInUseUsageDescription": "Intera uses your location to show you relevant local content and connect you with your community. For example, we display nearby events happening in your area, show local businesses and services close to you, help you find carpool rides in your city, and connect you with community members in your location.",
         "NSContactsUsageDescription": "Intera accesses your contacts to help you find and connect with friends who are already using the app. For example, we can show you which of your contacts are members so you can easily add them as connections and share community updates with people you know.",
         "NSMicrophoneUsageDescription": "Intera uses your microphone to enable voice communication features. For example, you can record voice messages to send to other community members, participate in live audio discussions in voice rooms, or add audio narration to your video clips and stories."
       },
-      "buildNumber": "4"
+      "buildNumber": "6"
     },
     "android": {
       "package": "com.vibecode.intera",
