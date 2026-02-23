@@ -4,9 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Image } from 'expo-image';
 import {
-  MapPin,
   ChevronDown,
-  Globe,
   Users,
   ChevronRight,
   UserPlus,
@@ -14,103 +12,26 @@ import {
   Bell,
   Search,
   Plus,
-  Heart,
-  Store,
-  UserCheck,
   Sparkles,
 } from 'lucide-react-native';
-import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 
 // Components
-import { PostCard } from '@/components/PostCard';
 import { LocationChangeModal } from '@/components/LocationChangeModal';
-import { DailyRewardsBanner } from '@/components/DailyRewardsBanner';
-import { DailyRewardsModal } from '@/components/DailyRewardsModal';
 import { StoryAvatar } from '@/components/StoryAvatar';
-import { ArrivalModeBanner } from '@/components/ArrivalModeBanner';
-import { CommunityPresence } from '@/components/CommunityPresence';
-import { LocalPulse } from '@/components/LocalPulse';
-import { MemoryLayer } from '@/components/MemoryLayer';
-import { ActiveConversations } from '@/components/ActiveConversations';
-import { QuickPostPrompts } from '@/components/QuickPostPrompts';
-import { WeatherSignal } from '@/components/WeatherSignal';
 
 // Store & Utils
-import { useStore, MOCK_POSTS, MOCK_COMMUNITIES, type Post, type UserStory, getCommunityMemberCount } from '@/lib/store';
+import { useStore, type Post, type UserStory } from '@/lib/store';
 import { getCommunityByLocation, subscribeToCommunityUpdates, getOrCreateCommunity, joinCommunity } from '@/lib/communities';
 import { DbCommunity } from '@/lib/supabase';
 import { getPosts } from '@/lib/posts';
+import { subscribeToPostInserts } from '@/lib/postsRealtime';
 import { detectCurrentLocation, isLocationDifferent, type DetectedLocation } from '@/lib/locationDetection';
 import { getCurrentUser } from '@/lib/auth';
 import { useUnreadMessages } from '@/lib/useUnreadMessages';
 import { useStore as useAppStore } from '@/lib/store';
-
-// Global posts for worldwide feed
-const GLOBAL_MOCK_POSTS = [
-  {
-    id: 'global_1',
-    author: {
-      id: 'g1',
-      name: 'Fatou Diop',
-      username: 'fatoudiop',
-      avatar: 'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=200&h=200&fit=crop&crop=face',
-      bio: 'Fashion designer from Dakar',
-      location: 'London, UK',
-      interests: ['Fashion', 'Art'],
-      joinedDate: '2024-01-10',
-    },
-    content: 'Just launched my new African-inspired fashion collection in London! So grateful for the support from the diaspora community here.',
-    images: ['https://images.unsplash.com/photo-1558171813-4c088753af8f?w=800&h=600&fit=crop'],
-    likes: 89,
-    comments: 34,
-    createdAt: '2024-12-30T08:00:00Z',
-    isLiked: false,
-    location: 'London, UK',
-  },
-  {
-    id: 'global_2',
-    author: {
-      id: 'g2',
-      name: 'Kofi Mensah',
-      username: 'kofimensah',
-      avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=200&h=200&fit=crop&crop=face',
-      bio: 'Tech entrepreneur in Accra',
-      location: 'Accra, Ghana',
-      interests: ['Tech', 'Startups'],
-      joinedDate: '2024-02-15',
-    },
-    content: 'Exciting news! Our fintech startup just secured funding to expand across West Africa. The future of African tech is bright!',
-    images: [],
-    likes: 156,
-    comments: 42,
-    createdAt: '2024-12-29T14:00:00Z',
-    isLiked: true,
-    location: 'Accra, Ghana',
-  },
-  {
-    id: 'global_3',
-    author: {
-      id: 'g3',
-      name: 'Amina Hassan',
-      username: 'aminahassan',
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop&crop=face',
-      bio: 'Chef and food blogger',
-      location: 'Toronto, Canada',
-      interests: ['Food', 'Culture'],
-      joinedDate: '2024-03-20',
-    },
-    content: 'Hosting a Somali cooking class this weekend in Toronto! Teaching how to make authentic sambusa and bariis. DM if interested!',
-    images: ['https://images.unsplash.com/photo-1604329760661-e71dc83f8f26?w=800&h=600&fit=crop'],
-    likes: 67,
-    comments: 28,
-    createdAt: '2024-12-28T16:00:00Z',
-    isLiked: false,
-    location: 'Toronto, Canada',
-  },
-];
 
 export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
@@ -118,7 +39,6 @@ export default function HomeScreen() {
   const [dbPosts, setDbPosts] = useState<Post[]>([]);
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [detectedLocation, setDetectedLocation] = useState<DetectedLocation | null>(null);
-  const [showDailyRewards, setShowDailyRewards] = useState(false);
   const [currentUser, setCurrentUser] = useState<{id: string; avatar?: string} | null>(null);
   const [showStickyActions, setShowStickyActions] = useState(false);
 
@@ -128,12 +48,16 @@ export default function HomeScreen() {
   const userPosts = useStore((s) => s.userPosts);
   const isGuest = useStore((s) => s.isGuest);
   const userStories = useStore((s) => s.userStories);
-  const feedFilter = useStore((s) => s.feedFilter);
-  const setFeedFilter = useStore((s) => s.setFeedFilter);
   const blockedUserIds = useStore((s) => s.blockedUserIds);
 
   const { unreadCount, refetch: refetchUnread } = useUnreadMessages();
   const notificationsUnreadCount = useAppStore((s) => (s.notifications ?? []).filter((n) => !n.read).length);
+
+  const otherStories = useMemo(() => {
+    return userStories
+      .filter((story: UserStory) => story.userId !== currentUser?.id && story.stories.length > 0)
+      .slice(0, 8);
+  }, [currentUser?.id, userStories]);
 
   useEffect(() => {
     getCurrentUser().then(setCurrentUser);
@@ -155,7 +79,12 @@ export default function HomeScreen() {
         neighborhood: selectedLocation.neighborhood,
       };
     }
-    return MOCK_COMMUNITIES[0];
+    return {
+      city: 'Community',
+      country: '',
+      state: '',
+      neighborhood: null,
+    };
   }, [selectedLocation]);
 
   const messageOpener = useMemo(() => {
@@ -171,11 +100,7 @@ export default function HomeScreen() {
     return `/create?returnTo=${encodeURIComponent('/community')}&promptType=request&placeholder=${encodeURIComponent(placeholder)}`;
   }, [displayCommunity.city]);
 
-  const communityMemberCount = useMemo(() => {
-    return getCommunityMemberCount(displayCommunity.city);
-  }, [displayCommunity.city]);
-
-  const memberCount = realCommunity?.member_count || communityMemberCount;
+  const memberCount = realCommunity?.member_count ?? 0;
 
   const fetchCommunity = async () => {
     try {
@@ -186,36 +111,48 @@ export default function HomeScreen() {
       setRealCommunity(community);
       return community;
     } catch (error) {
-      console.log('Using mock community data');
       return null;
     }
   };
 
-  const fetchDbPosts = async () => {
+  const fetchDbPosts = async (communityId?: string | null) => {
     try {
-      const posts = await getPosts();
+      const posts = await getPosts(communityId || undefined, 50);
       setDbPosts(posts);
     } catch (error) {
-      console.log('Using mock posts');
+      setDbPosts([]);
     }
   };
 
   useFocusEffect(
     useCallback(() => {
-      fetchCommunity();
-      fetchDbPosts();
-
       let unsubscribe: null | (() => void) = null;
-      fetchCommunity().then((community) => {
+      let unsubscribePosts: null | (() => void) = null;
+      let cancelled = false;
+
+      (async () => {
+        const community = await fetchCommunity();
+        if (cancelled) return;
+        await fetchDbPosts(community?.id ?? null);
+        if (cancelled) return;
         if (community?.id) {
           unsubscribe = subscribeToCommunityUpdates(community.id, (c: DbCommunity) => setRealCommunity(c));
         }
-      });
+
+        unsubscribePosts = subscribeToPostInserts({
+          communityId: community?.id ?? null,
+          onInsert: () => {
+            fetchDbPosts(community?.id ?? null).catch(() => null);
+          },
+        });
+      })().catch(() => null);
 
       return () => {
+        cancelled = true;
         unsubscribe?.();
+        unsubscribePosts?.();
       };
-    }, [displayCommunity.city])
+    }, [displayCommunity.city, displayCommunity.country])
   );
 
   useEffect(() => {
@@ -260,59 +197,26 @@ export default function HomeScreen() {
   };
 
   const allPosts = useMemo(() => {
-    const combined = [...userPosts, ...dbPosts, ...MOCK_POSTS];
+    const combined = [...userPosts, ...dbPosts];
     const uniquePosts = combined.filter(
       (post, index, self) => index === self.findIndex((p) => p.id === post.id)
     );
+    return uniquePosts
+      .filter((post) => !blockedUserIds.includes(post.author.id))
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [blockedUserIds, dbPosts, userPosts]);
 
-    const nonBlockedPosts = uniquePosts.filter(
-      (post) => !blockedUserIds.includes(post.author.id)
-    );
-
-    if (feedFilter === 'neighborhood' || feedFilter === 'city') {
-      const userCity = selectedLocation?.city || displayCommunity.city;
-      const userNeighborhood = selectedLocation?.neighborhood?.trim();
-
-      const localPosts = nonBlockedPosts.filter((post) => {
-        const isDbPost = dbPosts.some(dbPost => dbPost.id === post.id);
-        if (isDbPost) return true;
-        const isUserPost = userPosts.some(userPost => userPost.id === post.id);
-        if (isUserPost) return true;
-        if (!post.location) return true;
-
-        const locLower = post.location.toLowerCase();
-        const cityMatch = locLower.includes(userCity.toLowerCase());
-        if (feedFilter === 'city') return cityMatch;
-
-        // Neighborhood view includes both neighborhood + city content (never empty)
-        if (!userNeighborhood) return cityMatch;
-        const neighLower = userNeighborhood.toLowerCase();
-        const neighMatch = locLower.includes(neighLower);
-        return neighMatch || cityMatch;
-      });
-      return localPosts.sort((a, b) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      );
-    } else {
-      const filteredGlobalPosts = GLOBAL_MOCK_POSTS.filter(
-        (post) => !blockedUserIds.includes(post.author.id)
-      );
-      return [...nonBlockedPosts, ...filteredGlobalPosts].sort((a, b) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      );
-    }
-  }, [userPosts, dbPosts, feedFilter, selectedLocation, displayCommunity.city, blockedUserIds]);
+  const postsLast24hCount = useMemo(() => {
+    const since = Date.now() - 24 * 60 * 60 * 1000;
+    return allPosts.filter((p) => new Date(p.createdAt).getTime() >= since).length;
+  }, [allPosts]);
 
   const onRefresh = async () => {
     setRefreshing(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    await Promise.all([fetchDbPosts(), fetchCommunity()]);
+    const community = await fetchCommunity();
+    await fetchDbPosts(community?.id ?? null);
     setRefreshing(false);
-  };
-
-  const handleToggleFilter = (filter: 'neighborhood' | 'city' | 'global') => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setFeedFilter(filter);
   };
 
   const navigateTo = (route: string) => {
@@ -439,10 +343,7 @@ export default function HomeScreen() {
                 </Pressable>
               )}
 
-              {userStories
-                .filter((story: UserStory) => story.userId !== currentUser?.id && story.stories.length > 0)
-                .slice(0, 8)
-                .map((userStory: UserStory) => (
+              {otherStories.map((userStory: UserStory) => (
                   <Pressable
                     key={userStory.userId}
                     onPress={() => {
@@ -469,6 +370,36 @@ export default function HomeScreen() {
                     </Text>
                   </Pressable>
                 ))}
+
+              {otherStories.length === 0 && (
+                <Pressable
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    if (!currentUser) {
+                      router.push('/signup');
+                      return;
+                    }
+                    router.push('/stories');
+                  }}
+                  className="mr-4"
+                >
+                  <View className="h-[82px] w-[150px] rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 justify-center">
+                    <View className="flex-row items-center">
+                      <View className="w-9 h-9 rounded-xl bg-white border border-gray-200 items-center justify-center">
+                        <Plus size={18} color="#D4673A" />
+                      </View>
+                      <View className="ml-3 flex-1">
+                        <Text className="text-warmBrown font-bold text-sm">
+                          {currentUser ? 'Post a status' : 'Sign in'}
+                        </Text>
+                        <Text className="text-gray-500 text-xs mt-0.5" numberOfLines={2}>
+                          {currentUser ? 'Be the first to share today.' : 'Post and watch community updates.'}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                </Pressable>
+              )}
             </ScrollView>
           </View>
 
@@ -502,175 +433,30 @@ export default function HomeScreen() {
             </Pressable>
           </View>
 
-          {/* Weather Signal - Contextual community weather */}
-          <WeatherSignal city={displayCommunity.city} country={displayCommunity.country} />
-
-          {/* Feed Filter Toggle */}
-          <View className="flex-row px-4 py-3 gap-2 bg-cream">
+          {/* Community updates entry point */}
+          <View className="px-4 pt-4">
             <Pressable
-              onPress={() => handleToggleFilter('neighborhood')}
-              className={`flex-row items-center px-4 py-2 rounded-full ${
-                feedFilter === 'neighborhood' ? 'bg-warmBrown' : 'bg-white'
-              }`}
+              onPress={() => navigateTo('/community-updates')}
+              className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"
             >
-              <MapPin size={16} color={feedFilter === 'neighborhood' ? '#fff' : '#6B7280'} />
-              <Text className={`ml-2 font-medium text-base ${
-                feedFilter === 'neighborhood' ? 'text-white' : 'text-gray-600'
-              }`}>
-                Neighborhood
-              </Text>
-            </Pressable>
-
-            <Pressable
-              onPress={() => handleToggleFilter('city')}
-              className={`flex-row items-center px-4 py-2 rounded-full ${
-                feedFilter === 'city' ? 'bg-warmBrown' : 'bg-white'
-              }`}
-            >
-              <Users size={16} color={feedFilter === 'city' ? '#fff' : '#6B7280'} />
-              <Text className={`ml-2 font-medium text-base ${
-                feedFilter === 'city' ? 'text-white' : 'text-gray-600'
-              }`}>
-                City
-              </Text>
-            </Pressable>
-
-            <Pressable
-              onPress={() => handleToggleFilter('global')}
-              className={`flex-row items-center px-4 py-2 rounded-full ${
-                feedFilter === 'global' ? 'bg-warmBrown' : 'bg-white'
-              }`}
-            >
-              <Globe size={16} color={feedFilter === 'global' ? '#fff' : '#6B7280'} />
-              <Text className={`ml-2 font-medium text-base ${
-                feedFilter === 'global' ? 'text-white' : 'text-gray-600'
-              }`}>
-                Global
-              </Text>
-            </Pressable>
-          </View>
-
-          <View className="px-4 pb-3 bg-cream">
-            <Text className="text-xs text-gray-500">
-              Neighborhood: hyper-local • City: near you • Global: diaspora highlights
-            </Text>
-          </View>
-
-          {/* Welcome Home - Core Actions */}
-          <View className="mx-4 mt-4">
-            <LinearGradient
-              colors={['#1B4D3E', '#153D31']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={{ borderRadius: 20, overflow: 'hidden' }}
-            >
-              <View className="p-5">
-                <Text className="text-white text-2xl font-bold">Welcome home.</Text>
-                <Text className="text-white/85 text-base mt-1">
-                  Meet neighbors. Get help. Build community.
-                </Text>
-
-                <Pressable
-                  onPress={() => navigateTo(messageNearbyRoute)}
-                  className="mt-4"
-                >
-                  <View className="bg-white/15 border border-white/20 rounded-2xl px-4 py-4">
-                    <Text className="text-white text-base font-semibold">Message someone nearby</Text>
-                    <Text className="text-white/70 text-sm mt-0.5">
-                      We’ll show people active right now.
+              <LinearGradient
+                colors={['#111827', '#1F2937']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={{ padding: 16 }}
+              >
+                <View className="flex-row items-center justify-between">
+                  <View>
+                    <Text className="text-white font-bold text-base">See what the community is posting</Text>
+                    <Text className="text-white/80 text-xs mt-0.5">
+                      Photos, videos, questions, and updates.
                     </Text>
                   </View>
-                </Pressable>
-
-                <View className="flex-row gap-3 mt-3">
-                  <Pressable onPress={() => navigateTo(askForHelpRoute)} className="flex-1">
-                    <View className="bg-white rounded-2xl px-4 py-3">
-                      <Text className="text-forest-900 font-semibold">Ask for help</Text>
-                      <Text className="text-gray-500 text-xs mt-0.5">Your community shows up.</Text>
-                    </View>
-                  </Pressable>
-                  <Pressable onPress={() => navigateTo('/events')} className="flex-1">
-                    <View className="bg-white rounded-2xl px-4 py-3">
-                      <Text className="text-forest-900 font-semibold">Join a plan</Text>
-                      <Text className="text-gray-500 text-xs mt-0.5">Food, rides, events.</Text>
-                    </View>
-                  </Pressable>
+                  <ChevronRight size={22} color="#FFFFFF" />
                 </View>
-              </View>
-            </LinearGradient>
+              </LinearGradient>
+            </Pressable>
           </View>
-
-          {/* Quick links (makes key areas less “hidden”) */}
-          <View className="mx-4 mt-3">
-            <View className="bg-white rounded-2xl border border-gray-100 shadow-sm p-3">
-              <Text className="text-xs text-gray-500 mb-2">QUICK LINKS</Text>
-              <View className="flex-row gap-2">
-                <Pressable
-                  onPress={() => navigateTo('/faith-community')}
-                  className="flex-1 bg-amber-50 rounded-xl px-3 py-3 flex-row items-center"
-                >
-                  <View className="w-9 h-9 rounded-full bg-amber-500 items-center justify-center">
-                    <Heart size={18} color="#fff" />
-                  </View>
-                  <View className="ml-3 flex-1">
-                    <Text className="text-gray-900 font-semibold" numberOfLines={1}>Faith</Text>
-                    <Text className="text-gray-600 text-xs" numberOfLines={1}>Communities & events</Text>
-                  </View>
-                  <ChevronRight size={18} color="#D97706" />
-                </Pressable>
-
-                <Pressable
-                  onPress={() => navigateTo('/business-directory')}
-                  className="flex-1 bg-emerald-50 rounded-xl px-3 py-3 flex-row items-center"
-                >
-                  <View className="w-9 h-9 rounded-full bg-emerald-600 items-center justify-center">
-                    <Store size={18} color="#fff" />
-                  </View>
-                  <View className="ml-3 flex-1">
-                    <Text className="text-gray-900 font-semibold" numberOfLines={1}>Businesses</Text>
-                    <Text className="text-gray-600 text-xs" numberOfLines={1}>Directory & bookings</Text>
-                  </View>
-                  <ChevronRight size={18} color="#059669" />
-                </Pressable>
-              </View>
-
-              <View className="flex-row gap-2 mt-2">
-                <Pressable
-                  onPress={() => navigateTo('/trusted-providers')}
-                  className="flex-1 bg-forest-50 rounded-xl px-3 py-3 flex-row items-center"
-                >
-                  <View className="w-9 h-9 rounded-full bg-forest-700 items-center justify-center">
-                    <UserCheck size={18} color="#fff" />
-                  </View>
-                  <View className="ml-3 flex-1">
-                    <Text className="text-gray-900 font-semibold" numberOfLines={1}>Trusted helpers</Text>
-                    <Text className="text-gray-600 text-xs" numberOfLines={1}>Cooks, house helps, plumbers</Text>
-                  </View>
-                  <ChevronRight size={18} color="#1B4D3E" />
-                </Pressable>
-              </View>
-            </View>
-          </View>
-
-          {/* === SECTION 1: COMMUNITY PRESENCE === */}
-          <CommunityPresence city={displayCommunity.city} memberCount={memberCount} isGlobal={feedFilter === 'global'} />
-
-          {/* === SECTION 2: LOCAL PULSE (What's Happening) === */}
-          <LocalPulse city={displayCommunity.city} isGlobal={feedFilter === 'global'} />
-
-          {/* === SECTION 3: ASK FOR HELP / START HERE === */}
-          <View className="mt-5 px-4">
-            <Text className="text-lg font-bold text-gray-900">What do you need?</Text>
-            <Text className="text-sm text-gray-500 mt-0.5">Ask clearly—your people will respond.</Text>
-            <Text className="text-xs text-gray-400 mt-1">Tip: add your neighborhood + timing (today/this week).</Text>
-          </View>
-          <QuickPostPrompts />
-
-          {/* === SECTION 4: COMMUNITY TALK === */}
-          <ActiveConversations city={displayCommunity.city} isGlobal={feedFilter === 'global'} />
-
-          {/* === SECTION 5: COMMUNITY MOMENTS - only on neighborhood/city feeds */}
-          {(feedFilter === 'neighborhood' || feedFilter === 'city') && <MemoryLayer city={displayCommunity.city} />}
 
           {/* Guest Sign Up Banner */}
           {(isGuest || !currentUser) && (
@@ -691,51 +477,42 @@ export default function HomeScreen() {
             </Pressable>
           )}
 
-          {/* Daily Rewards */}
-          <DailyRewardsBanner onPress={() => setShowDailyRewards(true)} />
-
-          {/* Arrival Mode Banner */}
-          <ArrivalModeBanner />
-
-          {/* === SECTION 6: RECENT POSTS === */}
-          <View className="mt-6 px-4 mb-2">
-            <Text className="text-lg font-bold text-gray-900">Community updates</Text>
-            <Text className="text-sm text-gray-500">From neighbors in {displayCommunity.city}</Text>
-          </View>
-
-          <View className="px-4 mb-3">
-            <Text className="text-xs text-gray-400 text-center">
-              Respect is the vibe. We’re neighbors here.
-            </Text>
-          </View>
-
-          <View>
-            {allPosts.length > 0 ? (
-              allPosts.slice(0, 8).map((post, index) => (
-                <Animated.View
-                  key={post.id}
-                  entering={FadeInUp.duration(300).delay(index * 30)}
-                >
-                  <PostCard post={post} />
-                </Animated.View>
-              ))
-            ) : (
-              <View className="mx-4 py-16 items-center">
-                <View className="w-16 h-16 rounded-full bg-gray-100 items-center justify-center mb-4">
-                  <Users size={28} color="#9CA3AF" />
+          {/* Trending today (keeps hub lightweight) */}
+          <View className="px-4 mt-6">
+            <View className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+              <Pressable
+                onPress={() => navigateTo('/community-updates')}
+                className="flex-row items-center justify-between"
+              >
+                <View className="flex-1 pr-3">
+                  <Text className="text-warmBrown font-bold text-lg">Trending today</Text>
+                  <Text className="text-gray-500 mt-1">
+                    {postsLast24hCount > 0
+                      ? `${postsLast24hCount} post${postsLast24hCount === 1 ? '' : 's'} in the last 24 hours`
+                      : 'No posts in the last 24 hours yet'}
+                  </Text>
                 </View>
-                <Text className="text-gray-900 font-semibold text-xl">Start the energy.</Text>
-                <Text className="text-gray-500 text-center mt-1 px-8 text-base">
-                  Introduce yourself, ask a question, or invite people out—{displayCommunity.city} will answer.
-                </Text>
+                <ChevronRight size={20} color="#D4673A" />
+              </Pressable>
+
+              <View className="flex-row gap-2 mt-4">
                 <Pressable
-                  onPress={() => navigateTo(`/create?returnTo=${encodeURIComponent('/community')}`)}
-                  className="mt-4 bg-gray-900 px-6 py-3 rounded-full"
+                  onPress={() => navigateTo('/community-updates')}
+                  className="flex-1 bg-gray-900 rounded-full py-2.5 items-center"
                 >
-                  <Text className="text-white font-semibold">Post to {displayCommunity.city}</Text>
+                  <Text className="text-white font-semibold">Open updates</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                    navigateTo(`/create?returnTo=${encodeURIComponent('/community-updates')}`);
+                  }}
+                  className="flex-1 bg-gray-100 rounded-full py-2.5 items-center"
+                >
+                  <Text className="text-gray-800 font-semibold">Create post</Text>
                 </Pressable>
               </View>
-            )}
+            </View>
           </View>
 
           <View className="h-24" />
@@ -806,11 +583,6 @@ export default function HomeScreen() {
         onConfirm={handleConfirmLocationSwitch}
         onKeepCurrent={handleKeepCurrentLocation}
         onDismiss={handleDismissLocationDetection}
-      />
-
-      <DailyRewardsModal
-        visible={showDailyRewards}
-        onClose={() => setShowDailyRewards(false)}
       />
     </View>
   );

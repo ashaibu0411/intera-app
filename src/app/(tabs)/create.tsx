@@ -121,6 +121,7 @@ export default function CreateScreen() {
         community={displayCommunity}
         onBack={handleBack}
         business={business || null}
+        returnTo={returnTo}
       />
     );
   }
@@ -282,7 +283,19 @@ function CreateSelectScreen({
 }
 
 // Post Form
-function CreatePostForm({ user, community, onBack, business }: { user: any; community: any; onBack: () => void; business: any | null }) {
+function CreatePostForm({
+  user,
+  community,
+  onBack,
+  business,
+  returnTo,
+}: {
+  user: any;
+  community: any;
+  onBack: () => void;
+  business: any | null;
+  returnTo?: string;
+}) {
   const [content, setContent] = useState('');
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
   const [selectedVideo, setSelectedVideo] = useState<string | null>(null);
@@ -460,12 +473,14 @@ function CreatePostForm({ user, community, onBack, business }: { user: any; comm
 
     // Try to save to database first (so other users can see it)
     try {
+      const communityIdForDb =
+        typeof community?.id === 'string' && community.id !== 'custom' ? community.id : undefined;
       const dbPost = await createDbPost(
         user.id,
         formattedContent,
         uploadedImageUrls,
         postLocationLabel,
-        undefined,
+        communityIdForDb,
         uploadedVideoUrl
       );
       if (dbPost?.id) {
@@ -519,7 +534,9 @@ function CreatePostForm({ user, community, onBack, business }: { user: any; comm
       }).catch(() => {});
     }
 
-    router.navigate('/community');
+    const target =
+      typeof returnTo === 'string' && returnTo.trim().length > 0 ? returnTo : '/community';
+    router.replace(target as any);
   };
 
   const buttonAnimatedStyle = useAnimatedStyle(() => ({

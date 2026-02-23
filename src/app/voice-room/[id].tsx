@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, Pressable, ActivityIndicator, ScrollView, Modal, Alert, Linking, TextInput } from 'react-native';
 import { Stack, useLocalSearchParams, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -38,7 +38,7 @@ import { createClip } from '@/lib/clips-api';
 import { buildVoiceRoomHighlightClipDescription } from '@/lib/voiceRoomMarkers';
 import { aiVoiceRoomContext } from '@/lib/aiVoiceRoomContext';
 import { sendGift } from '@/lib/giftService';
-import { LiveKitRoom, useRoomContext, isLiveKitAvailable } from '@/lib/livekit-wrapper';
+import { LiveKitRoom, useRoomContext, isLiveKitAvailable, getLiveKitModule } from '@/lib/livekit-wrapper';
 
 const GIFTS = [
   { id: 'heart', name: 'Heart', value: 1, emoji: '❤️' },
@@ -83,6 +83,36 @@ function LiveKitSpeakingBridge({ onSpeakingChange }: { onSpeakingChange: (speaki
       room.off?.('activeSpeakersChanged', onActiveSpeakers);
     };
   }, [onSpeakingChange, room]);
+  return null;
+}
+
+function LiveKitAudioSessionSync({ enabled }: { enabled: boolean }) {
+  const startedRef = useRef(false);
+  useEffect(() => {
+    const lk = getLiveKitModule();
+    const start = async () => {
+      if (!enabled || startedRef.current) return;
+      try {
+        startedRef.current = true;
+        await lk?.AudioSession?.startAudioSession?.();
+      } catch (e) {
+        startedRef.current = false;
+        console.log('[LiveKit] AudioSession start failed:', String((e as any)?.message ?? e));
+      }
+    };
+    const stop = async () => {
+      if (!startedRef.current) return;
+      startedRef.current = false;
+      try {
+        await lk?.AudioSession?.stopAudioSession?.();
+      } catch {}
+    };
+
+    start();
+    return () => {
+      stop();
+    };
+  }, [enabled]);
   return null;
 }
 
@@ -286,6 +316,36 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
   const [hlStoragePath, setHlStoragePath] = useState<string | null>(null);
 
   const liveKitEnabled = isLiveKitAvailable();
+
+  const ensureMicPermission = useCallback(async (): Promise<boolean> => {
+    try {
+      const current = await Audio.getPermissionsAsync();
+      if (current.granted) return true;
+      const req = await Audio.requestPermissionsAsync();
+      if (req.granted) return true;
+      Alert.alert('Microphone permission needed', 'Enable microphone access to speak in voice rooms.', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Open Settings', onPress: () => Linking.openSettings().catch(() => null) },
+      ]);
+      return false;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const toggleMic = useCallback(async () => {
+    if (!canSpeakEffective) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      Alert.alert('Listener mode', 'Raise your hand to request speaking.');
+      return;
+    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (!micEnabled) {
+      const ok = await ensureMicPermission();
+      if (!ok) return;
+    }
+    setMicEnabled((v) => !v);
+  }, [canSpeakEffective, ensureMicPermission, micEnabled]);
 
   // Safe navigation back
   const goBack = () => {
@@ -912,6 +972,7 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
                 audio={true}
                 video={false}
               >
+                <LiveKitAudioSessionSync enabled={!pauseLiveKitForTest} />
                 <MicSync enabled={!!(canSpeakEffective && micEnabled)} />
                 <LiveKitSpeakingBridge onSpeakingChange={setLkSpeaking} />
                 <View className="h-0 w-0" />
@@ -1083,13 +1144,7 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
                 {/* Big Mic Button */}
                 <Pressable
                   onPress={() => {
-                    if (!canSpeakEffective) {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      Alert.alert('Listener mode', 'Raise your hand to request speaking.');
-                      return;
-                    }
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                    setMicEnabled((v) => !v);
+                    toggleMic().catch(() => null);
                   }}
                 >
                   <LinearGradient

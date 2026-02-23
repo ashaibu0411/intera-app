@@ -10,6 +10,16 @@ import { Platform } from 'react-native';
 
 const isWeb = Platform.OS === 'web';
 
+type LiveKitModuleLike = {
+  LiveKitRoom?: React.ComponentType<any>;
+  useRoomContext?: () => unknown;
+  registerGlobals?: () => void;
+  AudioSession?: {
+    startAudioSession?: () => Promise<void> | void;
+    stopAudioSession?: () => Promise<void> | void;
+  };
+};
+
 let LiveKitRoomComponent:
   | React.ComponentType<{
       serverUrl: string;
@@ -24,6 +34,8 @@ let LiveKitRoomComponent:
 let _useRoomContext: (() => unknown) | null = null;
 let _initialized = false;
 let _available = false;
+let _module: LiveKitModuleLike | null = null;
+let _globalsRegistered = false;
 
 function initializeLiveKit() {
   if (_initialized) return;
@@ -35,7 +47,18 @@ function initializeLiveKit() {
       return;
     }
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const livekit = require('@livekit/react-native');
+    const livekit = require('@livekit/react-native') as LiveKitModuleLike;
+    _module = livekit;
+
+    if (!_globalsRegistered) {
+      _globalsRegistered = true;
+      try {
+        livekit.registerGlobals?.();
+      } catch (e) {
+        console.log('[LiveKit] registerGlobals failed:', String((e as any)?.message ?? e));
+      }
+    }
+
     LiveKitRoomComponent = livekit.LiveKitRoom;
     _useRoomContext = livekit.useRoomContext;
     _available = true;
@@ -49,6 +72,12 @@ export function useRoomContext(): unknown {
   initializeLiveKit();
   if (_available && _useRoomContext) return _useRoomContext();
   return null;
+}
+
+export function getLiveKitModule(): LiveKitModuleLike | null {
+  initializeLiveKit();
+  if (!_available) return null;
+  return _module;
 }
 
 interface LiveKitRoomWrapperProps {

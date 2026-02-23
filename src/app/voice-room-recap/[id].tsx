@@ -13,6 +13,7 @@ import { buildVoiceRoomRecapPostContent } from '@/lib/voiceRoomMarkers';
 export default function VoiceRoomRecapScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const currentUser = useStore((s) => s.currentUser);
+  const currentCommunity = useStore((s) => s.currentCommunity);
 
   const [room, setRoom] = useState<DbVoiceRoom | null>(null);
   const [loading, setLoading] = useState(true);
@@ -132,7 +133,7 @@ export default function VoiceRoomRecapScreen() {
       });
 
       const location = room.city ? `${room.city} · Voice Room` : 'Voice Room';
-      const data = await createPost(currentUser.id, content, [], location);
+      const data = await createPost(currentUser.id, content, [], location, currentCommunity?.id || undefined);
 
       Alert.alert('Posted', 'Recap posted to the feed.');
       router.replace(`/post/${data.id}` as any);
