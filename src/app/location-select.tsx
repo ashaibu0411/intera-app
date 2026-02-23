@@ -342,7 +342,9 @@ export default function LocationSelectScreen() {
     await finalizeLocation(base);
   };
 
-  const canContinue = selectedCountry && selectedCity;
+  // Auto-detect and custom city flows may not set selectedCountry.
+  // As long as we have a city (from selection or detectedLocation), we can continue.
+  const canContinue = !!(selectedCity || selectedLocation?.city);
 
   const getStepTitle = () => {
     switch (step) {

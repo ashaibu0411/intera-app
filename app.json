@@ -1,15 +1,15 @@
 {
   "expo": {
-    "name": "vibecode",
+    "name": "intera",
     "slug": "vibecode",
     "scheme": "vibecode",
     "icon": "./assets/icon.png",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "bundleIdentifier": "com.vibecode.intera",
+      "bundleIdentifier": "com.vibecode.afroconnect-hr87yl",
       "supportsTablet": true,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
@@ -20,7 +20,7 @@
         "NSContactsUsageDescription": "Intera accesses your contacts to help you find and connect with friends who are already using the app. For example, we can show you which of your contacts are members so you can easily add them as connections and share community updates with people you know.",
         "NSMicrophoneUsageDescription": "Intera uses your microphone to enable voice communication features. For example, you can record voice messages to send to other community members, participate in live audio discussions in voice rooms, or add audio narration to your video clips and stories."
       },
-      "buildNumber": "6"
+      "buildNumber": "5"
     },
     "android": {
       "package": "com.vibecode.intera",
