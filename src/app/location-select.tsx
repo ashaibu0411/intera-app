@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { View, Text, ScrollView, Pressable, TextInput, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -73,8 +73,11 @@ export default function LocationSelectScreen() {
   const recentNeighborhoodsByCity = useStore((s) => s.recentNeighborhoodsByCity);
   const addRecentNeighborhood = useStore((s) => s.addRecentNeighborhood);
 
-  // Check if user already has a location (coming from home to change location)
-  const isChangingLocation = !!selectedLocation;
+  // Check if user already has a location (coming from home to change location).
+  // IMPORTANT: lock this to the initial value so "auto-detect" (which sets selectedLocation)
+  // doesn't flip the flow into "changing location" on first-time installs.
+  const initialHasLocationRef = useRef(!!selectedLocation);
+  const isChangingLocation = initialHasLocationRef.current;
 
   // Start with quick search if user is changing location, otherwise normal flow
   const [step, setStep] = useState<Step>(isChangingLocation ? 'quick' : 'country');
