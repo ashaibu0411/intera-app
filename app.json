@@ -25,7 +25,7 @@
     "android": {
       "label": "Intera: Community App",
       "package": "com.vibecode.intera",
-      "versionCode": 8,
+      "versionCode": 10,
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#062A1E"
@@ -81,7 +81,8 @@
             "targetSdkVersion": 35,
             "minSdkVersion": 24,
             "buildToolsVersion": "35.0.0",
-            "kotlinVersion": "2.0.21"
+            "kotlinVersion": "2.0.21",
+            "ndkVersion": "27.2.12479018"
           },
           "ios": {
             "deploymentTarget": "15.1"
