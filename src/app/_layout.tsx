@@ -87,6 +87,19 @@ function RootLayoutNav() {
           });
           return;
         }
+        if (type === 'inventory_update' && data?.businessId) {
+          router.push(`/business/${String(data.businessId)}` as any);
+          return;
+        }
+        if (type === 'business_order') {
+          const role = String(data?.role || '');
+          if (role === 'owner') {
+            router.push('/business-orders' as any);
+            return;
+          }
+          router.push('/my-orders' as any);
+          return;
+        }
       } catch {}
     });
     return () => {
@@ -183,6 +196,8 @@ function RootLayoutNav() {
         <Stack.Screen name="faith-community" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="business-directory" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="business/[id]" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="my-orders" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="business-orders" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="event/[id]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="post/[id]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="profile/[id]" options={{ animation: 'slide_from_right' }} />

@@ -364,6 +364,49 @@ export interface DbBusinessConfirmation {
   created_at: string;
 }
 
+export interface DbBusinessInventoryUpdate {
+  id: string;
+  business_id: string;
+  item_id: string | null;
+  kind: string;
+  title: string;
+  message: string;
+  scope: 'neighborhood' | 'city';
+  city: string;
+  neighborhood: string | null;
+  created_at: string;
+  business?: any;
+  item?: any;
+}
+
+export interface DbBusinessOrder {
+  id: string;
+  business_id: string;
+  customer_id: string;
+  status: 'pending' | 'accepted' | 'ready' | 'picked_up' | 'cancelled';
+  pickup_time: string | null;
+  notes: string | null;
+  currency: string;
+  subtotal: number;
+  created_at: string;
+  updated_at: string;
+  business?: any;
+  customer?: DbUser;
+  items?: DbBusinessOrderItem[];
+}
+
+export interface DbBusinessOrderItem {
+  id: string;
+  order_id: string;
+  inventory_item_id: string;
+  name_snapshot: string;
+  unit_price: number;
+  quantity: number;
+  line_total: number;
+  created_at: string;
+  inventory_item?: any;
+}
+
 export interface DbServiceProvider {
   id: string;
   user_id: string;

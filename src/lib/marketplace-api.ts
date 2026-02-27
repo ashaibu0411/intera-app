@@ -11,11 +11,17 @@ import {
   DbHousingListingFlag,
   DbBusinessReview,
   DbBusinessConfirmation,
+  DbBusinessInventoryUpdate,
+  DbBusinessOrder,
+  DbBusinessOrderItem,
   DbServiceProvider,
   DbServiceProviderReview,
   DbServiceProviderConfirmation,
   DbServeTalent,
 } from './supabase';
+
+export type BusinessOrderStatus = DbBusinessOrder['status'];
+export type BusinessInventoryUpdateScope = DbBusinessInventoryUpdate['scope'];
 
 // ==================== MARKETPLACE ====================
 
@@ -144,6 +150,17 @@ export async function getBusiness(businessId: string) {
 
   if (error) throw error;
   return data;
+}
+
+export async function getBusinessesByOwner(ownerId: string, limit = 200) {
+  const { data, error } = await supabase
+    .from('businesses')
+    .select('id, name, logo, image, location, address, owner_id')
+    .eq('owner_id', ownerId)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return data || [];
 }
 
 export async function createBusiness(
@@ -304,6 +321,236 @@ export async function deleteInventoryItem(itemId: string) {
     .eq('id', itemId);
 
   if (error) throw error;
+}
+
+// ==================== BUSINESS INVENTORY UPDATES (feed + push) ====================
+
+export async function createBusinessInventoryUpdate(payload: {
+  businessId: string;
+  itemId?: string | null;
+  kind: string;
+  title: string;
+  message: string;
+  scope: BusinessInventoryUpdateScope;
+  city: string;
+  neighborhood?: string | null;
+}) {
+  const { data, error } = await supabase
+    .from('business_inventory_updates')
+    .insert({
+      business_id: payload.businessId,
+      item_id: payload.itemId ?? null,
+      kind: payload.kind,
+      title: payload.title,
+      message: payload.message,
+      scope: payload.scope,
+      city: payload.city,
+      neighborhood: payload.neighborhood ?? null,
+    })
+    .select(
+      `
+        *,
+        business:businesses(id, name, logo, image, location, address, owner_id),
+        item:business_inventory(id, name, price, image, in_stock, quantity, category)
+      `
+    )
+    .single();
+
+  if (error) throw error;
+  return data as unknown as DbBusinessInventoryUpdate;
+}
+
+export async function getBusinessInventoryUpdates(params: {
+  city: string;
+  neighborhood?: string | null;
+  limit?: number;
+}) {
+  let q = supabase
+    .from('business_inventory_updates')
+    .select(
+      `
+        *,
+        business:businesses(id, name, logo, image, location, address, owner_id),
+        item:business_inventory(id, name, price, image, in_stock, quantity, category)
+      `
+    )
+    .eq('city', params.city)
+    .order('created_at', { ascending: false })
+    .limit(params.limit ?? 30);
+
+  if (params.neighborhood) {
+    q = q.eq('scope', 'neighborhood').eq('neighborhood', params.neighborhood);
+  }
+
+  const { data, error } = await q;
+  if (error) throw error;
+  return (data || []) as unknown as DbBusinessInventoryUpdate[];
+}
+
+// ==================== BUSINESS PICKUP ORDERS ====================
+
+export async function createBusinessOrder(payload: {
+  businessId: string;
+  items: Array<{ inventoryItemId: string; quantity: number }>;
+  pickupTime?: string | null; // ISO
+  notes?: string | null;
+}) {
+  // Prefer atomic RPC (handles quantity decrements safely).
+  const rpcRes = await supabase.rpc('create_business_order', {
+    p_business_id: payload.businessId,
+    p_items: payload.items.map((x) => ({
+      inventory_item_id: x.inventoryItemId,
+      quantity: x.quantity,
+    })),
+    p_pickup_time: payload.pickupTime ?? null,
+    p_notes: payload.notes ?? null,
+  });
+
+  if (!rpcRes.error && rpcRes.data) {
+    return rpcRes.data as unknown as DbBusinessOrder;
+  }
+
+  // Fallback: direct inserts (no atomic inventory checks).
+  // This keeps the app usable even if the RPC isn't deployed yet.
+  const { data: created, error: oErr } = await supabase
+    .from('business_orders')
+    .insert({
+      business_id: payload.businessId,
+      status: 'pending',
+      pickup_time: payload.pickupTime ?? null,
+      notes: payload.notes ?? null,
+      currency: 'USD',
+      subtotal: 0,
+    })
+    .select('*')
+    .single();
+  if (oErr) throw oErr;
+
+  const lines: Array<{
+    order_id: string;
+    inventory_item_id: string;
+    name_snapshot: string;
+    unit_price: number;
+    quantity: number;
+    line_total: number;
+  }> = [];
+
+  for (const x of payload.items) {
+    const { data: item, error: iErr } = await supabase
+      .from('business_inventory')
+      .select('id, name, price')
+      .eq('id', x.inventoryItemId)
+      .eq('business_id', payload.businessId)
+      .single();
+    if (iErr) throw iErr;
+    const unitPrice = Number((item as any)?.price ?? 0);
+    const qty = Math.max(1, Math.floor(Number(x.quantity) || 1));
+    lines.push({
+      order_id: created.id,
+      inventory_item_id: item.id,
+      name_snapshot: String((item as any)?.name ?? 'Item'),
+      unit_price: unitPrice,
+      quantity: qty,
+      line_total: unitPrice * qty,
+    });
+  }
+
+  const { error: liErr } = await supabase.from('business_order_items').insert(lines);
+  if (liErr) throw liErr;
+
+  const subtotal = lines.reduce((s, l) => s + (Number(l.line_total) || 0), 0);
+  const { data: updated, error: uErr } = await supabase
+    .from('business_orders')
+    .update({ subtotal })
+    .eq('id', created.id)
+    .select('*')
+    .single();
+  if (uErr) throw uErr;
+
+  return updated as unknown as DbBusinessOrder;
+}
+
+export async function getMyBusinessOrders(ownerId: string, limit = 100) {
+  const { data: biz, error: bErr } = await supabase
+    .from('businesses')
+    .select('id')
+    .eq('owner_id', ownerId);
+  if (bErr) throw bErr;
+  const ids = (biz || []).map((x: any) => x.id).filter(Boolean);
+  if (!ids.length) return [] as DbBusinessOrder[];
+
+  const { data, error } = await supabase
+    .from('business_orders')
+    .select(
+      `
+        *,
+        business:businesses(id, name, logo, image, location, address, owner_id),
+        customer:profiles(*),
+        items:business_order_items(*)
+      `
+    )
+    .in('business_id', ids)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return (data || []) as unknown as DbBusinessOrder[];
+}
+
+export async function getBusinessOrders(businessId: string, limit = 100) {
+  const { data, error } = await supabase
+    .from('business_orders')
+    .select(
+      `
+        *,
+        business:businesses(id, name, logo, image, location, address, owner_id),
+        customer:profiles(*),
+        items:business_order_items(*)
+      `
+    )
+    .eq('business_id', businessId)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return (data || []) as unknown as DbBusinessOrder[];
+}
+
+export async function getMyOrders(customerId: string, limit = 100) {
+  const { data, error } = await supabase
+    .from('business_orders')
+    .select(
+      `
+        *,
+        business:businesses(id, name, logo, image, location, address, owner_id),
+        items:business_order_items(*)
+      `
+    )
+    .eq('customer_id', customerId)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return (data || []) as unknown as DbBusinessOrder[];
+}
+
+export async function updateBusinessOrderStatus(orderId: string, status: BusinessOrderStatus) {
+  const { data, error } = await supabase
+    .from('business_orders')
+    .update({ status })
+    .eq('id', orderId)
+    .select(
+      `
+        *,
+        business:businesses(id, name, logo, image, location, address, owner_id),
+        customer:profiles(*),
+        items:business_order_items(*)
+      `
+    )
+    .single();
+  if (error) throw error;
+  return data as unknown as DbBusinessOrder;
+}
+
+export async function cancelMyBusinessOrder(orderId: string) {
+  return updateBusinessOrderStatus(orderId, 'cancelled');
 }
 
 // ==================== FAITH EVENTS ====================

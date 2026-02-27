@@ -1,12 +1,12 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, ScrollView, Pressable, TextInput, Modal, ActivityIndicator, Alert, FlatList, Share } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { View, Text, ScrollView, Pressable, TextInput, Modal, ActivityIndicator, Alert, Share } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
-import { ChevronLeft, MapPin, Star, CheckCircle, ShieldCheck, Phone, MessageCircle, Navigation, Plus, Package, ShoppingBag, CheckCircle2, Sparkles, Lock } from 'lucide-react-native';
+import { ChevronLeft, MapPin, Star, CheckCircle, ShieldCheck, Phone, MessageCircle, Navigation, Plus, Package, ShoppingBag, CheckCircle2, Sparkles, Lock, Minus, ShoppingCart } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useStore } from '@/lib/store';
-import { getBusiness, getBusinessReviews, getBusinessTrustCounts, removeBusinessConfirmation, setBusinessConfirmation, upsertBusinessReview, getBusinessInventory } from '@/lib/marketplace-api';
+import { createBusinessOrder, getBusiness, getBusinessInventory, getBusinessReviews, getBusinessTrustCounts, removeBusinessConfirmation, setBusinessConfirmation, upsertBusinessReview } from '@/lib/marketplace-api';
 import { getOrCreateTrustScore, DbUserTrustScore } from '@/lib/trust-api';
 import { TrustScoreBadge } from '@/components/TrustScoreBadge';
 import { ReviewHistoryBadge } from '@/components/ReviewHistoryBadge';
@@ -20,6 +20,8 @@ import { hasEntitlement, isRevenueCatEnabled } from '@/lib/revenuecatClient';
 import { getBusinessBookingSettings, getBusinessHours, type DbBusinessBookingSettings } from '@/lib/booking-api';
 import { getBusinessStatus, type BusinessStatusInfo } from '@/lib/business-status';
 import { BusinessStatusBadge } from '@/components/BusinessStatusBadge';
+import { sendDirectPushAlert } from '@/lib/pushAlerts';
+import { subscribeToBusinessInventory } from '@/lib/inventoryRealtime';
 
 interface InventoryItem {
   id: string;
@@ -64,6 +66,28 @@ export default function BusinessDetailScreen() {
   const canInteract = !!currentUser?.id && !isGuest;
   const isOwner = !!currentUser?.id && !!business?.owner_id && currentUser.id === business.owner_id;
 
+  // Pickup cart / ordering
+  const [cart, setCart] = useState<Record<string, { item: InventoryItem; quantity: number }>>({});
+  const [showCheckout, setShowCheckout] = useState(false);
+  const [placingOrder, setPlacingOrder] = useState(false);
+  const [pickupChoice, setPickupChoice] = useState<'asap' | 'in2h' | 'tomorrow10'>('asap');
+  const [pickupNotes, setPickupNotes] = useState('');
+  const [selectedQty, setSelectedQty] = useState(1);
+
+  useEffect(() => {
+    if (!selectedItem) return;
+    const existing = cart[selectedItem.id]?.quantity;
+    setSelectedQty(existing && existing > 0 ? existing : 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedItem?.id]);
+
+  const reloadInventory = useCallback(async () => {
+    if (!businessId) return;
+    const inv = await getBusinessInventory(businessId);
+    setInventory((inv || []) as InventoryItem[]);
+    setLoadingInventory(false);
+  }, [businessId]);
+
   const load = async () => {
     if (!businessId) return;
     const b = await getBusiness(businessId);
@@ -95,6 +119,18 @@ export default function BusinessDetailScreen() {
     load().finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [businessId]);
+
+  // Realtime inventory refresh
+  useEffect(() => {
+    if (!businessId) return;
+    const unsubscribe = subscribeToBusinessInventory({
+      businessId,
+      onChange: () => {
+        reloadInventory().catch(() => null);
+      },
+    });
+    return unsubscribe;
+  }, [businessId, reloadInventory]);
 
   // Load booking settings + Business Pro status (owner-only)
   useEffect(() => {
@@ -218,6 +254,109 @@ export default function BusinessDetailScreen() {
   };
 
   const displayLocation = useMemo(() => business?.location || '', [business]);
+
+  const cartLines = useMemo(() => Object.values(cart), [cart]);
+  const cartCount = useMemo(() => cartLines.reduce((sum, l) => sum + l.quantity, 0), [cartLines]);
+  const cartSubtotal = useMemo(
+    () => cartLines.reduce((sum, l) => sum + l.quantity * (Number(l.item.price) || 0), 0),
+    [cartLines]
+  );
+
+  const addToCart = (item: InventoryItem, quantity: number) => {
+    if (!canInteract || isOwner) {
+      router.push('/signup');
+      return;
+    }
+    if (!item.in_stock) return;
+    const qty = Math.max(1, Math.floor(quantity));
+    setCart((prev) => {
+      const current = prev[item.id]?.quantity ?? 0;
+      const nextQty = current + qty;
+      const capped = item.quantity && item.quantity > 0 ? Math.min(nextQty, item.quantity) : nextQty;
+      return { ...prev, [item.id]: { item, quantity: capped } };
+    });
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
+  const removeFromCart = (itemId: string) => {
+    setCart((prev) => {
+      const next = { ...prev };
+      delete next[itemId];
+      return next;
+    });
+  };
+
+  const setCartQty = (item: InventoryItem, quantity: number) => {
+    const nextQty = Math.max(1, Math.floor(quantity));
+    const capped = item.quantity && item.quantity > 0 ? Math.min(nextQty, item.quantity) : nextQty;
+    setCart((prev) => ({ ...prev, [item.id]: { item, quantity: capped } }));
+  };
+
+  const clearCart = () => setCart({});
+
+  const pickupTimeIso = useMemo(() => {
+    if (pickupChoice === 'asap') return null;
+    if (pickupChoice === 'in2h') {
+      return new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
+    }
+    // tomorrow at 10am local
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    d.setHours(10, 0, 0, 0);
+    return d.toISOString();
+  }, [pickupChoice]);
+
+  const placePickupOrder = async () => {
+    if (!canInteract || !currentUser?.id) {
+      router.push('/signup');
+      return;
+    }
+    if (!businessId || !business?.owner_id) {
+      Alert.alert('Unable to order', 'This business is missing owner details.');
+      return;
+    }
+    if (!cartLines.length || placingOrder) return;
+    setPlacingOrder(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      const order = await createBusinessOrder({
+        businessId,
+        items: cartLines.map((l) => ({ inventoryItemId: l.item.id, quantity: l.quantity })),
+        pickupTime: pickupTimeIso,
+        notes: pickupNotes.trim() || null,
+      });
+
+      // Notify owner (best-effort)
+      sendDirectPushAlert({
+        recipientUserId: String(business.owner_id),
+        excludeUserId: currentUser.id,
+        title: 'New pickup order',
+        body: `${currentUser.name || 'Someone'} placed an order at ${business.name}.`,
+        data: { type: 'business_order', role: 'owner', businessId, orderId: order.id },
+      });
+
+      clearCart();
+      setPickupNotes('');
+      setPickupChoice('asap');
+      setShowCheckout(false);
+
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert('Order placed', 'Your order was sent to the business. Pay at pickup.', [
+        { text: 'View my orders', onPress: () => router.push('/my-orders' as any) },
+        { text: 'OK' },
+      ]);
+    } catch (e: any) {
+      const msg = String(e?.message || e || '');
+      const lower = msg.toLowerCase();
+      if (lower.includes('out_of_stock') || lower.includes('insufficient_quantity')) {
+        Alert.alert('Some items are no longer available', 'Please refresh and adjust your cart.');
+      } else {
+        Alert.alert('Could not place order', 'Please try again.');
+      }
+    } finally {
+      setPlacingOrder(false);
+    }
+  };
 
   const handleWorkedForMe = async () => {
     if (!canInteract || !currentUser?.id) {
@@ -841,15 +980,57 @@ export default function BusinessDetailScreen() {
                       </View>
                     </View>
 
-                    {selectedItem.in_stock && (
-                      <Pressable
-                        onPress={() => handleContactAboutItem(selectedItem)}
-                        className="mt-4 bg-forest-600 rounded-xl py-4 flex-row items-center justify-center"
-                      >
-                        <MessageCircle size={20} color="#fff" />
-                        <Text className="text-white font-semibold ml-2">Contact About This Item</Text>
-                      </Pressable>
-                    )}
+                    {selectedItem.in_stock ? (
+                      <View className="mt-4">
+                        <View className="bg-white rounded-xl p-4 border border-gray-100">
+                          <Text className="text-warmBrown font-semibold mb-3">Pickup order</Text>
+                          <View className="flex-row items-center justify-between">
+                            <Text className="text-gray-600">Quantity</Text>
+                            <View className="flex-row items-center">
+                              <Pressable
+                                onPress={() => setSelectedQty((q) => Math.max(1, q - 1))}
+                                className="bg-gray-100 rounded-full p-2"
+                              >
+                                <Minus size={16} color="#2D1F1A" />
+                              </Pressable>
+                              <Text className="text-warmBrown font-bold mx-4">{selectedQty}</Text>
+                              <Pressable
+                                onPress={() => {
+                                  const cap = selectedItem.quantity && selectedItem.quantity > 0 ? selectedItem.quantity : undefined;
+                                  setSelectedQty((q) => (cap ? Math.min(cap, q + 1) : q + 1));
+                                }}
+                                className="bg-gray-100 rounded-full p-2"
+                              >
+                                <Plus size={16} color="#2D1F1A" />
+                              </Pressable>
+                            </View>
+                          </View>
+                          {selectedItem.quantity && selectedItem.quantity > 0 ? (
+                            <Text className="text-gray-400 text-xs mt-2">{selectedItem.quantity} available</Text>
+                          ) : null}
+                        </View>
+
+                        <View className="flex-row mt-3">
+                          <Pressable
+                            onPress={() => {
+                              addToCart(selectedItem, selectedQty);
+                              setSelectedItem(null);
+                            }}
+                            className="flex-1 bg-forest-600 rounded-xl py-4 flex-row items-center justify-center mr-2"
+                          >
+                            <ShoppingCart size={20} color="#fff" />
+                            <Text className="text-white font-semibold ml-2">Add to cart</Text>
+                          </Pressable>
+                          <Pressable
+                            onPress={() => handleContactAboutItem(selectedItem)}
+                            className="flex-1 bg-gold-50 rounded-xl py-4 flex-row items-center justify-center ml-2"
+                          >
+                            <MessageCircle size={20} color="#C9A227" />
+                            <Text className="text-gold-700 font-semibold ml-2">Message</Text>
+                          </Pressable>
+                        </View>
+                      </View>
+                    ) : null}
 
                     {!selectedItem.in_stock && (
                       <View className="mt-4 bg-gray-100 rounded-xl py-4 items-center">
@@ -871,6 +1052,148 @@ export default function BusinessDetailScreen() {
               )}
             </View>
           </View>
+        </Modal>
+
+        {/* Cart bar */}
+        {!isOwner && canInteract && cartCount > 0 ? (
+          <View className="px-5 py-3 border-t border-gray-100 bg-white">
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setShowCheckout(true);
+              }}
+              className="bg-forest-600 rounded-2xl py-4 flex-row items-center justify-between px-4"
+            >
+              <View className="flex-row items-center">
+                <ShoppingCart size={18} color="#fff" />
+                <Text className="text-white font-bold ml-2">
+                  {cartCount} {cartCount === 1 ? 'item' : 'items'}
+                </Text>
+              </View>
+              <Text className="text-white font-bold">${cartSubtotal.toFixed(2)}</Text>
+            </Pressable>
+          </View>
+        ) : null}
+
+        {/* Checkout modal */}
+        <Modal visible={showCheckout} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowCheckout(false)}>
+          <SafeAreaView className="flex-1 bg-cream">
+            <View className="px-5 pt-4 pb-3 flex-row items-center justify-between border-b border-gray-100">
+              <Pressable onPress={() => setShowCheckout(false)} className="bg-white rounded-full p-2 shadow-sm">
+                <ChevronLeft size={22} color="#2D1F1A" />
+              </Pressable>
+              <Text className="text-lg font-bold text-warmBrown">Pickup checkout</Text>
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  clearCart();
+                  setShowCheckout(false);
+                }}
+                className="bg-gray-100 rounded-full px-3 py-2"
+              >
+                <Text className="text-gray-600 font-semibold">Clear</Text>
+              </Pressable>
+            </View>
+
+            <ScrollView className="flex-1 px-5" showsVerticalScrollIndicator={false}>
+              <View className="mt-4 bg-white rounded-2xl p-4 border border-gray-100">
+                <Text className="text-warmBrown font-bold mb-3">Your items</Text>
+                {cartLines.map(({ item, quantity }) => (
+                  <View key={item.id} className="flex-row items-center py-3 border-b border-gray-100">
+                    <Image source={{ uri: item.image }} style={{ width: 46, height: 46, borderRadius: 10 }} contentFit="cover" />
+                    <View className="flex-1 ml-3">
+                      <Text className="text-warmBrown font-semibold" numberOfLines={1}>
+                        {item.name}
+                      </Text>
+                      <Text className="text-gray-500 text-sm">${(Number(item.price) || 0).toFixed(2)} each</Text>
+                    </View>
+                    <View className="flex-row items-center">
+                      <Pressable
+                        onPress={() => {
+                          const next = Math.max(1, quantity - 1);
+                          setCartQty(item, next);
+                        }}
+                        className="bg-gray-100 rounded-full p-2"
+                      >
+                        <Minus size={14} color="#2D1F1A" />
+                      </Pressable>
+                      <Text className="text-warmBrown font-bold mx-3">{quantity}</Text>
+                      <Pressable
+                        onPress={() => {
+                          const cap = item.quantity && item.quantity > 0 ? item.quantity : undefined;
+                          const next = cap ? Math.min(cap, quantity + 1) : quantity + 1;
+                          setCartQty(item, next);
+                        }}
+                        className="bg-gray-100 rounded-full p-2"
+                      >
+                        <Plus size={14} color="#2D1F1A" />
+                      </Pressable>
+                      <Pressable onPress={() => removeFromCart(item.id)} className="ml-3">
+                        <Text className="text-terracotta-500 font-semibold">Remove</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                ))}
+
+                <View className="flex-row items-center justify-between pt-3">
+                  <Text className="text-gray-500">Subtotal</Text>
+                  <Text className="text-warmBrown font-bold">${cartSubtotal.toFixed(2)}</Text>
+                </View>
+                <Text className="text-gray-400 text-xs mt-2">Pay at pickup (cash/card on-site).</Text>
+              </View>
+
+              <View className="mt-4 bg-white rounded-2xl p-4 border border-gray-100">
+                <Text className="text-warmBrown font-bold mb-3">Pickup time</Text>
+                <View className="flex-row">
+                  {[
+                    { id: 'asap', label: 'ASAP' },
+                    { id: 'in2h', label: 'In 2h' },
+                    { id: 'tomorrow10', label: 'Tomorrow 10am' },
+                  ].map((x) => (
+                    <Pressable
+                      key={x.id}
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        setPickupChoice(x.id as any);
+                      }}
+                      className={`px-4 py-2 rounded-full mr-2 ${pickupChoice === x.id ? 'bg-forest-600' : 'bg-gray-100'}`}
+                    >
+                      <Text className={`font-semibold ${pickupChoice === x.id ? 'text-white' : 'text-gray-700'}`}>{x.label}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+
+              <View className="mt-4 bg-white rounded-2xl p-4 border border-gray-100">
+                <Text className="text-warmBrown font-bold mb-2">Notes (optional)</Text>
+                <TextInput
+                  value={pickupNotes}
+                  onChangeText={setPickupNotes}
+                  placeholder="Any substitutions, allergies, or pickup instructions?"
+                  placeholderTextColor="#9CA3AF"
+                  multiline
+                  className="text-warmBrown"
+                  style={{ minHeight: 90, textAlignVertical: 'top' }}
+                />
+              </View>
+
+              <View className="h-24" />
+            </ScrollView>
+
+            <View className="px-5 py-4 border-t border-gray-100 bg-cream">
+              <Pressable
+                onPress={placePickupOrder}
+                disabled={placingOrder || cartCount === 0}
+                className={`rounded-2xl py-4 items-center ${placingOrder || cartCount === 0 ? 'bg-gray-300' : 'bg-forest-600'}`}
+              >
+                {placingOrder ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text className="text-white font-bold text-lg">Place pickup order</Text>
+                )}
+              </Pressable>
+            </View>
+          </SafeAreaView>
         </Modal>
       </SafeAreaView>
     </View>

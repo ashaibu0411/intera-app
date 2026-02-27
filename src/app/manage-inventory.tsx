@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -36,7 +36,10 @@ import {
   addInventoryItem,
   updateInventoryItem,
   deleteInventoryItem,
+  createBusinessInventoryUpdate,
 } from '@/lib/marketplace-api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { sendRemotePushAlert } from '@/lib/pushAlerts';
 
 interface InventoryItem {
   id: string;
@@ -71,6 +74,7 @@ export default function ManageInventoryScreen() {
 
   const currentUser = useStore((s) => s.currentUser);
   const isGuest = useStore((s) => s.isGuest);
+  const selectedLocation = useStore((s) => s.selectedLocation);
 
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -87,6 +91,66 @@ export default function ManageInventoryScreen() {
   const [itemCategory, setItemCategory] = useState('Other');
   const [itemInStock, setItemInStock] = useState(true);
   const [itemQuantity, setItemQuantity] = useState('');
+
+  const getPushScope = useCallback(() => {
+    const city = selectedLocation?.city || '';
+    const neighborhood = selectedLocation?.neighborhood || null;
+    return { city, neighborhood };
+  }, [selectedLocation?.city, selectedLocation?.neighborhood]);
+
+  const shouldSendInventoryPush = useCallback(async () => {
+    if (!businessId) return false;
+    const key = `inv_push_last:${businessId}`;
+    const raw = await AsyncStorage.getItem(key);
+    const last = raw ? Number(raw) : 0;
+    const now = Date.now();
+    const cooldownMs = 5 * 60 * 1000; // 5 minutes
+    if (last && now - last < cooldownMs) return false;
+    await AsyncStorage.setItem(key, String(now));
+    return true;
+  }, [businessId]);
+
+  const emitInventoryUpdate = useCallback(
+    async (args: { itemId: string; kind: string; title: string; message: string; allowPush?: boolean }) => {
+      if (!businessId) return;
+      const { city, neighborhood } = getPushScope();
+      if (!city) return;
+
+      try {
+        await createBusinessInventoryUpdate({
+          businessId,
+          itemId: args.itemId,
+          kind: args.kind,
+          title: args.title,
+          message: args.message,
+          scope: 'city',
+          city,
+          neighborhood,
+        });
+      } catch (e) {
+        // best-effort
+        console.log('[Inventory] create update failed:', e);
+      }
+
+      if (!args.allowPush) return;
+      try {
+        const canPush = await shouldSendInventoryPush();
+        if (!canPush) return;
+        sendRemotePushAlert({
+          scope: 'city',
+          city,
+          neighborhood,
+          title: args.title,
+          body: args.message,
+          data: { type: 'inventory_update', businessId, itemId: args.itemId },
+        });
+      } catch (e) {
+        // best-effort
+        console.log('[Inventory] push failed:', e);
+      }
+    },
+    [businessId, getPushScope, shouldSendInventoryPush]
+  );
 
   const fetchInventory = async () => {
     if (!businessId) return;
@@ -177,9 +241,23 @@ export default function ManageInventoryScreen() {
       };
 
       if (editingItem) {
-        await updateInventoryItem(editingItem.id, itemData);
+        const updated = await updateInventoryItem(editingItem.id, itemData);
+        const wasInStock = !!editingItem.in_stock;
+        const nowInStock = !!itemData.inStock;
+        const kind = !wasInStock && nowInStock ? 'restock' : wasInStock && !nowInStock ? 'out_of_stock' : 'updated';
+        const title = businessName ? `${String(businessName)} inventory updated` : 'Inventory updated';
+        const message =
+          kind === 'restock'
+            ? `${itemData.name} is back in stock.`
+            : kind === 'out_of_stock'
+              ? `${itemData.name} is now out of stock.`
+              : `Updated: ${itemData.name}.`;
+        emitInventoryUpdate({ itemId: String((updated as any)?.id ?? editingItem.id), kind, title, message, allowPush: kind === 'restock' });
       } else {
-        await addInventoryItem(businessId, itemData);
+        const created = await addInventoryItem(businessId, itemData);
+        const title = businessName ? `${String(businessName)} just added a new item` : 'New item available';
+        const message = `${itemData.name} is now available.`;
+        emitInventoryUpdate({ itemId: String((created as any)?.id), kind: 'created', title, message, allowPush: true });
       }
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -221,9 +299,13 @@ export default function ManageInventoryScreen() {
 
   const toggleStockStatus = async (item: InventoryItem) => {
     try {
-      await updateInventoryItem(item.id, { inStock: !item.in_stock });
+      const nextInStock = !item.in_stock;
+      await updateInventoryItem(item.id, { inStock: nextInStock });
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       fetchInventory();
+      const title = businessName ? `${String(businessName)} inventory updated` : 'Inventory updated';
+      const message = nextInStock ? `${item.name} is back in stock.` : `${item.name} is now out of stock.`;
+      emitInventoryUpdate({ itemId: item.id, kind: nextInStock ? 'restock' : 'out_of_stock', title, message, allowPush: nextInStock });
     } catch (error) {
       console.error('Error updating stock status:', error);
     }

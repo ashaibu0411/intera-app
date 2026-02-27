@@ -20,6 +20,7 @@ import {
   Calendar,
   CalendarCheck,
   Package,
+  ShoppingBag,
   Link2,
   QrCode,
 } from 'lucide-react-native';
@@ -268,6 +269,19 @@ export default function MyBusinessesScreen() {
                           <Text className="text-emerald-600 font-semibold ml-2">Appointments</Text>
                         </Pressable>
                       </View>
+
+                      {/* Orders */}
+                      <Pressable
+                        onPress={() => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                          setSelectedBusiness(null);
+                          router.push('/business-orders' as any);
+                        }}
+                        className="mb-3 bg-forest-50 rounded-xl py-4 flex-row items-center justify-center"
+                      >
+                        <ShoppingBag size={18} color="#1B4D3E" />
+                        <Text className="text-forest-700 font-semibold ml-2">Orders</Text>
+                      </Pressable>
 
                       {/* Calendar Button */}
                       <Pressable

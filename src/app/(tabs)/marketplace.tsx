@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, ScrollView, Pressable, TextInput, Modal, ActivityIndicator, RefreshControl, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
@@ -18,6 +18,7 @@ import {
   Gem,
   Store,
   Shield,
+  Package,
 } from 'lucide-react-native';
 import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -28,11 +29,12 @@ import {
   MARKETPLACE_CATEGORIES,
   type MarketplaceListing,
 } from '@/lib/store';
-import { getMarketplaceListings, deleteMarketplaceListing as deleteMarketplaceListingApi } from '@/lib/marketplace-api';
+import { getBusinessInventoryUpdates, getMarketplaceListings, deleteMarketplaceListing as deleteMarketplaceListingApi } from '@/lib/marketplace-api';
 import { getOrCreateConversation } from '@/lib/messages';
 import { purchaseMarketplaceListing, priceToGems, calculateFeeBreakdown } from '@/lib/marketplacePayments';
 import { getGemBalance } from '@/lib/giftService';
 import { aiTrustSafety, type AiTrustSafetyResult } from '@/lib/aiTrustSafety';
+import { subscribeToInventoryUpdates } from '@/lib/inventoryRealtime';
 
 interface DbListing {
   id: string;
@@ -85,6 +87,30 @@ export default function MarketplaceTabScreen() {
   const [showSafetyModal, setShowSafetyModal] = useState(false);
   const [safetyBusy, setSafetyBusy] = useState(false);
   const [safetyResult, setSafetyResult] = useState<AiTrustSafetyResult | null>(null);
+
+  const selectedLocation = useStore((s) => s.selectedLocation);
+  const city = useMemo(() => String(selectedLocation?.city || ''), [selectedLocation?.city]);
+  const neighborhood = useMemo(() => (selectedLocation?.neighborhood ? String(selectedLocation.neighborhood) : null), [selectedLocation?.neighborhood]);
+
+  const [restocks, setRestocks] = useState<any[]>([]);
+  const [restocksLoading, setRestocksLoading] = useState(false);
+
+  const loadRestocks = useCallback(async () => {
+    if (!city) {
+      setRestocks([]);
+      return;
+    }
+    setRestocksLoading(true);
+    try {
+      const data = await getBusinessInventoryUpdates({ city, neighborhood: null, limit: 12 });
+      setRestocks(data as any);
+    } catch (e) {
+      console.log('[Marketplace] restocks load failed:', e);
+      setRestocks([]);
+    } finally {
+      setRestocksLoading(false);
+    }
+  }, [city]);
 
   const handleOpenDeleteModal = () => {
     if (!selectedListing) return;
@@ -149,6 +175,22 @@ export default function MarketplaceTabScreen() {
   useEffect(() => {
     fetchListings();
   }, []);
+
+  useEffect(() => {
+    loadRestocks();
+  }, [loadRestocks]);
+
+  // Realtime refresh for restocks
+  useEffect(() => {
+    if (!city) return;
+    const unsub = subscribeToInventoryUpdates({
+      city,
+      onInsert: () => {
+        loadRestocks().catch(() => null);
+      },
+    });
+    return unsub;
+  }, [city, loadRestocks]);
 
   const handleRefresh = () => {
     setIsRefreshing(true);
@@ -412,6 +454,113 @@ export default function MarketplaceTabScreen() {
             </View>
           ) : (
             <>
+              {/* Just restocked near you */}
+              {city ? (
+                <Animated.View entering={FadeInUp.duration(350).delay(50)} className="mb-4">
+                  <View className="flex-row items-center justify-between mb-2">
+                    <View className="flex-row items-center">
+                      <MapPin size={16} color="#D4673A" />
+                      <Text className="text-warmBrown font-bold ml-2">Just restocked in {city}</Text>
+                    </View>
+                    <Pressable
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        router.push('/business-directory' as any);
+                      }}
+                      className="flex-row items-center"
+                    >
+                      <Store size={14} color="#1B4D3E" />
+                      <Text className="text-forest-700 font-semibold ml-2">Local stores</Text>
+                    </Pressable>
+                  </View>
+
+                  {restocksLoading ? (
+                    <View className="bg-white rounded-2xl p-4 items-center">
+                      <ActivityIndicator color="#1B4D3E" />
+                      <Text className="text-gray-500 mt-2">Loading updates…</Text>
+                    </View>
+                  ) : restocks.length === 0 ? (
+                    <View className="bg-white rounded-2xl p-4">
+                      <Text className="text-gray-600">No restock updates yet.</Text>
+                      <Text className="text-gray-400 text-sm mt-1">
+                        When businesses update inventory, you’ll see it here in real time.
+                      </Text>
+                    </View>
+                  ) : (
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }}>
+                      {restocks.map((u: any, idx: number) => {
+                        const b = u.business;
+                        const item = u.item;
+                        const bizImg =
+                          b?.logo || b?.image || 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=300';
+                        const itemImg = item?.image || bizImg;
+                        return (
+                          <Animated.View
+                            key={u.id || `${idx}`}
+                            entering={FadeInUp.duration(250).delay(80 + idx * 30)}
+                            className="mr-3"
+                          >
+                            <Pressable
+                              onPress={() => {
+                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                router.push(`/business/${String(u.business_id)}` as any);
+                              }}
+                              className="bg-white rounded-2xl overflow-hidden shadow-sm"
+                              style={{ width: 220 }}
+                            >
+                              <Image source={{ uri: itemImg }} style={{ width: 220, height: 120 }} contentFit="cover" />
+                              <View className="p-3">
+                                <Text className="text-warmBrown font-bold" numberOfLines={1}>
+                                  {item?.name || u.title || 'Update'}
+                                </Text>
+                                <Text className="text-gray-500 text-sm mt-0.5" numberOfLines={1}>
+                                  {b?.name || 'Business'}
+                                </Text>
+                                {u.message ? (
+                                  <Text className="text-gray-600 text-sm mt-2" numberOfLines={2}>
+                                    {String(u.message)}
+                                  </Text>
+                                ) : null}
+                              </View>
+                            </Pressable>
+                          </Animated.View>
+                        );
+                      })}
+                    </ScrollView>
+                  )}
+
+                  {/* Quick CTAs */}
+                  <View className="flex-row mt-3">
+                    <Pressable
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        router.push('/my-orders' as any);
+                      }}
+                      className="flex-1 bg-white rounded-2xl p-4 mr-2 flex-row items-center justify-between"
+                    >
+                      <View className="flex-row items-center">
+                        <Package size={18} color="#1B4D3E" />
+                        <Text className="text-warmBrown font-bold ml-2">My orders</Text>
+                      </View>
+                      <ChevronRight size={18} color="#9CA3AF" />
+                    </Pressable>
+                    <Pressable
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        router.push('/business-directory' as any);
+                      }}
+                      className="flex-1 bg-white rounded-2xl p-4 ml-2 flex-row items-center justify-between"
+                    >
+                      <View className="flex-row items-center">
+                        <Store size={18} color="#1B4D3E" />
+                        <Text className="text-warmBrown font-bold ml-2">Stores</Text>
+                      </View>
+                      <ChevronRight size={18} color="#9CA3AF" />
+                    </Pressable>
+                  </View>
+                </Animated.View>
+              ) : null}
+
               {/* Featured Banner */}
               <Animated.View entering={FadeInUp.duration(400).delay(100)} className="mb-4">
                 <LinearGradient
