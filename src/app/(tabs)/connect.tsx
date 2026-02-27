@@ -33,6 +33,7 @@ import {
   type ConnectionStatus,
 } from '@/lib/connections-api';
 import { listAvailableTalkers, type TalkAvailability } from '@/lib/talkNow';
+import { sendDirectPushAlert } from '@/lib/pushAlerts';
 
 type LookingForFilter = 'all' | 'friends' | 'dating' | 'networking';
 
@@ -264,6 +265,17 @@ export default function ConnectScreen() {
 
     if (result.success) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      // Notify the recipient (best-effort)
+      sendDirectPushAlert({
+        recipientUserId: userId,
+        excludeUserId: currentUser.id,
+        title: 'New connection request',
+        body: `${currentUser.name || 'Someone'} wants to connect with you on Intera.`,
+        data: {
+          type: 'connection_request',
+          requesterId: currentUser.id,
+        },
+      });
       // Update local state
       setUsers((prev) =>
         prev.map((u) =>

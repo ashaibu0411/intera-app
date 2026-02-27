@@ -30,6 +30,8 @@ import { useStore } from '@/lib/store';
 import { type EventReach } from '@/lib/eventMetadata';
 import { uploadImages } from '@/lib/posts';
 import { createEvent } from '@/lib/marketplace-api';
+import { notifyCommunityAboutNewEvent } from '@/lib/communityNotifications';
+import { sendRemotePushAlert } from '@/lib/pushAlerts';
 
 const EVENT_CATEGORIES = [
   { key: 'Social Gathering', label: 'Social Gathering', icon: Users },
@@ -153,7 +155,7 @@ export default function CreateEventScreen() {
         }
       }
 
-      await createEvent(currentUser.id, {
+      const created = await createEvent(currentUser.id, {
         title: title.trim(),
         description: description.trim(),
         date: date.toISOString(),
@@ -166,6 +168,41 @@ export default function CreateEventScreen() {
         isPublic,
         scope: reach,
       });
+
+      // Notify neighbors about the new event (remote push + realtime broadcast/in-app)
+      try {
+        const communityIdForDb =
+          typeof currentCommunity?.id === 'string' && currentCommunity.id !== 'custom' ? currentCommunity.id : null;
+        const city = selectedLocation?.city || currentCommunity?.city || null;
+        const country = selectedLocation?.country || currentCommunity?.country || null;
+        const neighborhood = selectedLocation?.neighborhood?.trim() || null;
+
+        const eventId = (created as any)?.id ? String((created as any).id) : 'event';
+        await notifyCommunityAboutNewEvent(
+          eventId,
+          currentUser.id,
+          title.trim(),
+          userLocation,
+          communityIdForDb,
+          city,
+          country
+        );
+
+        const scopeForPush =
+          reach === 'global' ? 'global' : neighborhood ? 'neighborhood' : 'city';
+        sendRemotePushAlert({
+          title: 'New event near you',
+          body: `${currentUser.name ?? 'Someone'} created "${title.trim()}"`,
+          scope: scopeForPush as any,
+          city,
+          neighborhood,
+          excludeUserId: currentUser.id,
+          data: { type: 'event', eventId },
+        }).catch(() => {});
+      } catch (e) {
+        // best-effort
+        console.log('[CreateEvent] notify failed:', String((e as any)?.message ?? e));
+      }
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.back();

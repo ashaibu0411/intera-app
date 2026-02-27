@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { View, Text, Pressable, Dimensions, FlatList, ViewToken, ActivityIndicator, Alert, Modal, Share, Platform, TextInput } from 'react-native';
+import { View, Text, Pressable, Dimensions, FlatList, ViewToken, ActivityIndicator, Alert, Modal, Share, Platform, TextInput, Linking } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { Video as ExpoVideo, ResizeMode, AVPlaybackStatus, Audio } from 'expo-av';
@@ -28,6 +28,9 @@ import {
   Sparkles,
   TrendingUp,
   Trash2,
+  Gift,
+  Store,
+  Link as LinkIcon,
 } from 'lucide-react-native';
 import Animated, {
   FadeIn,
@@ -54,9 +57,10 @@ import { reportBlockedUser } from '@/lib/reports';
 import type { ViolationType } from '@/lib/contentModeration';
 import { moderateText } from '@/lib/contentModeration';
 import { aiModerateContent } from '@/lib/aiModerateContent';
-import { getClips, resolveClipVideoUrl, deleteClip } from '@/lib/clips-api';
+import { getClips, getFollowingClips, resolveClipVideoUrl, deleteClip } from '@/lib/clips-api';
 import { aiClipCaptionsFromVideoUrl, type AiClipCaptionsResult } from '@/lib/aiClipCaptions';
 import { translateForUi } from '@/lib/aiUiTranslate';
+import { getGemBalance, sendGift } from '@/lib/giftService';
 
 // Report reasons for App Store Guideline 1.2 compliance
 const REPORT_REASONS: { id: ViolationType | 'other'; label: string; description: string }[] = [
@@ -98,121 +102,12 @@ interface Clip {
   createdAt: string;
 }
 
-// Enhanced demo clips with more data
-// Using Pexels CDN which provides HLS-compatible streams for iOS
-const MOCK_CLIPS: Clip[] = [
-  {
-    id: '1',
-    user: {
-      id: 'u1',
-      name: 'Sarah Johnson',
-      username: 'sarahj',
-      avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop&crop=face',
-      isVerified: true,
-      isFollowing: false,
-    },
-    // No videoUrl - displays as thumbnail-only clip (common for demo/fallback)
-    thumbnail: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&h=1400&fit=crop',
-    description: 'Weekend road trip vibes! Who else loves spontaneous adventures? #roadtrip #adventure #travel',
-    music: 'Original Audio - Sarah',
-    likes: 12400,
-    comments: 342,
-    shares: 89,
-    views: 125000,
-    isLiked: false,
-    isSaved: false,
-    duration: 60,
-    createdAt: '2024-12-28T10:00:00Z',
-  },
-  {
-    id: '2',
-    user: {
-      id: 'u2',
-      name: 'Mike Chen',
-      username: 'mikechen',
-      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop&crop=face',
-      isVerified: false,
-      isFollowing: true,
-    },
-    thumbnail: 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=800&h=1400&fit=crop',
-    description: 'Found the perfect carpool crew for my daily commute. Life-changing! #carpool #commute #friends',
-    music: 'Sunny Day - Acoustic',
-    likes: 8930,
-    comments: 215,
-    shares: 67,
-    views: 98000,
-    isLiked: true,
-    isSaved: false,
-    duration: 45,
-    createdAt: '2024-12-27T15:30:00Z',
-  },
-  {
-    id: '3',
-    user: {
-      id: 'u3',
-      name: 'Emma Wilson',
-      username: 'emmaw',
-      avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200&h=200&fit=crop&crop=face',
-      isVerified: true,
-      isFollowing: false,
-    },
-    thumbnail: 'https://images.unsplash.com/photo-1449824913935-59a10b8d2000?w=800&h=1400&fit=crop',
-    description: 'City drives hit different at golden hour. Who wants to join? #goldenhour #citylife #carpool',
-    music: 'Golden - Harry Styles',
-    likes: 24100,
-    comments: 567,
-    shares: 234,
-    views: 320000,
-    isLiked: false,
-    isSaved: true,
-    duration: 30,
-    createdAt: '2024-12-26T20:15:00Z',
-  },
-  {
-    id: '4',
-    user: {
-      id: 'u4',
-      name: 'Alex Rivera',
-      username: 'alexr',
-      avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&h=200&fit=crop&crop=face',
-      isVerified: false,
-      isFollowing: true,
-    },
-    thumbnail: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=800&h=1400&fit=crop',
-    description: 'Mountain road trip with the best crew. Nothing beats these views! #mountains #roadtrip',
-    music: 'On The Road Again',
-    likes: 15600,
-    comments: 423,
-    shares: 156,
-    views: 198000,
-    isLiked: false,
-    isSaved: false,
-    duration: 55,
-    createdAt: '2024-12-25T12:00:00Z',
-  },
-  {
-    id: '5',
-    user: {
-      id: 'u5',
-      name: 'Lisa Park',
-      username: 'lisapark',
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&h=200&fit=crop&crop=face',
-      isVerified: true,
-      isFollowing: false,
-    },
-    thumbnail: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&h=1400&fit=crop',
-    description: 'Beach carpool anyone? The waves are calling! #beach #summer #roadtrip',
-    music: 'Ocean Eyes - Billie Eilish',
-    likes: 31200,
-    comments: 890,
-    shares: 412,
-    views: 450000,
-    isLiked: true,
-    isSaved: true,
-    duration: 40,
-    createdAt: '2024-12-24T18:30:00Z',
-  },
-];
+const CLIP_GIFTS = [
+  { id: 'rose', name: 'Rose', value: 10 },
+  { id: 'coffee', name: 'Coffee', value: 25 },
+  { id: 'fire', name: 'Fire', value: 99 },
+  { id: 'crown', name: 'Crown', value: 250 },
+] as const;
 
 function formatNumber(num: number): string {
   if (num >= 1000000) {
@@ -251,6 +146,7 @@ interface ClipItemProps {
   onReportUser: () => void;
   onComment: () => void;
   onShare: () => void;
+  onGift: () => void;
   onDelete?: () => void;
   isOwnClip?: boolean;
   currentUserId?: string;
@@ -301,7 +197,7 @@ class ClipsErrorBoundary extends React.Component<
   }
 }
 
-function ClipItem({ clip, isActive, isMuted, onToggleMute, onBlockUser, onReportUser, onComment, onShare, onDelete, isOwnClip, currentUserId, itemHeight, itemWidth }: ClipItemProps) {
+function ClipItem({ clip, isActive, isMuted, onToggleMute, onBlockUser, onReportUser, onComment, onShare, onGift, onDelete, isOwnClip, currentUserId, itemHeight, itemWidth }: ClipItemProps) {
   const insets = useSafeAreaInsets();
   const [liked, setLiked] = useState(clip.isLiked);
   const [saved, setSaved] = useState(clip.isSaved);
@@ -418,6 +314,12 @@ function ClipItem({ clip, isActive, isMuted, onToggleMute, onBlockUser, onReport
   }, [playUrl, captionsLoading, clip.id, currentUserId]);
 
   const targetLang = translatorPrefs?.targetLangCode || 'en';
+
+  const firstUrl = useMemo(() => {
+    const text = String(clip.description || '');
+    const m = text.match(/https?:\/\/[^\s)]+/i);
+    return m?.[0] ?? '';
+  }, [clip.description]);
 
   const toggleTranslateDesc = async () => {
     if (descBusy) return;
@@ -857,6 +759,11 @@ function ClipItem({ clip, isActive, isMuted, onToggleMute, onBlockUser, onReport
             </Text>
           </Pressable>
 
+          {/* Gift */}
+          <Pressable onPress={onGift} className="items-center">
+            <Gift size={30} color="#C9A227" strokeWidth={2.5} />
+          </Pressable>
+
           {/* More - Enhanced */}
           <DropdownMenu.Root>
             <DropdownMenu.Trigger>
@@ -950,6 +857,21 @@ function ClipItem({ clip, isActive, isMuted, onToggleMute, onBlockUser, onReport
             </Text>
           </Pressable>
 
+          {/* Business-friendly link */}
+          {firstUrl ? (
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                Linking.openURL(firstUrl).catch(() => null);
+              }}
+              className="flex-row items-center self-start bg-black/35 rounded-full px-3 py-2"
+              style={{ borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)', marginBottom: 10 }}
+            >
+              <LinkIcon size={14} color="#fff" />
+              <Text style={{ color: '#fff', fontWeight: '800', marginLeft: 8 }}>Visit link</Text>
+            </Pressable>
+          ) : null}
+
           {/* Music - Enhanced */}
           <Pressable className="flex-row items-center mb-2">
             <Music2 size={16} color="#fff" />
@@ -978,10 +900,7 @@ function ClipItem({ clip, isActive, isMuted, onToggleMute, onBlockUser, onReport
 function CommentsModal({ visible, clip, onClose }: { visible: boolean; clip: Clip | null; onClose: () => void }) {
   const insets = useSafeAreaInsets();
   const [commentText, setCommentText] = useState('');
-  const [comments, setComments] = useState([
-    { id: '1', user: { name: 'John Doe', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100', username: 'johndoe' }, text: 'This is amazing! 🔥', likes: 12, timeAgo: '2h ago' },
-    { id: '2', user: { name: 'Jane Smith', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100', username: 'janesmith' }, text: 'Love this! Can we do this together?', likes: 8, timeAgo: '5h ago' },
-  ]);
+  const [comments, setComments] = useState<{ id: string; user: { name: string; avatar: string; username: string }; text: string; likes: number; timeAgo: string }[]>([]);
 
   const handleSendComment = () => {
     if (commentText.trim()) {
@@ -1116,6 +1035,138 @@ function CommentsModal({ visible, clip, onClose }: { visible: boolean; clip: Cli
   );
 }
 
+function GiftsModal({
+  visible,
+  clip,
+  onClose,
+}: {
+  visible: boolean;
+  clip: Clip | null;
+  onClose: () => void;
+}) {
+  const insets = useSafeAreaInsets();
+  const currentUser = useStore((s) => s.currentUser);
+  const [balance, setBalance] = useState<number | null>(null);
+  const [busyGiftId, setBusyGiftId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      if (!visible) return;
+      if (!currentUser?.id) {
+        if (mounted) setBalance(null);
+        return;
+      }
+      const b = await getGemBalance(currentUser.id);
+      if (mounted) setBalance(b);
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [visible, currentUser?.id]);
+
+  const canGift = !!currentUser?.id && !!clip?.user?.id && currentUser?.id !== clip?.user?.id;
+
+  const handleSendGift = async (giftId: string, giftName: string, giftValue: number) => {
+    if (!clip?.user?.id || !clip?.user?.name) return;
+    if (!currentUser?.id || !currentUser?.name) {
+      router.push('/signup');
+      return;
+    }
+    if (currentUser.id === clip.user.id) {
+      Alert.alert('Not allowed', "You can't gift yourself.");
+      return;
+    }
+    setBusyGiftId(giftId);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      const res = await sendGift({
+        senderId: currentUser.id,
+        senderName: currentUser.name,
+        recipientId: clip.user.id,
+        recipientName: clip.user.name,
+        giftId,
+        giftName,
+        giftValue,
+      });
+      if (!res.success) {
+        if (res.error === 'Insufficient gems') {
+          Alert.alert('Not enough gems', 'Top up gems to send this gift.', [
+            { text: 'Not now', style: 'cancel' },
+            { text: 'Get gems', onPress: () => router.push('/gem-store') },
+          ]);
+          return;
+        }
+        Alert.alert('Gift failed', res.error || 'Please try again.');
+        return;
+      }
+      if (typeof res.newBalance === 'number') setBalance(res.newBalance);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert('Gift sent', `You sent ${giftName} to ${clip.user.name}.`);
+      onClose();
+    } finally {
+      setBusyGiftId(null);
+    }
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View className="flex-1 bg-black/60">
+        <Pressable className="flex-1" onPress={onClose} />
+        <Animated.View entering={SlideInUp.duration(300)} className="bg-white rounded-t-3xl">
+          <View className="flex-row items-center justify-between px-5 pt-5 pb-3 border-b border-gray-100">
+            <Text className="text-lg font-bold text-warmBrown">Send a gift</Text>
+            <Pressable onPress={onClose} className="p-1" hitSlop={8}>
+              <X size={22} color="#6B7280" />
+            </Pressable>
+          </View>
+
+          <View className="px-5 pt-4 pb-3">
+            <View className="flex-row items-center justify-between">
+              <Text className="text-gray-600">
+                To <Text className="font-semibold text-warmBrown">@{clip?.user?.username}</Text>
+              </Text>
+              <Pressable onPress={() => router.push('/gem-store')} className="flex-row items-center">
+                <Text className="text-terracotta-500 font-semibold">Get gems</Text>
+              </Pressable>
+            </View>
+            <Text className="text-gray-500 text-xs mt-1">
+              Balance: {typeof balance === 'number' ? `${balance.toLocaleString()} gems` : currentUser?.id ? 'Loading…' : 'Sign in to gift'}
+            </Text>
+          </View>
+
+          <View className="px-5 pb-4">
+            <View className="flex-row flex-wrap gap-3">
+              {CLIP_GIFTS.map((g) => {
+                const disabled = !canGift || !!busyGiftId;
+                const isBusy = busyGiftId === g.id;
+                return (
+                  <Pressable
+                    key={g.id}
+                    onPress={() => handleSendGift(g.id, g.name, g.value)}
+                    disabled={disabled}
+                    className={`rounded-2xl px-4 py-3 border ${disabled ? 'opacity-50' : 'opacity-100'}`}
+                    style={{ borderColor: '#E5E7EB' }}
+                  >
+                    <View className="flex-row items-center">
+                      <Gift size={16} color="#C9A227" />
+                      <Text className="ml-2 font-bold text-warmBrown">{g.name}</Text>
+                    </View>
+                    <Text className="text-gray-500 text-xs mt-1">{g.value} gems</Text>
+                    {isBusy ? <Text className="text-gray-500 text-xs mt-1">Sending…</Text> : null}
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+
+          <View style={{ height: insets.bottom + 10 }} />
+        </Animated.View>
+      </View>
+    </Modal>
+  );
+}
+
 export default function ClipsTabScreen() {
   const insets = useSafeAreaInsets();
   const [activeIndex, setActiveIndex] = useState(0);
@@ -1129,6 +1180,8 @@ export default function ClipsTabScreen() {
   const [showReportModal, setShowReportModal] = useState(false);
   const [showCommentsModal, setShowCommentsModal] = useState(false);
   const [selectedClip, setSelectedClip] = useState<Clip | null>(null);
+  const [showGiftsModal, setShowGiftsModal] = useState(false);
+  const [giftClip, setGiftClip] = useState<Clip | null>(null);
   const [reportStep, setReportStep] = useState<'reason' | 'confirm' | 'done'>('reason');
   const [selectedReason, setSelectedReason] = useState<ViolationType | 'other' | null>(null);
   const [showBlockConfirmModal, setShowBlockConfirmModal] = useState(false);
@@ -1144,7 +1197,10 @@ export default function ClipsTabScreen() {
   const loadClips = useCallback(async () => {
     try {
       setLoading(true);
-      const db = await getClips(50, 0);
+      const db =
+        activeTab === 'following' && currentUser?.id
+          ? await getFollowingClips(currentUser.id, 50, 0)
+          : await getClips(50, 0);
 
       const mappedPromises = (db ?? [])
         // Skip bad local-only URIs that won't load after upload
@@ -1211,14 +1267,14 @@ export default function ClipsTabScreen() {
       // Filter to only show clips with valid videos, or fall back to showing thumbnail-only
       const validClips = mapped.filter((c) => (c as any)._validVideo || c.thumbnail);
 
-      setFeedClips(validClips.length ? validClips : MOCK_CLIPS);
+      setFeedClips(validClips);
     } catch (e: any) {
-      setFeedClips(MOCK_CLIPS);
+      setFeedClips([]);
       console.log('[clips] Error loading clips:', e?.message);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [activeTab, currentUser?.id]);
 
   // Load clips on mount
   useEffect(() => {
@@ -1409,6 +1465,7 @@ export default function ClipsTabScreen() {
   const handleTabChange = (tab: 'following' | 'foryou') => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setActiveTab(tab);
+    setActiveIndex(0);
   };
 
   return (
@@ -1440,19 +1497,29 @@ export default function ClipsTabScreen() {
           className="absolute z-10 left-0 right-0 flex-row items-center justify-between px-4"
           style={{ top: insets.top + 8 }}
         >
-          {/* Spacer for balance */}
-          <View style={{ width: 44 }} />
+          {/* Business shortcut */}
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.push('/marketplace');
+            }}
+            className="bg-black/35 rounded-full w-10 h-10 items-center justify-center"
+            style={{ borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)' }}
+          >
+            <Store size={18} color="#fff" />
+          </Pressable>
 
           {/* Tab Switcher - Enhanced */}
           <Animated.View entering={FadeIn.duration(400)} className="flex-row items-center bg-black/30 rounded-full px-1 py-1 backdrop-blur-sm">
             <Pressable
               onPress={() => handleTabChange('following')}
+              disabled={isGuest || !currentUser?.id}
               className={`px-5 py-2 rounded-full ${activeTab === 'following' ? 'bg-white' : ''}`}
             >
               <Text
                 className={`font-semibold text-sm ${
                   activeTab === 'following' ? 'text-black' : 'text-white'
-                }`}
+                } ${isGuest || !currentUser?.id ? 'opacity-60' : ''}`}
               >
                 Following
               </Text>
@@ -1486,44 +1553,93 @@ export default function ClipsTabScreen() {
         </View>
 
         {/* Clips Feed - Enhanced with Pull to Refresh */}
-        <FlatList
-          data={filteredClips}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item, index }) => (
-            <ClipItem
-              clip={item}
-              isActive={index === activeIndex}
-              isMuted={isMuted}
-              onToggleMute={toggleMute}
-              onBlockUser={() => handleBlockUser({ id: item.user.id, name: item.user.name, avatar: item.user.avatar })}
-              onReportUser={() => handleReportUser({ id: item.user.id, name: item.user.name, avatar: item.user.avatar })}
-              onComment={() => handleComment(item)}
-              onShare={() => handleShare(item)}
-              onDelete={() => handleDeleteClip(item)}
-              isOwnClip={item.user.id === currentUser?.id}
-              currentUserId={currentUser?.id}
-              itemHeight={pagerHeight}
-              itemWidth={SCREEN_WIDTH}
-            />
-          )}
-          pagingEnabled
-          scrollEnabled={!(showCommentsModal || showReportModal || showBlockConfirmModal)}
-          showsVerticalScrollIndicator={false}
-          snapToInterval={pagerHeight}
-          snapToAlignment="start"
-          disableIntervalMomentum
-          bounces={false}
-          overScrollMode="never"
-          decelerationRate="fast"
-          viewabilityConfig={viewabilityConfig}
-          onViewableItemsChanged={onViewableItemsChanged}
-          onMomentumScrollEnd={onMomentumScrollEnd}
-          getItemLayout={(_, index) => ({ length: pagerHeight, offset: pagerHeight * index, index })}
-          removeClippedSubviews={true}
-          maxToRenderPerBatch={3}
-          windowSize={5}
-          initialNumToRender={2}
-        />
+        {filteredClips.length === 0 && !loading ? (
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 22 }}>
+            <View style={{ alignItems: 'center', maxWidth: 420 }}>
+              <View style={{ backgroundColor: 'rgba(255,255,255,0.10)', borderRadius: 28, padding: 18, borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)' }}>
+                <Video size={42} color="#fff" />
+              </View>
+              <Text style={{ color: '#fff', fontWeight: '900', fontSize: 20, marginTop: 14, textAlign: 'center' }}>
+                {activeTab === 'following' ? 'No clips from people you follow yet' : 'No clips yet'}
+              </Text>
+              <Text style={{ color: 'rgba(255,255,255,0.75)', marginTop: 8, textAlign: 'center', lineHeight: 20 }}>
+                Post a quick vertical video for your community. Businesses can also post promos and link to their site in the caption.
+              </Text>
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 16, flexWrap: 'wrap', justifyContent: 'center' }}>
+                <Pressable
+                  onPress={handleCreateClip}
+                  className="active:opacity-90"
+                >
+                  <View style={{ backgroundColor: '#fff', borderRadius: 999, paddingHorizontal: 16, paddingVertical: 12 }}>
+                    <Text style={{ color: '#000', fontWeight: '900' }}>Create a clip</Text>
+                  </View>
+                </Pressable>
+                <Pressable
+                  onPress={() => router.push('/marketplace')}
+                  className="active:opacity-90"
+                >
+                  <View style={{ backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 999, paddingHorizontal: 16, paddingVertical: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)' }}>
+                    <Text style={{ color: '#fff', fontWeight: '900' }}>Business tools</Text>
+                  </View>
+                </Pressable>
+                {activeTab === 'following' && (isGuest || !currentUser?.id) ? (
+                  <Pressable
+                    onPress={() => router.push('/signup')}
+                    className="active:opacity-90"
+                  >
+                    <View style={{ backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 999, paddingHorizontal: 16, paddingVertical: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)' }}>
+                      <Text style={{ color: '#fff', fontWeight: '900' }}>Sign in</Text>
+                    </View>
+                  </Pressable>
+                ) : null}
+              </View>
+            </View>
+          </View>
+        ) : (
+          <FlatList
+            data={filteredClips}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item, index }) => (
+              <ClipItem
+                clip={item}
+                isActive={index === activeIndex}
+                isMuted={isMuted}
+                onToggleMute={toggleMute}
+                onBlockUser={() => handleBlockUser({ id: item.user.id, name: item.user.name, avatar: item.user.avatar })}
+                onReportUser={() => handleReportUser({ id: item.user.id, name: item.user.name, avatar: item.user.avatar })}
+                onComment={() => handleComment(item)}
+                onShare={() => handleShare(item)}
+                onGift={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setGiftClip(item);
+                  setShowGiftsModal(true);
+                }}
+                onDelete={() => handleDeleteClip(item)}
+                isOwnClip={item.user.id === currentUser?.id}
+                currentUserId={currentUser?.id}
+                itemHeight={pagerHeight}
+                itemWidth={SCREEN_WIDTH}
+              />
+            )}
+            pagingEnabled
+            scrollEnabled={!(showCommentsModal || showReportModal || showBlockConfirmModal || showGiftsModal)}
+            showsVerticalScrollIndicator={false}
+            snapToInterval={pagerHeight}
+            snapToAlignment="start"
+            disableIntervalMomentum
+            bounces={false}
+            overScrollMode="never"
+            decelerationRate="fast"
+            viewabilityConfig={viewabilityConfig}
+            onViewableItemsChanged={onViewableItemsChanged}
+            onMomentumScrollEnd={onMomentumScrollEnd}
+            getItemLayout={(_, index) => ({ length: pagerHeight, offset: pagerHeight * index, index })}
+            removeClippedSubviews={true}
+            maxToRenderPerBatch={3}
+            windowSize={5}
+            initialNumToRender={2}
+          />
+        )}
       </ClipsErrorBoundary>
 
       {/* Gesture hint overlay (shows once) */}
@@ -1562,6 +1678,16 @@ export default function ClipsTabScreen() {
         onClose={() => {
           setShowCommentsModal(false);
           setSelectedClip(null);
+        }}
+      />
+
+      {/* Gifts Modal */}
+      <GiftsModal
+        visible={showGiftsModal}
+        clip={giftClip}
+        onClose={() => {
+          setShowGiftsModal(false);
+          setGiftClip(null);
         }}
       />
 

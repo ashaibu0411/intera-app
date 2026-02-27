@@ -453,10 +453,12 @@ function CreatePostForm({
     let uploadedImageUrls: string[] = [];
     if (selectedImages.length > 0) {
       try {
-        uploadedImageUrls = await uploadImages(selectedImages, user.id);
+        uploadedImageUrls = (await uploadImages(selectedImages, user.id)).filter((u) =>
+          typeof u === 'string' && (u.startsWith('http://') || u.startsWith('https://'))
+        );
       } catch (uploadError) {
-        console.log('Image upload failed, will use local URIs:', uploadError);
-        uploadedImageUrls = selectedImages; // Fallback to local URIs
+        console.log('[CreatePost] Image upload failed:', uploadError);
+        uploadedImageUrls = [];
       }
     }
 
@@ -464,11 +466,22 @@ function CreatePostForm({
     let uploadedVideoUrl: string | null = null;
     if (selectedVideo) {
       try {
-        uploadedVideoUrl = await uploadVideo(selectedVideo, user.id);
+        const url = await uploadVideo(selectedVideo, user.id);
+        uploadedVideoUrl = url && (url.startsWith('http://') || url.startsWith('https://')) ? url : null;
       } catch (uploadError) {
         console.log('Video upload failed:', uploadError);
         uploadedVideoUrl = null;
       }
+    }
+
+    // If user selected media, require successful upload so the community can actually view it.
+    if (selectedImages.length > 0 && uploadedImageUrls.length === 0) {
+      Alert.alert('Upload failed', 'Your photos could not be uploaded. Please try again.');
+      return;
+    }
+    if (selectedVideo && !uploadedVideoUrl) {
+      Alert.alert('Upload failed', 'Your video could not be uploaded. Please try again.');
+      return;
     }
 
     // Try to save to database first (so other users can see it)
@@ -522,7 +535,8 @@ function CreatePostForm({
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
     // Optional true remote push to neighborhood/city (best for urgent posts)
-    if (sendPushToArea) {
+    const shouldAutoNotifyNeighborhood = scope === 'neighborhood';
+    if (sendPushToArea || shouldAutoNotifyNeighborhood) {
       sendRemotePushAlert({
         title: `${user.name} posted`,
         body: formattedContent,

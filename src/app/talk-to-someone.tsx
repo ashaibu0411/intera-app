@@ -47,6 +47,7 @@ import {
   type TalkSession,
 } from '@/lib/talkNow';
 import { getOrCreateConversation } from '@/lib/messages';
+import { sendDirectPushAlert } from '@/lib/pushAlerts';
 
 type ConnectionStatus = 'available' | 'busy' | 'offline';
 
@@ -187,6 +188,19 @@ export default function TalkToSomeoneScreen() {
         rateGemsPerMinute: selectedPerson.rate,
       });
       const convId = await getOrCreateConversation(currentUser.id, selectedPerson.userId);
+
+      // Notify provider (best-effort)
+      sendDirectPushAlert({
+        recipientUserId: selectedPerson.userId,
+        excludeUserId: currentUser.id,
+        title: 'New Talk request',
+        body: `${currentUser.name || 'Someone'} wants to talk now.`,
+        data: {
+          type: 'talk_request',
+          requesterId: currentUser.id,
+          talkSessionId: session.id,
+        },
+      });
 
       setShowConnectModal(false);
       setMessage('');

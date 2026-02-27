@@ -14,6 +14,7 @@ Deno.serve(async (req) => {
     const city: string | null = body.city ?? null;
     const neighborhood: string | null = body.neighborhood ?? null;
     const excludeUserId: string | null = body.excludeUserId ?? null;
+    const recipientUserId: string | null = body.recipientUserId ?? null;
     const data: Record<string, unknown> = body.data ?? {};
 
     if (!title || !message) {
@@ -31,6 +32,10 @@ Deno.serve(async (req) => {
 
     if (excludeUserId) q = q.neq('user_id', excludeUserId);
 
+    // Direct-to-user push (bypasses scope filters)
+    if (recipientUserId) {
+      q = q.eq('user_id', recipientUserId);
+    } else
     if (scope === 'global') {
       // no filter
     } else if (scope === 'city') {

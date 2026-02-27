@@ -46,3 +46,6 @@ yarn-error.*
 
 # Expo log
 expo.log
+
+# Supabase CLI temp
+supabase/.temp/

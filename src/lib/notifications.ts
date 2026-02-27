@@ -145,6 +145,30 @@ export async function sendNewPostNotification(
   });
 }
 
+export async function sendNewEventNotification(
+  authorName: string,
+  eventTitle: string,
+  eventId: string,
+  eventLocation?: string | null
+): Promise<void> {
+  const store = useStore.getState();
+  if (!store.notificationsEnabled) return;
+
+  const hasPermission = await areNotificationsEnabled();
+  if (!hasPermission) return;
+
+  const body = `${authorName} created "${eventTitle}"${eventLocation ? ` at ${eventLocation}` : ''}`;
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: 'New event near you',
+      body: body.length > 120 ? body.slice(0, 120) + '…' : body,
+      data: { type: 'event', eventId },
+      sound: true,
+    },
+    trigger: null,
+  });
+}
+
 // Send notification for new community member
 export async function sendNewMemberNotification(
   memberName: string,

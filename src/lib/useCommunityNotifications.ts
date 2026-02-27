@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { sendNewPostNotification } from '@/lib/notifications';
+import { sendNewEventNotification, sendNewPostNotification } from '@/lib/notifications';
 import { useStore } from '@/lib/store';
 
 /**
@@ -46,13 +46,7 @@ export function useCommunityNotifications() {
         // Don't notify about our own events
         if (authorId !== currentUser.id) {
           console.log('[CommunityNotifications] Received new event notification');
-          // Import and use sendNewEventNotification when available
-          // For now, we'll use a generic notification
-          sendNewPostNotification(
-            authorName,
-            `Created event: "${eventTitle}"${eventLocation ? ` at ${eventLocation}` : ''}`,
-            eventId
-          ).catch(err => {
+          sendNewEventNotification(authorName, eventTitle, eventId, eventLocation).catch(err => {
             console.error('[CommunityNotifications] Error sending event notification:', err);
           });
         }

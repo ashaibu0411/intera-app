@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { View, Text, ScrollView, Pressable, TextInput, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, Pressable, TextInput, ActivityIndicator, FlatList } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
@@ -553,12 +553,6 @@ const APP_FEATURES: AppFeature[] = [
   },
 ];
 
-// Mock people data - Local users
-const LOCAL_PEOPLE: SearchablePerson[] = [];
-
-// Mock people data - Global users
-const GLOBAL_PEOPLE: SearchablePerson[] = [];
-
 const CATEGORIES = [
   'All',
   'Social',
@@ -579,66 +573,85 @@ export default function AppSearchScreen() {
   const [peopleFilter, setPeopleFilter] = useState<PeopleFilter>('all');
   const [dbUsers, setDbUsers] = useState<SearchablePerson[]>([]);
   const [isLoadingPeople, setIsLoadingPeople] = useState(false);
+  const [peopleOffset, setPeopleOffset] = useState(0);
+  const [peopleHasMore, setPeopleHasMore] = useState(true);
+  const [peopleLoadingMore, setPeopleLoadingMore] = useState(false);
 
   const selectedLocation = useStore((s) => s.selectedLocation);
   const currentUser = useStore((s) => s.currentUser);
 
+  const PEOPLE_PAGE_SIZE = 50;
+
+  const escapeIlike = (input: string) => input.replace(/[%_]/g, '\\$&');
+
   // Fetch users from database
-  const searchUsers = useCallback(async (query: string) => {
+  const searchUsers = useCallback(async (query: string, opts?: { reset?: boolean }) => {
     if (activeTab !== 'people') return;
 
-    setIsLoadingPeople(true);
+    const reset = opts?.reset ?? false;
+    const q = query.trim();
+    const city = (selectedLocation?.city || '').trim();
+    const neighborhood = (selectedLocation?.neighborhood || '').trim();
+
+    if (reset) {
+      setIsLoadingPeople(true);
+      setPeopleOffset(0);
+      setPeopleHasMore(true);
+    } else {
+      if (!peopleHasMore || peopleLoadingMore) return;
+      setPeopleLoadingMore(true);
+    }
     try {
-      // Fetch all users first, then filter client-side for more reliable search
-      const { data, error } = await supabase
+      // Server-side search for real users (fast + scalable)
+      let queryBuilder = supabase
         .from('profiles')
         .select('id, name, username, avatar_url, bio, location')
-        .limit(200);
+        .range(
+          (reset ? 0 : peopleOffset),
+          (reset ? 0 : peopleOffset) + PEOPLE_PAGE_SIZE - 1
+        );
+
+      // Exclude current user
+      if (currentUser?.id) {
+        queryBuilder = queryBuilder.neq('id', currentUser.id);
+      }
+
+      // Text search (name/username/location)
+      if (q) {
+        const escaped = escapeIlike(q);
+        queryBuilder = queryBuilder.or(
+          `name.ilike.%${escaped}%,username.ilike.%${escaped}%,location.ilike.%${escaped}%`
+        );
+      }
+
+      // Local-only mode: stricter match (city AND neighborhood when neighborhood exists)
+      if (peopleFilter === 'local' && city) {
+        queryBuilder = queryBuilder.ilike('location', `%${escapeIlike(city)}%`);
+        if (neighborhood) {
+          queryBuilder = queryBuilder.ilike('location', `%${escapeIlike(neighborhood)}%`);
+        }
+      }
+
+      const { data, error } = await queryBuilder;
 
       if (error) {
         console.log('[People Search] Error:', JSON.stringify(error));
         setDbUsers([]);
+        setPeopleHasMore(false);
         return;
       }
 
       const usersArray = data || [];
       console.log('[People Search] Raw data count:', usersArray.length);
 
-      // Filter and transform in one pass
-      const searchLower = query.trim().toLowerCase();
       const transformedUsers: SearchablePerson[] = [];
-      const selectedLocationLower = (selectedLocation || '').toLowerCase();
-
-      let i = 0;
-      while (i < usersArray.length) {
-        const user = usersArray[i];
-        i++;
-
-        // Exclude current user
-        if (currentUser?.id && user.id === currentUser.id) continue;
-
-        // If there's a search query, filter by it
-        if (searchLower) {
-          const userName = user.name || '';
-          const userUsername = user.username || '';
-          const userLocation = user.location || '';
-
-          const nameMatch = userName.toLowerCase().indexOf(searchLower) >= 0;
-          const usernameMatch = userUsername.toLowerCase().indexOf(searchLower) >= 0;
-          const locationMatch = userLocation.toLowerCase().indexOf(searchLower) >= 0;
-
-          if (!nameMatch && !usernameMatch && !locationMatch) {
-            continue;
-          }
-        }
-
-        // Determine if user is local
-        const userLocationLower = (user.location || '').toLowerCase();
-        let isLocal = false;
-        if (selectedLocationLower && userLocationLower) {
-          isLocal = userLocationLower.indexOf(selectedLocationLower) >= 0 ||
-                    selectedLocationLower.indexOf(userLocationLower) >= 0;
-        }
+      for (const user of usersArray) {
+        const userLocationLower = String(user.location || '').toLowerCase();
+        const cityLower = city.toLowerCase();
+        const neighborhoodLower = neighborhood.toLowerCase();
+        const isLocalByCity = !!cityLower && userLocationLower.includes(cityLower);
+        const isLocalByNeighborhood = !!neighborhoodLower && userLocationLower.includes(neighborhoodLower);
+        const isLocal = cityLower ? (neighborhoodLower ? (isLocalByCity && isLocalByNeighborhood) : isLocalByCity) : false;
 
         // Build avatar URL
         const userName = user.name || 'U';
@@ -663,20 +676,35 @@ export default function AppSearchScreen() {
       }
 
       console.log('[People Search] Found', transformedUsers.length, 'users');
-      setDbUsers(transformedUsers);
+      setDbUsers((prev) => (reset ? transformedUsers : [...prev, ...transformedUsers]));
+      const got = transformedUsers.length;
+      const nextOffset = (reset ? 0 : peopleOffset) + got;
+      setPeopleOffset(nextOffset);
+      setPeopleHasMore(got === PEOPLE_PAGE_SIZE);
     } catch (error) {
       console.log('[People Search] Exception:', String(error));
       setDbUsers([]);
+      setPeopleHasMore(false);
     } finally {
       setIsLoadingPeople(false);
+      setPeopleLoadingMore(false);
     }
-  }, [activeTab, currentUser?.id, selectedLocation]);
+  }, [
+    activeTab,
+    currentUser?.id,
+    selectedLocation?.city,
+    selectedLocation?.neighborhood,
+    peopleFilter,
+    peopleOffset,
+    peopleHasMore,
+    peopleLoadingMore,
+  ]);
 
   // Search users when tab changes to people or when search query changes
   useEffect(() => {
     if (activeTab === 'people') {
       const debounceTimer = setTimeout(() => {
-        searchUsers(searchQuery);
+        searchUsers(searchQuery, { reset: true });
       }, 300);
       return () => clearTimeout(debounceTimer);
     }
@@ -710,7 +738,8 @@ export default function AppSearchScreen() {
     if (peopleFilter === 'local') {
       return dbUsers.filter(person => person.isLocal);
     } else if (peopleFilter === 'global') {
-      return dbUsers.filter(person => !person.isLocal);
+      // "Global" should still show everyone, but prioritize non-local matches first.
+      return [...dbUsers].sort((a, b) => Number(!!a.isLocal) - Number(!!b.isLocal));
     }
     return dbUsers;
   }, [dbUsers, peopleFilter]);
@@ -722,12 +751,76 @@ export default function AppSearchScreen() {
 
   const handlePersonPress = (person: SearchablePerson) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    router.push(`/user/${person.id}`);
+    router.push(`/profile/${person.id}` as any);
   };
 
   const handleConnectPress = (personId: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     // Handle connect logic
+  };
+
+  const renderPersonCard = (person: SearchablePerson, index: number) => {
+    return (
+      <Animated.View entering={FadeInDown.delay(index * 40).springify()}>
+        <Pressable onPress={() => handlePersonPress(person)} className="mb-3">
+          <View className="p-4 bg-white/5 rounded-2xl border border-white/10">
+            <View className="flex-row items-start">
+              {/* Avatar */}
+              <View className="relative">
+                <Image source={{ uri: person.avatar }} style={{ width: 56, height: 56, borderRadius: 28 }} />
+                {person.isVerified && (
+                  <View className="absolute -bottom-1 -right-1 bg-blue-500 rounded-full p-0.5">
+                    <BadgeCheck size={14} color="#FFFFFF" />
+                  </View>
+                )}
+              </View>
+
+              {/* Info */}
+              <View className="flex-1 ml-3">
+                <View className="flex-row items-center">
+                  <Text className="text-white font-semibold text-base">{person.name}</Text>
+                </View>
+                <Text className="text-gray-500 text-sm">@{person.username}</Text>
+                <Text className="text-gray-400 text-sm mt-1" numberOfLines={1}>
+                  {person.bio}
+                </Text>
+
+                {/* Location */}
+                <View className="flex-row items-center mt-2">
+                  {person.isLocal ? <MapPin size={12} color="#10B981" /> : <Globe size={12} color="#3B82F6" />}
+                  <Text className={`text-xs ml-1 ${person.isLocal ? 'text-emerald-400' : 'text-blue-400'}`}>
+                    {person.location}
+                  </Text>
+                  {person.mutualConnections && person.mutualConnections > 0 && (
+                    <View className="flex-row items-center ml-3">
+                      <Users size={12} color="#9CA3AF" />
+                      <Text className="text-gray-500 text-xs ml-1">{person.mutualConnections} mutual</Text>
+                    </View>
+                  )}
+                </View>
+
+                {/* Interests */}
+                <View className="flex-row flex-wrap gap-1.5 mt-2">
+                  {person.interests.slice(0, 3).map((interest) => (
+                    <View key={interest} className="bg-white/10 px-2 py-0.5 rounded-full">
+                      <Text className="text-gray-400 text-xs">{interest}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+
+              {/* Connect Button */}
+              <Pressable onPress={() => handleConnectPress(person.id)} className="bg-[#D4673A] px-3 py-2 rounded-full">
+                <View className="flex-row items-center">
+                  <UserPlus size={14} color="#FFFFFF" />
+                  <Text className="text-white text-xs font-semibold ml-1">Connect</Text>
+                </View>
+              </Pressable>
+            </View>
+          </View>
+        </Pressable>
+      </Animated.View>
+    );
   };
 
   return (
@@ -860,8 +953,8 @@ export default function AppSearchScreen() {
         </View>
 
         {/* Results */}
-        <ScrollView className="flex-1 px-5" showsVerticalScrollIndicator={false}>
-          {activeTab === 'features' ? (
+        {activeTab === 'features' ? (
+          <ScrollView className="flex-1 px-5" showsVerticalScrollIndicator={false}>
             <>
               {/* "Extra tiles" (photo tiles like your reference) */}
               {!searchQuery && selectedCategory === 'All' && (
@@ -997,117 +1090,62 @@ export default function AppSearchScreen() {
                 </View>
               )}
             </>
-          ) : (
-            <>
-              {/* People Search Results */}
-              {isLoadingPeople ? (
-                <View className="items-center py-12">
-                  <ActivityIndicator size="large" color="#D4673A" />
-                  <Text className="text-gray-500 text-sm mt-4">Searching for people...</Text>
-                </View>
-              ) : (
-                <>
-                  <Text className="text-gray-500 text-sm mb-3">
+          </ScrollView>
+        ) : (
+          <FlatList
+            data={filteredPeople}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item, index }) => renderPersonCard(item, index)}
+            contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 30 }}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            onEndReachedThreshold={0.35}
+            onEndReached={() => {
+              if (isLoadingPeople || peopleLoadingMore) return;
+              if (!peopleHasMore) return;
+              searchUsers(searchQuery, { reset: false });
+            }}
+            ListHeaderComponent={
+              <View style={{ paddingTop: 2, paddingBottom: 12 }}>
+                {isLoadingPeople ? (
+                  <View className="items-center py-10">
+                    <ActivityIndicator size="large" color="#D4673A" />
+                    <Text className="text-gray-500 text-sm mt-4">Searching for people...</Text>
+                  </View>
+                ) : (
+                  <Text className="text-gray-500 text-sm mb-2">
                     {filteredPeople.length} {filteredPeople.length === 1 ? 'person' : 'people'} found
                   </Text>
-
-                  {filteredPeople.map((person, index) => (
-                <Animated.View
-                  key={person.id}
-                  entering={FadeInDown.delay(index * 40).springify()}
-                >
-                  <Pressable
-                    onPress={() => handlePersonPress(person)}
-                    className="mb-3"
-                  >
-                    <View className="p-4 bg-white/5 rounded-2xl border border-white/10">
-                      <View className="flex-row items-start">
-                        {/* Avatar */}
-                        <View className="relative">
-                          <Image
-                            source={{ uri: person.avatar }}
-                            style={{ width: 56, height: 56, borderRadius: 28 }}
-                          />
-                          {person.isVerified && (
-                            <View className="absolute -bottom-1 -right-1 bg-blue-500 rounded-full p-0.5">
-                              <BadgeCheck size={14} color="#FFFFFF" />
-                            </View>
-                          )}
-                        </View>
-
-                        {/* Info */}
-                        <View className="flex-1 ml-3">
-                          <View className="flex-row items-center">
-                            <Text className="text-white font-semibold text-base">{person.name}</Text>
-                          </View>
-                          <Text className="text-gray-500 text-sm">@{person.username}</Text>
-                          <Text className="text-gray-400 text-sm mt-1" numberOfLines={1}>
-                            {person.bio}
-                          </Text>
-
-                          {/* Location */}
-                          <View className="flex-row items-center mt-2">
-                            {person.isLocal ? (
-                              <MapPin size={12} color="#10B981" />
-                            ) : (
-                              <Globe size={12} color="#3B82F6" />
-                            )}
-                            <Text className={`text-xs ml-1 ${person.isLocal ? 'text-emerald-400' : 'text-blue-400'}`}>
-                              {person.location}, {person.country}
-                            </Text>
-                            {person.mutualConnections && person.mutualConnections > 0 && (
-                              <View className="flex-row items-center ml-3">
-                                <Users size={12} color="#9CA3AF" />
-                                <Text className="text-gray-500 text-xs ml-1">
-                                  {person.mutualConnections} mutual
-                                </Text>
-                              </View>
-                            )}
-                          </View>
-
-                          {/* Interests */}
-                          <View className="flex-row flex-wrap gap-1.5 mt-2">
-                            {person.interests.slice(0, 3).map((interest) => (
-                              <View key={interest} className="bg-white/10 px-2 py-0.5 rounded-full">
-                                <Text className="text-gray-400 text-xs">{interest}</Text>
-                              </View>
-                            ))}
-                          </View>
-                        </View>
-
-                        {/* Connect Button */}
-                        <Pressable
-                          onPress={() => handleConnectPress(person.id)}
-                          className="bg-[#D4673A] px-3 py-2 rounded-full"
-                        >
-                          <View className="flex-row items-center">
-                            <UserPlus size={14} color="#FFFFFF" />
-                            <Text className="text-white text-xs font-semibold ml-1">Connect</Text>
-                          </View>
-                        </Pressable>
-                      </View>
-                    </View>
-                  </Pressable>
-                </Animated.View>
-              ))}
-
-                  {/* No Results */}
-                  {filteredPeople.length === 0 && (
-                    <View className="items-center py-12">
-                      <Users size={48} color="#374151" />
-                      <Text className="text-gray-500 text-lg mt-4">No people found</Text>
-                      <Text className="text-gray-600 text-sm mt-1 text-center px-8">
-                        Try searching by name, location, or interests
-                      </Text>
-                    </View>
-                  )}
-                </>
-              )}
-            </>
-          )}
-
-          <View className="h-8" />
-        </ScrollView>
+                )}
+              </View>
+            }
+            ListEmptyComponent={
+              isLoadingPeople ? null : (
+                <View className="items-center py-12">
+                  <Users size={48} color="#374151" />
+                  <Text className="text-gray-500 text-lg mt-4">No people found</Text>
+                  <Text className="text-gray-600 text-sm mt-1 text-center px-8">
+                    Try searching by name, location, or interests
+                  </Text>
+                </View>
+              )
+            }
+            ListFooterComponent={
+              <View style={{ paddingTop: 10, paddingBottom: 10 }}>
+                {peopleLoadingMore ? (
+                  <View className="items-center py-4">
+                    <ActivityIndicator size="small" color="#D4673A" />
+                    <Text className="text-gray-500 text-sm mt-2">Loading more…</Text>
+                  </View>
+                ) : !peopleHasMore && filteredPeople.length > 0 ? (
+                  <View className="items-center py-4">
+                    <Text className="text-gray-600 text-sm">You’ve reached the end.</Text>
+                  </View>
+                ) : null}
+              </View>
+            }
+          />
+        )}
       </SafeAreaView>
     </View>
   );

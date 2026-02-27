@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useEffect, useState, useRef } from 'react';
 import { AppState, AppStateStatus, View } from 'react-native';
-import { requestNotificationPermissions } from '@/lib/notifications';
+import { addNotificationResponseListener, requestNotificationPermissions } from '@/lib/notifications';
 import { syncPushTokenFromStore } from '@/lib/pushTokens';
 import { useMessageNotifications } from '@/lib/useMessageNotifications';
 import { useCommunityNotifications } from '@/lib/useCommunityNotifications';
@@ -53,6 +53,45 @@ function RootLayoutNav() {
     requestNotificationPermissions();
     // Clear any invalid auth sessions on startup to prevent refresh token errors
     clearInvalidSession();
+  }, []);
+
+  // Handle notification taps (deep-links)
+  useEffect(() => {
+    const sub = addNotificationResponseListener((response) => {
+      try {
+        const data: any = response?.notification?.request?.content?.data || {};
+        const type = String(data?.type || '');
+        if (type === 'event' && data?.eventId) {
+          router.push(`/event/${String(data.eventId)}` as any);
+          return;
+        }
+        if (type === 'post' && data?.postId) {
+          router.push(`/post/${String(data.postId)}` as any);
+          return;
+        }
+        if (type === 'new_post' && data?.postId) {
+          router.push(`/post/${String(data.postId)}` as any);
+          return;
+        }
+        if (type === 'connection_request') {
+          router.push('/connect' as any);
+          return;
+        }
+        if (type === 'talk_request' && data?.requesterId) {
+          router.push({
+            pathname: `/chat/${String(data.requesterId)}` as any,
+            params: {
+              recipientId: String(data.requesterId),
+              talkSessionId: data?.talkSessionId ? String(data.talkSessionId) : undefined,
+            },
+          });
+          return;
+        }
+      } catch {}
+    });
+    return () => {
+      sub.remove();
+    };
   }, []);
 
   // Best-effort sync of remote push token whenever user/location/notification pref changes
