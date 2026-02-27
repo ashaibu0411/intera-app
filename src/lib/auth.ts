@@ -3,6 +3,30 @@ import { useStore } from './store';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { Platform } from 'react-native';
 
+function normalizePhoneE164(input: string): string {
+  const raw = (input || '').trim();
+  if (!raw) return '';
+
+  // Convert common international prefix "00" → "+"
+  const withPlus = raw.startsWith('00') ? `+${raw.slice(2)}` : raw;
+
+  // Keep leading + if present, strip all other non-digits
+  const normalized =
+    (withPlus.startsWith('+') ? '+' : '') +
+    withPlus.replace(/^\+/, '').replace(/[^\d]/g, '');
+
+  // Basic E.164 sanity checks: + then 8-15 digits (E.164 max is 15)
+  if (!normalized.startsWith('+')) {
+    throw new Error('Please enter a valid phone number with country code (e.g., +14155552671).');
+  }
+  const digits = normalized.slice(1);
+  if (digits.length < 8 || digits.length > 15) {
+    throw new Error('Please enter a valid phone number with country code (e.g., +14155552671).');
+  }
+
+  return normalized;
+}
+
 export async function isAppleAuthAvailable(): Promise<boolean> {
   if (Platform.OS !== 'ios') return false;
 
@@ -163,9 +187,10 @@ export async function signInWithEmail(email: string, password: string) {
 
 export async function signUpWithPhone(phone: string, name: string) {
   const username = 'user_' + Math.random().toString(36).substring(2, 10);
+  const normalizedPhone = normalizePhoneE164(phone);
 
   const { data, error } = await supabase.auth.signInWithOtp({
-    phone,
+    phone: normalizedPhone,
     options: {
       data: {
         name,
@@ -179,8 +204,9 @@ export async function signUpWithPhone(phone: string, name: string) {
 }
 
 export async function verifyOtp(phone: string, token: string) {
+  const normalizedPhone = normalizePhoneE164(phone);
   const { data, error } = await supabase.auth.verifyOtp({
-    phone,
+    phone: normalizedPhone,
     token,
     type: 'sms',
   });

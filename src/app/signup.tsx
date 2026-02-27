@@ -208,7 +208,10 @@ export default function SignUpScreen() {
     setError(null);
 
     try {
-      await signUpWithPhone(phone, authMode === 'signup' ? communityName : '');
+      // signUpWithPhone normalizes to E.164; store normalized form so verify uses the same phone string
+      const normalized = phone.trim();
+      await signUpWithPhone(normalized, authMode === 'signup' ? communityName : '');
+      setPhone(normalized);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setPhoneStep('otp');
     } catch (err: unknown) {
@@ -237,7 +240,7 @@ export default function SignUpScreen() {
     setError(null);
 
     try {
-      const data = await verifyOtp(phone, otp);
+      const data = await verifyOtp(phone.trim(), otp);
 
       if (data.user) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
