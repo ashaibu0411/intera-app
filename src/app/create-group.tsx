@@ -8,6 +8,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
@@ -30,6 +31,7 @@ import {
   Heart,
 } from 'lucide-react-native';
 import { useStore } from '@/lib/store';
+import { createGroup, updateGroup, uploadGroupImageUri } from '@/lib/groups-api';
 
 type GroupCategory = 'church' | 'mosque' | 'temple' | 'synagogue' | 'community' | 'association' | 'other';
 type GroupVisibility = 'public' | 'private';
@@ -93,39 +95,55 @@ export default function CreateGroupScreen() {
       return;
     }
 
+    if (!selectedLocation?.city) {
+      Alert.alert('Select location', 'Please select a city for your group first.');
+      return;
+    }
+
     setIsCreating(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     try {
-      // In real implementation, call createGroup API
-      // const group = await createGroup({
-      //   creator_id: currentUser.id,
-      //   name: name.trim(),
-      //   description: description.trim() || null,
-      //   image_url: imageUri,
-      //   cover_url: null,
-      //   category,
-      //   faith_type: faithType,
-      //   visibility,
-      //   country: selectedLocation?.country || 'USA',
-      //   admin_area: selectedLocation?.state || null,
-      //   city: selectedLocation?.city || '',
-      //   neighborhood: selectedLocation?.neighborhood || null,
-      //   location_label: selectedLocation?.city
-      //     ? `${selectedLocation.city}, ${selectedLocation.state || selectedLocation.country}`
-      //     : '',
-      //   contact_phone: contactPhone.trim() || null,
-      //   contact_email: contactEmail.trim() || null,
-      //   website: website.trim() || null,
-      // });
+      const locationLabel = `${selectedLocation.city}, ${selectedLocation.state || selectedLocation.country}`;
 
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const created = await createGroup({
+        creator_id: currentUser.id,
+        name: name.trim(),
+        description: description.trim() || null,
+        image_url: null, // upload after create so we can use real groupId
+        cover_url: null,
+        category,
+        faith_type: faithType,
+        visibility,
+        country: selectedLocation.country || 'USA',
+        admin_area: selectedLocation.state || null,
+        city: selectedLocation.city,
+        neighborhood: selectedLocation.neighborhood || null,
+        location_label: locationLabel,
+        contact_phone: contactPhone.trim() || null,
+        contact_email: contactEmail.trim() || null,
+        website: website.trim() || null,
+      });
+
+      if (!created?.id) throw new Error('Failed to create group');
+
+      // Upload group image (best-effort). Never store a local file:// uri in DB.
+      if (imageUri) {
+        const uploadedImageUrl = await uploadGroupImageUri({
+          userId: currentUser.id,
+          groupId: created.id,
+          uri: imageUri,
+          kind: 'group_image',
+        });
+        if (uploadedImageUrl) {
+          await updateGroup(created.id, { image_url: uploadedImageUrl });
+        }
+      }
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
       // Navigate to the new group
-      router.replace('/faith-community');
+      router.replace(`/group/${created.id}` as never);
     } catch (error) {
       console.error('Error creating group:', error);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -134,7 +152,7 @@ export default function CreateGroupScreen() {
     }
   };
 
-  const canCreate = name.trim().length >= 3;
+  const canCreate = name.trim().length >= 3 && !!selectedLocation?.city;
 
   return (
     <View className="flex-1 bg-cream">

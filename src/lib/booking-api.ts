@@ -390,13 +390,9 @@ export async function getBusinessBookingSettings(businessId: string): Promise<Db
     .from('business_booking_settings')
     .select('*')
     .eq('business_id', businessId)
-    .single();
+    .maybeSingle();
 
   if (error) {
-    if (error.code === 'PGRST116') {
-      // No settings found, return null
-      return null;
-    }
     console.error('Error fetching booking settings:', error);
     return null;
   }
@@ -669,12 +665,6 @@ export async function createAppointment(appointment: {
     console.error('Error creating appointment:', error);
     return null;
   }
-
-  // Increment total bookings count for the business
-  await supabase
-    .from('business_booking_settings')
-    .update({ total_bookings_received: supabase.rpc('increment_bookings', { business_id: appointment.business_id }) })
-    .eq('business_id', appointment.business_id);
 
   return data as DbAppointment;
 }

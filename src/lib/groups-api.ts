@@ -1,4 +1,6 @@
 import { supabase } from './supabase';
+import { Platform } from 'react-native';
+import { decode } from 'base64-arraybuffer';
 import type {
   DbGroup,
   DbGroupMember,
@@ -9,6 +11,93 @@ import type {
   DbGroupPhoto,
   DbGroupFile,
 } from './supabase';
+
+function isRemoteHttpUrl(uri: string) {
+  return typeof uri === 'string' && (uri.startsWith('http://') || uri.startsWith('https://'));
+}
+
+async function readUriAsArrayBuffer(uri: string): Promise<{ body: ArrayBuffer; sizeBytes: number } | null> {
+  try {
+    if (Platform.OS === 'web') {
+      const resp = await fetch(uri);
+      const blob = await resp.blob();
+      if (!blob || blob.size < 20) return null;
+      return { body: await blob.arrayBuffer(), sizeBytes: blob.size };
+    }
+
+    const FileSystem = await import('expo-file-system');
+    const info = await FileSystem.getInfoAsync(uri, { size: true });
+    if (!info.exists) return null;
+    const base64 = await FileSystem.readAsStringAsync(uri, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+    if (!base64 || base64.length < 20) return null;
+    const body = decode(base64);
+    const sizeBytes = typeof info.size === 'number' ? info.size : body.byteLength;
+    return { body, sizeBytes };
+  } catch (e) {
+    console.log('[groups-api] Failed reading uri:', e);
+    return null;
+  }
+}
+
+async function uploadToBucketPublicUrl(params: {
+  bucket: string;
+  objectPath: string;
+  uri: string;
+  contentType: string;
+  maxBytes?: number;
+}): Promise<string | null> {
+  const { bucket, objectPath, uri, contentType, maxBytes = 15 * 1024 * 1024 } = params;
+  if (!uri || isRemoteHttpUrl(uri)) return uri || null;
+
+  const file = await readUriAsArrayBuffer(uri);
+  if (!file) return null;
+  if (file.sizeBytes > maxBytes) return null;
+
+  const { error } = await supabase.storage.from(bucket).upload(objectPath, file.body, {
+    contentType,
+    upsert: false,
+  });
+  if (error) {
+    const msg = String((error as any)?.message ?? error);
+    const status = Number((error as any)?.statusCode ?? (error as any)?.status ?? 0);
+    console.log('[groups-api] Upload error:', { bucket, status, msg });
+    return null;
+  }
+
+  const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(objectPath);
+  return urlData.publicUrl;
+}
+
+export async function uploadGroupImageUri(params: {
+  userId: string;
+  groupId: string;
+  uri: string;
+  kind: 'group_image' | 'group_cover' | 'post_image' | 'album_photo';
+}): Promise<string | null> {
+  const { userId, groupId, uri, kind } = params;
+  if (!uri || isRemoteHttpUrl(uri)) return uri || null;
+
+  const uriLower = uri.toLowerCase();
+  const extMatch = uriLower.match(/\.(png|jpe?g|webp)(?:$|\?|#)/);
+  const ext = extMatch?.[1] || 'jpg';
+  const contentType =
+    ext === 'png' ? 'image/png'
+    : ext === 'webp' ? 'image/webp'
+    : 'image/jpeg';
+
+  const objectPath = `groups/${groupId}/${kind}/${userId}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext === 'jpeg' ? 'jpg' : ext}`;
+
+  // Prefer the group-media bucket; if not deployed yet, gracefully fail.
+  return await uploadToBucketPublicUrl({
+    bucket: 'group-media',
+    objectPath,
+    uri,
+    contentType,
+    maxBytes: 20 * 1024 * 1024,
+  });
+}
 
 // Extended Group Settings interface
 export interface GroupSettings {
@@ -164,7 +253,7 @@ export async function createGroup(group: Omit<DbGroup, 'id' | 'member_count' | '
       ...group,
       member_count: 1,
     })
-    .select('*, creator:users!creator_id(*)')
+    .select('*')
     .single();
 
   if (error) {

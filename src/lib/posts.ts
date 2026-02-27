@@ -1,15 +1,25 @@
 import { supabase, DbPost, DbComment } from './supabase';
-import * as FileSystem from 'expo-file-system';
+import { Platform } from 'react-native';
 import { decode } from 'base64-arraybuffer';
 import { notifyCommunityAboutNewPost } from './communityNotifications';
 
 // Upload image to Supabase Storage
 export async function uploadImage(uri: string, userId: string): Promise<string | null> {
   try {
-    // Read the file as base64
-    const base64 = await FileSystem.readAsStringAsync(uri, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
+    let body: ArrayBuffer;
+
+    if (Platform.OS === 'web') {
+      const resp = await fetch(uri);
+      const blob = await resp.blob();
+      if (!blob || blob.size < 20) return null;
+      body = await blob.arrayBuffer();
+    } else {
+      const FileSystem = await import('expo-file-system');
+      const base64 = await FileSystem.readAsStringAsync(uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      body = decode(base64);
+    }
 
     // Generate unique filename
     const fileExt = uri.split('.').pop()?.toLowerCase() || 'jpg';
@@ -19,7 +29,7 @@ export async function uploadImage(uri: string, userId: string): Promise<string |
     // Upload to Supabase Storage
     const { data, error } = await supabase.storage
       .from('post-images')
-      .upload(fileName, decode(base64), {
+      .upload(fileName, body, {
         contentType,
         upsert: false,
       });
@@ -50,17 +60,35 @@ export async function uploadVideo(uri: string, userId: string): Promise<string |
     }
 
     // Guardrail: videos can be large; avoid OOM by capping size
-    const info = await FileSystem.getInfoAsync(uri, { size: true });
-    const sizeBytes = typeof info.size === 'number' ? info.size : 0;
-    const MAX_BYTES = 100 * 1024 * 1024; // 100MB (increased from 20MB)
-    if (sizeBytes > MAX_BYTES) {
-      console.log(`[Posts] Video too large to upload (${sizeBytes} bytes). Maximum allowed: ${MAX_BYTES} bytes (100MB).`);
-      return null;
-    }
+    let sizeBytes = 0;
+    let body: ArrayBuffer;
 
-    const base64 = await FileSystem.readAsStringAsync(uri, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
+    if (Platform.OS === 'web') {
+      const resp = await fetch(uri);
+      const blob = await resp.blob();
+      sizeBytes = blob?.size ?? 0;
+      const MAX_BYTES = 100 * 1024 * 1024; // 100MB
+      if (sizeBytes > MAX_BYTES) {
+        console.log(`[Posts] Video too large to upload (${sizeBytes} bytes). Maximum allowed: ${MAX_BYTES} bytes (100MB).`);
+        return null;
+      }
+      body = await blob.arrayBuffer();
+      if (!body || body.byteLength < 100) return null;
+    } else {
+      const FileSystem = await import('expo-file-system');
+      const info = await FileSystem.getInfoAsync(uri, { size: true });
+      sizeBytes = typeof info.size === 'number' ? info.size : 0;
+      const MAX_BYTES = 100 * 1024 * 1024; // 100MB
+      if (sizeBytes > MAX_BYTES) {
+        console.log(`[Posts] Video too large to upload (${sizeBytes} bytes). Maximum allowed: ${MAX_BYTES} bytes (100MB).`);
+        return null;
+      }
+
+      const base64 = await FileSystem.readAsStringAsync(uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      body = decode(base64);
+    }
 
     const fileExt = uri.split('.').pop()?.toLowerCase() || 'mp4';
     const fileName = `${userId}/${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
@@ -71,7 +99,7 @@ export async function uploadVideo(uri: string, userId: string): Promise<string |
 
     const { error } = await supabase.storage
       .from('post-videos')
-      .upload(fileName, decode(base64), {
+      .upload(fileName, body, {
         contentType,
         upsert: false,
       });

@@ -107,7 +107,7 @@ export default function ProfileSetupScreen() {
 
     try {
       // Update profile in Supabase
-      await updateProfile(currentUser.id, {
+      const updated = await updateProfile(currentUser.id, {
         avatar_url: selectedAvatar,
         bio: bio,
         interests: selectedInterests,
@@ -115,9 +115,10 @@ export default function ProfileSetupScreen() {
       });
 
       // Update local state
+      const nextAvatar = (updated as any)?.avatar_url || selectedAvatar;
       setCurrentUser({
         ...currentUser,
-        avatar: selectedAvatar,
+        avatar: nextAvatar,
         bio: bio,
         interests: selectedInterests,
         location: selectedLocation ? `${selectedLocation.city}, ${selectedLocation.country}` : currentUser.location,

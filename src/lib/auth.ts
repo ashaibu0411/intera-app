@@ -2,6 +2,86 @@ import { supabase } from './supabase';
 import { useStore } from './store';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { Platform } from 'react-native';
+import { decode } from 'base64-arraybuffer';
+
+function isRemoteHttpUrl(uri: string) {
+  return typeof uri === 'string' && (uri.startsWith('http://') || uri.startsWith('https://'));
+}
+
+function isLikelyLocalUri(uri: string) {
+  if (!uri) return false;
+  return (
+    uri.startsWith('file://') ||
+    uri.startsWith('content://') ||
+    uri.startsWith('ph://') ||
+    uri.startsWith('assets-library://') ||
+    uri.startsWith('asset://')
+  );
+}
+
+async function uploadAvatar(userId: string, uri: string): Promise<string | null> {
+  try {
+    if (!uri || isRemoteHttpUrl(uri)) return uri || null;
+
+    const uriLower = uri.toLowerCase();
+    const extMatch = uriLower.match(/\.(png|jpe?g|webp)(?:$|\?|#)/);
+    const ext = extMatch?.[1] || 'jpg';
+    const contentType =
+      ext === 'png' ? 'image/png'
+      : ext === 'webp' ? 'image/webp'
+      : 'image/jpeg';
+
+    const objectPath = `${userId}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext === 'jpeg' ? 'jpg' : ext}`;
+
+    let body: ArrayBuffer;
+    if (Platform.OS === 'web') {
+      const resp = await fetch(uri);
+      const blob = await resp.blob();
+      if (!blob || blob.size < 20) return null;
+      body = await blob.arrayBuffer();
+    } else {
+      const FileSystem = await import('expo-file-system');
+      const info = await FileSystem.getInfoAsync(uri);
+      if (!info.exists) return null;
+      const base64 = await FileSystem.readAsStringAsync(uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      if (!base64 || base64.length < 20) return null;
+      body = decode(base64);
+    }
+
+    // Prefer a dedicated avatars bucket if it exists.
+    const preferredBucket = 'avatars';
+    const bucketsToTry = [preferredBucket, 'post-images'];
+
+    for (const bucket of bucketsToTry) {
+      const { error } = await supabase.storage.from(bucket).upload(objectPath, body, {
+        contentType,
+        upsert: false,
+      });
+
+      if (!error) {
+        const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(objectPath);
+        return urlData.publicUrl;
+      }
+
+      const msg = String((error as any)?.message ?? error);
+      const status = Number((error as any)?.statusCode ?? (error as any)?.status ?? 0);
+      console.log('[auth] Avatar upload failed:', { bucket, status, msg });
+
+      // If this looks like a missing-bucket error, fall through to try the next bucket.
+      const lower = msg.toLowerCase();
+      const missingBucket =
+        status === 404 || (lower.includes('bucket') && (lower.includes('not') || lower.includes('missing')));
+      if (!missingBucket) break;
+    }
+
+    return null;
+  } catch (e) {
+    console.log('[auth] Avatar upload error:', e);
+    return null;
+  }
+}
 
 function normalizePhoneE164(input: string): string {
   const raw = (input || '').trim();
@@ -281,15 +361,52 @@ export async function updateProfile(userId: string, updates: {
   location?: string;
   interests?: string[];
 }) {
-  const { data, error } = await supabase
+  const payload: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(updates || {})) {
+    if (v !== undefined) payload[k] = v;
+  }
+
+  if (typeof payload.avatar_url === 'string') {
+    const avatarUri = payload.avatar_url as string;
+    if (isLikelyLocalUri(avatarUri) || !isRemoteHttpUrl(avatarUri)) {
+      const uploaded = await uploadAvatar(userId, avatarUri);
+      if (uploaded && isRemoteHttpUrl(uploaded)) payload.avatar_url = uploaded;
+      else delete payload.avatar_url; // don't write local file:// URIs into the DB
+    }
+  }
+
+  // First attempt: write as-is
+  const first = await supabase
     .from('profiles')
-    .update(updates)
+    .update(payload)
     .eq('id', userId)
     .select()
     .single();
 
-  if (error) throw error;
-  return data;
+  if (!first.error) return first.data;
+
+  // Fallback: some older schemas store interests as text (not array/json). Drop it if it causes a 400.
+  const msg = String((first.error as any)?.message ?? first.error);
+  const status = Number((first.error as any)?.status ?? (first.error as any)?.statusCode ?? 0);
+  const looksLikeInterestsIssue =
+    (status === 400 || msg.includes('400')) &&
+    ('interests' in payload) &&
+    (msg.toLowerCase().includes('interests') || msg.toLowerCase().includes('array') || msg.toLowerCase().includes('json'));
+
+  if (looksLikeInterestsIssue) {
+    const { interests: _ignored, ...withoutInterests } = payload as any;
+    const retry = await supabase
+      .from('profiles')
+      .update(withoutInterests)
+      .eq('id', userId)
+      .select()
+      .single();
+
+    if (!retry.error) return retry.data;
+    throw retry.error;
+  }
+
+  throw first.error;
 }
 
 export function onAuthStateChange(callback: (user: any) => void) {

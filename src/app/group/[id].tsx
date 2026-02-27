@@ -64,6 +64,7 @@ import {
   leaveGroup,
   getGroupSettings,
   requestToJoinGroup,
+  uploadGroupImageUri,
   type GroupSettings,
   DEFAULT_GROUP_SETTINGS,
 } from '@/lib/groups-api';
@@ -412,18 +413,31 @@ export default function GroupDetailScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     try {
+      const uploadedImages = (
+        await Promise.all(
+          (newPostImages || []).map((uri) =>
+            uploadGroupImageUri({
+              userId: currentUser.id,
+              groupId: id,
+              uri,
+              kind: 'post_image',
+            }),
+          ),
+        )
+      ).filter((u): u is string => typeof u === 'string' && u.length > 0);
+
       // Create post via API
       const newPost = await createGroupPost({
         group_id: id,
         author_id: currentUser.id,
         content: newPostContent,
-        images: newPostImages,
+        images: uploadedImages,
         is_notice: false,
         is_pinned: false,
       });
 
       if (newPost) {
-        setPosts([newPost, ...posts]);
+        setPosts((prev) => [newPost, ...prev]);
         setNewPostContent('');
         setNewPostImages([]);
         setShowPostModal(false);
