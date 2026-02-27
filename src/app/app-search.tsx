@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { View, Text, ScrollView, Pressable, TextInput, ActivityIndicator, FlatList } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
@@ -584,6 +584,12 @@ export default function AppSearchScreen() {
 
   const escapeIlike = (input: string) => input.replace(/[%_]/g, '\\$&');
 
+  const peopleReqIdRef = useRef(0);
+  const peopleQueryKeyRef = useRef('');
+  const peopleLoadingMoreRef = useRef(false);
+  const buildPeopleKey = (q: string, filter: PeopleFilter, city: string, neighborhood: string) =>
+    `${q}::${filter}::${city}::${neighborhood}`;
+
   // Fetch users from database
   const searchUsers = useCallback(async (query: string, opts?: { reset?: boolean }) => {
     if (activeTab !== 'people') return;
@@ -593,19 +599,33 @@ export default function AppSearchScreen() {
     const city = (selectedLocation?.city || '').trim();
     const neighborhood = (selectedLocation?.neighborhood || '').trim();
 
+    const queryKey = buildPeopleKey(q, peopleFilter, city, neighborhood);
+    const reqId = reset ? ++peopleReqIdRef.current : peopleReqIdRef.current;
+    if (reset) peopleQueryKeyRef.current = queryKey;
+
     if (reset) {
+      // Keep current results visible while searching to avoid flicker.
       setIsLoadingPeople(true);
       setPeopleOffset(0);
       setPeopleHasMore(true);
+      peopleLoadingMoreRef.current = false;
     } else {
       if (!peopleHasMore || peopleLoadingMore) return;
+      if (peopleLoadingMoreRef.current) return;
       setPeopleLoadingMore(true);
+      peopleLoadingMoreRef.current = true;
     }
     try {
+      // Ignore stale "load more" calls if query/filter/location changed
+      if (!reset && peopleQueryKeyRef.current !== queryKey) return;
+
       // Server-side search for real users (fast + scalable)
       let queryBuilder = supabase
         .from('profiles')
         .select('id, name, username, avatar_url, bio, location')
+        // Stable ordering is critical for correct pagination.
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: true })
         .range(
           (reset ? 0 : peopleOffset),
           (reset ? 0 : peopleOffset) + PEOPLE_PAGE_SIZE - 1
@@ -634,9 +654,13 @@ export default function AppSearchScreen() {
 
       const { data, error } = await queryBuilder;
 
+      // Drop stale responses when typing fast
+      if (peopleQueryKeyRef.current !== queryKey) return;
+      if (reqId !== peopleReqIdRef.current) return;
+
       if (error) {
         console.log('[People Search] Error:', JSON.stringify(error));
-        setDbUsers([]);
+        if (reset) setDbUsers([]);
         setPeopleHasMore(false);
         return;
       }
@@ -676,18 +700,34 @@ export default function AppSearchScreen() {
       }
 
       console.log('[People Search] Found', transformedUsers.length, 'users');
-      setDbUsers((prev) => (reset ? transformedUsers : [...prev, ...transformedUsers]));
+      setDbUsers((prev) => {
+        if (reset) return transformedUsers;
+        // Dedupe by id to prevent React key collisions if pages overlap.
+        const seen = new Set(prev.map((u) => u.id));
+        const next = [...prev];
+        for (const u of transformedUsers) {
+          if (!seen.has(u.id)) {
+            seen.add(u.id);
+            next.push(u);
+          }
+        }
+        return next;
+      });
       const got = transformedUsers.length;
       const nextOffset = (reset ? 0 : peopleOffset) + got;
       setPeopleOffset(nextOffset);
       setPeopleHasMore(got === PEOPLE_PAGE_SIZE);
     } catch (error) {
       console.log('[People Search] Exception:', String(error));
-      setDbUsers([]);
+      if (reset) setDbUsers([]);
       setPeopleHasMore(false);
     } finally {
-      setIsLoadingPeople(false);
-      setPeopleLoadingMore(false);
+      // Only the latest request should affect loading flags (prevents flicker).
+      if (peopleQueryKeyRef.current === queryKey && reqId === peopleReqIdRef.current) {
+        setIsLoadingPeople(false);
+        setPeopleLoadingMore(false);
+        peopleLoadingMoreRef.current = false;
+      }
     }
   }, [
     activeTab,
@@ -761,7 +801,7 @@ export default function AppSearchScreen() {
 
   const renderPersonCard = (person: SearchablePerson, index: number) => {
     return (
-      <Animated.View entering={FadeInDown.delay(index * 40).springify()}>
+      <View>
         <Pressable onPress={() => handlePersonPress(person)} className="mb-3">
           <View className="p-4 bg-white/5 rounded-2xl border border-white/10">
             <View className="flex-row items-start">
@@ -819,7 +859,7 @@ export default function AppSearchScreen() {
             </View>
           </View>
         </Pressable>
-      </Animated.View>
+      </View>
     );
   };
 
@@ -1107,16 +1147,17 @@ export default function AppSearchScreen() {
             }}
             ListHeaderComponent={
               <View style={{ paddingTop: 2, paddingBottom: 12 }}>
-                {isLoadingPeople ? (
-                  <View className="items-center py-10">
-                    <ActivityIndicator size="large" color="#D4673A" />
-                    <Text className="text-gray-500 text-sm mt-4">Searching for people...</Text>
-                  </View>
-                ) : (
-                  <Text className="text-gray-500 text-sm mb-2">
+                <View className="flex-row items-center justify-between">
+                  <Text className="text-gray-500 text-sm">
                     {filteredPeople.length} {filteredPeople.length === 1 ? 'person' : 'people'} found
                   </Text>
-                )}
+                  {isLoadingPeople ? (
+                    <View className="flex-row items-center">
+                      <ActivityIndicator size="small" color="#D4673A" />
+                      <Text className="text-gray-500 text-sm ml-2">Searching…</Text>
+                    </View>
+                  ) : null}
+                </View>
               </View>
             }
             ListEmptyComponent={

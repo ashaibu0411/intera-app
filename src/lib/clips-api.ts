@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import { supabase } from './supabase';
 
 export interface DbClip {
@@ -244,56 +245,79 @@ export async function uploadClipVideo(
 
     console.log('[clips-api] Starting video upload:', { videoUri, fileName, contentType });
 
-    // Use FileSystem to read the file as base64 - more reliable than fetch() for local files
-    const FileSystem = await import('expo-file-system');
+    let body: ArrayBuffer;
 
-    // Verify the file exists and get its info
-    const fileInfo = await FileSystem.getInfoAsync(videoUri);
-    if (!fileInfo.exists) {
-      console.error('[clips-api] Video file does not exist:', videoUri);
-      return null;
-    }
-    console.log('[clips-api] File info:', { size: fileInfo.size, uri: fileInfo.uri });
+    if (Platform.OS === 'web') {
+      // On web, expo-file-system isn't available. Fetch the blob/arrayBuffer instead.
+      const resp = await fetch(videoUri);
+      body = await resp.arrayBuffer();
+      if (!body || body.byteLength < 100) return null;
+    } else {
+      // Use FileSystem to read the file as base64 - more reliable than fetch() for local files
+      const FileSystem = await import('expo-file-system');
 
-    // Read file as base64
-    const base64Data = await FileSystem.readAsStringAsync(videoUri, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
+      // Verify the file exists and get its info
+      const fileInfo = await FileSystem.getInfoAsync(videoUri);
+      if (!fileInfo.exists) {
+        console.error('[clips-api] Video file does not exist:', videoUri);
+        return null;
+      }
+      console.log('[clips-api] File info:', { size: fileInfo.size, uri: fileInfo.uri });
 
-    if (!base64Data || base64Data.length < 100) {
-      console.error('[clips-api] Failed to read video file or file is too small');
-      return null;
-    }
-
-    console.log('[clips-api] Read video file, base64 length:', base64Data.length);
-
-    // Convert base64 to ArrayBuffer for upload
-    const binaryString = atob(base64Data);
-    const bytes = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
-    }
-
-    console.log('[clips-api] Converted to bytes, uploading to Supabase...');
-
-    const { data, error } = await supabase.storage
-      .from('clips')
-      .upload(fileName, bytes.buffer, {
-        contentType,
-        upsert: false,
+      // Read file as base64
+      const base64Data = await FileSystem.readAsStringAsync(videoUri, {
+        encoding: FileSystem.EncodingType.Base64,
       });
+
+      if (!base64Data || base64Data.length < 100) {
+        console.error('[clips-api] Failed to read video file or file is too small');
+        return null;
+      }
+
+      console.log('[clips-api] Read video file, base64 length:', base64Data.length);
+
+      // Convert base64 to ArrayBuffer for upload
+      const binaryString = atob(base64Data);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      body = bytes.buffer;
+    }
+
+    console.log('[clips-api] Uploading to Supabase...');
+
+    const { error } = await supabase.storage.from('clips').upload(fileName, body, {
+      contentType,
+      upsert: false,
+    });
 
     if (error) {
       console.error('[clips-api] Error uploading video:', error);
-      return null;
+      const msg = String((error as any)?.message ?? error);
+      const status = Number((error as any)?.statusCode ?? (error as any)?.status ?? 0);
+      const lower = msg.toLowerCase();
+      if (status === 404 || lower.includes('bucket') && lower.includes('not')) {
+        throw new Error(
+          "Clips upload isn't set up on the server yet. In Supabase: Storage → create bucket 'clips' (Public) and add upload policies (or run the clips storage SQL migration)."
+        );
+      }
+      if (status === 401 || status === 403 || lower.includes('row-level security') || lower.includes('not authorized') || lower.includes('unauthorized')) {
+        throw new Error(
+          "You can't upload clips yet. Make sure you're signed in and that Supabase Storage policies allow authenticated uploads to bucket 'clips'."
+        );
+      }
+      throw new Error('Upload failed. Please try again.');
     }
 
     console.log('[clips-api] Upload successful:', fileName);
 
     // Store the object path in DB (more robust than storing a public URL).
     return fileName;
-  } catch (error) {
+  } catch (error: any) {
     console.error('[clips-api] Error in uploadClipVideo:', error);
+    // Preserve the useful error message for the UI.
+    if (error?.message) throw error;
     return null;
   }
 }
@@ -305,19 +329,39 @@ export async function uploadClipThumbnail(
 ): Promise<string | null> {
   try {
     const fileName = `${userId}/thumb_${Date.now()}.jpg`;
+    let body: ArrayBuffer;
 
-    const response = await fetch(imageUri);
-    const blob = await response.blob();
+    if (Platform.OS === 'web') {
+      const resp = await fetch(imageUri);
+      body = await resp.arrayBuffer();
+      if (!body || body.byteLength < 20) return null;
+    } else {
+      const FileSystem = await import('expo-file-system');
+      const info = await FileSystem.getInfoAsync(imageUri);
+      if (!info.exists) {
+        console.error('[clips-api] Thumbnail file does not exist:', imageUri);
+        return null;
+      }
 
-    const { data, error } = await supabase.storage
-      .from('clips')
-      .upload(fileName, blob, {
-        contentType: 'image/jpeg',
-        upsert: false,
+      // Read file as base64 (more reliable for Android file:// URIs than fetch(blob))
+      const base64Data = await FileSystem.readAsStringAsync(imageUri, {
+        encoding: FileSystem.EncodingType.Base64,
       });
+      if (!base64Data || base64Data.length < 20) return null;
+
+      const binaryString = atob(base64Data);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
+      body = bytes.buffer;
+    }
+
+    const { error } = await supabase.storage.from('clips').upload(fileName, body, {
+      contentType: 'image/jpeg',
+      upsert: false,
+    });
 
     if (error) {
-      console.error('Error uploading thumbnail:', error);
+      console.error('[clips-api] Error uploading thumbnail:', error);
       return null;
     }
 
@@ -327,7 +371,7 @@ export async function uploadClipThumbnail(
 
     return publicUrl.publicUrl;
   } catch (error) {
-    console.error('Error in uploadClipThumbnail:', error);
+    console.error('[clips-api] Error in uploadClipThumbnail:', error);
     return null;
   }
 }

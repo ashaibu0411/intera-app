@@ -423,12 +423,7 @@ export default function CreateClipScreen() {
     try {
       setUploadProgress(10);
       const videoPath = await uploadClipVideo(currentUser.id, videoUri!);
-
-      if (!videoPath) {
-        throw new Error(
-          "Upload failed. Please make sure your Supabase Storage bucket 'clips' exists and your Storage policies allow uploads, then try again."
-        );
-      }
+      if (!videoPath) throw new Error('Upload failed. Please try again.');
 
       setUploadProgress(60);
 
