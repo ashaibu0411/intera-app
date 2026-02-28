@@ -395,7 +395,11 @@ export default function ServeConnectScreen() {
                 }`}
               >
                 <View className="flex-row items-center">
-                  {mode === 'helpers' ? <View className="mr-2">{category.icon}</View> : null}
+                  {mode === 'helpers' ? (
+                    <Text className="mr-2 text-gray-400">
+                      {String(category.icon || '')}
+                    </Text>
+                  ) : null}
                   <Text
                     className={`font-medium ${
                       selectedCategory === category.id ? 'text-white' : 'text-gray-600'

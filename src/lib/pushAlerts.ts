@@ -39,4 +39,3 @@ export async function sendDirectPushAlert(payload: {
     // best-effort
   }
 }
-

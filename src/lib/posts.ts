@@ -1,7 +1,15 @@
-import { supabase, DbPost, DbComment } from './supabase';
+import { supabase, DbPost, DbComment, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase';
 import { Platform } from 'react-native';
 import { decode } from 'base64-arraybuffer';
 import { notifyCommunityAboutNewPost } from './communityNotifications';
+
+function encodePath(path: string) {
+  // encode each segment but keep slashes
+  return path
+    .split('/')
+    .map((s) => encodeURIComponent(s))
+    .join('/');
+}
 
 // Upload image to Supabase Storage
 export async function uploadImage(uri: string, userId: string): Promise<string | null> {
@@ -59,37 +67,6 @@ export async function uploadVideo(uri: string, userId: string): Promise<string |
       return uri;
     }
 
-    // Guardrail: videos can be large; avoid OOM by capping size
-    let sizeBytes = 0;
-    let body: ArrayBuffer;
-
-    if (Platform.OS === 'web') {
-      const resp = await fetch(uri);
-      const blob = await resp.blob();
-      sizeBytes = blob?.size ?? 0;
-      const MAX_BYTES = 100 * 1024 * 1024; // 100MB
-      if (sizeBytes > MAX_BYTES) {
-        console.log(`[Posts] Video too large to upload (${sizeBytes} bytes). Maximum allowed: ${MAX_BYTES} bytes (100MB).`);
-        return null;
-      }
-      body = await blob.arrayBuffer();
-      if (!body || body.byteLength < 100) return null;
-    } else {
-      const FileSystem = await import('expo-file-system');
-      const info = await FileSystem.getInfoAsync(uri, { size: true });
-      sizeBytes = typeof info.size === 'number' ? info.size : 0;
-      const MAX_BYTES = 100 * 1024 * 1024; // 100MB
-      if (sizeBytes > MAX_BYTES) {
-        console.log(`[Posts] Video too large to upload (${sizeBytes} bytes). Maximum allowed: ${MAX_BYTES} bytes (100MB).`);
-        return null;
-      }
-
-      const base64 = await FileSystem.readAsStringAsync(uri, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-      body = decode(base64);
-    }
-
     const fileExt = uri.split('.').pop()?.toLowerCase() || 'mp4';
     const fileName = `${userId}/${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
     const contentType =
@@ -97,16 +74,69 @@ export async function uploadVideo(uri: string, userId: string): Promise<string |
       : fileExt === 'webm' ? 'video/webm'
       : 'video/mp4';
 
-    const { error } = await supabase.storage
-      .from('post-videos')
-      .upload(fileName, body, {
-        contentType,
-        upsert: false,
+    // Guardrail: videos can be large; avoid OOM by capping size
+    const MAX_BYTES = 150 * 1024 * 1024; // 150MB (native can handle larger with streaming upload)
+
+    if (Platform.OS === 'web') {
+      // Web: blob upload is fine
+      const resp = await fetch(uri);
+      const blob = await resp.blob();
+      const sizeBytes = blob?.size ?? 0;
+      if (sizeBytes > MAX_BYTES) {
+        console.log(`[Posts] Video too large to upload (${sizeBytes} bytes). Maximum allowed: ${MAX_BYTES} bytes.`);
+        return null;
+      }
+      const body = await blob.arrayBuffer();
+      if (!body || body.byteLength < 100) return null;
+
+      const { error } = await supabase.storage
+        .from('post-videos')
+        .upload(fileName, body, {
+          contentType,
+          // Avoid rare 400 "Asset Already Exists" collisions on retries.
+          upsert: true,
+        });
+
+      if (error) {
+        console.log('Video upload error:', error);
+        return null;
+      }
+    } else {
+      // Native: stream file upload to avoid base64 memory blowups on large videos
+      const FileSystem = await import('expo-file-system');
+      const info = await FileSystem.getInfoAsync(uri, { size: true });
+      const sizeBytes = typeof info.size === 'number' ? info.size : 0;
+      if (sizeBytes > MAX_BYTES) {
+        console.log(`[Posts] Video too large to upload (${sizeBytes} bytes). Maximum allowed: ${MAX_BYTES} bytes.`);
+        return null;
+      }
+
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+      if (!accessToken) {
+        console.log('[Posts] No access token available for upload.');
+        return null;
+      }
+
+      const objectPath = encodePath(fileName);
+      const uploadUrl = `${SUPABASE_URL}/storage/v1/object/post-videos/${objectPath}`;
+
+      const result = await FileSystem.uploadAsync(uploadUrl, uri, {
+        httpMethod: 'POST',
+        uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          apikey: SUPABASE_ANON_KEY,
+          'content-type': contentType,
+          // Supabase uses this header to overwrite instead of returning 400 AssetAlreadyExists
+          'x-upsert': 'true',
+        },
       });
 
-    if (error) {
-      console.log('Video upload error:', error);
-      return null;
+      if (result.status !== 200 && result.status !== 201) {
+        console.log('[Posts] Native video upload failed:', { status: result.status, body: result.body });
+        return null;
+      }
     }
 
     const { data: urlData } = supabase.storage.from('post-videos').getPublicUrl(fileName);

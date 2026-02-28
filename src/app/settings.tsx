@@ -61,7 +61,15 @@ export default function SettingsScreen() {
           .eq('id', user.id);
 
         if (error) {
-          console.log('[Settings] Error updating online status:', error);
+          const msg = String((error as any)?.message ?? error);
+          const code = String((error as any)?.code ?? '');
+          // If the column doesn't exist yet (migration not deployed), don't block the UI.
+          if (code === 'PGRST204' || code === '42703' || msg.toLowerCase().includes('show_online_status')) {
+            console.log('[Settings] Online status column not deployed yet.');
+            setShowOnlineStatus(value);
+          } else {
+            console.log('[Settings] Error updating online status:', error);
+          }
         } else {
           setShowOnlineStatus(value);
         }

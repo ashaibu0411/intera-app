@@ -35,6 +35,12 @@ export async function hasLocationPermissions(): Promise<boolean> {
 // Get current location with reverse geocoding
 export async function detectCurrentLocation(): Promise<DetectedLocation | null> {
   try {
+    // On web, expo-location's reverseGeocodeAsync is not available (SDK 49+ warning).
+    // We still allow location selection via the dedicated picker, so skip here.
+    if (Platform.OS === 'web') {
+      return null;
+    }
+
     // Check permissions first
     const hasPermission = await hasLocationPermissions();
     if (!hasPermission) {
