@@ -65,6 +65,9 @@ import {
   getGroupSettings,
   requestToJoinGroup,
   uploadGroupImageUri,
+  uploadGroupVideoUri,
+  createGroupAlbum,
+  addMediaToAlbum,
   type GroupSettings,
   DEFAULT_GROUP_SETTINGS,
 } from '@/lib/groups-api';
@@ -239,6 +242,8 @@ export default function GroupDetailScreen() {
   const [newAlbumName, setNewAlbumName] = useState('');
   const [newAlbumDescription, setNewAlbumDescription] = useState('');
   const [isCreatingAlbum, setIsCreatingAlbum] = useState(false);
+  const [selectedAlbumIdForUpload, setSelectedAlbumIdForUpload] = useState<string | null>(null);
+  const [creatingNewAlbum, setCreatingNewAlbum] = useState(albums.length === 0);
   // Search and members modal state
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [showMembersModal, setShowMembersModal] = useState(false);
@@ -300,6 +305,12 @@ export default function GroupDetailScreen() {
   useEffect(() => {
     loadGroupData();
   }, [loadGroupData]);
+
+  useEffect(() => {
+    if (!showAlbumModal) return;
+    setCreatingNewAlbum(albums.length === 0);
+    setSelectedAlbumIdForUpload(albums[0]?.id || null);
+  }, [showAlbumModal, albums]);
 
   const handleRefresh = () => {
     setIsRefreshing(true);
@@ -1289,21 +1300,100 @@ export default function GroupDetailScreen() {
                   setIsCreatingAlbum(true);
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-                  // Pick images
-                  const result = await ImagePicker.launchImageLibraryAsync({
-                    mediaTypes: ImagePicker.MediaTypeOptions.All,
-                    allowsMultipleSelection: true,
-                    quality: 0.8,
-                    selectionLimit: 10,
-                  });
+                  try {
+                    // Create a new album if needed
+                    let albumId = selectedAlbumIdForUpload;
+                    if (creatingNewAlbum) {
+                      const name = (newAlbumName || '').trim();
+                      if (name.length < 2) {
+                        Alert.alert('Album name required', 'Please enter an album name.');
+                        return;
+                      }
+                      const created = await createGroupAlbum({
+                        group_id: id,
+                        creator_id: currentUser.id,
+                        name,
+                        description: (newAlbumDescription || '').trim() || null,
+                        cover_url: null,
+                      });
+                      if (!created?.id) {
+                        Alert.alert('Error', 'Could not create album. Please try again.');
+                        return;
+                      }
+                      albumId = created.id;
+                      setAlbums((prev) => [created, ...prev]);
+                      setSelectedAlbumIdForUpload(created.id);
+                    }
 
-                  if (!result.canceled && result.assets.length > 0) {
-                    // For now, show success message - actual upload to be implemented
-                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                    Alert.alert('Success', `Selected ${result.assets.length} file(s). Upload functionality coming soon!`);
-                    setShowAlbumModal(false);
+                    if (!albumId) {
+                      Alert.alert('Select an album', 'Please select an album to upload to.');
+                      return;
+                    }
+
+                    // Pick media
+                    const result = await ImagePicker.launchImageLibraryAsync({
+                      mediaTypes: ImagePicker.MediaTypeOptions.All,
+                      allowsMultipleSelection: true,
+                      quality: 0.8,
+                      selectionLimit: 10,
+                      videoMaxDuration: 180,
+                    });
+
+                    if (result.canceled || !result.assets?.length) return;
+
+                    let uploaded = 0;
+                    for (const asset of result.assets) {
+                      const assetType = (asset as any)?.type || '';
+                      const isVideo = assetType === 'video' || String(asset?.uri || '').toLowerCase().includes('.mp4');
+                      const uri = asset.uri;
+                      const caption = (asset as any)?.fileName || null;
+
+                      let url: string | null = null;
+                      if (isVideo) {
+                        url = await uploadGroupVideoUri({
+                          userId: currentUser.id,
+                          groupId: id,
+                          albumId,
+                          uri,
+                          kind: 'album_video',
+                        });
+                      } else {
+                        url = await uploadGroupImageUri({
+                          userId: currentUser.id,
+                          groupId: id,
+                          uri,
+                          kind: 'album_photo',
+                        });
+                      }
+
+                      if (!url) continue;
+
+                      const saved = await addMediaToAlbum({
+                        album_id: albumId,
+                        uploader_id: currentUser.id,
+                        url,
+                        type: isVideo ? 'video' : 'photo',
+                        thumbnail_url: null,
+                        caption,
+                      });
+                      if (saved) uploaded += 1;
+                    }
+
+                    if (uploaded > 0) {
+                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                      // Refresh albums counts + cover URLs (simple reload)
+                      const refreshed = await getGroupAlbums(id);
+                      setAlbums(refreshed || []);
+                      setShowAlbumModal(false);
+                      setNewAlbumName('');
+                      setNewAlbumDescription('');
+                    } else {
+                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                      Alert.alert('Upload failed', 'No media was uploaded. Please try again.');
+                    }
+                  } finally {
+                    setIsCreatingAlbum(false);
                   }
-                  setIsCreatingAlbum(false);
                 }}
                 disabled={isCreatingAlbum}
                 className="px-4 py-2 rounded-full bg-forest-600"
@@ -1316,29 +1406,88 @@ export default function GroupDetailScreen() {
               </Pressable>
             </View>
 
-            <View className="flex-1 p-4 items-center justify-center">
-              <View className="bg-gray-50 rounded-2xl p-8 items-center w-full">
-                <View className="w-20 h-20 rounded-full bg-forest-100 items-center justify-center mb-4">
-                  <ImageIcon size={36} color="#166534" />
-                </View>
-                <Text className="text-lg font-semibold text-gray-900 text-center">
-                  Add Photos & Videos
-                </Text>
-                <Text className="text-gray-500 text-center mt-2">
-                  Select photos and videos from your library to share with the group
-                </Text>
-                <View className="flex-row items-center mt-4">
-                  <View className="flex-row items-center bg-gray-100 rounded-full px-3 py-1.5 mr-2">
-                    <ImageIcon size={14} color="#6B7280" />
-                    <Text className="text-gray-600 text-sm ml-1.5">Photos</Text>
+            <ScrollView className="flex-1 p-4" keyboardShouldPersistTaps="handled">
+              {/* Album selection / creation */}
+              {albums.length > 0 && (
+                <View className="bg-gray-50 rounded-2xl p-4">
+                  <Text className="text-gray-900 font-semibold">Upload to</Text>
+                  <View className="flex-row mt-3" style={{ gap: 10 }}>
+                    <Pressable
+                      onPress={() => setCreatingNewAlbum(false)}
+                      className={`flex-1 rounded-full px-4 py-2 ${!creatingNewAlbum ? 'bg-forest-600' : 'bg-white'}`}
+                    >
+                      <Text className={`${!creatingNewAlbum ? 'text-white' : 'text-gray-700'} font-semibold text-center`}>
+                        Existing album
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => setCreatingNewAlbum(true)}
+                      className={`flex-1 rounded-full px-4 py-2 ${creatingNewAlbum ? 'bg-forest-600' : 'bg-white'}`}
+                    >
+                      <Text className={`${creatingNewAlbum ? 'text-white' : 'text-gray-700'} font-semibold text-center`}>
+                        New album
+                      </Text>
+                    </Pressable>
                   </View>
-                  <View className="flex-row items-center bg-gray-100 rounded-full px-3 py-1.5">
-                    <Video size={14} color="#6B7280" />
-                    <Text className="text-gray-600 text-sm ml-1.5">Videos</Text>
-                  </View>
+
+                  {!creatingNewAlbum && (
+                    <View className="mt-4">
+                      {albums.slice(0, 6).map((a) => (
+                        <Pressable
+                          key={a.id}
+                          onPress={() => setSelectedAlbumIdForUpload(a.id)}
+                          className="flex-row items-center py-3 border-b border-gray-200"
+                        >
+                          <View
+                            className={`w-5 h-5 rounded-full border-2 mr-3 items-center justify-center ${
+                              selectedAlbumIdForUpload === a.id ? 'bg-forest-600 border-forest-600' : 'border-gray-300'
+                            }`}
+                          >
+                            {selectedAlbumIdForUpload === a.id ? <Check size={14} color="#FFFFFF" /> : null}
+                          </View>
+                          <View className="flex-1">
+                            <Text className="text-gray-900 font-medium" numberOfLines={1}>{a.name}</Text>
+                            <Text className="text-gray-500 text-xs mt-0.5">{a.photo_count} items</Text>
+                          </View>
+                        </Pressable>
+                      ))}
+                      {albums.length > 6 && (
+                        <Text className="text-gray-500 text-xs mt-2">
+                          Tip: open an album to upload more.
+                        </Text>
+                      )}
+                    </View>
+                  )}
                 </View>
-              </View>
-            </View>
+              )}
+
+              {creatingNewAlbum && (
+                <View className="bg-white rounded-2xl p-4 mt-4 border border-gray-100">
+                  <Text className="text-gray-900 font-semibold">New album</Text>
+                  <TextInput
+                    placeholder="Album name (e.g., Sunday Service)"
+                    placeholderTextColor="#9CA3AF"
+                    value={newAlbumName}
+                    onChangeText={setNewAlbumName}
+                    className="bg-gray-50 rounded-xl px-4 py-3 text-gray-900 mt-3"
+                  />
+                  <TextInput
+                    placeholder="Description (optional)"
+                    placeholderTextColor="#9CA3AF"
+                    value={newAlbumDescription}
+                    onChangeText={setNewAlbumDescription}
+                    multiline
+                    className="bg-gray-50 rounded-xl px-4 py-3 text-gray-900 mt-3 min-h-[90px]"
+                    style={{ textAlignVertical: 'top' }}
+                  />
+                  <Text className="text-gray-500 text-xs mt-2">
+                    You’ll pick photos/videos next.
+                  </Text>
+                </View>
+              )}
+
+              <View className="h-16" />
+            </ScrollView>
           </SafeAreaView>
         </Modal>
 

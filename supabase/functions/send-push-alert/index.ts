@@ -5,6 +5,10 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 type Scope = 'neighborhood' | 'city' | 'global';
 
+function uniq<T>(arr: T[]) {
+  return Array.from(new Set(arr));
+}
+
 Deno.serve(async (req) => {
   try {
     const body = await req.json();
@@ -16,6 +20,8 @@ Deno.serve(async (req) => {
     const excludeUserId: string | null = body.excludeUserId ?? null;
     const recipientUserId: string | null = body.recipientUserId ?? null;
     const data: Record<string, unknown> = body.data ?? {};
+    const type: string = String((body.type ?? (data as any)?.type ?? 'alert') || 'alert');
+    const actorId: string | null = body.actorId ?? (data as any)?.actorId ?? null;
 
     if (!title || !message) {
       return new Response(JSON.stringify({ error: 'Missing title/body' }), { status: 400 });
@@ -53,6 +59,25 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: error.message }), { status: 500 });
     }
 
+    const userIds = uniq((rows || []).map((r: any) => r.user_id).filter(Boolean));
+
+    // Write in-app notifications (best-effort; service role bypasses RLS)
+    try {
+      if (userIds.length > 0) {
+        const inserts = userIds.map((uid: string) => ({
+          recipient_id: uid,
+          actor_id: actorId,
+          type,
+          title,
+          body: message.length > 500 ? message.slice(0, 500) + '…' : message,
+          data,
+        }));
+        await supabase.from('notifications').insert(inserts);
+      }
+    } catch {
+      // ignore (table may not be deployed yet)
+    }
+
     const tokens = (rows || []).map((r: any) => r.token).filter(Boolean);
     if (tokens.length === 0) {
       return new Response(JSON.stringify({ ok: true, sent: 0 }), { status: 200 });
@@ -87,7 +112,7 @@ Deno.serve(async (req) => {
       if (resp.ok) sent += chunk.length;
     }
 
-    return new Response(JSON.stringify({ ok: true, sent }), { status: 200 });
+    return new Response(JSON.stringify({ ok: true, sent, recipients: userIds.length }), { status: 200 });
   } catch (e) {
     return new Response(JSON.stringify({ error: String(e) }), { status: 500 });
   }

@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { supabase, SUPABASE_ANON_KEY, SUPABASE_URL } from './supabase';
 import { Platform } from 'react-native';
 import { decode } from 'base64-arraybuffer';
 import type {
@@ -97,6 +97,92 @@ export async function uploadGroupImageUri(params: {
     contentType,
     maxBytes: 20 * 1024 * 1024,
   });
+}
+
+function encodePath(path: string) {
+  return path
+    .split('/')
+    .map((s) => encodeURIComponent(s))
+    .join('/');
+}
+
+export async function uploadGroupVideoUri(params: {
+  userId: string;
+  groupId: string;
+  albumId?: string;
+  uri: string;
+  kind: 'album_video';
+}): Promise<string | null> {
+  const { userId, groupId, albumId, uri, kind } = params;
+  if (!uri || isRemoteHttpUrl(uri)) return uri || null;
+
+  const MAX_BYTES = 150 * 1024 * 1024;
+  const uriLower = uri.toLowerCase();
+  const extMatch = uriLower.match(/\.(mp4|mov|webm)(?:$|\?|#)/);
+  const ext = extMatch?.[1] || 'mp4';
+  const contentType =
+    ext === 'mov' ? 'video/quicktime'
+    : ext === 'webm' ? 'video/webm'
+    : 'video/mp4';
+
+  const objectPathRaw = `groups/${groupId}/${kind}/${albumId || 'no-album'}/${userId}/${Date.now()}_${Math.random()
+    .toString(36)
+    .slice(2)}.${ext}`;
+
+  if (Platform.OS === 'web') {
+    const resp = await fetch(uri);
+    const blob = await resp.blob();
+    const sizeBytes = blob?.size ?? 0;
+    if (sizeBytes > MAX_BYTES) return null;
+    const body = await blob.arrayBuffer();
+    if (!body || body.byteLength < 100) return null;
+
+    const { error } = await supabase.storage.from('group-media').upload(objectPathRaw, body, {
+      contentType,
+      upsert: false,
+    });
+    if (error) return null;
+    const { data: urlData } = supabase.storage.from('group-media').getPublicUrl(objectPathRaw);
+    return urlData.publicUrl;
+  }
+
+  const FileSystem = await import('expo-file-system');
+  const info = await FileSystem.getInfoAsync(uri, { size: true });
+  const sizeBytes = typeof info.size === 'number' ? info.size : 0;
+  if (sizeBytes > MAX_BYTES) return null;
+
+  const { data: sessionData } = await supabase.auth.getSession();
+  const accessToken = sessionData?.session?.access_token;
+  if (!accessToken) return null;
+
+  const objectPath = encodePath(objectPathRaw);
+  const uploadUrl = `${SUPABASE_URL}/storage/v1/object/group-media/${objectPath}`;
+
+  const result = await FileSystem.uploadAsync(uploadUrl, uri, {
+    httpMethod: 'POST',
+    uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      apikey: SUPABASE_ANON_KEY,
+      'content-type': contentType,
+      'x-upsert': 'false',
+    },
+  });
+
+  if (result.status !== 200 && result.status !== 201) return null;
+  const { data: urlData } = supabase.storage.from('group-media').getPublicUrl(objectPathRaw);
+  return urlData.publicUrl;
+}
+
+export async function getGroupAlbum(albumId: string): Promise<DbGroupAlbum | null> {
+  const { data, error } = await supabase
+    .from('group_albums')
+    .select('*, creator:profiles!creator_id(*)')
+    .eq('id', albumId)
+    .single();
+
+  if (error) return null;
+  return data as DbGroupAlbum;
 }
 
 // Extended Group Settings interface
@@ -274,7 +360,7 @@ export async function updateGroup(groupId: string, updates: Partial<DbGroup>): P
     .from('groups')
     .update({ ...updates, updated_at: new Date().toISOString() })
     .eq('id', groupId)
-    .select('*, creator:users!creator_id(*)')
+    .select('*, creator:profiles!creator_id(*)')
     .single();
 
   if (error) {
@@ -302,7 +388,7 @@ export async function deleteGroup(groupId: string): Promise<boolean> {
 export async function getGroupMembers(groupId: string, limit = 100): Promise<DbGroupMember[]> {
   const { data, error } = await supabase
     .from('group_members')
-    .select('*, user:users!user_id(*)')
+    .select('*, user:profiles!user_id(*)')
     .eq('group_id', groupId)
     .order('joined_at', { ascending: true })
     .limit(limit);
@@ -317,7 +403,7 @@ export async function getGroupMembers(groupId: string, limit = 100): Promise<DbG
 export async function getGroupMember(groupId: string, userId: string): Promise<DbGroupMember | null> {
   const { data, error } = await supabase
     .from('group_members')
-    .select('*, user:users!user_id(*)')
+    .select('*, user:profiles!user_id(*)')
     .eq('group_id', groupId)
     .eq('user_id', userId)
     .single();
@@ -336,7 +422,7 @@ export async function joinGroup(groupId: string, userId: string, role: 'admin' |
       user_id: userId,
       role,
     })
-    .select('*, user:users!user_id(*)')
+    .select('*, user:profiles!user_id(*)')
     .single();
 
   if (error) {
@@ -385,7 +471,7 @@ export async function updateMemberRole(groupId: string, userId: string, role: 'a
 export async function getUserGroups(userId: string): Promise<DbGroup[]> {
   const { data, error } = await supabase
     .from('group_members')
-    .select('group:groups!group_id(*, creator:users!creator_id(*))')
+    .select('group:groups!group_id(*, creator:profiles!creator_id(*))')
     .eq('user_id', userId);
 
   if (error) {
@@ -402,7 +488,7 @@ export async function getUserGroups(userId: string): Promise<DbGroup[]> {
 export async function getGroupPosts(groupId: string, limit = 50): Promise<DbGroupPost[]> {
   const { data, error } = await supabase
     .from('group_posts')
-    .select('*, author:users!author_id(*)')
+    .select('*, author:profiles!author_id(*)')
     .eq('group_id', groupId)
     .order('is_pinned', { ascending: false })
     .order('created_at', { ascending: false })
@@ -418,7 +504,7 @@ export async function getGroupPosts(groupId: string, limit = 50): Promise<DbGrou
 export async function getGroupNotices(groupId: string, limit = 10): Promise<DbGroupPost[]> {
   const { data, error } = await supabase
     .from('group_posts')
-    .select('*, author:users!author_id(*)')
+    .select('*, author:profiles!author_id(*)')
     .eq('group_id', groupId)
     .eq('is_notice', true)
     .order('created_at', { ascending: false })
@@ -439,7 +525,7 @@ export async function createGroupPost(post: Omit<DbGroupPost, 'id' | 'likes_coun
       likes_count: 0,
       comments_count: 0,
     })
-    .select('*, author:users!author_id(*)')
+    .select('*, author:profiles!author_id(*)')
     .single();
 
   if (error) {
@@ -509,7 +595,7 @@ export async function unlikeGroupPost(postId: string, userId: string): Promise<b
 export async function getPostComments(postId: string): Promise<DbGroupPostComment[]> {
   const { data, error } = await supabase
     .from('group_post_comments')
-    .select('*, author:users!author_id(*)')
+    .select('*, author:profiles!author_id(*)')
     .eq('post_id', postId)
     .order('created_at', { ascending: true });
 
@@ -524,7 +610,7 @@ export async function addPostComment(postId: string, authorId: string, content: 
   const { data, error } = await supabase
     .from('group_post_comments')
     .insert({ post_id: postId, author_id: authorId, content })
-    .select('*, author:users!author_id(*)')
+    .select('*, author:profiles!author_id(*)')
     .single();
 
   if (error) {
@@ -541,7 +627,7 @@ export async function addPostComment(postId: string, authorId: string, content: 
 export async function getGroupEvents(groupId: string, limit = 50): Promise<DbGroupEvent[]> {
   const { data, error } = await supabase
     .from('group_events')
-    .select('*, creator:users!creator_id(*)')
+    .select('*, creator:profiles!creator_id(*)')
     .eq('group_id', groupId)
     .gte('date', new Date().toISOString().split('T')[0])
     .order('date', { ascending: true })
@@ -558,7 +644,7 @@ export async function createGroupEvent(event: Omit<DbGroupEvent, 'id' | 'attende
   const { data, error } = await supabase
     .from('group_events')
     .insert({ ...event, attendees_count: 0 })
-    .select('*, creator:users!creator_id(*)')
+    .select('*, creator:profiles!creator_id(*)')
     .single();
 
   if (error) {
@@ -598,7 +684,7 @@ export async function rsvpToGroupEvent(eventId: string, userId: string, status: 
 export async function getGroupAlbums(groupId: string): Promise<DbGroupAlbum[]> {
   const { data, error } = await supabase
     .from('group_albums')
-    .select('*, creator:users!creator_id(*)')
+    .select('*, creator:profiles!creator_id(*)')
     .eq('group_id', groupId)
     .order('created_at', { ascending: false });
 
@@ -613,7 +699,7 @@ export async function createGroupAlbum(album: Omit<DbGroupAlbum, 'id' | 'photo_c
   const { data, error } = await supabase
     .from('group_albums')
     .insert({ ...album, photo_count: 0 })
-    .select('*, creator:users!creator_id(*)')
+    .select('*, creator:profiles!creator_id(*)')
     .single();
 
   if (error) {
@@ -639,7 +725,7 @@ export async function deleteGroupAlbum(albumId: string): Promise<boolean> {
 export async function getAlbumPhotos(albumId: string): Promise<DbGroupPhoto[]> {
   const { data, error } = await supabase
     .from('group_photos')
-    .select('*, uploader:users!uploader_id(*)')
+    .select('*, uploader:profiles!uploader_id(*)')
     .eq('album_id', albumId)
     .order('created_at', { ascending: false });
 
@@ -654,7 +740,7 @@ export async function addPhotoToAlbum(photo: Omit<DbGroupPhoto, 'id' | 'created_
   const { data, error } = await supabase
     .from('group_photos')
     .insert(photo)
-    .select('*, uploader:users!uploader_id(*)')
+    .select('*, uploader:profiles!uploader_id(*)')
     .single();
 
   if (error) {
@@ -686,7 +772,7 @@ export async function deletePhoto(photoId: string, albumId: string): Promise<boo
 export async function getGroupFiles(groupId: string): Promise<DbGroupFile[]> {
   const { data, error } = await supabase
     .from('group_files')
-    .select('*, uploader:users!uploader_id(*)')
+    .select('*, uploader:profiles!uploader_id(*)')
     .eq('group_id', groupId)
     .order('created_at', { ascending: false });
 
@@ -701,7 +787,7 @@ export async function uploadGroupFile(file: Omit<DbGroupFile, 'id' | 'created_at
   const { data, error } = await supabase
     .from('group_files')
     .insert(file)
-    .select('*, uploader:users!uploader_id(*)')
+    .select('*, uploader:profiles!uploader_id(*)')
     .single();
 
   if (error) {

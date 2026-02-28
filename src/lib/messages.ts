@@ -1,4 +1,5 @@
 import { supabase, DbMessage, DbConversation } from './supabase';
+import { sendDirectPushAlert } from './pushAlerts';
 
 // Get or create a conversation between two users
 export async function getOrCreateConversation(userId1: string, userId2: string) {
@@ -165,6 +166,30 @@ export async function sendMessage(conversationId: string, senderId: string, cont
     .from('conversations')
     .update({ updated_at: new Date().toISOString() })
     .eq('id', conversationId);
+
+  // Best-effort: send remote push + create in-app notification via Edge Function
+  try {
+    const { data: participants } = await supabase
+      .from('conversation_participants')
+      .select('user_id')
+      .eq('conversation_id', conversationId);
+    const other = (participants || []).map((p: any) => p.user_id).find((uid: string) => uid && uid !== authenticatedUserId);
+    if (other) {
+      await sendDirectPushAlert({
+        recipientUserId: other,
+        excludeUserId: authenticatedUserId,
+        title: `New message`,
+        body: content.length > 120 ? content.slice(0, 120) + '…' : content,
+        data: {
+          type: 'new_message',
+          conversationId,
+          senderId: authenticatedUserId,
+        },
+      });
+    }
+  } catch {
+    // best-effort
+  }
 
   return data;
 }

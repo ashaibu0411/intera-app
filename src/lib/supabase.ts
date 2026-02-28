@@ -192,6 +192,19 @@ export interface DbMessage {
   sender?: DbUser;
 }
 
+export interface DbNotification {
+  id: string;
+  recipient_id: string;
+  actor_id: string | null;
+  type: string;
+  title: string;
+  body: string;
+  data: Record<string, unknown>;
+  created_at: string;
+  read_at: string | null;
+  actor?: DbUser | null;
+}
+
 export interface DbMarketplaceListing {
   id: string;
   seller_id: string;

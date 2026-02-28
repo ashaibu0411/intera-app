@@ -100,6 +100,22 @@ function RootLayoutNav() {
           router.push('/my-orders' as any);
           return;
         }
+        if (type === 'new_message') {
+          // Prefer opening the conversation if we have it; otherwise open inbox.
+          const conversationId = data?.conversationId ? String(data.conversationId) : '';
+          const senderId = data?.senderId ? String(data.senderId) : '';
+          if (conversationId) {
+            router.push({
+              pathname: `/chat/${conversationId}` as any,
+              params: {
+                recipientId: senderId || undefined,
+              },
+            });
+            return;
+          }
+          router.push('/messages' as any);
+          return;
+        }
       } catch {}
     });
     return () => {
@@ -203,6 +219,7 @@ function RootLayoutNav() {
         <Stack.Screen name="profile/[id]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="group/[id]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="group/[id]/settings" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="group/[id]/album/[albumId]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="messages" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="notifications" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="search" options={{ animation: 'slide_from_right' }} />
