@@ -21,15 +21,24 @@ export interface GiftServiceResult {
 // Get or create user wallet
 export async function getOrCreateWallet(userId: string): Promise<DbUserWallet | null> {
   try {
+    // Only the user themselves can create/update their wallet under RLS.
+    const { data: auth } = await supabase.auth.getUser();
+    const authId = auth?.user?.id ?? null;
+
     // Try to get existing wallet
     const { data: existingWallet, error: fetchError } = await supabase
       .from('user_wallets')
       .select('*')
       .eq('user_id', userId)
-      .single();
+      .maybeSingle();
 
     if (existingWallet) {
       return existingWallet;
+    }
+
+    // If the requested wallet isn't the signed-in user, we can't create it client-side.
+    if (!authId || authId !== userId) {
+      return null;
     }
 
     // Create new wallet with 500 starting gems
@@ -67,84 +76,30 @@ export async function sendGift(params: SendGiftParams): Promise<GiftServiceResul
   const { senderId, senderName, recipientId, recipientName, giftId, giftName, giftValue, roomId, roomTitle } = params;
 
   try {
-    // Get sender's wallet
-    const senderWallet = await getOrCreateWallet(senderId);
-    if (!senderWallet) {
-      return { success: false, error: 'Could not access wallet' };
+    // Use secure RPC to avoid RLS issues (updates both wallets + records transaction).
+    const { data, error } = await supabase.rpc('send_gift', {
+      recipient_id: recipientId,
+      gift_id: giftId,
+      gift_name: giftName,
+      gift_value: giftValue,
+      room_id: roomId ?? null,
+      room_title: roomTitle ?? null,
+      sender_name: senderName ?? null,
+      recipient_name: recipientName ?? null,
+    });
+
+    if (error) {
+      const msg = String((error as any)?.message ?? error);
+      if (msg.toLowerCase().includes('insufficient')) return { success: false, error: 'Insufficient gems' };
+      if (msg.toLowerCase().includes('not authenticated')) return { success: false, error: 'Not authenticated' };
+      return { success: false, error: msg };
     }
 
-    // Check if sender has enough gems
-    if (senderWallet.gem_balance < giftValue) {
-      return { success: false, error: 'Insufficient gems' };
-    }
-
-    // Get recipient's wallet
-    const recipientWallet = await getOrCreateWallet(recipientId);
-    if (!recipientWallet) {
-      return { success: false, error: 'Recipient wallet not found' };
-    }
-
-    // Deduct from sender
-    const { error: senderUpdateError } = await supabase
-      .from('user_wallets')
-      .update({
-        gem_balance: senderWallet.gem_balance - giftValue,
-        total_sent: senderWallet.total_sent + giftValue,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('user_id', senderId);
-
-    if (senderUpdateError) {
-      console.error('Error updating sender wallet:', senderUpdateError);
-      return { success: false, error: 'Failed to deduct gems' };
-    }
-
-    // Credit to recipient
-    const { error: recipientUpdateError } = await supabase
-      .from('user_wallets')
-      .update({
-        gem_balance: recipientWallet.gem_balance + giftValue,
-        total_earned: recipientWallet.total_earned + giftValue,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('user_id', recipientId);
-
-    if (recipientUpdateError) {
-      console.error('Error updating recipient wallet:', recipientUpdateError);
-      // Rollback sender deduction
-      await supabase
-        .from('user_wallets')
-        .update({
-          gem_balance: senderWallet.gem_balance,
-          total_sent: senderWallet.total_sent,
-        })
-        .eq('user_id', senderId);
-      return { success: false, error: 'Failed to credit recipient' };
-    }
-
-    // Record the transaction
-    const { error: transactionError } = await supabase
-      .from('gift_transactions')
-      .insert({
-        sender_id: senderId,
-        sender_name: senderName,
-        recipient_id: recipientId,
-        recipient_name: recipientName,
-        gift_id: giftId,
-        gift_name: giftName,
-        gift_value: giftValue,
-        room_id: roomId ?? null,
-        room_title: roomTitle ?? null,
-      });
-
-    if (transactionError) {
-      console.error('Error recording transaction:', transactionError);
-      // Transaction still succeeded, just not recorded
-    }
-
+    const row = Array.isArray(data) ? data[0] : data;
+    const newBalance = typeof row?.new_balance === 'number' ? row.new_balance : undefined;
     return {
       success: true,
-      newBalance: senderWallet.gem_balance - giftValue,
+      newBalance,
     };
   } catch (error) {
     console.error('Error in sendGift:', error);

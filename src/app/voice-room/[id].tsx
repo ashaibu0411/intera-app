@@ -28,6 +28,7 @@ import {
   updateParticipantRole,
   listParticipantsWithProfiles,
   muteParticipant,
+  unmuteParticipant,
   kickParticipant,
   demoteToListener,
   type ParticipantWithProfile,
@@ -239,8 +240,8 @@ function SpeakerAvatar({
                 onPress={() => { setShowActions(false); onMute?.(); }}
                 className="flex-row items-center bg-white rounded-xl p-4 mb-2"
               >
-                <VolumeX size={20} color="#C9A227" />
-                <Text className="text-warmBrown font-medium ml-3">Mute</Text>
+                {participant.is_muted ? <Volume2 size={20} color="#1B4D3E" /> : <VolumeX size={20} color="#C9A227" />}
+                <Text className="text-warmBrown font-medium ml-3">{participant.is_muted ? 'Unmute' : 'Mute'}</Text>
               </Pressable>
 
               <Pressable
@@ -279,6 +280,7 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
   const [testRecording, setTestRecording] = useState<Audio.Recording | null>(null);
   const [testRecordingUri, setTestRecordingUri] = useState<string | null>(null);
   const [testSound, setTestSound] = useState<Audio.Sound | null>(null);
+  const webTestAudioRef = useRef<any>(null);
   const [testBusy, setTestBusy] = useState(false);
   const [testSeconds, setTestSeconds] = useState(0);
   const [pauseLiveKitForTest, setPauseLiveKitForTest] = useState(false);
@@ -290,6 +292,9 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
   const [joinNonce, setJoinNonce] = useState(0);
   const [loading, setLoading] = useState(true);
   const [micEnabled, setMicEnabled] = useState(false);
+  const autoMicTriedRef = useRef(false);
+  const lastHandToastIdRef = useRef<string | null>(null);
+  const [handToast, setHandToast] = useState<{ name: string; emoji: string; intentLabel: string } | null>(null);
   const [intentOpen, setIntentOpen] = useState(false);
   const [contextOpen, setContextOpen] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
@@ -317,6 +322,61 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
 
   const liveKitEnabled = isLiveKitAvailable();
 
+  // Prefer the authenticated user id for all RLS comparisons (more reliable than local profile state).
+  const [authUserId, setAuthUserId] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await supabase.auth.getUser();
+        if (cancelled) return;
+        setAuthUserId(data?.user?.id ?? null);
+      } catch {
+        if (!cancelled) setAuthUserId(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const effectiveUserId = authUserId ?? currentUser?.id ?? null;
+
+  // Safe navigation back
+  const goBack = () => {
+    try {
+      router.replace('/(tabs)' as never);
+    } catch {
+      // Fallback if navigation context isn't ready
+      router.replace('/(tabs)');
+    }
+  };
+
+  const me = useMemo(() => {
+    if (!effectiveUserId || !id) return null;
+    return participants.find((p) => p.user_id === effectiveUserId) ?? null;
+  }, [effectiveUserId, id, participants]);
+
+  const isHost = useMemo(() => {
+    if (!effectiveUserId || !room) return false;
+    return room.creator_id === effectiveUserId || me?.role === 'host' || me?.role === 'moderator';
+  }, [effectiveUserId, me?.role, room]);
+
+  const canSpeak = me?.role === 'host' || me?.role === 'moderator' || me?.role === 'speaker';
+  const canSpeakEffective = isHost || canSpeak;
+
+  // If server-side state says we're muted or a listener, force local mic off.
+  useEffect(() => {
+    if (!me) return;
+    if (me.role === 'listener' && micEnabled) {
+      setMicEnabled(false);
+      return;
+    }
+    if (me.is_muted && micEnabled) {
+      setMicEnabled(false);
+    }
+  }, [me?.id, me?.is_muted, me?.role, micEnabled]);
+
   const ensureMicPermission = useCallback(async (): Promise<boolean> => {
     try {
       const current = await Audio.getPermissionsAsync();
@@ -340,35 +400,67 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
       return;
     }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    if (!micEnabled) {
+    const next = !micEnabled;
+    if (next) {
       const ok = await ensureMicPermission();
       if (!ok) return;
     }
-    setMicEnabled((v) => !v);
-  }, [canSpeakEffective, ensureMicPermission, micEnabled]);
-
-  // Safe navigation back
-  const goBack = () => {
-    try {
-      router.replace('/(tabs)' as never);
-    } catch {
-      // Fallback if navigation context isn't ready
-      router.replace('/(tabs)');
+    setMicEnabled(next);
+    // Sync mute state to DB (best-effort)
+    if (id && effectiveUserId) {
+      supabase
+        .from('voice_room_participants')
+        .update({ is_muted: !next, last_seen: new Date().toISOString() })
+        .eq('room_id', id)
+        .eq('user_id', effectiveUserId)
+        .then(() => null)
+        .catch(() => null);
     }
-  };
+  }, [canSpeakEffective, effectiveUserId, ensureMicPermission, id, micEnabled]);
 
-  const me = useMemo(() => {
-    if (!currentUser?.id || !id) return null;
-    return participants.find((p) => p.user_id === currentUser.id) ?? null;
-  }, [currentUser?.id, id, participants]);
+  // Auto-enable mic for hosts/speakers (best-effort, one time)
+  useEffect(() => {
+    if (!id || !effectiveUserId) return;
+    if (!liveKitEnabled) return;
+    if (!canSpeakEffective) return;
+    if (micEnabled) return;
+    if (autoMicTriedRef.current) return;
+    if (!(me?.role === 'host' || me?.role === 'moderator' || me?.role === 'speaker' || room?.creator_id === effectiveUserId)) return;
+    autoMicTriedRef.current = true;
+    (async () => {
+      const ok = await ensureMicPermission();
+      if (!ok) return;
+      setMicEnabled(true);
+      await supabase
+        .from('voice_room_participants')
+        .update({ is_muted: false, last_seen: new Date().toISOString() })
+        .eq('room_id', id)
+        .eq('user_id', effectiveUserId);
+    })().catch(() => null);
+  }, [canSpeakEffective, effectiveUserId, ensureMicPermission, id, liveKitEnabled, me?.role, micEnabled, room?.creator_id]);
 
-  const isHost = useMemo(() => {
-    if (!currentUser?.id || !room) return false;
-    return room.creator_id === currentUser.id || me?.role === 'host' || me?.role === 'moderator';
-  }, [currentUser?.id, me?.role, room]);
-
-  const canSpeak = me?.role === 'host' || me?.role === 'moderator' || me?.role === 'speaker';
-  const canSpeakEffective = isHost || canSpeak;
+  // Keep presence fresh (best-effort heartbeat)
+  useEffect(() => {
+    if (!id || !effectiveUserId) return;
+    let cancelled = false;
+    const tick = async () => {
+      if (cancelled) return;
+      try {
+        const shouldMuted = !(canSpeakEffective && micEnabled);
+        await supabase
+          .from('voice_room_participants')
+          .update({ last_seen: new Date().toISOString(), is_muted: shouldMuted })
+          .eq('room_id', id)
+          .eq('user_id', effectiveUserId);
+      } catch {}
+    };
+    const t = setInterval(tick, 25000);
+    tick().catch(() => null);
+    return () => {
+      cancelled = true;
+      clearInterval(t);
+    };
+  }, [canSpeakEffective, effectiveUserId, id, micEnabled]);
 
   // Load room data
   useEffect(() => {
@@ -505,23 +597,25 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
       setLkUrl(null);
       setLkToken(null);
 
-      if (!currentUser?.id) {
+      if (!effectiveUserId) {
         setLkError('Sign in required to join this room.');
         return;
       }
+      const role = room.creator_id === currentUser.id ? 'host' : 'listener';
+      // Always upsert presence so counts work even if LiveKit isn't available
+      const roleResolved = room.creator_id === effectiveUserId ? 'host' : 'listener';
+      await upsertParticipant({ roomId: id, userId: effectiveUserId, role: roleResolved, isMuted: roleResolved === 'listener' });
+
       if (!liveKitEnabled) {
         setLkError('LiveKit native modules are not available in this build. Build a dev/EAS client (not Expo Go) to use voice rooms.');
         return;
       }
 
-      const role = room.creator_id === currentUser.id ? 'host' : 'listener';
-      await upsertParticipant({ roomId: id, userId: currentUser.id, role });
-
       const tokenResp = await getLiveKitToken({
         roomName: room.provider_room_name,
-        identity: currentUser.id,
+        identity: effectiveUserId,
         name: currentUser.name ?? undefined,
-        canPublish: role !== 'listener',
+        canPublish: roleResolved !== 'listener',
       });
 
       if (cancelled) return;
@@ -536,18 +630,18 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
     return () => {
       cancelled = true;
     };
-  }, [currentUser?.id, currentUser?.name, id, room, liveKitEnabled, joinNonce]);
+  }, [currentUser?.id, currentUser?.name, effectiveUserId, id, room, liveKitEnabled, joinNonce]);
 
   // Refresh token when role changes
   useEffect(() => {
-    if (!id || !currentUser?.id || !room || !me?.role) return;
+    if (!id || !effectiveUserId || !room || !me?.role) return;
     let cancelled = false;
     (async () => {
       if (!liveKitEnabled) return;
       setLkError(null);
       const tokenResp = await getLiveKitToken({
         roomName: room.provider_room_name,
-        identity: currentUser.id,
+        identity: effectiveUserId,
         name: currentUser.name ?? undefined,
         canPublish: me.role === 'host' || me.role === 'moderator' || me.role === 'speaker',
       });
@@ -562,13 +656,13 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
       setLkError(String(e?.message ?? e));
     });
     return () => { cancelled = true; };
-  }, [currentUser?.id, currentUser?.name, id, me?.role, room, liveKitEnabled]);
+  }, [currentUser?.id, currentUser?.name, effectiveUserId, id, me?.role, room, liveKitEnabled]);
 
   // Leave room on unmount
   useEffect(() => {
-    if (!id || !currentUser?.id) return;
-    return () => { leaveRoom(id, currentUser.id).catch(() => null); };
-  }, [currentUser?.id, id]);
+    if (!id || !effectiveUserId) return;
+    return () => { leaveRoom(id, effectiveUserId).catch(() => null); };
+  }, [effectiveUserId, id]);
 
   // Test recording timer
   useEffect(() => {
@@ -588,17 +682,17 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
   }, [testRecording]);
 
   const toggleHand = async () => {
-    if (!id || !currentUser?.id) return;
+    if (!id || !effectiveUserId) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const already = !!hands.find((h) => h.user_id === currentUser.id);
-    if (already) await lowerHand(id, currentUser.id);
+    const already = !!hands.find((h) => h.user_id === effectiveUserId);
+    if (already) await lowerHand(id, effectiveUserId);
     else setIntentOpen(true);
   };
 
   const submitRaiseIntent = async (intent: HandRaiseIntent) => {
-    if (!id || !currentUser?.id) return;
+    if (!id || !effectiveUserId) return;
     setIntentOpen(false);
-    await raiseHand(id, currentUser.id, intent);
+    await raiseHand(id, effectiveUserId, intent);
   };
 
   const promote = async (userId: string) => {
@@ -611,7 +705,9 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
   const handleMute = async (userId: string) => {
     if (!id) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    await muteParticipant(id, userId);
+    const p = participants.find((x) => x.user_id === userId);
+    if (p?.is_muted) await unmuteParticipant(id, userId);
+    else await muteParticipant(id, userId);
   };
 
   const handleDemote = async (userId: string) => {
@@ -636,22 +732,40 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
   };
 
   const sendRoomGift = async (giftId: string, giftName: string, giftValue: number) => {
-    if (!currentUser?.id || !room) return;
+    if (!effectiveUserId || !room) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    await sendGift({
-      senderId: currentUser.id,
+    const res = await sendGift({
+      senderId: effectiveUserId,
       senderName: currentUser.name ?? 'Someone',
       recipientId: room.creator_id,
-      recipientName: 'Host',
+      recipientName: String(room.title || 'Host'),
       giftId,
       giftName,
       giftValue,
       roomId: room.id,
       roomTitle: room.title,
     });
+    if (!res?.success) {
+      if (res?.error === 'Insufficient gems') {
+        Alert.alert('Not enough gems', 'Top up gems to send this gift.', [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Get gems', onPress: () => router.push('/gem-store') },
+        ]);
+        return;
+      }
+      if (res?.error) Alert.alert('Gift failed', String(res.error));
+      return;
+    }
   };
 
   const cleanupTestAudio = async () => {
+    try {
+      if (webTestAudioRef.current) {
+        webTestAudioRef.current.pause?.();
+        webTestAudioRef.current.src = '';
+        webTestAudioRef.current = null;
+      }
+    } catch {}
     try { await testSound?.unloadAsync(); } catch {}
     setTestSound(null);
   };
@@ -686,13 +800,16 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
         return;
       }
 
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
-        shouldDuckAndroid: true,
-        playThroughEarpieceAndroid: false,
-      });
+      // `setAudioModeAsync` is not consistently supported on web.
+      if (Platform.OS !== 'web') {
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: true,
+          playsInSilentModeIOS: true,
+          staysActiveInBackground: false,
+          shouldDuckAndroid: true,
+          playThroughEarpieceAndroid: false,
+        });
+      }
 
       const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
       setTestRecording(recording);
@@ -724,23 +841,41 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
     setTestBusy(true);
     try {
       await cleanupTestAudio();
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
-        shouldDuckAndroid: true,
-        playThroughEarpieceAndroid: false,
-      });
-      const { sound } = await Audio.Sound.createAsync({ uri: testRecordingUri }, { shouldPlay: true });
-      await sound.setVolumeAsync(1.0);
-      sound.setOnPlaybackStatusUpdate((status) => {
-        if (!status.isLoaded) return;
-        if (status.didJustFinish) {
-          sound.unloadAsync().catch(() => null);
-          setTestSound(null);
-        }
-      });
-      setTestSound(sound);
+      if (Platform.OS === 'web') {
+        // Web fallback: expo-av playback can be flaky; use browser Audio.
+        const WebAudio = (globalThis as any).Audio;
+        if (!WebAudio) throw new Error('Audio playback is not available in this browser.');
+        const a = new WebAudio(testRecordingUri);
+        a.volume = 1.0;
+        a.onended = () => {
+          try {
+            a.pause?.();
+            a.src = '';
+          } catch {}
+          if (webTestAudioRef.current === a) webTestAudioRef.current = null;
+        };
+        webTestAudioRef.current = a;
+        await a.play();
+      } else {
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: false,
+          playsInSilentModeIOS: true,
+          staysActiveInBackground: false,
+          shouldDuckAndroid: true,
+          playThroughEarpieceAndroid: false,
+        });
+        const { sound } = await Audio.Sound.createAsync({ uri: testRecordingUri }, { shouldPlay: false });
+        await sound.setVolumeAsync(1.0);
+        sound.setOnPlaybackStatusUpdate((status) => {
+          if (!status.isLoaded) return;
+          if (status.didJustFinish) {
+            sound.unloadAsync().catch(() => null);
+            setTestSound(null);
+          }
+        });
+        setTestSound(sound);
+        await sound.playAsync();
+      }
     } catch (e: any) {
       Alert.alert('Could not play recording', String(e?.message ?? e));
     } finally {
@@ -797,10 +932,21 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
 
   if (!id) return null;
 
-  const stage = participants.filter((p) => p.role === 'host' || p.role === 'moderator' || p.role === 'speaker');
-  const audience = participants.filter((p) => p.role === 'listener');
+  const activeCutoffMs = Date.now() - 90 * 1000;
+  const isActive = (p: ParticipantWithProfile) => {
+    const ts = p.last_seen ? new Date(p.last_seen).getTime() : 0;
+    return ts > activeCutoffMs;
+  };
+  const activeParticipants = participants.filter(isActive);
+  const stage = activeParticipants.filter((p) => p.role === 'host' || p.role === 'moderator' || p.role === 'speaker');
+  const audience = activeParticipants.filter((p) => p.role === 'listener');
   const audienceCount = audience.length;
-  const iRaised = !!hands.find((h) => h.user_id === currentUser?.id);
+  const speakingCount = stage.filter((p) => {
+    if (p.user_id === currentUser?.id) return !!(canSpeakEffective && micEnabled);
+    return !p.is_muted;
+  }).length;
+  const listeningCount = activeParticipants.length;
+  const iRaised = !!hands.find((h) => h.user_id === effectiveUserId);
 
   // Get hand raise user profiles
   const handRaisesWithProfiles = hands.map(h => {
@@ -819,6 +965,30 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
     : intent === 'announcement' ? Megaphone
     : intent === 'testimony' ? Sparkles
     : HelpCircle;
+
+  // Host: show a big toast when someone raises their hand
+  useEffect(() => {
+    if (!isHost) return;
+    if (!hands || hands.length === 0) return;
+    const latest = hands[hands.length - 1];
+    if (!latest?.id) return;
+    if (lastHandToastIdRef.current === latest.id) return;
+    lastHandToastIdRef.current = latest.id;
+
+    const p = participants.find((x) => x.user_id === latest.user_id);
+    const name = p?.profile?.name || 'Someone';
+    const intent = String((latest as any)?.intent || 'question');
+    const emoji =
+      intent === 'insight' ? '💡'
+      : intent === 'announcement' ? '📢'
+      : intent === 'testimony' ? '✨'
+      : '✋';
+    const label = intentLabel((latest as any)?.intent);
+    setHandToast({ name, emoji, intentLabel: label });
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => null);
+    const t = setTimeout(() => setHandToast(null), 2500);
+    return () => clearTimeout(t);
+  }, [hands, intentLabel, isHost, participants]);
 
   return (
     <View className="flex-1 bg-cream">
@@ -879,12 +1049,20 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
               <View className="flex-row items-center mt-3 pt-3 border-t border-gray-100">
                 <View className="flex-row items-center flex-1">
                   <Users size={16} color="#1B4D3E" />
-                  <Text className="text-forest-700 font-medium ml-1.5">{stage.length} speaking</Text>
+                  <Text className="text-forest-700 font-medium ml-1.5">{speakingCount} speaking</Text>
                 </View>
                 <View className="flex-row items-center flex-1">
                   <Volume2 size={16} color="#C9A227" />
-                  <Text className="text-gold-600 font-medium ml-1.5">{audienceCount} listening</Text>
+                  <Text className="text-gold-600 font-medium ml-1.5">{listeningCount} listening</Text>
                 </View>
+                {isHost ? (
+                  <Pressable
+                    onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); hostEndRoom().catch(() => null); }}
+                    className="bg-red-50 border border-red-200 rounded-full px-4 py-2 mr-2"
+                  >
+                    <Text className="text-red-600 font-semibold">End</Text>
+                  </Pressable>
+                ) : null}
                 <Pressable
                   onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); goBack(); }}
                   className="bg-gray-100 rounded-full px-4 py-2"
@@ -1123,6 +1301,21 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
               </View>
             </ScrollView>
 
+            {/* Big host hand-raise toast */}
+            {isHost && handToast ? (
+              <View className="absolute left-0 right-0 top-16 items-center">
+                <View className="bg-warmBrown/90 rounded-2xl px-5 py-4 border border-white/10">
+                  <Text style={{ fontSize: 36, textAlign: 'center' }}>{handToast.emoji}</Text>
+                  <Text className="text-white font-bold text-base text-center mt-1">
+                    {handToast.name} raised a hand
+                  </Text>
+                  <Text className="text-white/80 font-semibold text-sm text-center mt-0.5">
+                    {handToast.intentLabel}
+                  </Text>
+                </View>
+              </View>
+            ) : null}
+
             {/* Bottom Controls */}
             <View className="absolute left-0 right-0 bottom-0 bg-cream/95 border-t border-gray-100 px-4 pb-6 pt-3">
               {/* Mic Status */}
@@ -1151,8 +1344,8 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
                     colors={
                       canSpeakEffective
                         ? micEnabled
-                          ? ['#DC2626', '#EF4444'] as const
-                          : ['#1B4D3E', '#2D6A4F'] as const
+                          ? ['#1B4D3E', '#2D6A4F'] as const
+                          : ['#DC2626', '#EF4444'] as const
                         : ['#9CA3AF', '#D1D5DB'] as const
                     }
                     start={{ x: 0, y: 0 }}
@@ -1199,6 +1392,7 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
                   onPress={async () => {
                     if (!currentUser?.id || !id) return;
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setReactions((p) => ({ ...p, agree: (p.agree || 0) + 1 }));
                     try { await sendReaction(id, currentUser.id, 'agree'); } catch {}
                   }}
                   className="flex-1 bg-white border border-gray-200 rounded-xl py-3 flex-row items-center justify-center"
@@ -1211,6 +1405,7 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
                   onPress={async () => {
                     if (!currentUser?.id || !id) return;
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setReactions((p) => ({ ...p, heart: (p.heart || 0) + 1 }));
                     try { await sendReaction(id, currentUser.id, 'heart'); } catch {}
                   }}
                   className="w-16 bg-white border border-gray-200 rounded-xl py-3 items-center justify-center"
@@ -1222,6 +1417,7 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
                   onPress={async () => {
                     if (!currentUser?.id || !id) return;
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setReactions((p) => ({ ...p, clap: (p.clap || 0) + 1 }));
                     try { await sendReaction(id, currentUser.id, 'clap'); } catch {}
                   }}
                   className="w-16 bg-white border border-gray-200 rounded-xl py-3 items-center justify-center"
@@ -1233,6 +1429,7 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
                   onPress={async () => {
                     if (!currentUser?.id || !id) return;
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setReactions((p) => ({ ...p, fire: (p.fire || 0) + 1 }));
                     try { await sendReaction(id, currentUser.id, 'fire'); } catch {}
                   }}
                   className="w-16 bg-white border border-gray-200 rounded-xl py-3 items-center justify-center"

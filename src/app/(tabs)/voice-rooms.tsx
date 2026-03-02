@@ -9,6 +9,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { useStore } from '@/lib/store';
 import type { DbVoiceRoom } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 import { createVoiceRoom, listLiveVoiceRoomsWithCounts } from '@/lib/voiceRooms';
 
 type RoomWithCounts = DbVoiceRoom & { participant_count: number; host_name?: string };
@@ -97,6 +98,24 @@ export default function VoiceRoomsScreen() {
   const feedFilter = useStore((s) => s.feedFilter);
   const setFeedFilter = useStore((s) => s.setFeedFilter);
 
+  const [authUserId, setAuthUserId] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await supabase.auth.getUser();
+        if (!cancelled) setAuthUserId(data?.user?.id ?? null);
+      } catch {
+        if (!cancelled) setAuthUserId(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const effectiveUserId = authUserId ?? currentUser?.id ?? null;
+
   const [rooms, setRooms] = useState<RoomWithCounts[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -105,7 +124,33 @@ export default function VoiceRoomsScreen() {
   const [topic, setTopic] = useState('');
   const [creating, setCreating] = useState(false);
 
-  const canCreate = useMemo(() => !!currentUser?.id && title.trim().length >= 3, [currentUser?.id, title]);
+  const canCreate = useMemo(() => !!effectiveUserId && title.trim().length >= 3, [effectiveUserId, title]);
+
+  const filteredRooms = useMemo(() => {
+    const city = (selectedLocation?.city || '').trim();
+    const neighborhood = (selectedLocation?.neighborhood || '').trim();
+
+    if (feedFilter === 'neighborhood') {
+      if (!city || !neighborhood) return [];
+      return rooms.filter((r) =>
+        r.scope === 'neighborhood' &&
+        String(r.city || '').trim().toLowerCase() === city.toLowerCase() &&
+        String(r.neighborhood || '').trim().toLowerCase() === neighborhood.toLowerCase()
+      );
+    }
+
+    if (feedFilter === 'city') {
+      if (!city) return [];
+      // City view includes both city-wide and neighborhood rooms inside the city.
+      return rooms.filter((r) =>
+        (r.scope === 'city' || r.scope === 'neighborhood') &&
+        String(r.city || '').trim().toLowerCase() === city.toLowerCase()
+      );
+    }
+
+    // Global shows everything
+    return rooms;
+  }, [feedFilter, rooms, selectedLocation?.city, selectedLocation?.neighborhood]);
 
   const loadRooms = useCallback(async () => {
     try {
@@ -131,7 +176,7 @@ export default function VoiceRoomsScreen() {
 
   const openCreate = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (!currentUser?.id) {
+    if (!effectiveUserId) {
       Alert.alert('Sign in required', 'Please sign in to start a room.');
       return;
     }
@@ -141,7 +186,7 @@ export default function VoiceRoomsScreen() {
   };
 
   const handleCreate = async () => {
-    if (!currentUser?.id) {
+    if (!effectiveUserId) {
       Alert.alert('Sign in required', 'Please sign in to start a room.');
       return;
     }
@@ -154,14 +199,28 @@ export default function VoiceRoomsScreen() {
 
     try {
       setCreating(true);
+
+      const scope = feedFilter === 'neighborhood' ? 'neighborhood' : feedFilter === 'city' ? 'city' : 'global';
+      const city = (selectedLocation?.city || '').trim();
+      const neighborhood = (selectedLocation?.neighborhood || '').trim();
+
+      if (scope === 'neighborhood' && (!city || !neighborhood)) {
+        Alert.alert('Choose your neighborhood', 'Select a city and neighborhood first to start a neighborhood room.');
+        return;
+      }
+      if (scope === 'city' && !city) {
+        Alert.alert('Choose your city', 'Select a city first to start a city room.');
+        return;
+      }
+
       const room = await createVoiceRoom({
-        creatorId: currentUser.id,
+        creatorId: effectiveUserId,
         title: title.trim(),
         topic: topic.trim() ? topic.trim() : undefined,
         country: selectedLocation?.country ?? '',
-        city: selectedLocation?.city ?? '',
-        neighborhood: selectedLocation?.neighborhood ?? null,
-        scope: selectedLocation?.neighborhood ? 'neighborhood' : selectedLocation?.city ? 'city' : 'global',
+        city: scope === 'global' ? '' : city,
+        neighborhood: scope === 'neighborhood' ? neighborhood : null,
+        scope,
       });
 
       setCreateOpen(false);
@@ -243,10 +302,10 @@ export default function VoiceRoomsScreen() {
           <Animated.View entering={FadeInUp.duration(400).delay(100)} className="px-4 pt-4">
             <Text className="text-warmBrown font-bold text-xl">Live Now</Text>
             <Text className="text-gray-500 mt-1">
-              {rooms.length > 0 ? `${rooms.length} room${rooms.length > 1 ? 's' : ''} active` : 'No rooms live right now'}
+              {filteredRooms.length > 0 ? `${filteredRooms.length} room${filteredRooms.length > 1 ? 's' : ''} active` : 'No rooms live right now'}
             </Text>
 
-            {!currentUser?.id && (
+            {!effectiveUserId && (
               <View className="bg-gold-50 border border-gold-200 rounded-2xl p-4 mt-4">
                 <Text className="text-gold-800 font-semibold">Sign in to join or host</Text>
                 <Text className="text-gold-600 text-sm mt-1">Create an account to participate in voice rooms.</Text>
@@ -258,7 +317,7 @@ export default function VoiceRoomsScreen() {
                 <ActivityIndicator color="#1B4D3E" />
                 <Text className="text-gray-500 mt-3">Loading rooms...</Text>
               </View>
-            ) : rooms.length === 0 ? (
+            ) : filteredRooms.length === 0 ? (
               <View className="bg-white rounded-2xl p-6 mt-4 items-center border border-gray-100">
                 <View className="w-16 h-16 rounded-full bg-forest-100 items-center justify-center mb-4">
                   <Mic size={28} color="#1B4D3E" />
@@ -267,7 +326,7 @@ export default function VoiceRoomsScreen() {
                 <Text className="text-gray-500 text-center mt-2">
                   Be the first to start a conversation in your community!
                 </Text>
-                {currentUser?.id && (
+                {effectiveUserId && (
                   <Pressable onPress={openCreate} className="mt-4">
                     <LinearGradient
                       colors={['#D4673A', '#B85430'] as const}
@@ -282,9 +341,9 @@ export default function VoiceRoomsScreen() {
               </View>
             ) : (
               <View className="mt-4 gap-3">
-                {rooms.map((room, index) => (
+                {filteredRooms.map((room, index) => (
                   <Animated.View key={room.id} entering={FadeInUp.duration(300).delay(150 + index * 50)}>
-                    <RoomCard room={room} isOwner={room.creator_id === currentUser?.id} />
+                    <RoomCard room={room} isOwner={room.creator_id === effectiveUserId} />
                   </Animated.View>
                 ))}
               </View>
@@ -293,7 +352,7 @@ export default function VoiceRoomsScreen() {
         </ScrollView>
 
         {/* Floating Create Button */}
-        {currentUser?.id && (
+        {effectiveUserId && (
           <Pressable
             onPress={openCreate}
             className="absolute right-4 bottom-4"
@@ -345,7 +404,7 @@ export default function VoiceRoomsScreen() {
                   <View className="flex-row items-center">
                     <MapPin size={14} color="#1B4D3E" />
                     <Text className="text-forest-700 font-medium ml-2">
-                      Visible to: {selectedLocation?.neighborhood ? 'Neighborhood' : selectedLocation?.city ? 'City' : 'Global'}
+                      Visible to: {feedFilter === 'neighborhood' ? 'Neighborhood' : feedFilter === 'city' ? 'City' : 'Global'}
                     </Text>
                   </View>
                 </View>

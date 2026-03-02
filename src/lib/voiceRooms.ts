@@ -8,6 +8,7 @@ import type {
   DbVoiceRoomRecap,
 } from '@/lib/supabase';
 import { v4 as uuidv4 } from 'uuid';
+import { sendRemotePushAlert } from '@/lib/pushAlerts';
 
 export type VoiceRole = DbVoiceRoomParticipant['role'];
 export type HandRaiseIntent = NonNullable<DbVoiceRoomHandRaise['intent']> extends never
@@ -76,12 +77,70 @@ export async function createVoiceRoom(input: {
     .select('*')
     .single();
 
-  if (!first.error) return first.data as DbVoiceRoom;
+  if (!first.error) {
+    const created = first.data as DbVoiceRoom;
+    // Ensure creator is present as Host on stage (best-effort)
+    try {
+      await upsertParticipant({ roomId: created.id, userId: input.creatorId, role: 'host', isMuted: false });
+    } catch {}
+
+    // Notify area/city that a room is live (best-effort)
+    try {
+      const scope = (input.scope ?? 'city') as any;
+      const where =
+        scope === 'neighborhood'
+          ? `${input.neighborhood ?? 'your neighborhood'}`
+          : scope === 'city'
+            ? `${input.city ?? 'your city'}`
+            : 'your community';
+      await sendRemotePushAlert({
+        title: `LIVE: ${input.title}`,
+        body: `${input.topic ? `${input.topic} • ` : ''}Join the voice room in ${where}.`,
+        scope,
+        city: input.city ?? null,
+        neighborhood: input.neighborhood ?? null,
+        excludeUserId: input.creatorId,
+        data: {
+          type: 'voice_room_live',
+          roomId: created.id,
+        },
+      });
+    } catch {}
+
+    return created;
+  }
 
   if (String(first.error.message || '').includes('expires_at')) {
     const retry = await supabase.from('voice_rooms').insert(payloadBase).select('*').single();
     if (retry.error) throw retry.error;
-    return retry.data as DbVoiceRoom;
+    const created = retry.data as DbVoiceRoom;
+    // Ensure creator is present as Host on stage (best-effort)
+    try {
+      await upsertParticipant({ roomId: created.id, userId: input.creatorId, role: 'host', isMuted: false });
+    } catch {}
+    // Notify area/city that a room is live (best-effort)
+    try {
+      const scope = (input.scope ?? 'city') as any;
+      const where =
+        scope === 'neighborhood'
+          ? `${input.neighborhood ?? 'your neighborhood'}`
+          : scope === 'city'
+            ? `${input.city ?? 'your city'}`
+            : 'your community';
+      await sendRemotePushAlert({
+        title: `LIVE: ${input.title}`,
+        body: `${input.topic ? `${input.topic} • ` : ''}Join the voice room in ${where}.`,
+        scope,
+        city: input.city ?? null,
+        neighborhood: input.neighborhood ?? null,
+        excludeUserId: input.creatorId,
+        data: {
+          type: 'voice_room_live',
+          roomId: created.id,
+        },
+      });
+    } catch {}
+    return created;
   }
 
   throw first.error;
@@ -250,22 +309,21 @@ export async function listParticipantsWithProfiles(roomId: string): Promise<Part
 }
 
 // Moderation functions
-export async function muteParticipant(roomId: string, userId: string): Promise<void> {
+export async function setParticipantMuted(roomId: string, userId: string, isMuted: boolean): Promise<void> {
   const { error } = await supabase
     .from('voice_room_participants')
-    .update({ is_muted: true })
+    .update({ is_muted: !!isMuted })
     .eq('room_id', roomId)
     .eq('user_id', userId);
   if (error) throw error;
 }
 
+export async function muteParticipant(roomId: string, userId: string): Promise<void> {
+  await setParticipantMuted(roomId, userId, true);
+}
+
 export async function unmuteParticipant(roomId: string, userId: string): Promise<void> {
-  const { error } = await supabase
-    .from('voice_room_participants')
-    .update({ is_muted: false })
-    .eq('room_id', roomId)
-    .eq('user_id', userId);
-  if (error) throw error;
+  await setParticipantMuted(roomId, userId, false);
 }
 
 export async function demoteToListener(roomId: string, userId: string): Promise<void> {

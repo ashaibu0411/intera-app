@@ -78,6 +78,9 @@ function NotificationItem({ notification, index, onRead }: { notification: UiNot
       }
       return router.push('/messages' as any);
     }
+    if (type === 'voice_room_live' && data?.roomId) {
+      return router.push(`/voice-room/${String(data.roomId)}` as any);
+    }
 
     return router.push('/(tabs)/community' as any);
   };

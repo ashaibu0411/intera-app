@@ -116,6 +116,10 @@ function RootLayoutNav() {
           router.push('/messages' as any);
           return;
         }
+        if (type === 'voice_room_live' && data?.roomId) {
+          router.push(`/voice-room/${String(data.roomId)}` as any);
+          return;
+        }
       } catch {}
     });
     return () => {
