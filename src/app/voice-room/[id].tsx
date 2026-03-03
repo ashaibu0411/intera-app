@@ -39,7 +39,7 @@ import { createClip } from '@/lib/clips-api';
 import { buildVoiceRoomHighlightClipDescription } from '@/lib/voiceRoomMarkers';
 import { aiVoiceRoomContext } from '@/lib/aiVoiceRoomContext';
 import { sendGift } from '@/lib/giftService';
-import { LiveKitRoom, useRoomContext, isLiveKitAvailable, getLiveKitModule } from '@/lib/livekit-wrapper';
+import { LiveKitRoom, RoomAudioRenderer, useRoomContext, isLiveKitAvailable, getLiveKitModule } from '@/lib/livekit-wrapper';
 
 const GIFTS = [
   { id: 'heart', name: 'Heart', value: 1, emoji: '❤️' },
@@ -345,10 +345,10 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
   // Safe navigation back
   const goBack = () => {
     try {
-      router.replace('/(tabs)' as never);
+      router.replace('/(tabs)/voice-rooms' as never);
     } catch {
       // Fallback if navigation context isn't ready
-      router.replace('/(tabs)');
+      router.replace('/(tabs)/voice-rooms');
     }
   };
 
@@ -1022,9 +1022,14 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
                 <Text className="text-warmBrown font-bold">This room has ended</Text>
                 <Text className="text-gray-600 mt-1">Hosts can reopen it anytime.</Text>
                 {isHost ? (
-                  <Pressable onPress={hostReopenRoom} className="mt-3 bg-forest-700 rounded-xl px-4 py-3 items-center">
-                    <Text className="text-white font-semibold">Reopen room</Text>
-                  </Pressable>
+                  <View className="flex-row mt-3 gap-2">
+                    <Pressable onPress={hostReopenRoom} className="flex-1 bg-forest-700 rounded-xl px-4 py-3 items-center">
+                      <Text className="text-white font-semibold">Reopen room</Text>
+                    </Pressable>
+                    <Pressable onPress={hostDeleteRoom} className="flex-1 bg-red-100 border border-red-200 rounded-xl px-4 py-3 items-center">
+                      <Text className="text-red-600 font-semibold">Delete</Text>
+                    </Pressable>
+                  </View>
                 ) : null}
               </View>
             ) : null}
@@ -1056,12 +1061,21 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
                   <Text className="text-gold-600 font-medium ml-1.5">{listeningCount} listening</Text>
                 </View>
                 {isHost ? (
-                  <Pressable
-                    onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); hostEndRoom().catch(() => null); }}
-                    className="bg-red-50 border border-red-200 rounded-full px-4 py-2 mr-2"
-                  >
-                    <Text className="text-red-600 font-semibold">End</Text>
-                  </Pressable>
+                  <>
+                    <Pressable
+                      onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); hostEndRoom().catch(() => null); }}
+                      className="bg-red-50 border border-red-200 rounded-full px-4 py-2 mr-2"
+                    >
+                      <Text className="text-red-600 font-semibold">End</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); hostDeleteRoom(); }}
+                      className="bg-red-100 border border-red-200 rounded-full px-3 py-2 mr-2"
+                      hitSlop={8}
+                    >
+                      <Trash2 size={16} color="#DC2626" />
+                    </Pressable>
+                  </>
                 ) : null}
                 <Pressable
                   onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); goBack(); }}
@@ -1150,6 +1164,7 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
                 audio={true}
                 video={false}
               >
+                <RoomAudioRenderer />
                 <LiveKitAudioSessionSync enabled={!pauseLiveKitForTest} />
                 <MicSync enabled={!!(canSpeakEffective && micEnabled)} />
                 <LiveKitSpeakingBridge onSpeakingChange={setLkSpeaking} />

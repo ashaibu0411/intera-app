@@ -5,7 +5,7 @@ import * as Haptics from 'expo-haptics';
 import { ChevronLeft, Save } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
 import type { DbVoiceRoom } from '@/lib/supabase';
-import { getRecap, upsertRecap } from '@/lib/voiceRooms';
+import { deleteVoiceRoom, getRecap, upsertRecap } from '@/lib/voiceRooms';
 import { useStore } from '@/lib/store';
 import { createPost } from '@/lib/posts';
 import { buildVoiceRoomRecapPostContent } from '@/lib/voiceRoomMarkers';
@@ -144,6 +144,33 @@ export default function VoiceRoomRecapScreen() {
     }
   };
 
+  const deleteRoom = async () => {
+    if (!isHost || !id) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Alert.alert(
+      'Delete room?',
+      'This will permanently delete the room and its recap. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setSaving(true);
+              await deleteVoiceRoom(String(id));
+              router.replace('/(tabs)/voice-rooms' as any);
+            } catch (e: any) {
+              Alert.alert('Could not delete room', String(e?.message ?? e));
+            } finally {
+              setSaving(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <View className="flex-1 bg-cream">
       <Stack.Screen
@@ -155,7 +182,7 @@ export default function VoiceRoomRecapScreen() {
             <Pressable
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.back();
+                router.replace('/(tabs)/voice-rooms' as any);
               }}
               className="p-2 -ml-2"
             >
@@ -243,6 +270,16 @@ export default function VoiceRoomRecapScreen() {
               </Pressable>
             </View>
           </View>
+
+          {isHost && (
+            <Pressable
+              onPress={deleteRoom}
+              disabled={saving}
+              className="mt-4 bg-red-50 border border-red-200 rounded-2xl px-4 py-4 items-center"
+            >
+              <Text className="text-red-600 font-semibold">Delete room</Text>
+            </Pressable>
+          )}
 
           {isHost && (
             <Pressable

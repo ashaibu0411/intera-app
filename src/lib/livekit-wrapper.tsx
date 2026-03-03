@@ -12,6 +12,7 @@ const isWeb = Platform.OS === 'web';
 
 type LiveKitModuleLike = {
   LiveKitRoom?: React.ComponentType<any>;
+  RoomAudioRenderer?: React.ComponentType<any>;
   useRoomContext?: () => unknown;
   registerGlobals?: () => void;
   AudioSession?: {
@@ -30,6 +31,8 @@ let LiveKitRoomComponent:
       children?: ReactNode;
     }>
   | null = null;
+
+let RoomAudioRendererComponent: React.ComponentType<any> | null = null;
 
 let _useRoomContext: (() => unknown) | null = null;
 let _initialized = false;
@@ -60,6 +63,7 @@ function initializeLiveKit() {
     }
 
     LiveKitRoomComponent = livekit.LiveKitRoom;
+    RoomAudioRendererComponent = livekit.RoomAudioRenderer ?? null;
     _useRoomContext = livekit.useRoomContext;
     _available = true;
   } catch (e) {
@@ -107,6 +111,15 @@ export function LiveKitRoom({
     );
   }
   return <>{children}</>;
+}
+
+export function RoomAudioRenderer(): React.ReactElement | null {
+  initializeLiveKit();
+  if (_available && RoomAudioRendererComponent) {
+    const R = RoomAudioRendererComponent;
+    return <R />;
+  }
+  return null;
 }
 
 export function isLiveKitAvailable(): boolean {
