@@ -39,7 +39,6 @@ const DiasporaTheme = {
 };
 
 function RootLayoutNav() {
-  const hasSeenStory = useStore((s) => s.hasSeenStory);
   const hasSeenWelcome = useStore((s) => s.hasSeenWelcome);
   const currentUser = useStore((s) => s.currentUser);
   const selectedLocation = useStore((s) => s.selectedLocation);
@@ -190,15 +189,27 @@ function RootLayoutNav() {
     SplashScreen.hideAsync().catch(() => {});
 
     const isLoggedIn = !!currentUser?.id;
-    const needsWelcome = !isLoggedIn && !hasSeenWelcome;
-    const needsStory = !hasSeenStory;
-    const target = needsWelcome ? 'welcome' : needsStory ? 'story' : null;
+    const hasLocation = !!(selectedLocation?.country && selectedLocation?.city);
+
+    // Onboarding gate:
+    // - Welcome (product tour) for first-time signed-out users
+    // - Location selection before allowing auth or main app
+    // - Signup after location is chosen (for signed-out users)
+    const target = !isLoggedIn
+      ? !hasSeenWelcome
+        ? 'welcome'
+        : !hasLocation
+          ? 'location-select'
+          : 'signup'
+      : !hasLocation
+        ? 'location-select'
+        : null;
 
     if (!target) return;
     if (segments[0] === target) return;
 
     router.replace(`/${target}` as any);
-  }, [isHydrated, segments, currentUser?.id, hasSeenWelcome, hasSeenStory]);
+  }, [isHydrated, segments, currentUser?.id, hasSeenWelcome, selectedLocation?.city, selectedLocation?.country]);
 
   return (
     <ThemeProvider value={DiasporaTheme}>

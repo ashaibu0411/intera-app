@@ -90,23 +90,46 @@ export default function ChatScreen() {
   const decodedAvatar = avatar ? decodeURIComponent(avatar) : 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop';
   const decodedName = name ? decodeURIComponent(name) : 'User';
 
+  const routeId = id ? String(id) : '';
+  const isBusinessConversation = routeId.startsWith('business_');
+
+  // Some entry points navigate to `/chat/<userId>` without query params. Treat routeId as recipientId (unless business chat).
+  const effectiveRecipientId = recipientId
+    ? String(recipientId)
+    : !isBusinessConversation && routeId
+      ? routeId
+      : '';
+
   // Check if user is blocked
-  const isBlocked = recipientId ? blockedUserIds.includes(recipientId) : false;
+  const isBlocked = effectiveRecipientId ? blockedUserIds.includes(effectiveRecipientId) : false;
 
   // Load or create conversation and messages
   useEffect(() => {
     let pollInterval: ReturnType<typeof setInterval> | null = null;
     let isSubscribed = true;
+    let activeConvId: string | null = null;
 
     const initializeChat = async () => {
-      if (!currentUser?.id || !recipientId) {
+      if (!currentUser?.id) {
         setIsLoading(false);
         return;
       }
 
       try {
-        // Get or create conversation
-        const convId = await getOrCreateConversation(currentUser.id, recipientId);
+        let convId: string | null = null;
+        if (isBusinessConversation) {
+          // Business chats use a stable conversation id like `business_<businessId>`
+          convId = routeId;
+        } else {
+          if (!effectiveRecipientId) {
+            setIsLoading(false);
+            return;
+          }
+          // Get or create conversation for two users
+          convId = await getOrCreateConversation(currentUser.id, effectiveRecipientId);
+        }
+
+        activeConvId = convId;
         setConversationId(convId);
 
         // Load existing messages
@@ -192,11 +215,11 @@ export default function ChatScreen() {
       if (pollInterval) {
         clearInterval(pollInterval);
       }
-      if (conversationId) {
-        unsubscribeFromMessages(conversationId);
+      if (activeConvId) {
+        unsubscribeFromMessages(activeConvId);
       }
     };
-  }, [currentUser?.id, recipientId]);
+  }, [currentUser?.id, effectiveRecipientId, isBusinessConversation, routeId]);
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -506,9 +529,9 @@ export default function ChatScreen() {
                 </View>
                 <Pressable
                   onPress={handleSendMessage}
-                  disabled={!messageText.trim() || isSending}
+                  disabled={!messageText.trim() || isSending || !conversationId}
                   className={`ml-2 p-3 rounded-full ${
-                    messageText.trim() && !isSending ? 'bg-terracotta-500' : 'bg-gray-200'
+                    messageText.trim() && !isSending && conversationId ? 'bg-terracotta-500' : 'bg-gray-200'
                   }`}
                 >
                   {isSending ? (
@@ -516,7 +539,7 @@ export default function ChatScreen() {
                   ) : (
                     <Send
                       size={20}
-                      color={messageText.trim() ? '#FFFFFF' : '#9CA3AF'}
+                      color={messageText.trim() && conversationId ? '#FFFFFF' : '#9CA3AF'}
                     />
                   )}
                 </Pressable>

@@ -95,6 +95,16 @@ function LiveKitAudioSessionSync({ enabled }: { enabled: boolean }) {
       if (!enabled || startedRef.current) return;
       try {
         startedRef.current = true;
+        // Ensure audio plays even in silent mode and routes to speaker on mobile.
+        if (Platform.OS !== 'web') {
+          await Audio.setAudioModeAsync({
+            allowsRecordingIOS: true,
+            playsInSilentModeIOS: true,
+            staysActiveInBackground: false,
+            shouldDuckAndroid: false,
+            playThroughEarpieceAndroid: false,
+          });
+        }
         await lk?.AudioSession?.startAudioSession?.();
       } catch (e) {
         startedRef.current = false;
@@ -133,6 +143,22 @@ function MicStatusIndicator({ micEnabled, speaking }: { micEnabled: boolean; spe
           marginRight: 6,
         }}
       />
+      {/* Simple "meter" bars like Zoom */}
+      <View style={{ flexDirection: 'row', alignItems: 'flex-end', marginRight: 8 }}>
+        {[6, 10, 14, 9].map((h, i) => (
+          <View
+            key={i}
+            style={{
+              width: 3,
+              height: h,
+              borderRadius: 2,
+              marginRight: i === 3 ? 0 : 2,
+              backgroundColor: tone === 'on' ? '#10B981' : tone === 'idle' ? '#C9A227' : '#9CA3AF',
+              opacity: tone === 'on' ? 1 : 0.6,
+            }}
+          />
+        ))}
+      </View>
       <Text className="text-white text-xs font-semibold">{label}</Text>
     </View>
   );
@@ -321,6 +347,7 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
   const [hlStoragePath, setHlStoragePath] = useState<string | null>(null);
 
   const liveKitEnabled = isLiveKitAvailable();
+  const hasRoomAudioRenderer = !!getLiveKitModule()?.RoomAudioRenderer;
 
   // Prefer the authenticated user id for all RLS comparisons (more reliable than local profile state).
   const [authUserId, setAuthUserId] = useState<string | null>(null);
@@ -601,7 +628,6 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
         setLkError('Sign in required to join this room.');
         return;
       }
-      const role = room.creator_id === currentUser.id ? 'host' : 'listener';
       // Always upsert presence so counts work even if LiveKit isn't available
       const roleResolved = room.creator_id === effectiveUserId ? 'host' : 'listener';
       await upsertParticipant({ roomId: id, userId: effectiveUserId, role: roleResolved, isMuted: roleResolved === 'listener' });
@@ -614,7 +640,7 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
       const tokenResp = await getLiveKitToken({
         roomName: room.provider_room_name,
         identity: effectiveUserId,
-        name: currentUser.name ?? undefined,
+        name: currentUser?.name ?? undefined,
         canPublish: roleResolved !== 'listener',
       });
 
@@ -642,7 +668,7 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
       const tokenResp = await getLiveKitToken({
         roomName: room.provider_room_name,
         identity: effectiveUserId,
-        name: currentUser.name ?? undefined,
+        name: currentUser?.name ?? undefined,
         canPublish: me.role === 'host' || me.role === 'moderator' || me.role === 'speaker',
       });
       if (cancelled) return;
@@ -1199,6 +1225,11 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
               <View className="mx-4 mt-3 bg-gold-50 border border-gold-200 rounded-xl p-4">
                 <Text className="text-gold-800 font-semibold">Connecting audio...</Text>
                 <Text className="text-gold-600 text-sm mt-1">Please wait while we connect you to the room.</Text>
+                {liveKitEnabled && !hasRoomAudioRenderer ? (
+                  <Text className="text-gold-700 text-sm mt-2 font-semibold">
+                    Audio module is missing in this build. Update to the latest build to hear participants.
+                  </Text>
+                ) : null}
               </View>
             )}
 
@@ -1355,6 +1386,25 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
                     toggleMic().catch(() => null);
                   }}
                 >
+                  {micEnabled && lkSpeaking ? (
+                    <View
+                      pointerEvents="none"
+                      style={{
+                        position: 'absolute',
+                        top: -6,
+                        left: -6,
+                        right: -6,
+                        bottom: -6,
+                        borderRadius: 28,
+                        borderWidth: 3,
+                        borderColor: '#10B981',
+                        shadowColor: '#10B981',
+                        shadowOpacity: 0.35,
+                        shadowRadius: 10,
+                        shadowOffset: { width: 0, height: 0 },
+                      }}
+                    />
+                  ) : null}
                   <LinearGradient
                     colors={
                       canSpeakEffective

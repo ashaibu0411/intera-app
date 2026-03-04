@@ -76,7 +76,7 @@ export default function LocationSelectScreen() {
   // Check if user already has a location (coming from home to change location).
   // IMPORTANT: lock this to the initial value so "auto-detect" (which sets selectedLocation)
   // doesn't flip the flow into "changing location" on first-time installs.
-  const initialHasLocationRef = useRef(!!selectedLocation);
+  const initialHasLocationRef = useRef(!!(selectedLocation?.country && selectedLocation?.city));
   const isChangingLocation = initialHasLocationRef.current;
 
   // Start with quick search if user is changing location, otherwise normal flow
