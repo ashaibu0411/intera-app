@@ -4,6 +4,11 @@
     "slug": "vibecode",
     "scheme": "vibecode",
     "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FFFFFF"
+    },
     "version": "2.0.2",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
@@ -11,6 +16,11 @@
     "ios": {
       "bundleIdentifier": "com.vibecode.afroconnect-hr87yl",
       "supportsTablet": true,
+      "splash": {
+        "image": "./assets/icon.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#FFFFFF"
+      },
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "Intera uses your camera to capture photos and videos that you can share with your community. For example, you can take a profile picture, create posts with photos of community events, record video clips for stories, or capture images when selling items in the marketplace.",
@@ -20,12 +30,17 @@
         "NSContactsUsageDescription": "Intera accesses your contacts to help you find and connect with friends who are already using the app. For example, we can show you which of your contacts are members so you can easily add them as connections and share community updates with people you know.",
         "NSMicrophoneUsageDescription": "Intera uses your microphone to enable voice communication features. For example, you can record voice messages to send to other community members, participate in live audio discussions in voice rooms, or add audio narration to your video clips and stories."
       },
-      "buildNumber": "18"
+      "buildNumber": "19"
     },
     "android": {
       "label": "Intera: Community App",
       "package": "com.vibecode.intera",
-      "versionCode": 24,
+      "versionCode": 25,
+      "splash": {
+        "image": "./assets/icon.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#FFFFFF"
+      },
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#062A1E"
