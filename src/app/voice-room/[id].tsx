@@ -64,11 +64,18 @@ interface LiveKitRoomContext {
     on?: (event: string, handler: () => void) => void;
     off?: (event: string, handler: () => void) => void;
   };
+  activeSpeakers?: Array<{ identity?: string }>;
   on?: (event: string, handler: () => void) => void;
   off?: (event: string, handler: () => void) => void;
 }
 
-function LiveKitSpeakingBridge({ onSpeakingChange }: { onSpeakingChange: (speaking: boolean) => void }) {
+function LiveKitSpeakingBridge({
+  onSpeakingChange,
+  onActiveSpeakersChange,
+}: {
+  onSpeakingChange: (speaking: boolean) => void;
+  onActiveSpeakersChange?: (speakerIdentities: string[]) => void;
+}) {
   const room = useRoomContext() as LiveKitRoomContext | null;
   useEffect(() => {
     if (!room?.localParticipant) return;
@@ -76,14 +83,19 @@ function LiveKitSpeakingBridge({ onSpeakingChange }: { onSpeakingChange: (speaki
     const sync = () => onSpeakingChange(!!lp.isSpeaking);
     sync();
     const onSpeaking = () => sync();
-    const onActiveSpeakers = () => sync();
+    const onActiveSpeakers = () => {
+      sync();
+      const speakers = ((room as any)?.activeSpeakers ?? []) as Array<{ identity?: string }>;
+      const ids = speakers.map((s) => String(s?.identity ?? '')).filter(Boolean);
+      onActiveSpeakersChange?.(ids);
+    };
     lp.on?.('isSpeakingChanged', onSpeaking);
     room.on?.('activeSpeakersChanged', onActiveSpeakers);
     return () => {
       lp.off?.('isSpeakingChanged', onSpeaking);
       room.off?.('activeSpeakersChanged', onActiveSpeakers);
     };
-  }, [onSpeakingChange, room]);
+  }, [onActiveSpeakersChange, onSpeakingChange, room]);
   return null;
 }
 
@@ -132,6 +144,24 @@ function MicStatusIndicator({ micEnabled, speaking }: { micEnabled: boolean; spe
   const dot = tone === 'on' ? '#10B981' : tone === 'idle' ? '#C9A227' : '#9CA3AF';
   const label = tone === 'on' ? 'Speaking' : tone === 'idle' ? 'Mic on' : 'Muted';
 
+  const [meter, setMeter] = useState<[number, number, number, number]>([6, 10, 14, 9]);
+  useEffect(() => {
+    if (tone !== 'on') return;
+    let i = 0;
+    const frames: Array<[number, number, number, number]> = [
+      [6, 10, 14, 9],
+      [8, 14, 18, 12],
+      [5, 9, 13, 8],
+      [10, 16, 20, 14],
+      [7, 12, 16, 10],
+    ];
+    const t = setInterval(() => {
+      i = (i + 1) % frames.length;
+      setMeter(frames[i]);
+    }, 140);
+    return () => clearInterval(t);
+  }, [tone]);
+
   return (
     <View className="flex-row items-center bg-warmBrown/90 rounded-full px-3 py-1.5">
       <View
@@ -145,7 +175,7 @@ function MicStatusIndicator({ micEnabled, speaking }: { micEnabled: boolean; spe
       />
       {/* Simple "meter" bars like Zoom */}
       <View style={{ flexDirection: 'row', alignItems: 'flex-end', marginRight: 8 }}>
-        {[6, 10, 14, 9].map((h, i) => (
+        {meter.map((h, i) => (
           <View
             key={i}
             style={{
@@ -168,6 +198,7 @@ function SpeakerAvatar({
   participant,
   isCurrentUser,
   isHost,
+  isSpeakingNow,
   canModerate,
   onMute,
   onDemote,
@@ -176,6 +207,7 @@ function SpeakerAvatar({
   participant: ParticipantWithProfile;
   isCurrentUser: boolean;
   isHost: boolean;
+  isSpeakingNow?: boolean;
   canModerate: boolean;
   onMute?: () => void;
   onDemote?: () => void;
@@ -201,6 +233,25 @@ function SpeakerAvatar({
         onPress={() => canModerate && !isCurrentUser && setShowActions(true)}
         className="items-center mx-2 mb-3"
       >
+        {isSpeakingNow && !participant.is_muted ? (
+          <View
+            pointerEvents="none"
+            style={{
+              position: 'absolute',
+              top: -6,
+              left: -6,
+              width: 80,
+              height: 80,
+              borderRadius: 28,
+              borderWidth: 3,
+              borderColor: '#10B981',
+              shadowColor: '#10B981',
+              shadowOpacity: 0.35,
+              shadowRadius: 10,
+              shadowOffset: { width: 0, height: 0 },
+            }}
+          />
+        ) : null}
         <LinearGradient
           colors={ringColor as [string, string]}
           start={{ x: 0, y: 0 }}
@@ -330,6 +381,7 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
   const [reactions, setReactions] = useState<{ agree: number; heart: number; clap: number; fire: number }>({
     agree: 0, heart: 0, clap: 0, fire: 0,
   });
+  const [activeSpeakerIds, setActiveSpeakerIds] = useState<string[]>([]);
   const [recap, setRecap] = useState<any>(null);
 
   const [ctxPinnedTitle, setCtxPinnedTitle] = useState('');
@@ -958,9 +1010,11 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
 
   if (!id) return null;
 
-  const activeCutoffMs = Date.now() - 90 * 1000;
+  // Be forgiving: if a client temporarily fails to heartbeat, don't immediately hide them.
+  const activeCutoffMs = Date.now() - 5 * 60 * 1000;
   const isActive = (p: ParticipantWithProfile) => {
-    const ts = p.last_seen ? new Date(p.last_seen).getTime() : 0;
+    const raw = (p as any).last_seen ?? (p as any).joined_at ?? (p as any).created_at ?? null;
+    const ts = raw ? new Date(raw).getTime() : 0;
     return ts > activeCutoffMs;
   };
   const activeParticipants = participants.filter(isActive);
@@ -1012,7 +1066,7 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
     const label = intentLabel((latest as any)?.intent);
     setHandToast({ name, emoji, intentLabel: label });
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => null);
-    const t = setTimeout(() => setHandToast(null), 2500);
+    const t = setTimeout(() => setHandToast(null), 900);
     return () => clearTimeout(t);
   }, [hands, intentLabel, isHost, participants]);
 
@@ -1193,7 +1247,7 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
                 <RoomAudioRenderer />
                 <LiveKitAudioSessionSync enabled={!pauseLiveKitForTest} />
                 <MicSync enabled={!!(canSpeakEffective && micEnabled)} />
-                <LiveKitSpeakingBridge onSpeakingChange={setLkSpeaking} />
+                <LiveKitSpeakingBridge onSpeakingChange={setLkSpeaking} onActiveSpeakersChange={setActiveSpeakerIds} />
                 <View className="h-0 w-0" />
               </LiveKitRoom>
             ) : lkError ? (
@@ -1267,6 +1321,7 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
                           participant={p}
                           isCurrentUser={p.user_id === currentUser?.id}
                           isHost={p.role === 'host'}
+                          isSpeakingNow={activeSpeakerIds.includes(p.user_id)}
                           canModerate={isHost && p.user_id !== currentUser?.id}
                           onMute={() => handleMute(p.user_id)}
                           onDemote={() => handleDemote(p.user_id)}
@@ -1970,6 +2025,13 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
                                 <Text className="text-warmBrown font-medium">{p.profile?.name || 'Anonymous'}</Text>
                                 <Text className="text-gray-400 text-sm capitalize">{p.role}</Text>
                               </View>
+                              {activeSpeakerIds.includes(p.user_id) && !p.is_muted ? (
+                                <View className="mr-2 flex-row items-end">
+                                  <View style={{ width: 3, height: 10, borderRadius: 2, backgroundColor: '#10B981', marginRight: 2 }} />
+                                  <View style={{ width: 3, height: 14, borderRadius: 2, backgroundColor: '#10B981', marginRight: 2 }} />
+                                  <View style={{ width: 3, height: 8, borderRadius: 2, backgroundColor: '#10B981' }} />
+                                </View>
+                              ) : null}
                               {p.role === 'host' && <Crown size={16} color="#C9A227" />}
                             </View>
                           ))}

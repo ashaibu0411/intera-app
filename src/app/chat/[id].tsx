@@ -69,6 +69,7 @@ export default function ChatScreen() {
     prefill?: string;
   }>();
   const scrollViewRef = useRef<ScrollView>(null);
+  const inputRef = useRef<TextInput>(null);
   const decodedPrefill = prefill ? decodeURIComponent(prefill) : '';
   const [messageText, setMessageText] = useState(decodedPrefill);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -93,12 +94,33 @@ export default function ChatScreen() {
   const routeId = id ? String(id) : '';
   const isBusinessConversation = routeId.startsWith('business_');
 
-  // Some entry points navigate to `/chat/<userId>` without query params. Treat routeId as recipientId (unless business chat).
-  const effectiveRecipientId = recipientId
-    ? String(recipientId)
-    : !isBusinessConversation && routeId
-      ? routeId
-      : '';
+  const QUICK_REPLIES = isBusinessConversation
+    ? [
+        'Hi! Is this still available?',
+        'What’s the price?',
+        'Can I pick up today?',
+        'Do you deliver?',
+        'What time do you close?',
+        'Thank you!',
+      ]
+    : [
+        'Heyy 👋',
+        'What’s good?',
+        'You free rn?',
+        'Bet ✅',
+        'Say less 😭',
+        'I’m down',
+        'Let’s link',
+        'Where you at?',
+        'On my way',
+        'That’s wild 😭',
+        'Ok ok',
+        'Thanks!',
+      ];
+
+  // Prefer explicit recipientId when present. If absent, we will infer inside initializeChat
+  // (routeId can be either a user id OR a conversation id depending on entry point).
+  const effectiveRecipientId = recipientId ? String(recipientId) : '';
 
   // Check if user is blocked
   const isBlocked = effectiveRecipientId ? blockedUserIds.includes(effectiveRecipientId) : false;
@@ -120,13 +142,32 @@ export default function ChatScreen() {
         if (isBusinessConversation) {
           // Business chats use a stable conversation id like `business_<businessId>`
           convId = routeId;
+        } else if (effectiveRecipientId) {
+          // Open DM by recipient user id
+          convId = await getOrCreateConversation(currentUser.id, effectiveRecipientId);
         } else {
-          if (!effectiveRecipientId) {
+          // No recipientId provided. routeId might be:
+          // - a conversation id (e.g., opened from notifications / deep links)
+          // - a user id (opened from a profile / search)
+          if (!routeId) {
             setIsLoading(false);
             return;
           }
-          // Get or create conversation for two users
-          convId = await getOrCreateConversation(currentUser.id, effectiveRecipientId);
+
+          // If the current user is a participant of this conversation id, treat routeId as conversation id.
+          const membership = await supabase
+            .from('conversation_participants')
+            .select('conversation_id')
+            .eq('conversation_id', routeId)
+            .eq('user_id', currentUser.id)
+            .maybeSingle();
+
+          if (!membership.error && membership.data?.conversation_id) {
+            convId = routeId;
+          } else {
+            // Otherwise treat routeId as a user id and create/find the conversation.
+            convId = await getOrCreateConversation(currentUser.id, routeId);
+          }
         }
 
         activeConvId = convId;
@@ -515,9 +556,38 @@ export default function ChatScreen() {
           {/* Message Input */}
           <View className="bg-white border-t border-gray-100 px-4 py-3">
             <SafeAreaView edges={['bottom']}>
+              {/* Quick replies */}
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ paddingVertical: 6 }}
+                style={{ flexGrow: 0, marginBottom: 8 }}
+              >
+                {QUICK_REPLIES.map((txt) => (
+                  <Pressable
+                    key={txt}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setMessageText((prev) => {
+                        const p = (prev || '').trim();
+                        if (!p) return txt;
+                        // If the preset already exists at the end, don't duplicate.
+                        if (p.endsWith(txt)) return prev;
+                        return `${p} ${txt}`;
+                      });
+                      requestAnimationFrame(() => inputRef.current?.focus?.());
+                    }}
+                    className="mr-2 bg-gray-100 rounded-full px-3 py-2"
+                  >
+                    <Text className="text-gray-700 font-semibold text-sm">{txt}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+
               <View className="flex-row items-center">
                 <View className="flex-1 flex-row items-center bg-gray-100 rounded-full px-4 py-2">
                   <TextInput
+                    ref={inputRef}
                     placeholder="Type a message..."
                     placeholderTextColor="#9CA3AF"
                     value={messageText}
