@@ -235,7 +235,16 @@ export async function leaveRoom(roomId: string, userId: string): Promise<void> {
 }
 
 export async function raiseHand(roomId: string, userId: string, intent: HandRaiseIntent = 'question'): Promise<void> {
-  await upsertParticipant({ roomId, userId, role: 'listener', handRaised: true });
+  // Raising a hand should never change the participant role.
+  const { error: updateErr } = await supabase
+    .from('voice_room_participants')
+    .update({ hand_raised: true, last_seen: new Date().toISOString() })
+    .eq('room_id', roomId)
+    .eq('user_id', userId);
+  if (updateErr) {
+    // If participant row doesn't exist yet, create as listener (audience).
+    await upsertParticipant({ roomId, userId, role: 'listener', isMuted: true, handRaised: true });
+  }
   const { error } = await supabase.from('voice_room_hand_raises').upsert(
     {
       room_id: roomId,
@@ -310,9 +319,12 @@ export async function listParticipantsWithProfiles(roomId: string): Promise<Part
 
 // Moderation functions
 export async function setParticipantMuted(roomId: string, userId: string, isMuted: boolean): Promise<void> {
+  const updates: Record<string, any> = { is_muted: !!isMuted };
+  // Host-mute lock: muting locks; unmuting unlocks (if the column exists).
+  updates.mute_locked = !!isMuted;
   const { error } = await supabase
     .from('voice_room_participants')
-    .update({ is_muted: !!isMuted })
+    .update(updates)
     .eq('room_id', roomId)
     .eq('user_id', userId);
   if (error) throw error;

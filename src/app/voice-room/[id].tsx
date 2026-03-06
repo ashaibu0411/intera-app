@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, Pressable, ActivityIndicator, ScrollView, Modal, Alert, Linking, TextInput } from 'react-native';
+import { View, Text, Pressable, ActivityIndicator, ScrollView, Modal, Alert, Linking, TextInput, Platform } from 'react-native';
 import { Stack, useLocalSearchParams, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
@@ -137,6 +137,142 @@ function LiveKitAudioSessionSync({ enabled }: { enabled: boolean }) {
     };
   }, [enabled]);
   return null;
+}
+
+function LiveKitDiagnosticsModal({
+  visible,
+  onClose,
+  lkUrl,
+  effectiveUserId,
+  role,
+  canSpeakEffective,
+  micEnabled,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  lkUrl: string | null;
+  effectiveUserId: string | null;
+  role: string | null | undefined;
+  canSpeakEffective: boolean;
+  micEnabled: boolean;
+}) {
+  const room = useRoomContext() as any;
+  const [snap, setSnap] = useState<Record<string, any>>({});
+
+  useEffect(() => {
+    if (!visible) return;
+    let cancelled = false;
+
+    const readState = () => {
+      try {
+        const r = room;
+        const remoteParticipants =
+          typeof r?.remoteParticipants?.size === 'number'
+            ? r.remoteParticipants.size
+            : Array.isArray(r?.remoteParticipants)
+              ? r.remoteParticipants.length
+              : typeof r?.participants?.size === 'number'
+                ? Math.max(0, r.participants.size - 1)
+                : null;
+
+        let subscribedAudioTracks = 0;
+        try {
+          const iter =
+            r?.remoteParticipants?.values?.() ??
+            (Array.isArray(r?.remoteParticipants) ? r.remoteParticipants : []);
+          const arr = Array.isArray(iter) ? iter : Array.from(iter);
+          for (const p of arr) {
+            const pubs = (p?.trackPublications?.values?.() ? Array.from(p.trackPublications.values()) : p?.trackPublications) ?? [];
+            const pubsArr = Array.isArray(pubs) ? pubs : Array.from(pubs);
+            for (const pub of pubsArr) {
+              const kind = pub?.kind ?? pub?.track?.kind;
+              const isSubscribed = pub?.isSubscribed ?? pub?.subscribed;
+              if (String(kind) === 'audio' && !!isSubscribed) subscribedAudioTracks += 1;
+            }
+          }
+        } catch {}
+
+        const connectionState =
+          r?.state?.connectionState ??
+          r?.connectionState ??
+          r?.engine?.connectionState ??
+          null;
+
+        const localMicEnabled =
+          r?.localParticipant?.isMicrophoneEnabled ??
+          r?.localParticipant?.microphoneEnabled ??
+          null;
+
+        const localIdentity = r?.localParticipant?.identity ?? null;
+
+        return {
+          connectionState,
+          localIdentity,
+          localMicEnabled,
+          remoteParticipants,
+          subscribedAudioTracks,
+        };
+      } catch (e) {
+        return { error: String((e as any)?.message ?? e) };
+      }
+    };
+
+    const tick = () => {
+      if (cancelled) return;
+      setSnap(readState());
+    };
+
+    tick();
+    const t = setInterval(tick, 1000);
+    return () => {
+      cancelled = true;
+      clearInterval(t);
+    };
+  }, [room, visible]);
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable onPress={onClose} className="flex-1 bg-black/60 justify-center px-5">
+        <Pressable onPress={() => null} className="bg-white rounded-2xl p-4">
+          <View className="flex-row items-center justify-between">
+            <Text className="text-warmBrown font-extrabold text-base">Voice diagnostics</Text>
+            <Pressable onPress={onClose} hitSlop={10} className="p-2">
+              <X size={18} color="#2D1F1A" />
+            </Pressable>
+          </View>
+
+          <View className="mt-3">
+            <Text className="text-gray-600 text-xs">User</Text>
+            <Text className="text-warmBrown font-semibold" numberOfLines={1}>
+              {effectiveUserId ?? '—'} {role ? `• ${role}` : ''}
+            </Text>
+          </View>
+
+          <View className="mt-3">
+            <Text className="text-gray-600 text-xs">Local state</Text>
+            <Text className="text-warmBrown font-semibold">
+              canSpeak={String(canSpeakEffective)} • micEnabled={String(micEnabled)}
+            </Text>
+          </View>
+
+          <View className="mt-3">
+            <Text className="text-gray-600 text-xs">LiveKit</Text>
+            <Text className="text-warmBrown font-semibold" numberOfLines={1}>
+              {lkUrl ? lkUrl : '—'}
+            </Text>
+            <Text className="text-gray-700 mt-2 text-sm">
+              connectionState: <Text className="font-semibold">{String(snap.connectionState ?? '—')}</Text>
+              {'\n'}localIdentity: <Text className="font-semibold">{String(snap.localIdentity ?? '—')}</Text>
+              {'\n'}localMicEnabled: <Text className="font-semibold">{String(snap.localMicEnabled ?? '—')}</Text>
+              {'\n'}remoteParticipants: <Text className="font-semibold">{String(snap.remoteParticipants ?? '—')}</Text>
+              {'\n'}subscribedAudioTracks: <Text className="font-semibold">{String(snap.subscribedAudioTracks ?? '—')}</Text>
+              {snap.error ? `\nerror: ${String(snap.error)}` : ''}
+            </Text>
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
 }
 
 function MicStatusIndicator({ micEnabled, speaking }: { micEnabled: boolean; speaking?: boolean | null }) {
@@ -366,6 +502,7 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
   const [lkUrl, setLkUrl] = useState<string | null>(null);
   const [lkToken, setLkToken] = useState<string | null>(null);
   const [lkError, setLkError] = useState<string | null>(null);
+  const [diagOpen, setDiagOpen] = useState(false);
   const [joinNonce, setJoinNonce] = useState(0);
   const [loading, setLoading] = useState(true);
   const [micEnabled, setMicEnabled] = useState(false);
@@ -441,20 +578,19 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
     return room.creator_id === effectiveUserId || me?.role === 'host' || me?.role === 'moderator';
   }, [effectiveUserId, me?.role, room]);
 
-  const canSpeak = me?.role === 'host' || me?.role === 'moderator' || me?.role === 'speaker';
-  const canSpeakEffective = isHost || canSpeak;
+  // Audience can speak by unmuting (open mic), unless the host locked them.
+  const muteLocked = !!(me as any)?.mute_locked;
+  const canSpeakEffective = !muteLocked;
+
+  const roleLabel = me?.role ?? (isHost ? 'host' : null);
 
   // If server-side state says we're muted or a listener, force local mic off.
   useEffect(() => {
     if (!me) return;
-    if (me.role === 'listener' && micEnabled) {
-      setMicEnabled(false);
-      return;
-    }
-    if (me.is_muted && micEnabled) {
+    if (muteLocked && micEnabled) {
       setMicEnabled(false);
     }
-  }, [me?.id, me?.is_muted, me?.role, micEnabled]);
+  }, [me?.id, muteLocked, micEnabled]);
 
   const ensureMicPermission = useCallback(async (): Promise<boolean> => {
     try {
@@ -475,7 +611,7 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
   const toggleMic = useCallback(async () => {
     if (!canSpeakEffective) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      Alert.alert('Listener mode', 'Raise your hand to request speaking.');
+      Alert.alert('Muted by host', 'The host muted and locked you. You can’t unmute until the host unlocks you.');
       return;
     }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -501,10 +637,9 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
   useEffect(() => {
     if (!id || !effectiveUserId) return;
     if (!liveKitEnabled) return;
-    if (!canSpeakEffective) return;
+    if (!isHost) return;
     if (micEnabled) return;
     if (autoMicTriedRef.current) return;
-    if (!(me?.role === 'host' || me?.role === 'moderator' || me?.role === 'speaker' || room?.creator_id === effectiveUserId)) return;
     autoMicTriedRef.current = true;
     (async () => {
       const ok = await ensureMicPermission();
@@ -516,7 +651,7 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
         .eq('room_id', id)
         .eq('user_id', effectiveUserId);
     })().catch(() => null);
-  }, [canSpeakEffective, effectiveUserId, ensureMicPermission, id, liveKitEnabled, me?.role, micEnabled, room?.creator_id]);
+  }, [effectiveUserId, ensureMicPermission, id, isHost, liveKitEnabled, micEnabled]);
 
   // Keep presence fresh (best-effort heartbeat)
   useEffect(() => {
@@ -525,7 +660,7 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
     const tick = async () => {
       if (cancelled) return;
       try {
-        const shouldMuted = !(canSpeakEffective && micEnabled);
+        const shouldMuted = !micEnabled;
         await supabase
           .from('voice_room_participants')
           .update({ last_seen: new Date().toISOString(), is_muted: shouldMuted })
@@ -539,7 +674,7 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
       cancelled = true;
       clearInterval(t);
     };
-  }, [canSpeakEffective, effectiveUserId, id, micEnabled]);
+  }, [effectiveUserId, id, micEnabled]);
 
   // Load room data
   useEffect(() => {
@@ -570,8 +705,25 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
     if (!id) return;
 
     const loadParticipants = async () => {
-      const p = await listParticipantsWithProfiles(id);
-      setParticipants(p);
+      try {
+        const p = await listParticipantsWithProfiles(id);
+        setParticipants(p);
+      } catch (e) {
+        console.log('[VoiceRoom] loadParticipants failed:', String((e as any)?.message ?? e));
+      }
+    };
+    const loadHands = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('voice_room_hand_raises')
+          .select('*')
+          .eq('room_id', id)
+          .order('created_at', { ascending: true });
+        if (error) throw error;
+        setHands((data ?? []) as DbVoiceRoomHandRaise[]);
+      } catch (e) {
+        console.log('[VoiceRoom] load hands failed:', String((e as any)?.message ?? e));
+      }
     };
 
     const channel = supabase
@@ -584,21 +736,24 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'voice_room_hand_raises', filter: `room_id=eq.${id}` },
-        async () => {
-          const { data } = await supabase.from('voice_room_hand_raises').select('*').eq('room_id', id).order('created_at', { ascending: true });
-          setHands((data ?? []) as DbVoiceRoomHandRaise[]);
-        }
+        loadHands
       )
       .subscribe();
 
     // Initial fetch
     loadParticipants();
-    (async () => {
-      const { data: h } = await supabase.from('voice_room_hand_raises').select('*').eq('room_id', id).order('created_at', { ascending: true });
-      setHands((h ?? []) as DbVoiceRoomHandRaise[]);
-    })();
+    loadHands();
 
-    return () => { supabase.removeChannel(channel); };
+    // Reliability: poll in case realtime drops (common on mobile backgrounding / flaky networks).
+    const poll = setInterval(() => {
+      loadParticipants();
+      loadHands();
+    }, 4000);
+
+    return () => {
+      clearInterval(poll);
+      supabase.removeChannel(channel);
+    };
   }, [id]);
 
   // Load reactions + subscribe to reaction inserts
@@ -763,14 +918,22 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
     if (!id || !effectiveUserId) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const already = !!hands.find((h) => h.user_id === effectiveUserId);
-    if (already) await lowerHand(id, effectiveUserId);
-    else setIntentOpen(true);
+    try {
+      if (already) await lowerHand(id, effectiveUserId);
+      else setIntentOpen(true);
+    } catch (e: any) {
+      Alert.alert('Could not update hand', String(e?.message ?? e));
+    }
   };
 
   const submitRaiseIntent = async (intent: HandRaiseIntent) => {
     if (!id || !effectiveUserId) return;
     setIntentOpen(false);
-    await raiseHand(id, effectiveUserId, intent);
+    try {
+      await raiseHand(id, effectiveUserId, intent);
+    } catch (e: any) {
+      Alert.alert('Could not raise hand', String(e?.message ?? e));
+    }
   };
 
   const promote = async (userId: string) => {
@@ -1021,8 +1184,9 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
   const stage = activeParticipants.filter((p) => p.role === 'host' || p.role === 'moderator' || p.role === 'speaker');
   const audience = activeParticipants.filter((p) => p.role === 'listener');
   const audienceCount = audience.length;
-  const speakingCount = stage.filter((p) => {
-    if (p.user_id === currentUser?.id) return !!(canSpeakEffective && micEnabled);
+  // Speaking = anyone currently unmuted (including audience).
+  const speakingCount = activeParticipants.filter((p) => {
+    if (p.user_id === effectiveUserId) return !!micEnabled;
     return !p.is_muted;
   }).length;
   const listeningCount = activeParticipants.length;
@@ -1270,6 +1434,9 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
                       <Text className="text-white font-semibold">Retry</Text>
                     </Pressable>
                   )}
+                  <Pressable onPress={() => setDiagOpen(true)} className="bg-white border border-red-200 rounded-full px-4 py-2">
+                    <Text className="text-red-700 font-semibold">Diagnostics</Text>
+                  </Pressable>
                   <Pressable onPress={goBack} className="bg-white border border-red-200 rounded-full px-4 py-2">
                     <Text className="text-red-700 font-semibold">Back</Text>
                   </Pressable>
@@ -1277,7 +1444,12 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
               </View>
             ) : (
               <View className="mx-4 mt-3 bg-gold-50 border border-gold-200 rounded-xl p-4">
-                <Text className="text-gold-800 font-semibold">Connecting audio...</Text>
+                <View className="flex-row items-center justify-between">
+                  <Text className="text-gold-800 font-semibold">Connecting audio...</Text>
+                  <Pressable onPress={() => setDiagOpen(true)} className="px-3 py-1.5 rounded-full bg-white/70 border border-gold-200">
+                    <Text className="text-gold-800 font-semibold text-xs">Diagnostics</Text>
+                  </Pressable>
+                </View>
                 <Text className="text-gold-600 text-sm mt-1">Please wait while we connect you to the room.</Text>
                 {liveKitEnabled && !hasRoomAudioRenderer ? (
                   <Text className="text-gold-700 text-sm mt-2 font-semibold">
@@ -1286,6 +1458,16 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
                 ) : null}
               </View>
             )}
+
+            <LiveKitDiagnosticsModal
+              visible={diagOpen}
+              onClose={() => setDiagOpen(false)}
+              lkUrl={lkUrl}
+              effectiveUserId={effectiveUserId}
+              role={roleLabel}
+              canSpeakEffective={!!canSpeakEffective}
+              micEnabled={!!micEnabled}
+            />
 
             <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 200 }} showsVerticalScrollIndicator={false}>
               {/* Recap card (if published or host) */}
@@ -1319,10 +1501,10 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
                         <SpeakerAvatar
                           key={p.id}
                           participant={p}
-                          isCurrentUser={p.user_id === currentUser?.id}
+                          isCurrentUser={p.user_id === effectiveUserId}
                           isHost={p.role === 'host'}
                           isSpeakingNow={activeSpeakerIds.includes(p.user_id)}
-                          canModerate={isHost && p.user_id !== currentUser?.id}
+                          canModerate={isHost && p.user_id !== effectiveUserId}
                           onMute={() => handleMute(p.user_id)}
                           onDemote={() => handleDemote(p.user_id)}
                           onKick={() => handleKick(p.user_id)}
