@@ -1459,15 +1459,27 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
               </View>
             )}
 
-            <LiveKitDiagnosticsModal
-              visible={diagOpen}
-              onClose={() => setDiagOpen(false)}
-              lkUrl={lkUrl}
-              effectiveUserId={effectiveUserId}
-              role={roleLabel}
-              canSpeakEffective={!!canSpeakEffective}
-              micEnabled={!!micEnabled}
-            />
+            {/* Only render diagnostics inside LiveKit context to avoid hook crashes */}
+            {lkUrl && lkToken ? (
+              <LiveKitRoom
+                key={`diag:${lkToken}:${pauseLiveKitForTest ? 'paused' : 'on'}`}
+                serverUrl={lkUrl}
+                token={lkToken}
+                connect={false}
+                audio={false}
+                video={false}
+              >
+                <LiveKitDiagnosticsModal
+                  visible={diagOpen}
+                  onClose={() => setDiagOpen(false)}
+                  lkUrl={lkUrl}
+                  effectiveUserId={effectiveUserId}
+                  role={roleLabel}
+                  canSpeakEffective={!!canSpeakEffective}
+                  micEnabled={!!micEnabled}
+                />
+              </LiveKitRoom>
+            ) : null}
 
             <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 200 }} showsVerticalScrollIndicator={false}>
               {/* Recap card (if published or host) */}

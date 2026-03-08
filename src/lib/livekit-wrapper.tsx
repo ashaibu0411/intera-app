@@ -74,7 +74,15 @@ function initializeLiveKit() {
 
 export function useRoomContext(): unknown {
   initializeLiveKit();
-  if (_available && _useRoomContext) return _useRoomContext();
+  if (_available && _useRoomContext) {
+    try {
+      return _useRoomContext();
+    } catch (e) {
+      // LiveKit throws if called outside of <LiveKitRoom/> provider.
+      console.log('[LiveKit] useRoomContext outside provider:', String((e as any)?.message ?? e));
+      return null;
+    }
+  }
   return null;
 }
 
