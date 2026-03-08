@@ -1,6 +1,7 @@
 import 'react-native-url-polyfill/auto';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
+import { useStore } from '@/lib/store';
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://cvizplvfcdfhjlfryrwu.supabase.co';
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN2aXpwbHZmY2RmaGpsZnJ5cnd1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYwODkzMDMsImV4cCI6MjA4MTY2NTMwM30.AEl3xV4Cz_pgmhtlgdcQnjQyyC-vb9b6-1Xjl7IlVMA';
@@ -44,7 +45,71 @@ const safeStorage = {
   },
 };
 
+let refreshFailureGuard = false;
+function getSupabaseProjectRef(url: string): string | null {
+  try {
+    const host = new URL(url).hostname; // e.g. cvizplvfcdfhjlfryrwu.supabase.co
+    const ref = host.split('.')[0];
+    return ref || null;
+  } catch {
+    return null;
+  }
+}
+
+async function clearSupabaseAuthStorageKeys() {
+  const ref = getSupabaseProjectRef(supabaseUrl);
+  const keys = [
+    // legacy / custom keys used elsewhere in this repo
+    'supabase.auth.token',
+    // supabase-js v2 default storage key
+    ref ? `sb-${ref}-auth-token` : null,
+  ].filter(Boolean) as string[];
+
+  for (const k of keys) {
+    try {
+      await AsyncStorage.removeItem(k);
+    } catch {}
+  }
+}
+
+async function clearAuthLocally(reason: string) {
+  if (refreshFailureGuard) return;
+  refreshFailureGuard = true;
+  try {
+    console.log('[Supabase] Clearing auth locally:', reason);
+    // Local scope avoids network calls that can loop when refresh token is invalid.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase as any)?.auth?.signOut?.({ scope: 'local' });
+  } catch {}
+  await clearSupabaseAuthStorageKeys();
+  try {
+    useStore.getState().logout();
+  } catch {}
+  refreshFailureGuard = false;
+}
+
+async function supabaseFetch(input: RequestInfo | URL, init?: RequestInit) {
+  const res = await fetch(input as any, init as any);
+  try {
+    const url = typeof input === 'string' ? input : (input as any)?.url ? String((input as any).url) : '';
+    if (url.includes('/auth/v1/token') && !res.ok) {
+      const text = await res.clone().text().catch(() => '');
+      if (
+        text.includes('Invalid Refresh Token') ||
+        text.includes('Refresh Token Not Found') ||
+        text.includes('refresh_token_not_found')
+      ) {
+        await clearAuthLocally('refresh token invalid');
+      }
+    }
+  } catch {}
+  return res;
+}
+
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  global: {
+    fetch: supabaseFetch as any,
+  },
   auth: {
     storage: safeStorage,
     autoRefreshToken: true,
@@ -60,11 +125,10 @@ supabase.auth.onAuthStateChange(async (event, session) => {
   } else if (event === 'SIGNED_OUT') {
     console.log('[Supabase] User signed out');
     // Clear any stale auth data from storage
+    await clearSupabaseAuthStorageKeys();
     try {
-      await AsyncStorage.removeItem('supabase.auth.token');
-    } catch (e) {
-      // Ignore storage errors
-    }
+      useStore.getState().logout();
+    } catch {}
   }
 });
 
@@ -75,7 +139,10 @@ export async function clearInvalidSession() {
 
     if (error) {
       console.log('[Supabase] Session error, clearing invalid session:', error.message);
-      await supabase.auth.signOut();
+      // local scope avoids refresh loops
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any).auth.signOut({ scope: 'local' });
+      await clearSupabaseAuthStorageKeys();
       return null;
     }
 
@@ -86,7 +153,9 @@ export async function clearInvalidSession() {
           userError?.message?.includes('Invalid') ||
           userError?.message?.includes('not found')) {
         console.log('[Supabase] Invalid refresh token, signing out');
-        await supabase.auth.signOut();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (supabase as any).auth.signOut({ scope: 'local' });
+        await clearSupabaseAuthStorageKeys();
         return null;
       }
     }
@@ -96,10 +165,12 @@ export async function clearInvalidSession() {
     console.log('[Supabase] Error checking session:', e);
     // On any error, try to sign out to clear corrupt state
     try {
-      await supabase.auth.signOut();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any).auth.signOut({ scope: 'local' });
     } catch {
       // Ignore signout errors
     }
+    await clearSupabaseAuthStorageKeys();
     return null;
   }
 }

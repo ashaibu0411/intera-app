@@ -16,29 +16,24 @@ export type HandRaiseIntent = NonNullable<DbVoiceRoomHandRaise['intent']> extend
   : NonNullable<DbVoiceRoomHandRaise['intent']>;
 
 export async function listLiveVoiceRooms(limit: number = 50): Promise<DbVoiceRoom[]> {
-  const nowIso = new Date().toISOString();
+  // Keep this query schema-tolerant. Some projects may not have expires_at yet.
+  // We'll filter expired rooms client-side when the column exists.
   const { data, error } = await supabase
     .from('voice_rooms')
     .select('*')
     .neq('status', 'ended')
-    .or(`expires_at.is.null,expires_at.gt.${nowIso}`)
     .order('created_at', { ascending: false })
     .limit(limit);
-  if (!error) return (data ?? []) as DbVoiceRoom[];
+  if (error) throw error;
 
-  // Backward-compatible fallback: if the DB doesn't have expires_at yet, retry without it.
-  if (String(error.message || '').includes('expires_at')) {
-    const retry = await supabase
-      .from('voice_rooms')
-      .select('*')
-      .neq('status', 'ended')
-      .order('created_at', { ascending: false })
-      .limit(limit);
-    if (retry.error) throw retry.error;
-    return (retry.data ?? []) as DbVoiceRoom[];
-  }
-
-  throw error;
+  const rooms = (data ?? []) as DbVoiceRoom[];
+  const now = Date.now();
+  return rooms.filter((r) => {
+    const raw = (r as any)?.expires_at;
+    if (!raw) return true;
+    const ts = new Date(String(raw)).getTime();
+    return !Number.isFinite(ts) || ts > now;
+  });
 }
 
 export async function createVoiceRoom(input: {
@@ -52,11 +47,21 @@ export async function createVoiceRoom(input: {
   neighborhood?: string | null;
   scope?: DbVoiceRoom['scope'];
 }): Promise<DbVoiceRoom> {
+  // Always trust the authenticated user id for RLS (prevents creatorId mismatch on web/hydration).
+  const { data: authData } = await supabase.auth.getUser();
+  const authUserId = authData?.user?.id ?? null;
+  if (!authUserId) {
+    throw new Error('Sign in required to start a room.');
+  }
+  if (input.creatorId && input.creatorId !== authUserId) {
+    console.log('[VoiceRooms] creatorId mismatch; using auth user id', { inputCreatorId: input.creatorId, authUserId });
+  }
+
   const providerRoomName = `room_${uuidv4()}`;
   const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(); // 2 hours
 
   const payloadBase = {
-    creator_id: input.creatorId,
+    creator_id: authUserId,
     title: input.title,
     description: input.description ?? null,
     topic: input.topic ?? null,
@@ -70,18 +75,19 @@ export async function createVoiceRoom(input: {
     provider_room_name: providerRoomName,
   } as const;
 
-  // Try with expires_at (new schema), then fallback if column doesn't exist yet.
-  const first = await supabase
-    .from('voice_rooms')
-    .insert({ ...payloadBase, expires_at: expiresAt })
-    .select('*')
-    .single();
-
+  // Insert without expires_at to stay compatible with older schemas.
+  const first = await supabase.from('voice_rooms').insert(payloadBase).select('*').single();
   if (!first.error) {
     const created = first.data as DbVoiceRoom;
+
+    // Best-effort: set expires_at if the column exists in this DB.
+    try {
+      await supabase.from('voice_rooms').update({ expires_at: expiresAt } as any).eq('id', created.id);
+    } catch {}
+
     // Ensure creator is present as Host on stage (best-effort)
     try {
-      await upsertParticipant({ roomId: created.id, userId: input.creatorId, role: 'host', isMuted: false });
+      await upsertParticipant({ roomId: created.id, userId: authUserId, role: 'host', isMuted: false });
     } catch {}
 
     // Notify area/city that a room is live (best-effort)
@@ -99,7 +105,9 @@ export async function createVoiceRoom(input: {
         scope,
         city: input.city ?? null,
         neighborhood: input.neighborhood ?? null,
-        excludeUserId: input.creatorId,
+        excludeUserId: authUserId,
+        type: 'voice_room_live',
+        actorId: authUserId,
         data: {
           type: 'voice_room_live',
           roomId: created.id,
@@ -110,40 +118,13 @@ export async function createVoiceRoom(input: {
     return created;
   }
 
-  if (String(first.error.message || '').includes('expires_at')) {
-    const retry = await supabase.from('voice_rooms').insert(payloadBase).select('*').single();
-    if (retry.error) throw retry.error;
-    const created = retry.data as DbVoiceRoom;
-    // Ensure creator is present as Host on stage (best-effort)
-    try {
-      await upsertParticipant({ roomId: created.id, userId: input.creatorId, role: 'host', isMuted: false });
-    } catch {}
-    // Notify area/city that a room is live (best-effort)
-    try {
-      const scope = (input.scope ?? 'city') as any;
-      const where =
-        scope === 'neighborhood'
-          ? `${input.neighborhood ?? 'your neighborhood'}`
-          : scope === 'city'
-            ? `${input.city ?? 'your city'}`
-            : 'your community';
-      await sendRemotePushAlert({
-        title: `LIVE: ${input.title}`,
-        body: `${input.topic ? `${input.topic} • ` : ''}Join the voice room in ${where}.`,
-        scope,
-        city: input.city ?? null,
-        neighborhood: input.neighborhood ?? null,
-        excludeUserId: input.creatorId,
-        data: {
-          type: 'voice_room_live',
-          roomId: created.id,
-        },
-      });
-    } catch {}
-    return created;
+  {
+    const msg = String(first.error.message || '');
+    if (msg.includes('row-level security') || (first.error as any)?.code === '42501') {
+      throw new Error('Voice rooms are blocked by database RLS. Apply the `voice_rooms` RLS SQL policies in Supabase, then try again.');
+    }
+    throw first.error;
   }
-
-  throw first.error;
 }
 
 export async function endVoiceRoom(roomId: string): Promise<void> {
@@ -179,7 +160,7 @@ export async function restartVoiceRoom(roomId: string): Promise<void> {
     await supabase.from('voice_room_participants').delete().eq('room_id', roomId);
   } catch {}
 
-  const { error } = await supabase
+  const first = await supabase
     .from('voice_rooms')
     .update({
       status: 'live',
@@ -187,10 +168,27 @@ export async function restartVoiceRoom(roomId: string): Promise<void> {
       starts_at: null,
       provider_room_name: providerRoomName,
       expires_at: expiresAt,
-    })
+    } as any)
     .eq('id', roomId);
 
-  if (error) throw error;
+  if (!first.error) return;
+
+  // Backward-compatible fallback if expires_at doesn't exist.
+  if (String(first.error.message || '').includes('expires_at')) {
+    const retry = await supabase
+      .from('voice_rooms')
+      .update({
+        status: 'live',
+        ended_at: null,
+        starts_at: null,
+        provider_room_name: providerRoomName,
+      } as any)
+      .eq('id', roomId);
+    if (retry.error) throw retry.error;
+    return;
+  }
+
+  throw first.error;
 }
 
 export async function upsertParticipant(input: {

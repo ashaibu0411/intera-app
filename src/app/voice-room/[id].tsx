@@ -2361,3 +2361,28 @@ export default function VoiceRoomScreen() {
 
   return <VoiceRoomScreenContent id={id} />;
 }
+
+export function ErrorBoundary({ error, retry }: { error: Error; retry: () => void }) {
+  return (
+    <View style={{ flex: 1, backgroundColor: '#FBF9F7', padding: 20, justifyContent: 'center' }}>
+      <Text style={{ color: '#2D1F1A', fontWeight: '800', fontSize: 18 }}>Voice room failed to open</Text>
+      <Text style={{ color: '#6B7280', marginTop: 10 }}>
+        {String(error?.message || error)}
+      </Text>
+      <View style={{ flexDirection: 'row', marginTop: 16 }}>
+        <Pressable
+          onPress={retry}
+          style={{ backgroundColor: '#1B4D3E', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 12, marginRight: 10 }}
+        >
+          <Text style={{ color: 'white', fontWeight: '700' }}>Retry</Text>
+        </Pressable>
+        <Pressable
+          onPress={() => router.replace('/(tabs)/voice-rooms' as never)}
+          style={{ backgroundColor: '#EFE7E2', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 12 }}
+        >
+          <Text style={{ color: '#2D1F1A', fontWeight: '700' }}>Back</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}

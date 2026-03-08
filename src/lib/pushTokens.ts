@@ -59,7 +59,7 @@ export async function syncPushToken(params: {
   if (!token) return;
 
   const deviceId = `${Device.modelId || 'unknown'}:${Device.osInternalBuildId || Device.osBuildId || '0'}`;
-  await supabase
+  const { error } = await supabase
     .from('push_tokens')
     .upsert(
       {
@@ -75,6 +75,17 @@ export async function syncPushToken(params: {
       },
       { onConflict: 'token' }
     );
+
+  if (error) {
+    const msg = String(error.message || '');
+    // Common reasons this silently breaks in prod:
+    // - push_tokens migration not deployed
+    // - RLS mismatch / missing authenticated session
+    console.log('[PushTokens] Failed to upsert push token:', {
+      code: (error as any).code,
+      message: msg,
+    });
+  }
 }
 
 /**
@@ -82,7 +93,12 @@ export async function syncPushToken(params: {
  */
 export async function syncPushTokenFromStore() {
   const s = useStore.getState();
-  const userId = s.currentUser?.id;
+  let userId = s.currentUser?.id;
+  if (!userId) {
+    // Fallback: rely on the authenticated Supabase session (more reliable than app-level profile hydration)
+    const { data } = await supabase.auth.getUser();
+    userId = data?.user?.id ?? undefined;
+  }
   if (!userId) return;
 
   const loc = s.selectedLocation;

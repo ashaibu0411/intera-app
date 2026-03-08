@@ -129,7 +129,6 @@ function RootLayoutNav() {
   // Best-effort sync of remote push token whenever user/location/notification pref changes
   useEffect(() => {
     if (!isHydrated) return;
-    if (!currentUser?.id) return;
     // Do not block UI
     syncPushTokenFromStore().catch(() => {});
   }, [isHydrated, currentUser?.id, selectedLocation?.city, selectedLocation?.neighborhood, notificationsEnabled]);

@@ -180,6 +180,8 @@ export async function sendMessage(conversationId: string, senderId: string, cont
         excludeUserId: authenticatedUserId,
         title: `New message`,
         body: content.length > 120 ? content.slice(0, 120) + '…' : content,
+        type: 'new_message',
+        actorId: authenticatedUserId,
         data: {
           type: 'new_message',
           conversationId,

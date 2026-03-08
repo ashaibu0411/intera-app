@@ -256,7 +256,10 @@ export default function VoiceRoomsScreen() {
   };
 
   const handleCreate = async () => {
-    if (!effectiveUserId) {
+    // Always rely on the current auth session for create (prevents RLS failures if app state is stale).
+    const { data: auth } = await supabase.auth.getUser();
+    const authUserId = auth?.user?.id ?? null;
+    if (!authUserId) {
       Alert.alert('Sign in required', 'Please sign in to start a room.');
       return;
     }
@@ -284,7 +287,7 @@ export default function VoiceRoomsScreen() {
       }
 
       const room = await createVoiceRoom({
-        creatorId: effectiveUserId,
+        creatorId: authUserId,
         title: title.trim(),
         topic: topic.trim() ? topic.trim() : undefined,
         country: selectedLocation?.country ?? '',
@@ -296,8 +299,13 @@ export default function VoiceRoomsScreen() {
       setCreateOpen(false);
       router.push(`/voice-room/${room.id}`);
     } catch (e: unknown) {
-      const errorMessage = e instanceof Error ? e.message : 'Unknown error';
-      Alert.alert('Could not start room', errorMessage);
+      const raw = String((e as any)?.message ?? (e as any)?.error?.message ?? e ?? '');
+      const msg = raw.includes('Invalid Refresh Token') || raw.includes('Refresh Token')
+        ? 'Your session expired. Please sign in again.'
+        : raw.includes('row-level security') || raw.includes('42501')
+          ? 'Database blocked starting a room (RLS). Make sure the voice_rooms insert policy is installed AND you are fully signed in (no 401s).'
+        : raw || 'Unknown error';
+      Alert.alert('Could not start room', msg);
     } finally {
       setCreating(false);
     }
