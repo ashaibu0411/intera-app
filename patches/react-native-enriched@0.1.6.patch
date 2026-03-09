@@ -1,32 +1,130 @@
+diff --git a/node_modules/react-native-enriched/.bun-tag-186af7e797d5b6fc b/.bun-tag-186af7e797d5b6fc
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/node_modules/react-native-enriched/.bun-tag-1e875ad8ce59832e b/.bun-tag-1e875ad8ce59832e
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/node_modules/react-native-enriched/.bun-tag-5abf7f3cacdfe723 b/.bun-tag-5abf7f3cacdfe723
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
 diff --git a/android/src/main/new_arch/react/renderer/components/RNEnrichedTextInputViewSpec/conversions.h b/android/src/main/new_arch/react/renderer/components/RNEnrichedTextInputViewSpec/conversions.h
-index 0000000000000000000000000000000000000000..1111111111111111111111111111111111111111 100644
+index 0b82fdcec0a95733ebc7c2ac7bf06f752355d61b..acccbafd9d2d25249b3fa3137ae9646e4e2b17a7 100644
 --- a/android/src/main/new_arch/react/renderer/components/RNEnrichedTextInputViewSpec/conversions.h
 +++ b/android/src/main/new_arch/react/renderer/components/RNEnrichedTextInputViewSpec/conversions.h
-@@ -1,27 +1,25 @@
+@@ -1,13 +1,104 @@
  #pragma once
  
  #include <folly/dynamic.h>
+-#include <react/renderer/components/FBReactNativeSpec/Props.h>
  #include <react/renderer/core/propsConversions.h>
  #include <react/renderer/components/RNEnrichedTextInputViewSpec/Props.h>
  
  namespace facebook::react {
  
 -#ifdef RN_SERIALIZABLE_STATE
++inline folly::dynamic toDynamic(const EnrichedTextInputViewHtmlStyleH1Struct &value) {
++    folly::dynamic result = folly::dynamic::object();
++    result["fontSize"] = value.fontSize;
++    result["bold"] = value.bold;
++    return result;
++}
++
++inline folly::dynamic toDynamic(const EnrichedTextInputViewHtmlStyleH2Struct &value) {
++    folly::dynamic result = folly::dynamic::object();
++    result["fontSize"] = value.fontSize;
++    result["bold"] = value.bold;
++    return result;
++}
++
++inline folly::dynamic toDynamic(const EnrichedTextInputViewHtmlStyleH3Struct &value) {
++    folly::dynamic result = folly::dynamic::object();
++    result["fontSize"] = value.fontSize;
++    result["bold"] = value.bold;
++    return result;
++}
++
++inline folly::dynamic toDynamic(const EnrichedTextInputViewHtmlStyleBlockquoteStruct &value) {
++    folly::dynamic result = folly::dynamic::object();
++    result["borderColor"] = ::facebook::react::toDynamic(value.borderColor);
++    result["borderWidth"] = value.borderWidth;
++    result["gapWidth"] = value.gapWidth;
++    result["color"] = ::facebook::react::toDynamic(value.color);
++    return result;
++}
++
++inline folly::dynamic toDynamic(const EnrichedTextInputViewHtmlStyleCodeblockStruct &value) {
++    folly::dynamic result = folly::dynamic::object();
++    result["color"] = ::facebook::react::toDynamic(value.color);
++    result["borderRadius"] = value.borderRadius;
++    result["backgroundColor"] = ::facebook::react::toDynamic(value.backgroundColor);
++    return result;
++}
++
++inline folly::dynamic toDynamic(const EnrichedTextInputViewHtmlStyleCodeStruct &value) {
++    folly::dynamic result = folly::dynamic::object();
++    result["color"] = ::facebook::react::toDynamic(value.color);
++    result["backgroundColor"] = ::facebook::react::toDynamic(value.backgroundColor);
++    return result;
++}
++
++inline folly::dynamic toDynamic(const EnrichedTextInputViewHtmlStyleAStruct &value) {
++    folly::dynamic result = folly::dynamic::object();
++    result["color"] = ::facebook::react::toDynamic(value.color);
++    result["textDecorationLine"] = value.textDecorationLine;
++    return result;
++}
++
++inline folly::dynamic toDynamic(const EnrichedTextInputViewHtmlStyleImgStruct &value) {
++    folly::dynamic result = folly::dynamic::object();
++    result["width"] = value.width;
++    result["height"] = value.height;
++    return result;
++}
++
++inline folly::dynamic toDynamic(const EnrichedTextInputViewHtmlStyleOlStruct &value) {
++    folly::dynamic result = folly::dynamic::object();
++    result["gapWidth"] = value.gapWidth;
++    result["marginLeft"] = value.marginLeft;
++    result["markerFontWeight"] = value.markerFontWeight;
++    result["markerColor"] = ::facebook::react::toDynamic(value.markerColor);
++    return result;
++}
++
++inline folly::dynamic toDynamic(const EnrichedTextInputViewHtmlStyleUlStruct &value) {
++    folly::dynamic result = folly::dynamic::object();
++    result["bulletColor"] = ::facebook::react::toDynamic(value.bulletColor);
++    result["bulletSize"] = value.bulletSize;
++    result["marginLeft"] = value.marginLeft;
++    result["gapWidth"] = value.gapWidth;
++    return result;
++}
++
++inline folly::dynamic toDynamic(const EnrichedTextInputViewHtmlStyleStruct &value) {
++    folly::dynamic result = folly::dynamic::object();
++    result["h1"] = toDynamic(value.h1);
++    result["h2"] = toDynamic(value.h2);
++    result["h3"] = toDynamic(value.h3);
++    result["blockquote"] = toDynamic(value.blockquote);
++    result["codeblock"] = toDynamic(value.codeblock);
++    result["code"] = toDynamic(value.code);
++    result["a"] = toDynamic(value.a);
++    result["mention"] = value.mention;
++    result["img"] = toDynamic(value.img);
++    result["ol"] = toDynamic(value.ol);
++    result["ul"] = toDynamic(value.ul);
++    return result;
++}
++
  inline folly::dynamic toDynamic(const EnrichedTextInputViewProps &props)
  {
      // Serialize only metrics affecting props
-     folly::dynamic serializedProps = folly::dynamic::object();
-     serializedProps["defaultValue"] = props.defaultValue;
-     serializedProps["placeholder"] = props.placeholder;
-     serializedProps["fontSize"] = props.fontSize;
-     serializedProps["fontWeight"] = props.fontWeight;
+@@ -19,9 +110,7 @@ inline folly::dynamic toDynamic(const EnrichedTextInputViewProps &props)
      serializedProps["fontStyle"] = props.fontStyle;
      serializedProps["fontFamily"] = props.fontFamily;
      serializedProps["htmlStyle"] = toDynamic(props.htmlStyle);
- 
+-
      return serializedProps;
  }
 -#endif
  
  } // namespace facebook::react
- 
