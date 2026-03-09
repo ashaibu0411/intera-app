@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, Pressable, ActivityIndicator, ScrollView, Modal, Alert, Linking, TextInput, Platform } from 'react-native';
+import { View, Text, Pressable, ActivityIndicator, ScrollView, Modal, Alert, Linking, TextInput, Platform, Animated, Easing } from 'react-native';
 import { Stack, useLocalSearchParams, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
@@ -49,6 +49,79 @@ const GIFTS = [
   { id: 'crown', name: 'Crown', value: 100, emoji: '👑' },
   { id: 'sparkle', name: 'Sparkle', value: 500, emoji: '✨' },
 ] as const;
+
+type ReactionKind = 'agree' | 'heart' | 'clap' | 'fire';
+
+function ReactionBurst({
+  emoji,
+  onDone,
+}: {
+  emoji: string;
+  onDone: () => void;
+}) {
+  const opacity = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(0)).current;
+  const scale = useRef(new Animated.Value(0.8)).current;
+  const driftX = useRef(new Animated.Value((Math.random() * 60 - 30) | 0)).current;
+
+  useEffect(() => {
+    const anim = Animated.parallel([
+      Animated.timing(opacity, {
+        toValue: 1,
+        duration: 90,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+      Animated.timing(scale, {
+        toValue: 1,
+        duration: 140,
+        easing: Easing.out(Easing.back(1.2)),
+        useNativeDriver: true,
+      }),
+      Animated.timing(translateY, {
+        toValue: -110,
+        duration: 850,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]);
+
+    anim.start(() => {
+      Animated.timing(opacity, {
+        toValue: 0,
+        duration: 120,
+        easing: Easing.in(Easing.quad),
+        useNativeDriver: true,
+      }).start(onDone);
+    });
+
+    return () => {
+      opacity.stopAnimation();
+      translateY.stopAnimation();
+      scale.stopAnimation();
+      driftX.stopAnimation();
+    };
+  }, [driftX, onDone, opacity, scale, translateY]);
+
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={{
+        position: 'absolute',
+        left: '50%',
+        bottom: 130,
+        transform: [
+          { translateX: driftX },
+          { translateY },
+          { scale },
+        ],
+        opacity,
+      }}
+    >
+      <Text style={{ fontSize: 28 }}>{emoji}</Text>
+    </Animated.View>
+  );
+}
 
 function MicSync({ enabled }: { enabled: boolean }) {
   const room = useRoomContext() as { localParticipant?: { setMicrophoneEnabled?: (enabled: boolean) => Promise<void> } } | null;
@@ -534,6 +607,16 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
   const [hlEgressId, setHlEgressId] = useState<string | null>(null);
   const [hlHighlightId, setHlHighlightId] = useState<string | null>(null);
   const [hlStoragePath, setHlStoragePath] = useState<string | null>(null);
+  const [hlError, setHlError] = useState<string | null>(null);
+  const [hlStartedAtMs, setHlStartedAtMs] = useState<number | null>(null);
+  const [hlJustSaved, setHlJustSaved] = useState(false);
+  const [hlTick, setHlTick] = useState(0);
+
+  useEffect(() => {
+    if (!hlEgressId) return;
+    const t = setInterval(() => setHlTick((x) => (x + 1) % 1000000), 1000);
+    return () => clearInterval(t);
+  }, [hlEgressId]);
 
   const liveKitEnabled = isLiveKitAvailable();
   const hasRoomAudioRenderer = !!getLiveKitModule()?.RoomAudioRenderer;
@@ -1191,6 +1274,29 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
   }).length;
   const listeningCount = activeParticipants.length;
   const iRaised = !!hands.find((h) => h.user_id === effectiveUserId);
+  const reactionBurstsRef = useRef<Array<{ id: string; emoji: string }>>([]);
+  const [reactionBursts, setReactionBursts] = useState<Array<{ id: string; emoji: string }>>([]);
+
+  const addBurst = useCallback((emoji: string) => {
+    const item = { id: `${Date.now()}_${Math.random().toString(16).slice(2)}`, emoji };
+    reactionBurstsRef.current = [...reactionBurstsRef.current, item].slice(-10);
+    setReactionBursts(reactionBurstsRef.current);
+  }, []);
+
+  const reactOptimistic = useCallback(async (kind: ReactionKind, emoji: string) => {
+    if (!currentUser?.id || !id) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => null);
+    addBurst(emoji);
+    setReactions((p) => ({ ...p, [kind]: ((p as any)[kind] || 0) + 1 }));
+    try {
+      await sendReaction(id, currentUser.id, kind as any);
+    } catch (e: any) {
+      // Roll back and surface a subtle error (avoid blocking alerts during conversation).
+      setReactions((p) => ({ ...p, [kind]: Math.max(0, ((p as any)[kind] || 0) - 1) }));
+      console.log('[VoiceRoom] reaction failed:', String(e?.message ?? e));
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => null);
+    }
+  }, [addBurst, currentUser?.id, id]);
 
   // Get hand raise user profiles
   const handRaisesWithProfiles = hands.map(h => {
@@ -1611,6 +1717,20 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
               </View>
             ) : null}
 
+            {/* Reaction bursts (visual feedback) */}
+            <View pointerEvents="none" className="absolute left-0 right-0 bottom-0">
+              {reactionBursts.map((b) => (
+                <ReactionBurst
+                  key={b.id}
+                  emoji={b.emoji}
+                  onDone={() => {
+                    reactionBurstsRef.current = reactionBurstsRef.current.filter((x) => x.id !== b.id);
+                    setReactionBursts(reactionBurstsRef.current);
+                  }}
+                />
+              ))}
+            </View>
+
             {/* Bottom Controls */}
             <View className="absolute left-0 right-0 bottom-0 bg-cream/95 border-t border-gray-100 px-4 pb-6 pt-3">
               {/* Mic Status */}
@@ -1703,12 +1823,7 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
               {/* Silent participation */}
               <View className="flex-row mt-3 gap-2">
                 <Pressable
-                  onPress={async () => {
-                    if (!currentUser?.id || !id) return;
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    setReactions((p) => ({ ...p, agree: (p.agree || 0) + 1 }));
-                    try { await sendReaction(id, currentUser.id, 'agree'); } catch {}
-                  }}
+                  onPress={() => reactOptimistic('agree', '👍')}
                   className="flex-1 bg-white border border-gray-200 rounded-xl py-3 flex-row items-center justify-center"
                 >
                   <ThumbsUp size={16} color="#1B4D3E" />
@@ -1716,36 +1831,21 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
                   <Text className="text-gray-500 font-semibold ml-2">{reactions.agree || 0}</Text>
                 </Pressable>
                 <Pressable
-                  onPress={async () => {
-                    if (!currentUser?.id || !id) return;
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    setReactions((p) => ({ ...p, heart: (p.heart || 0) + 1 }));
-                    try { await sendReaction(id, currentUser.id, 'heart'); } catch {}
-                  }}
+                  onPress={() => reactOptimistic('heart', '❤️')}
                   className="w-16 bg-white border border-gray-200 rounded-xl py-3 items-center justify-center"
                 >
                   <HeartHandshake size={18} color="#C45C26" />
                   <Text className="text-gray-500 font-semibold text-xs mt-1">{reactions.heart || 0}</Text>
                 </Pressable>
                 <Pressable
-                  onPress={async () => {
-                    if (!currentUser?.id || !id) return;
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    setReactions((p) => ({ ...p, clap: (p.clap || 0) + 1 }));
-                    try { await sendReaction(id, currentUser.id, 'clap'); } catch {}
-                  }}
+                  onPress={() => reactOptimistic('clap', '👏')}
                   className="w-16 bg-white border border-gray-200 rounded-xl py-3 items-center justify-center"
                 >
                   <Text style={{ fontSize: 18 }}>👏</Text>
                   <Text className="text-gray-500 font-semibold text-xs mt-1">{reactions.clap || 0}</Text>
                 </Pressable>
                 <Pressable
-                  onPress={async () => {
-                    if (!currentUser?.id || !id) return;
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    setReactions((p) => ({ ...p, fire: (p.fire || 0) + 1 }));
-                    try { await sendReaction(id, currentUser.id, 'fire'); } catch {}
-                  }}
+                  onPress={() => reactOptimistic('fire', '🔥')}
                   className="w-16 bg-white border border-gray-200 rounded-xl py-3 items-center justify-center"
                 >
                   <Flame size={18} color="#DC2626" />
@@ -1790,69 +1890,99 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
 
               {/* Host highlight recording */}
               {isHost ? (
-                <View className="flex-row mt-3 gap-2">
-                  <Pressable
-                    onPress={() => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      if (hlEgressId) {
-                        // Already recording
-                        return;
-                      }
-                      setHlLabel('');
-                      setHlOpen(true);
-                    }}
-                    className={`flex-1 rounded-xl py-3 items-center justify-center ${hlEgressId ? 'bg-red-600' : 'bg-forest-700'}`}
-                  >
-                    <Text className="text-white font-semibold">
-                      {hlEgressId ? 'Recording highlight…' : 'Record highlight'}
-                    </Text>
-                  </Pressable>
-                  {hlEgressId ? (
+                <View className="mt-3">
+                  <View className="flex-row gap-2">
                     <Pressable
-                      onPress={async () => {
-                        if (!id || !hlEgressId || !hlHighlightId) return;
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                        setHlBusy(true);
-                        try {
-                          await stopVoiceRoomHighlight({ roomId: id, highlightId: hlHighlightId, egressId: hlEgressId });
-
-                          // Create clip entry pointing at the storage object path.
-                          if (currentUser?.id && room && hlStoragePath) {
-                            const desc = buildVoiceRoomHighlightClipDescription({
-                              roomId: id,
-                              roomTitle: room.title,
-                              label: hlLabel || 'Voice room highlight',
-                            });
-                            const clip = await createClip({
-                              user_id: currentUser.id,
-                              video_url: hlStoragePath,
-                              description: desc,
-                            });
-                            // Link highlight -> clip
-                            if (clip?.id) {
-                              await supabase
-                                .from('voice_room_highlights')
-                                .update({ status: 'ready', clip_id: clip.id, stopped_at: new Date().toISOString() })
-                                .eq('id', hlHighlightId);
-                            }
-                          }
-
-                          Alert.alert('Saved', 'Highlight is processing and will appear in Clips shortly.');
-                        } catch (e: any) {
-                          Alert.alert('Could not stop highlight', String(e?.message ?? e));
-                        } finally {
-                          setHlBusy(false);
-                          setHlEgressId(null);
-                          setHlHighlightId(null);
-                          setHlStoragePath(null);
-                        }
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        setHlError(null);
+                        setHlJustSaved(false);
+                        if (hlEgressId) return; // already recording
+                        setHlLabel('');
+                        setHlOpen(true);
                       }}
-                      disabled={hlBusy}
-                      className="bg-red-600 rounded-xl px-4 py-3 items-center justify-center"
+                      className={`flex-1 rounded-xl py-3 items-center justify-center ${hlEgressId ? 'bg-red-600' : 'bg-forest-700'}`}
                     >
-                      <Text className="text-white font-semibold">{hlBusy ? 'Stopping…' : 'Stop'}</Text>
+                      <Text className="text-white font-semibold">
+                        {hlEgressId ? 'Recording highlight…' : 'Record highlight'}
+                      </Text>
                     </Pressable>
-                  ) : null}
+
+                    {hlEgressId ? (
+                      <Pressable
+                        onPress={async () => {
+                          if (!id || !hlEgressId || !hlHighlightId) return;
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                          setHlBusy(true);
+                          setHlError(null);
+                          try {
+                            await stopVoiceRoomHighlight({ roomId: id, highlightId: hlHighlightId, egressId: hlEgressId });
+
+                            // Create clip entry pointing at the storage object path.
+                            if (currentUser?.id && room && hlStoragePath) {
+                              const desc = buildVoiceRoomHighlightClipDescription({
+                                roomId: id,
+                                roomTitle: room.title,
+                                label: hlLabel || 'Voice room highlight',
+                              });
+                              const clip = await createClip({
+                                user_id: currentUser.id,
+                                video_url: hlStoragePath,
+                                description: desc,
+                              });
+                              // Link highlight -> clip
+                              if (clip?.id) {
+                                await supabase
+                                  .from('voice_room_highlights')
+                                  .update({ status: 'ready', clip_id: clip.id, stopped_at: new Date().toISOString() })
+                                  .eq('id', hlHighlightId);
+                              }
+                            }
+
+                            setHlJustSaved(true);
+                            setTimeout(() => setHlJustSaved(false), 4500);
+                          } catch (e: any) {
+                            setHlError(String(e?.message ?? e));
+                          } finally {
+                            setHlBusy(false);
+                            setHlEgressId(null);
+                            setHlHighlightId(null);
+                            setHlStoragePath(null);
+                            setHlStartedAtMs(null);
+                          }
+                        }}
+                        disabled={hlBusy}
+                        className="bg-red-600 rounded-xl px-4 py-3 items-center justify-center"
+                      >
+                        <Text className="text-white font-semibold">{hlBusy ? 'Stopping…' : 'Stop'}</Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+
+                  {/* Inline recording status + errors */}
+                  <View className="mt-2">
+                    {hlEgressId ? (
+                      <Text className="text-gray-600 font-semibold">
+                        Recording • {(() => {
+                          const ms = hlStartedAtMs ? Math.max(0, Date.now() - hlStartedAtMs) : 0;
+                          const s = Math.floor(ms / 1000);
+                          const mm = String(Math.floor(s / 60)).padStart(2, '0');
+                          const ss = String(s % 60).padStart(2, '0');
+                          // use hlTick to re-render each second
+                          void hlTick;
+                          return `${mm}:${ss}`;
+                        })()}
+                      </Text>
+                    ) : hlJustSaved ? (
+                      <Text className="text-forest-700 font-semibold">Saved ✓ Processing highlight…</Text>
+                    ) : hlError ? (
+                      <Text className="text-red-600 font-semibold" numberOfLines={2}>
+                        Highlight failed: {hlError}
+                      </Text>
+                    ) : (
+                      <Text className="text-gray-500">Highlights save short moments to Clips.</Text>
+                    )}
+                  </View>
                 </View>
               ) : null}
             </View>
@@ -2074,15 +2204,17 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
                         onPress={async () => {
                           if (!id || !room) return;
                           setHlBusy(true);
+                          setHlError(null);
+                          setHlJustSaved(false);
                           try {
                             const res = await startVoiceRoomHighlight({ roomId: id, label: hlLabel });
                             setHlEgressId(res.egressId);
                             setHlHighlightId(res.highlightId);
                             setHlStoragePath(res.storagePath);
                             setHlOpen(false);
-                            Alert.alert('Recording', 'Recording started. Tap Stop when you want to end the highlight.');
+                            setHlStartedAtMs(Date.now());
                           } catch (e: any) {
-                            Alert.alert('Could not start highlight', String(e?.message ?? e));
+                            setHlError(String(e?.message ?? e));
                           } finally {
                             setHlBusy(false);
                           }

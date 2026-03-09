@@ -1,31 +1,32 @@
 diff --git a/android/src/main/new_arch/react/renderer/components/RNEnrichedTextInputViewSpec/conversions.h b/android/src/main/new_arch/react/renderer/components/RNEnrichedTextInputViewSpec/conversions.h
+index 0000000000000000000000000000000000000000..1111111111111111111111111111111111111111 100644
 --- a/android/src/main/new_arch/react/renderer/components/RNEnrichedTextInputViewSpec/conversions.h
 +++ b/android/src/main/new_arch/react/renderer/components/RNEnrichedTextInputViewSpec/conversions.h
-@@ -1,7 +1,6 @@
+@@ -1,27 +1,25 @@
  #pragma once
  
  #include <folly/dynamic.h>
--#include <react/renderer/components/FBReactNativeSpec/Props.h>
  #include <react/renderer/core/propsConversions.h>
  #include <react/renderer/components/RNEnrichedTextInputViewSpec/Props.h>
  
-@@ -8,20 +7,18 @@ namespace facebook::react {
+ namespace facebook::react {
  
 -#ifdef RN_SERIALIZABLE_STATE
  inline folly::dynamic toDynamic(const EnrichedTextInputViewProps &props)
  {
-  // Serialize only metrics affecting props
-  folly::dynamic serializedProps = folly::dynamic::object();
-  serializedProps["defaultValue"] = props.defaultValue;
-  serializedProps["placeholder"] = props.placeholder;
-  serializedProps["fontSize"] = props.fontSize;
-  serializedProps["fontWeight"] = props.fontWeight;
-  serializedProps["fontStyle"] = props.fontStyle;
-  serializedProps["fontFamily"] = props.fontFamily;
-  serializedProps["htmlStyle"] = toDynamic(props.htmlStyle);
+     // Serialize only metrics affecting props
+     folly::dynamic serializedProps = folly::dynamic::object();
+     serializedProps["defaultValue"] = props.defaultValue;
+     serializedProps["placeholder"] = props.placeholder;
+     serializedProps["fontSize"] = props.fontSize;
+     serializedProps["fontWeight"] = props.fontWeight;
+     serializedProps["fontStyle"] = props.fontStyle;
+     serializedProps["fontFamily"] = props.fontFamily;
+     serializedProps["htmlStyle"] = toDynamic(props.htmlStyle);
  
-  return serializedProps;
+     return serializedProps;
  }
 -#endif
  
  } // namespace facebook::react
+ 

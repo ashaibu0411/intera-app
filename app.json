@@ -30,12 +30,12 @@
         "NSContactsUsageDescription": "Intera accesses your contacts to help you find and connect with friends who are already using the app. For example, we can show you which of your contacts are members so you can easily add them as connections and share community updates with people you know.",
         "NSMicrophoneUsageDescription": "Intera uses your microphone to enable voice communication features. For example, you can record voice messages to send to other community members, participate in live audio discussions in voice rooms, or add audio narration to your video clips and stories."
       },
-      "buildNumber": "24"
+      "buildNumber": "25"
     },
     "android": {
       "label": "Intera: Community App",
       "package": "com.vibecode.intera",
-      "versionCode": 31,
+      "versionCode": 32,
       "splash": {
         "image": "./assets/icon.png",
         "resizeMode": "contain",
@@ -56,6 +56,7 @@
         "android.permission.INTERNET",
         "android.permission.ACCESS_NETWORK_STATE",
         "android.permission.VIBRATE",
+        "android.permission.POST_NOTIFICATIONS",
         "android.permission.POST_NOTIFICATIONS"
       ],
       "blockedPermissions": [
@@ -118,6 +119,12 @@
         "projectId": "090ff57c-7051-4df7-b53e-60eaa2cfe0f6"
       }
     },
-    "owner": "znombre04"
+    "owner": "znombre04",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/090ff57c-7051-4df7-b53e-60eaa2cfe0f6"
+    }
   }
 }

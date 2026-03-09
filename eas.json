@@ -12,7 +12,8 @@
       },
       "android": {
         "buildType": "apk"
-      }
+      },
+      "channel": "development"
     },
     "preview": {
       "distribution": "internal",
@@ -21,7 +22,8 @@
       },
       "android": {
         "buildType": "apk"
-      }
+      },
+      "channel": "preview"
     },
     "production": {
       "autoIncrement": true,
@@ -30,15 +32,16 @@
       },
       "android": {
         "buildType": "app-bundle"
-      }
+      },
+      "channel": "production"
     }
   },
   "submit": {
-  "production": {
-    "ios": {
-      "ascAppId": "6757202755"
-    },
-    "android": {}
+    "production": {
+      "ios": {
+        "ascAppId": "6757202755"
+      },
+      "android": {}
+    }
   }
-}
 }
