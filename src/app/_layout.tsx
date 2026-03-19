@@ -43,6 +43,7 @@ function RootLayoutNav() {
   const currentUser = useStore((s) => s.currentUser);
   const selectedLocation = useStore((s) => s.selectedLocation);
   const notificationsEnabled = useStore((s) => s.notificationsEnabled);
+  const darkMode = useStore((s) => s.darkMode);
   const [isHydrated, setIsHydrated] = useState(false);
   const segments = useSegments();
   const appState = useRef<AppStateStatus>(AppState.currentState);
@@ -119,6 +120,13 @@ function RootLayoutNav() {
           router.push(`/voice-room/${String(data.roomId)}` as any);
           return;
         }
+        if (type === 'new_appointment' && data?.businessId) {
+          router.push({
+            pathname: '/business-appointments',
+            params: { businessId: String(data.businessId), businessName: String(data.businessName || 'Appointments') },
+          } as any);
+          return;
+        }
       } catch {}
     });
     return () => {
@@ -140,8 +148,10 @@ function RootLayoutNav() {
 
     const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
       if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
-        // App has come to foreground - mark user online
+        // App has come to foreground - mark user online and re-sync push token
+        // (helps TestFlight/iOS users whose token may not have synced on first launch)
         markUserOnline();
+        syncPushTokenFromStore().catch(() => {});
       } else if (nextAppState.match(/inactive|background/)) {
         // App is going to background - mark user offline
         markUserOffline();
@@ -210,8 +220,10 @@ function RootLayoutNav() {
     router.replace(`/${target}` as any);
   }, [isHydrated, segments, currentUser?.id, hasSeenWelcome, selectedLocation?.city, selectedLocation?.country]);
 
+  const theme = darkMode ? DarkTheme : DiasporaTheme;
+
   return (
-    <ThemeProvider value={DiasporaTheme}>
+    <ThemeProvider value={theme}>
       <View style={{ flex: 1 }}>
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="(tabs)" />
@@ -284,6 +296,7 @@ function RootLayoutNav() {
         <Stack.Screen name="book-appointment" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="my-appointments" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="business-appointments" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="business-analytics" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="manage-booking-calendar" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="business-pro-paywall" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
         <Stack.Screen name="seller-pro-paywall" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
@@ -331,11 +344,16 @@ function RootLayoutNav() {
   );
 }
 
+function StatusBarTheme() {
+  const darkMode = useStore((s) => s.darkMode);
+  return <StatusBar style={darkMode ? 'light' : 'dark'} />;
+}
+
 export default function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
       <GestureHandlerRootView style={{ flex: 1 }}>
-        <StatusBar style="dark" />
+        <StatusBarTheme />
         <RootLayoutNav />
       </GestureHandlerRootView>
     </QueryClientProvider>

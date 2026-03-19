@@ -13,12 +13,14 @@ import {
   ChevronRight,
   X,
   Heart,
+  Bookmark,
   Trash2,
   CheckCircle,
   Gem,
   Store,
   Shield,
   Package,
+  Flag,
 } from 'lucide-react-native';
 import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -80,6 +82,8 @@ export default function MarketplaceTabScreen() {
   const userListings = useStore((s) => s.userListings);
   const deleteMarketplaceListing = useStore((s) => s.deleteMarketplaceListing);
   const markListingAsSold = useStore((s) => s.markListingAsSold);
+  const savedListingIds = useStore((s) => s.savedListingIds);
+  const toggleSaveListing = useStore((s) => s.toggleSaveListing);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showSoldModal, setShowSoldModal] = useState(false);
   const [listingToModify, setListingToModify] = useState<MarketplaceListing | null>(null);
@@ -87,6 +91,8 @@ export default function MarketplaceTabScreen() {
   const [showSafetyModal, setShowSafetyModal] = useState(false);
   const [safetyBusy, setSafetyBusy] = useState(false);
   const [safetyResult, setSafetyResult] = useState<AiTrustSafetyResult | null>(null);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportReason, setReportReason] = useState<ViolationType | null>(null);
 
   const selectedLocation = useStore((s) => s.selectedLocation);
   const city = useMemo(() => String(selectedLocation?.city || ''), [selectedLocation?.city]);
@@ -258,11 +264,12 @@ export default function MarketplaceTabScreen() {
       setSelectedListing(null);
       // Navigate to the conversation
       router.push({
-        pathname: '/conversation/[id]',
+        pathname: '/chat/[id]',
         params: {
           id: conversationId,
-          otherUserName: selectedListing.seller.name,
-          otherUserAvatar: selectedListing.seller.avatar,
+          name: selectedListing.seller.name,
+          avatar: selectedListing.seller.avatar,
+          recipientId: selectedListing.seller.id,
         },
       } as any);
     } catch (error) {
@@ -658,17 +665,40 @@ export default function MarketplaceTabScreen() {
                   <Pressable onPress={() => setSelectedListing(null)} className="bg-gray-100 rounded-full p-2">
                     <X size={24} color="#2D1F1A" />
                   </Pressable>
-                  <Pressable className="bg-gray-100 rounded-full p-2">
-                    <Heart size={24} color="#D4673A" />
-                  </Pressable>
+                  <View className="flex-row items-center gap-2">
+                    {!isOwnListing(selectedListing) && (
+                      <>
+                        <Pressable
+                          onPress={() => {
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            setShowReportModal(true);
+                          }}
+                          className="bg-gray-100 rounded-full p-2"
+                        >
+                          <Flag size={24} color="#9CA3AF" />
+                        </Pressable>
+                        <Pressable
+                          onPress={() => {
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            toggleSaveListing(selectedListing.id);
+                          }}
+                          className="bg-gray-100 rounded-full p-2"
+                        >
+                          <Bookmark size={24} color={savedListingIds.includes(selectedListing.id) ? '#D4673A' : '#9CA3AF'} fill={savedListingIds.includes(selectedListing.id) ? '#D4673A' : 'transparent'} />
+                        </Pressable>
+                      </>
+                    )}
+                  </View>
                 </View>
 
                 <ScrollView showsVerticalScrollIndicator={false}>
-                  <Image
-                    source={{ uri: selectedListing.images[0] }}
-                    style={{ width: '100%', height: 300 }}
-                    contentFit="cover"
-                  />
+                  <View className="bg-gray-100" style={{ minHeight: 280 }}>
+                    <Image
+                      source={{ uri: selectedListing.images[0] }}
+                      style={{ width: '100%', height: 320 }}
+                      contentFit="contain"
+                    />
+                  </View>
 
                   <View className="p-5">
                     <View className="flex-row items-start justify-between">
@@ -867,6 +897,73 @@ export default function MarketplaceTabScreen() {
                   <Text className="text-gray-500 mt-2">Working…</Text>
                 </View>
               )}
+            </Pressable>
+          </Pressable>
+        </Modal>
+
+        {/* Report Listing Modal */}
+        <Modal visible={showReportModal} transparent animationType="slide" onRequestClose={() => setShowReportModal(false)}>
+          <Pressable className="flex-1 bg-black/60 justify-end" onPress={() => setShowReportModal(false)}>
+            <Pressable className="bg-white rounded-t-3xl px-5 pt-5 pb-8" onPress={(e) => e.stopPropagation()}>
+              <View className="flex-row items-center justify-between mb-4">
+                <Text className="text-lg font-bold text-warmBrown">Report Listing</Text>
+                <Pressable onPress={() => setShowReportModal(false)} className="p-2">
+                  <X size={20} color="#6B7280" />
+                </Pressable>
+              </View>
+              <Text className="text-gray-500 text-sm mb-4">Why are you reporting this listing?</Text>
+              <ScrollView style={{ maxHeight: 320 }} showsVerticalScrollIndicator={false}>
+                {REPORT_REASONS.map((r) => (
+                  <Pressable
+                    key={r.value}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setReportReason(r.value);
+                    }}
+                    className={`flex-row items-center p-4 rounded-xl mb-2 ${
+                      reportReason === r.value ? 'bg-terracotta-50 border border-terracotta-200' : 'bg-gray-50'
+                    }`}
+                  >
+                    <View
+                      className={`w-5 h-5 rounded-full border-2 mr-3 items-center justify-center ${
+                        reportReason === r.value ? 'border-terracotta-500 bg-terracotta-500' : 'border-gray-300'
+                      }`}
+                    >
+                      {reportReason === r.value && <View className="w-2 h-2 rounded-full bg-white" />}
+                    </View>
+                    <View className="flex-1">
+                      <Text className={reportReason === r.value ? 'text-terracotta-700 font-medium' : 'text-gray-700'}>
+                        {r.label}
+                      </Text>
+                      <Text className="text-gray-500 text-xs mt-0.5">{r.description}</Text>
+                    </View>
+                  </Pressable>
+                ))}
+              </ScrollView>
+              <Pressable
+                onPress={async () => {
+                  if (reportReason && selectedListing && currentUser) {
+                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                    await reportListing(
+                      currentUser.id,
+                      selectedListing.seller.id,
+                      selectedListing.seller.name,
+                      selectedListing.id,
+                      reportReason
+                    );
+                    setShowReportModal(false);
+                    setReportReason(null);
+                    setSelectedListing(null);
+                    Alert.alert('Report Submitted', 'Thank you. Our team will review this listing.');
+                  }
+                }}
+                disabled={!reportReason}
+                className={`py-4 rounded-2xl mt-4 ${reportReason ? 'bg-terracotta-500' : 'bg-gray-200'}`}
+              >
+                <Text className={`text-center font-bold text-base ${reportReason ? 'text-white' : 'text-gray-400'}`}>
+                  Submit Report
+                </Text>
+              </Pressable>
             </Pressable>
           </Pressable>
         </Modal>

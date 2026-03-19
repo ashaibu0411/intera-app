@@ -7,8 +7,10 @@ import Animated, { FadeIn, FadeInUp, FadeInRight } from 'react-native-reanimated
 import * as Haptics from 'expo-haptics';
 import { formatDistanceToNow } from 'date-fns';
 import { router } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { supabase, type DbNotification } from '@/lib/supabase';
 import { useStore } from '@/lib/store';
+import { useUnreadNotifications } from '@/lib/useUnreadNotifications';
 
 type NotificationFilter = 'all' | 'neighborhood' | 'activity' | 'alerts';
 
@@ -132,6 +134,7 @@ export default function NotificationsScreen() {
   const [activeFilter, setActiveFilter] = useState<NotificationFilter>('all');
   const currentUser = useStore((s) => s.currentUser);
   const isGuest = useStore((s) => s.isGuest);
+  const { refetch: refetchUnreadCount } = useUnreadNotifications();
   const [notifications, setNotifications] = useState<UiNotification[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -180,6 +183,15 @@ export default function NotificationsScreen() {
     loadNotifications();
   }, [loadNotifications]);
 
+  // Auto-mark all as read when user opens notifications (clears badge)
+  useFocusEffect(
+    useCallback(() => {
+      if (currentUser?.id && !isGuest) {
+        markAllRead();
+      }
+    }, [currentUser?.id, isGuest])
+  );
+
   useEffect(() => {
     if (isGuest || !currentUser?.id) return;
     const channel = supabase.channel(`notifications:${currentUser.id}`);
@@ -194,7 +206,7 @@ export default function NotificationsScreen() {
     };
   }, [currentUser?.id, isGuest, loadNotifications]);
 
-  const markAllRead = async () => {
+  const markAllRead = useCallback(async () => {
     if (!currentUser?.id) return;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     await supabase
@@ -203,18 +215,30 @@ export default function NotificationsScreen() {
       .eq('recipient_id', currentUser.id)
       .is('read_at', null);
     loadNotifications();
-  };
+    await refetchUnreadCount(); // Update badge count immediately
+  }, [currentUser?.id, loadNotifications, refetchUnreadCount]);
+
+  // Auto-mark all as read when user opens notifications (clears badge)
+  useFocusEffect(
+    useCallback(() => {
+      if (currentUser?.id && !isGuest) {
+        markAllRead();
+      }
+    }, [currentUser?.id, isGuest, markAllRead])
+  );
 
   const clearNotifications = async () => {
     if (!currentUser?.id) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     await supabase.from('notifications').delete().eq('recipient_id', currentUser.id);
     loadNotifications();
+    await refetchUnreadCount(); // Update badge count immediately
   };
 
   const markOneRead = async (id: string) => {
     setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
     await supabase.from('notifications').update({ read_at: new Date().toISOString() }).eq('id', id);
+    await refetchUnreadCount(); // Update badge count immediately
   };
 
   const filteredNotifications = useMemo(() => notifications.filter((n) => {

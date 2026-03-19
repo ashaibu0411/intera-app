@@ -9,10 +9,10 @@
       "resizeMode": "contain",
       "backgroundColor": "#FFFFFF"
     },
-    "version": "2.0.3",
+    "version": "2.0.6",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "ios": {
       "bundleIdentifier": "com.vibecode.afroconnect-hr87yl",
       "supportsTablet": true,
@@ -28,14 +28,18 @@
         "NSPhotoLibraryUsageDescription": "Intera accesses your photo library to let you select and upload photos and videos to share with your community. For example, you can choose existing photos to use as your profile picture, add photos to posts about local events, select images when creating marketplace listings, or pick videos to share in stories and clips.",
         "NSLocationWhenInUseUsageDescription": "Intera uses your location to show you relevant local content and connect you with your community. For example, we display nearby events happening in your area, show local businesses and services close to you, help you find carpool rides in your city, and connect you with community members in your location.",
         "NSContactsUsageDescription": "Intera accesses your contacts to help you find and connect with friends who are already using the app. For example, we can show you which of your contacts are members so you can easily add them as connections and share community updates with people you know.",
-        "NSMicrophoneUsageDescription": "Intera uses your microphone to enable voice communication features. For example, you can record voice messages to send to other community members, participate in live audio discussions in voice rooms, or add audio narration to your video clips and stories."
+        "NSMicrophoneUsageDescription": "Intera uses your microphone to enable voice communication features. For example, you can record voice messages to send to other community members, participate in live audio discussions in voice rooms, or add audio narration to your video clips and stories.",
+        "UIBackgroundModes": [
+          "audio"
+        ]
       },
-      "buildNumber": "30"
+      "buildNumber": "50"
     },
     "android": {
       "label": "Intera: Community App",
       "package": "com.vibecode.intera",
-      "versionCode": 37,
+      "googleServicesFile": "./google-services.json",
+      "versionCode": 53,
       "splash": {
         "image": "./assets/icon.png",
         "resizeMode": "contain",
@@ -108,7 +112,8 @@
       "expo-asset",
       "expo-video",
       "expo-web-browser",
-      "react-native-edge-to-edge"
+      "react-native-edge-to-edge",
+      "./plugins/withAndroidNewArchEnabled"
     ],
     "experiments": {
       "typedRoutes": true
@@ -124,6 +129,9 @@
       "policy": "appVersion"
     },
     "updates": {
+      "enabled": false,
+      "checkAutomatically": "NEVER",
+      "fallbackToCacheTimeout": 0,
       "url": "https://u.expo.dev/090ff57c-7051-4df7-b53e-60eaa2cfe0f6"
     }
   }

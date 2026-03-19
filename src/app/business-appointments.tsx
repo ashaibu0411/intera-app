@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { View, Text, ScrollView, Pressable, RefreshControl } from 'react-native';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { View, Text, ScrollView, Pressable, RefreshControl, Share } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -9,7 +9,6 @@ import {
   Clock,
   DollarSign,
   Phone,
-  MessageCircle,
   Check,
   X,
   AlertCircle,
@@ -17,109 +16,82 @@ import {
   TrendingUp,
   CalendarCheck,
   Settings,
+  CalendarPlus,
+  BarChart3,
 } from 'lucide-react-native';
 import Animated, { FadeIn, FadeInUp, FadeInRight } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useStore, Appointment } from '@/lib/store';
+import { getBusinessAppointments, updateAppointmentStatus, type DbAppointment } from '@/lib/booking-api';
+import { generateMultiAppointmentIcs } from '@/lib/calendarExport';
 
 type FilterTab = 'pending' | 'confirmed' | 'completed' | 'all';
 
-// Mock appointments for businesses (in production, these would come from database)
-const MOCK_BUSINESS_APPOINTMENTS: Appointment[] = [
-  {
-    id: 'ba1',
-    businessId: '7',
-    businessName: "King's Kutz Barbershop",
-    customerId: 'cust1',
-    customerName: 'Marcus Johnson',
-    customerAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop',
-    customerPhone: '+1 (303) 555-1234',
+function dbToAppointment(db: DbAppointment): Appointment {
+  const service = db.service;
+  const business = db.business;
+  const customer = db.customer as any;
+  const t = db.start_time || '09:00';
+  const timeStr = t.includes('AM') || t.includes('PM') ? t : (() => {
+    const [h, m] = t.split(':').map(Number);
+    const hour = h > 12 ? h - 12 : h === 0 ? 12 : h;
+    return `${hour}:${String(m || 0).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
+  })();
+  return {
+    id: db.id,
+    businessId: db.business_id,
+    businessName: business?.name || 'Business',
+    customerId: db.customer_id,
+    customerName: customer?.name || 'Customer',
+    customerAvatar: customer?.avatar_url,
+    customerPhone: db.customer_phone || customer?.phone,
     service: {
-      id: 's1',
-      businessId: '7',
-      name: 'Classic Fade',
-      description: 'Clean fade with sharp lineup',
-      duration: 30,
-      price: 35,
-      currency: 'USD',
-      category: 'Haircut',
+      id: service?.id || '',
+      businessId: db.business_id,
+      name: service?.name || 'Service',
+      description: service?.description || '',
+      duration: service?.duration || 30,
+      price: service?.price || 0,
+      currency: service?.currency || 'USD',
+      category: service?.category || 'general',
       isActive: true,
     },
-    date: '2025-01-02',
-    time: '10:00 AM',
-    status: 'pending',
-    isPaid: false,
-    paymentMethod: 'cash',
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 'ba2',
-    businessId: '7',
-    businessName: "King's Kutz Barbershop",
-    customerId: 'cust2',
-    customerName: 'Darnell Williams',
-    customerAvatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&h=200&fit=crop',
-    customerPhone: '+1 (303) 555-5678',
-    service: {
-      id: 's2',
-      businessId: '7',
-      name: 'Beard Trim',
-      description: 'Shape and line up beard',
-      duration: 20,
-      price: 20,
-      currency: 'USD',
-      category: 'Beard',
-      isActive: true,
-    },
-    date: '2025-01-02',
-    time: '11:00 AM',
-    status: 'confirmed',
-    isPaid: false,
-    paymentMethod: 'cash',
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 'ba3',
-    businessId: '7',
-    businessName: "King's Kutz Barbershop",
-    customerId: 'cust3',
-    customerName: 'Tyrone Davis',
-    customerAvatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=200&h=200&fit=crop',
-    service: {
-      id: 's3',
-      businessId: '7',
-      name: 'Premium Cut + Beard',
-      description: 'Full haircut with beard trim',
-      duration: 45,
-      price: 50,
-      currency: 'USD',
-      category: 'Combo',
-      isActive: true,
-    },
-    date: '2025-01-01',
-    time: '2:00 PM',
-    status: 'completed',
-    isPaid: true,
-    paymentMethod: 'cash',
-    createdAt: new Date().toISOString(),
-  },
-];
+    date: db.date,
+    time: timeStr,
+    status: db.status as Appointment['status'],
+    isPaid: db.payment_status === 'paid',
+    paymentMethod: db.payment_method as Appointment['paymentMethod'],
+    createdAt: db.created_at,
+  };
+}
 
 export default function BusinessAppointmentsScreen() {
   const { businessId, businessName } = useLocalSearchParams<{ businessId: string; businessName: string }>();
 
   const [activeTab, setActiveTab] = useState<FilterTab>('all');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [dbAppointments, setDbAppointments] = useState<Appointment[]>([]);
 
   const businessAppointments = useStore((s) => s.businessAppointments);
-  const updateAppointmentStatus = useStore((s) => s.updateAppointmentStatus);
+  const updateAppointmentStatusStore = useStore((s) => s.updateAppointmentStatus);
 
-  // Combine real appointments with mock data for demo
+  const loadAppointments = useCallback(async () => {
+    if (!businessId) return;
+    const db = await getBusinessAppointments(businessId, { limit: 200 });
+    setDbAppointments(db.map(dbToAppointment));
+  }, [businessId]);
+
+  useEffect(() => {
+    loadAppointments();
+  }, [loadAppointments]);
+
+  // Combine DB with in-memory store (e.g. just received)
   const allAppointments = useMemo(() => {
-    const realForBusiness = businessAppointments.filter((a) => a.businessId === businessId);
-    return [...realForBusiness, ...MOCK_BUSINESS_APPOINTMENTS];
-  }, [businessAppointments, businessId]);
+    const fromDb = new Set(dbAppointments.map((a) => a.id));
+    const fromStore = businessAppointments.filter((a) => a.businessId === businessId && !fromDb.has(a.id));
+    return [...dbAppointments, ...fromStore];
+  }, [dbAppointments, businessAppointments, businessId]);
 
   const filteredAppointments = useMemo(() => {
     if (activeTab === 'all') return allAppointments;
@@ -143,24 +115,61 @@ export default function BusinessAppointmentsScreen() {
     };
   }, [allAppointments]);
 
-  const handleConfirm = (appointmentId: string) => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    updateAppointmentStatus(appointmentId, 'confirmed');
+  const handleConfirm = async (appointmentId: string) => {
+    try {
+      await updateAppointmentStatus(appointmentId, 'confirmed');
+      updateAppointmentStatusStore(appointmentId, 'confirmed');
+      setDbAppointments((prev) => prev.map((a) => (a.id === appointmentId ? { ...a, status: 'confirmed' as const } : a)));
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    }
   };
 
-  const handleComplete = (appointmentId: string) => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    updateAppointmentStatus(appointmentId, 'completed');
+  const handleComplete = async (appointmentId: string) => {
+    try {
+      await updateAppointmentStatus(appointmentId, 'completed');
+      updateAppointmentStatusStore(appointmentId, 'completed');
+      setDbAppointments((prev) => prev.map((a) => (a.id === appointmentId ? { ...a, status: 'completed' as const } : a)));
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    }
   };
 
-  const handleCancel = (appointmentId: string) => {
+  const handleCancel = async (appointmentId: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    updateAppointmentStatus(appointmentId, 'cancelled');
+    try {
+      await updateAppointmentStatus(appointmentId, 'cancelled', 'business');
+      updateAppointmentStatusStore(appointmentId, 'cancelled');
+      setDbAppointments((prev) => prev.map((a) => (a.id === appointmentId ? { ...a, status: 'cancelled' as const } : a)));
+    } catch {
+      updateAppointmentStatusStore(appointmentId, 'cancelled');
+    }
   };
 
-  const handleRefresh = () => {
+  const handleAddDayToCalendar = (date: string) => {
+    const dayAppointments = allAppointments.filter((a) => a.date === date && a.status !== 'cancelled');
+    if (dayAppointments.length === 0) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const ics = generateMultiAppointmentIcs(
+      dayAppointments.map((apt) => ({
+        title: `${apt.service.name} - ${apt.customerName}`,
+        description: apt.service.description,
+        startDate: apt.date,
+        startTime: apt.time,
+        durationMinutes: apt.service.duration,
+        businessName: businessName || apt.businessName,
+        serviceName: apt.service.name,
+      }))
+    );
+    Share.share({ message: ics, title: `Appointments for ${date}` }).catch(() => {});
+  };
+
+  const handleRefresh = async () => {
     setIsRefreshing(true);
-    setTimeout(() => setIsRefreshing(false), 1000);
+    await loadAppointments();
+    setIsRefreshing(false);
   };
 
   const getStatusColor = (status: Appointment['status']) => {
@@ -211,18 +220,29 @@ export default function BusinessAppointmentsScreen() {
                 <Text className="text-sm text-gray-500">{businessName || 'Your Business'}</Text>
               </View>
             </View>
-            <Pressable
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.push({
-                  pathname: '/manage-booking-calendar',
-                  params: { businessId, businessName },
-                });
-              }}
-              className="bg-forest-600 rounded-full p-2.5"
-            >
-              <Settings size={20} color="#FFFFFF" />
-            </Pressable>
+            <View className="flex-row items-center gap-2">
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  router.push({ pathname: '/business-analytics', params: { businessId } });
+                }}
+                className="bg-forest-600 rounded-full p-2.5"
+              >
+                <BarChart3 size={20} color="#FFFFFF" />
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  router.push({
+                    pathname: '/manage-booking-calendar',
+                    params: { businessId, businessName },
+                  });
+                }}
+                className="bg-forest-600 rounded-full p-2.5"
+              >
+                <Settings size={20} color="#FFFFFF" />
+              </Pressable>
+            </View>
           </View>
         </Animated.View>
 
@@ -270,6 +290,48 @@ export default function BusinessAppointmentsScreen() {
                 </View>
               </View>
             </ScrollView>
+          </Animated.View>
+
+          {/* Embedded Calendar - Today's appointments with Add to Calendar */}
+          <Animated.View entering={FadeInUp.duration(400).delay(125)} className="px-5 mt-4">
+            <View className="bg-white rounded-2xl p-4 shadow-sm">
+              <View className="flex-row items-center justify-between mb-3">
+                <Text className="text-warmBrown font-bold">Today</Text>
+                <Pressable
+                  onPress={() => handleAddDayToCalendar(new Date().toISOString().split('T')[0])}
+                  className="flex-row items-center bg-forest-100 rounded-full px-3 py-2"
+                >
+                  <CalendarPlus size={16} color="#1B4D3E" />
+                  <Text className="text-forest-700 font-medium ml-2">Export Day</Text>
+                </Pressable>
+              </View>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }}>
+                {[0, 1, 2, 3, 4, 5, 6].map((offset) => {
+                  const d = new Date();
+                  d.setDate(d.getDate() + offset);
+                  const dateStr = d.toISOString().split('T')[0];
+                  const count = allAppointments.filter((a) => a.date === dateStr && a.status !== 'cancelled').length;
+                  const isToday = offset === 0;
+                  return (
+                    <Pressable
+                      key={dateStr}
+                      onPress={() => count > 0 && handleAddDayToCalendar(dateStr)}
+                      className={`mr-2 rounded-xl px-4 py-3 items-center min-w-[70] ${isToday ? 'bg-forest-600' : 'bg-gray-100'}`}
+                    >
+                      <Text className={`text-xs font-medium ${isToday ? 'text-white/80' : 'text-gray-500'}`}>
+                        {offset === 0 ? 'Today' : d.toLocaleDateString('en-US', { weekday: 'short' })}
+                      </Text>
+                      <Text className={`text-xl font-bold mt-1 ${isToday ? 'text-white' : 'text-warmBrown'}`}>
+                        {d.getDate()}
+                      </Text>
+                      <Text className={`text-xs ${isToday ? 'text-white/80' : 'text-gray-400'}`}>
+                        {count} {count === 1 ? 'apt' : 'apts'}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            </View>
           </Animated.View>
 
           {/* Filter Tabs */}

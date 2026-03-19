@@ -4,13 +4,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import {
-  Search, X, ArrowLeft, ShoppingBag, Store, GraduationCap, Church, Users,
+  Search, X, ArrowLeft, Hash, ShoppingBag, Store, GraduationCap, Church, Users,
   Heart, Briefcase, Mic, Gift, Landmark, Globe, Shield, Users2, Trophy,
   Calendar, DollarSign, Scale, UtensilsCrossed, Camera, MessageCircle,
   Swords, BarChart3, Music2, Radio, Gamepad2, HandCoins, CalendarDays,
   Repeat, Car, Dog, Clock, Home, SearchX, Award, BookOpen, Dumbbell,
   Brain, Phone, Languages, Leaf, Sparkles, ShoppingCart, Shirt, TrendingUp, Bot,
-  MapPin, Wallet, CreditCard, HelpCircle, Settings, Bell, User, Star,
+  MapPin, Wallet, CreditCard, HelpCircle, Settings, Bell, User, Star, ChevronRight,
   UserPlus, CheckCircle, BadgeCheck,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
@@ -20,8 +20,17 @@ import { useStore } from '@/lib/store';
 import { supabase, DbUser } from '@/lib/supabase';
 import { PhotoTile } from '@/components/PhotoTile';
 
-type SearchTab = 'features' | 'people';
+type SearchTab = 'features' | 'people' | 'content';
 type PeopleFilter = 'all' | 'local' | 'global';
+
+interface ContentSearchResult {
+  type: 'post' | 'event' | 'faith_event' | 'listing' | 'business';
+  id: string;
+  title: string;
+  subtitle?: string;
+  image?: string;
+  route: string;
+}
 
 interface AppFeature {
   id: string;
@@ -576,6 +585,8 @@ export default function AppSearchScreen() {
   const [peopleOffset, setPeopleOffset] = useState(0);
   const [peopleHasMore, setPeopleHasMore] = useState(true);
   const [peopleLoadingMore, setPeopleLoadingMore] = useState(false);
+  const [contentResults, setContentResults] = useState<ContentSearchResult[]>([]);
+  const [contentLoading, setContentLoading] = useState(false);
 
   const selectedLocation = useStore((s) => s.selectedLocation);
   const currentUser = useStore((s) => s.currentUser);
@@ -750,6 +761,95 @@ export default function AppSearchScreen() {
     }
   }, [activeTab, searchQuery, searchUsers]);
 
+  // Search content (posts, events, listings, businesses) when Content tab is active
+  const searchContent = useCallback(async (q: string) => {
+    if (activeTab !== 'content') return;
+    const query = q.trim();
+    if (!query) {
+      setContentResults([]);
+      return;
+    }
+    setContentLoading(true);
+    try {
+      const pattern = `%${query}%`;
+
+      const [postsRes, eventsRes, faithRes, listingsRes, businessesRes] = await Promise.all([
+        supabase.from('posts').select('id, content').ilike('content', pattern).limit(5),
+        supabase.from('events').select('id, title, date, image').ilike('title', pattern).limit(5),
+        supabase.from('faith_events').select('id, title, date').ilike('title', pattern).limit(5),
+        supabase.from('marketplace_listings').select('id, title, images, price').ilike('title', pattern).limit(5),
+        supabase.from('businesses').select('id, name, image, category').ilike('name', pattern).limit(5),
+      ]);
+
+      const results: ContentSearchResult[] = [];
+
+      (postsRes.data || []).forEach((p: any) => {
+        results.push({
+          type: 'post',
+          id: p.id,
+          title: (p.content || '').slice(0, 60) + ((p.content || '').length > 60 ? '…' : ''),
+          subtitle: 'Post',
+          route: `/post/${p.id}`,
+        });
+      });
+      (eventsRes.data || []).forEach((e: any) => {
+        results.push({
+          type: 'event',
+          id: e.id,
+          title: e.title || '',
+          subtitle: e.date ? `Event · ${e.date}` : 'Event',
+          image: e.image,
+          route: `/event/${e.id}`,
+        });
+      });
+      (faithRes.data || []).forEach((f: any) => {
+        results.push({
+          type: 'faith_event',
+          id: f.id,
+          title: f.title || '',
+          subtitle: f.date ? `Faith Event · ${f.date}` : 'Faith Event',
+          route: `/event/${f.id}`,
+        });
+      });
+      (listingsRes.data || []).forEach((l: any) => {
+        results.push({
+          type: 'listing',
+          id: l.id,
+          title: l.title || '',
+          subtitle: l.price != null ? `Listing · $${l.price}` : 'Listing',
+          image: Array.isArray(l.images) ? l.images[0] : undefined,
+          route: '/(tabs)/marketplace',
+        });
+      });
+      (businessesRes.data || []).forEach((b: any) => {
+        results.push({
+          type: 'business',
+          id: b.id,
+          title: b.name || '',
+          subtitle: b.category ? `Business · ${b.category}` : 'Business',
+          image: b.image,
+          route: `/business/${b.id}`,
+        });
+      });
+
+      setContentResults(results);
+    } catch (err) {
+      console.log('[Content Search] Error:', err);
+      setContentResults([]);
+    } finally {
+      setContentLoading(false);
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab === 'content') {
+      const t = setTimeout(() => searchContent(searchQuery), 300);
+      return () => clearTimeout(t);
+    } else {
+      setContentResults([]);
+    }
+  }, [activeTab, searchQuery, searchContent]);
+
   const filteredFeatures = useMemo(() => {
     let results = APP_FEATURES;
 
@@ -841,7 +941,7 @@ export default function AppSearchScreen() {
 
                 {/* Interests */}
                 <View className="flex-row flex-wrap gap-1.5 mt-2">
-                  {person.interests.slice(0, 3).map((interest) => (
+                  {(person.interests ?? []).slice(0, 3).map((interest) => (
                     <View key={interest} className="bg-white/10 px-2 py-0.5 rounded-full">
                       <Text className="text-gray-400 text-xs">{interest}</Text>
                     </View>
@@ -885,7 +985,13 @@ export default function AppSearchScreen() {
           <View className="flex-row items-center bg-white/10 rounded-2xl px-4 py-3 mb-4">
             <Search size={20} color="#9CA3AF" />
             <TextInput
-              placeholder={activeTab === 'features' ? "Search features, tabs, tools..." : "Search people by name, location..."}
+              placeholder={
+                activeTab === 'features'
+                  ? "Search features, tabs, tools..."
+                  : activeTab === 'content'
+                  ? "Search posts, events, listings, businesses..."
+                  : "Search people by name, location..."
+              }
               placeholderTextColor="#9CA3AF"
               value={searchQuery}
               onChangeText={setSearchQuery}
@@ -899,7 +1005,7 @@ export default function AppSearchScreen() {
             )}
           </View>
 
-          {/* Main Tabs - Features vs People */}
+          {/* Main Tabs - Features, Content, People */}
           <View className="flex-row bg-white/10 rounded-xl p-1 mb-4">
             <Pressable
               onPress={() => {
@@ -915,6 +1021,22 @@ export default function AppSearchScreen() {
                 activeTab === 'features' ? 'text-gray-900' : 'text-gray-400'
               }`}>
                 Features
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setActiveTab('content');
+              }}
+              className={`flex-1 flex-row items-center justify-center py-2.5 rounded-lg ${
+                activeTab === 'content' ? 'bg-white' : ''
+              }`}
+            >
+              <Hash size={16} color={activeTab === 'content' ? '#0A0A0A' : '#9CA3AF'} />
+              <Text className={`ml-2 font-semibold ${
+                activeTab === 'content' ? 'text-gray-900' : 'text-gray-400'
+              }`}>
+                Content
               </Text>
             </Pressable>
             <Pressable
@@ -936,7 +1058,7 @@ export default function AppSearchScreen() {
           </View>
 
           {/* Category/Filter Pills */}
-          {activeTab === 'features' ? (
+          {activeTab === 'content' ? null : activeTab === 'features' ? (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }}>
               <View className="flex-row gap-2">
                 {CATEGORIES.map((category) => (
@@ -992,8 +1114,58 @@ export default function AppSearchScreen() {
           )}
         </View>
 
-        {/* Results */}
-        {activeTab === 'features' ? (
+        {/* Results - flex-1 wrapper ensures FlatList gets height on iOS */}
+        {activeTab === 'content' ? (
+          <ScrollView className="flex-1 px-5" showsVerticalScrollIndicator={false}>
+            {contentLoading ? (
+              <View className="py-20 items-center">
+                <ActivityIndicator size="large" color="#D4673A" />
+              </View>
+            ) : !searchQuery.trim() ? (
+              <View className="py-20 items-center">
+                <Search size={48} color="#6B7280" />
+                <Text className="text-gray-500 mt-4 text-center">
+                  Search posts, events, marketplace listings, and businesses
+                </Text>
+              </View>
+            ) : contentResults.length === 0 ? (
+              <View className="py-20 items-center">
+                <SearchX size={48} color="#6B7280" />
+                <Text className="text-gray-500 mt-4 text-center">No results found</Text>
+              </View>
+            ) : (
+              contentResults.map((item, i) => (
+                <Pressable
+                  key={`${item.type}-${item.id}`}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    router.push(item.route as any);
+                  }}
+                  className="flex-row items-center p-4 mb-3 bg-white/5 rounded-2xl border border-white/10"
+                >
+                  {item.image ? (
+                    <Image source={{ uri: item.image }} style={{ width: 48, height: 48, borderRadius: 12 }} contentFit="cover" />
+                  ) : (
+                    <View className="w-12 h-12 rounded-xl bg-white/10 items-center justify-center">
+                      {item.type === 'post' && <MessageCircle size={24} color="#9CA3AF" />}
+                      {item.type === 'event' && <Calendar size={24} color="#9CA3AF" />}
+                      {item.type === 'faith_event' && <Church size={24} color="#9CA3AF" />}
+                      {item.type === 'listing' && <ShoppingBag size={24} color="#9CA3AF" />}
+                      {item.type === 'business' && <Store size={24} color="#9CA3AF" />}
+                    </View>
+                  )}
+                  <View className="flex-1 ml-3">
+                    <Text className="text-white font-medium" numberOfLines={1}>{item.title}</Text>
+                    {item.subtitle && (
+                      <Text className="text-gray-500 text-sm mt-0.5" numberOfLines={1}>{item.subtitle}</Text>
+                    )}
+                  </View>
+                  <ChevronRight size={20} color="#9CA3AF" />
+                </Pressable>
+              ))
+            )}
+          </ScrollView>
+        ) : activeTab === 'features' ? (
           <ScrollView className="flex-1 px-5" showsVerticalScrollIndicator={false}>
             <>
               {/* "Extra tiles" (photo tiles like your reference) */}
@@ -1132,12 +1304,14 @@ export default function AppSearchScreen() {
             </>
           </ScrollView>
         ) : (
-          <FlatList
-            data={filteredPeople}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item, index }) => renderPersonCard(item, index)}
-            contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 30 }}
-            showsVerticalScrollIndicator={false}
+          <View style={{ flex: 1 }}>
+            <FlatList
+              data={filteredPeople}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item, index }) => renderPersonCard(item, index)}
+              style={{ flex: 1 }}
+              contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 30, flexGrow: 1 }}
+              showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
             onEndReachedThreshold={0.35}
             onEndReached={() => {
@@ -1185,7 +1359,8 @@ export default function AppSearchScreen() {
                 ) : null}
               </View>
             }
-          />
+            />
+          </View>
         )}
       </SafeAreaView>
     </View>

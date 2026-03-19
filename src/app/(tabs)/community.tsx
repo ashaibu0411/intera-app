@@ -31,7 +31,7 @@ import { subscribeToPostInserts } from '@/lib/postsRealtime';
 import { detectCurrentLocation, isLocationDifferent, type DetectedLocation } from '@/lib/locationDetection';
 import { getCurrentUser } from '@/lib/auth';
 import { useUnreadMessages } from '@/lib/useUnreadMessages';
-import { useStore as useAppStore } from '@/lib/store';
+import { useUnreadNotifications } from '@/lib/useUnreadNotifications';
 
 export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
@@ -51,7 +51,7 @@ export default function HomeScreen() {
   const blockedUserIds = useStore((s) => s.blockedUserIds);
 
   const { unreadCount, refetch: refetchUnread } = useUnreadMessages();
-  const notificationsUnreadCount = useAppStore((s) => (s.notifications ?? []).filter((n) => !n.read).length);
+  const { unreadCount: notificationsUnreadCount, refetch: refetchNotifications } = useUnreadNotifications();
 
   const otherStories = useMemo(() => {
     return userStories
@@ -63,11 +63,12 @@ export default function HomeScreen() {
     getCurrentUser().then(setCurrentUser);
   }, []);
 
-  // Refetch unread count when screen comes into focus
+  // Refetch unread counts when screen comes into focus
   useFocusEffect(
     useCallback(() => {
       refetchUnread();
-    }, [refetchUnread])
+      refetchNotifications();
+    }, [refetchUnread, refetchNotifications])
   );
 
   const displayCommunity = useMemo(() => {

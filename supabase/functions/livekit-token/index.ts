@@ -119,23 +119,44 @@ Deno.serve(async (req) => {
     const isCreator = String(roomRow.creator_id ?? '') === identity;
     let participantRole: string | null = null;
     let isParticipant = false;
+    let muteLocked = false;
     try {
-      const { data: partRow } = await supabase
+      // Try to read mute_locked if the column exists; fall back to role-only for older schemas.
+      const first = await supabase
         .from('voice_room_participants')
-        .select('role')
+        .select('role,mute_locked')
         .eq('room_id', roomRow.id)
         .eq('user_id', identity)
         .maybeSingle();
-      participantRole = (partRow as any)?.role ?? null;
-      isParticipant = !!partRow;
+      if (first.error && String(first.error.message || '').includes('mute_locked')) {
+        const fallback = await supabase
+          .from('voice_room_participants')
+          .select('role')
+          .eq('room_id', roomRow.id)
+          .eq('user_id', identity)
+          .maybeSingle();
+        participantRole = (fallback.data as any)?.role ?? null;
+        isParticipant = !!fallback.data;
+        muteLocked = false;
+      } else {
+        participantRole = (first.data as any)?.role ?? null;
+        muteLocked = !!(first.data as any)?.mute_locked;
+        isParticipant = !!first.data;
+      }
     } catch {
       participantRole = null;
       isParticipant = false;
+      muteLocked = false;
     }
 
-    // Audience can speak (open mic) but still stay in "listener" role in the UI.
-    // Grant publish to any authenticated participant in the room.
-    const canPublish = isCreator || isParticipant;
+    // Publish rights are role-based:
+    // - listeners (audience) cannot publish audio
+    // - speakers/mods/hosts can publish audio
+    // - a host mute-lock removes publish rights (hard mute)
+    const roleResolved = isCreator ? 'host' : participantRole;
+    const canPublishByRole =
+      roleResolved === 'host' || roleResolved === 'moderator' || roleResolved === 'speaker';
+    const canPublish = !!(canPublishByRole && !muteLocked);
 
     console.log('[livekit-token] Minting token', {
       roomName,
@@ -146,6 +167,7 @@ Deno.serve(async (req) => {
       participantRole,
       isCreator,
       isParticipant,
+      muteLocked,
       canPublish,
       canSubscribe: true,
       url: urlCheck.normalized,

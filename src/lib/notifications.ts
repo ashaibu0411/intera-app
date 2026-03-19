@@ -195,6 +195,56 @@ export async function sendNewMemberNotification(
   });
 }
 
+// Schedule appointment reminders (1 day and 1 hour before)
+export async function scheduleAppointmentReminders(
+  appointmentId: string,
+  businessName: string,
+  serviceName: string,
+  date: string,
+  time: string
+): Promise<void> {
+  const store = useStore.getState();
+  if (!store.notificationsEnabled) return;
+
+  const hasPermission = await areNotificationsEnabled();
+  if (!hasPermission) return;
+
+  const [year, month, day] = date.split('-').map(Number);
+  const [hours, minutes] = time.split(':').map(Number);
+
+  const appointmentDate = new Date(year, month - 1, day, hours, minutes);
+
+  // 1 day before
+  const oneDayBefore = new Date(appointmentDate);
+  oneDayBefore.setDate(oneDayBefore.getDate() - 1);
+  if (oneDayBefore > new Date()) {
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: 'Appointment tomorrow',
+        body: `${serviceName} at ${businessName} - ${time}`,
+        data: { type: 'appointment_reminder', appointmentId },
+        sound: true,
+      },
+      trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: oneDayBefore },
+    });
+  }
+
+  // 1 hour before
+  const oneHourBefore = new Date(appointmentDate);
+  oneHourBefore.setHours(oneHourBefore.getHours() - 1);
+  if (oneHourBefore > new Date()) {
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: 'Appointment in 1 hour',
+        body: `${serviceName} at ${businessName} - ${time}`,
+        data: { type: 'appointment_reminder', appointmentId },
+        sound: true,
+      },
+      trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: oneHourBefore },
+    });
+  }
+}
+
 // Cancel all scheduled notifications
 export async function cancelAllNotifications(): Promise<void> {
   await Notifications.cancelAllScheduledNotificationsAsync();

@@ -350,7 +350,7 @@ export default function CommunityAssistantScreen() {
                     <Text className="text-gray-300 font-semibold">Assistant</Text>
                   </View>
                   <View className="bg-white/5 border border-white/10 rounded-2xl px-4 py-3">
-                    <FormattedAiText content={m.content} variant="dark" hideSourcesSection />
+                    <FormattedAiText content={m.content} variant="dark" hideSourcesSection size="lg" />
                   </View>
                 </View>
               )}

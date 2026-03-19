@@ -42,7 +42,9 @@ export async function getExpoPushToken(): Promise<string | null> {
       projectId ? { projectId } : undefined
     );
     return tokenResponse.data || null;
-  } catch {
+  } catch (e) {
+    // This is the #1 reason "push doesn't work": token generation throws in prod.
+    console.log('[PushTokens] getExpoPushToken failed:', String((e as any)?.message ?? e));
     return null;
   }
 }
@@ -58,6 +60,11 @@ export async function syncPushToken(params: {
   const token = await getExpoPushToken();
   if (!token) return;
 
+  const city = params.city != null ? String(params.city).trim() : null;
+  const neighborhood = params.neighborhood != null ? String(params.neighborhood).trim() : null;
+  const country = params.country != null ? String(params.country).trim() : null;
+  const adminArea = params.adminArea != null ? String(params.adminArea).trim() : null;
+
   const deviceId = `${Device.modelId || 'unknown'}:${Device.osInternalBuildId || Device.osBuildId || '0'}`;
   const { error } = await supabase
     .from('push_tokens')
@@ -68,10 +75,10 @@ export async function syncPushToken(params: {
         platform: Platform.OS,
         device_id: deviceId,
         enabled: params.enabled,
-        city: params.city ?? null,
-        neighborhood: params.neighborhood ?? null,
-        country: params.country ?? null,
-        admin_area: params.adminArea ?? null,
+        city,
+        neighborhood,
+        country,
+        admin_area: adminArea,
       },
       { onConflict: 'token' }
     );

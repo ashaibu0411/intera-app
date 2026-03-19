@@ -19,6 +19,7 @@ import {
   RefreshCw,
   Star,
   CheckCircle,
+  Bookmark,
 } from 'lucide-react-native';
 import Animated, { FadeIn, FadeInUp, FadeInRight } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -599,7 +600,18 @@ export default function FaithCommunityScreen() {
                         )}
                       </View>
                     </View>
-                    <View className="items-end">
+                    <View className="items-end flex-row items-center gap-2">
+                      <Pressable
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                          toggleSaveEvent(event.id);
+                        }}
+                        className="p-2"
+                        hitSlop={8}
+                      >
+                        <Bookmark size={20} color="#D4673A" fill={savedEventIds.includes(event.id) ? '#D4673A' : 'transparent'} />
+                      </Pressable>
                       {getRsvpBadge(event.id)}
                       <ChevronRight size={20} color="#9CA3AF" className="mt-1" />
                     </View>

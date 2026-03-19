@@ -52,7 +52,7 @@ function FormattedMessage({ content, isUser }: { content: string; isUser: boolea
   if (isUser) {
     return <Text className="text-lg leading-7 text-white">{content}</Text>;
   }
-  return <FormattedAiText content={content} variant="dark" hideSourcesSection={false} />;
+  return <FormattedAiText content={content} variant="dark" hideSourcesSection={false} size="lg" />;
 }
 
 const QUICK_QUESTIONS: QuickQuestion[] = [

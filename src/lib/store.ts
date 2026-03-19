@@ -558,6 +558,9 @@ interface AppState {
   // Posts state
   userPosts: Post[];
   savedPostIds: string[];
+  savedEventIds: string[];
+  savedListingIds: string[];
+  savedBusinessIds: string[];
   likedPostIds: string[];
   userComments: Comment[];
   postReactions: Record<string, string>; // postId -> emoji reaction
@@ -597,6 +600,7 @@ interface AppState {
 
   // Settings
   notificationsEnabled: boolean;
+  darkMode: boolean;
 
   // Notifications inbox (in-app)
   notifications: Notification[];
@@ -659,6 +663,9 @@ interface AppState {
   addPost: (post: Post) => void;
   deletePost: (postId: string) => void;
   toggleSavePost: (postId: string) => void;
+  toggleSaveEvent: (eventId: string) => void;
+  toggleSaveListing: (listingId: string) => void;
+  toggleSaveBusiness: (businessId: string) => void;
   toggleLikePost: (postId: string) => void;
   setPostReaction: (postId: string, emoji: string | null) => void;
   addComment: (comment: Comment) => void;
@@ -674,6 +681,7 @@ interface AppState {
   deleteLifeEvent: (eventId: string) => void;
   setEventRsvp: (eventId: string, status: 'interested' | 'going' | null) => void;
   setNotificationsEnabled: (enabled: boolean) => void;
+  setDarkMode: (enabled: boolean) => void;
   setLocationDetectionDismissed: (dismissed: boolean) => void;
   setLastDetectedCity: (city: string | null) => void;
   incrementInAppSalesCount: () => void;
@@ -743,6 +751,9 @@ export const useStore = create<AppState>()(
       recentNeighborhoodsByCity: {} as Record<string, string[]>,
       userPosts: [] as Post[],
       savedPostIds: [] as string[],
+      savedEventIds: [] as string[],
+      savedListingIds: [] as string[],
+      savedBusinessIds: [] as string[],
       likedPostIds: [] as string[],
       userComments: [] as Comment[],
       connections: [] as User[],
@@ -759,6 +770,7 @@ export const useStore = create<AppState>()(
       businessBookingSettings: [] as BusinessBookingSettings[],
       inAppSalesCount: 0,
       notificationsEnabled: true,
+      darkMode: false,
       notifications: INITIAL_NOTIFICATIONS as Notification[],
       addNotification: (notification) => set((state) => ({
         notifications: [notification, ...state.notifications],
@@ -1019,6 +1031,21 @@ export const useStore = create<AppState>()(
           ? state.savedPostIds.filter((id) => id !== postId)
           : [...state.savedPostIds, postId],
       })),
+      toggleSaveEvent: (eventId: string) => set((state) => ({
+        savedEventIds: state.savedEventIds.includes(eventId)
+          ? state.savedEventIds.filter((id) => id !== eventId)
+          : [...state.savedEventIds, eventId],
+      })),
+      toggleSaveListing: (listingId: string) => set((state) => ({
+        savedListingIds: state.savedListingIds.includes(listingId)
+          ? state.savedListingIds.filter((id) => id !== listingId)
+          : [...state.savedListingIds, listingId],
+      })),
+      toggleSaveBusiness: (businessId: string) => set((state) => ({
+        savedBusinessIds: state.savedBusinessIds.includes(businessId)
+          ? state.savedBusinessIds.filter((id) => id !== businessId)
+          : [...state.savedBusinessIds, businessId],
+      })),
       toggleLikePost: (postId: string) => set((state) => ({
         likedPostIds: state.likedPostIds.includes(postId)
           ? state.likedPostIds.filter((id) => id !== postId)
@@ -1075,6 +1102,7 @@ export const useStore = create<AppState>()(
         return { eventRsvps: [...state.eventRsvps, { eventId, status }] };
       }),
       setNotificationsEnabled: (enabled: boolean) => set({ notificationsEnabled: enabled }),
+      setDarkMode: (enabled: boolean) => set({ darkMode: enabled }),
       setLocationDetectionDismissed: (dismissed: boolean) => set({ locationDetectionDismissed: dismissed }),
       setLastDetectedCity: (city: string | null) => set({ lastDetectedCity: city }),
       incrementInAppSalesCount: () => set((state) => ({ inAppSalesCount: state.inAppSalesCount + 1 })),
@@ -1392,6 +1420,10 @@ export const useStore = create<AppState>()(
         if (!persistedState?.communityAssistant) persistedState.communityAssistant = { messages: [], updatedAt: null };
         if (!persistedState?.immigrationAssistant) persistedState.immigrationAssistant = { messages: [], updatedAt: null };
         if (!persistedState?.translator) persistedState.translator = { sourceLangCode: 'en', targetLangCode: 'sw', useAi: true, recents: [] };
+        if (!persistedState?.savedEventIds) persistedState.savedEventIds = [];
+        if (!persistedState?.savedListingIds) persistedState.savedListingIds = [];
+        if (!persistedState?.savedBusinessIds) persistedState.savedBusinessIds = [];
+        if (persistedState?.darkMode === undefined) persistedState.darkMode = false;
         return persistedState;
       },
       partialize: (state) => ({
@@ -1407,6 +1439,9 @@ export const useStore = create<AppState>()(
         feedFilter: state.feedFilter,
         userPosts: state.userPosts,
         savedPostIds: state.savedPostIds,
+        savedEventIds: state.savedEventIds,
+        savedListingIds: state.savedListingIds,
+        savedBusinessIds: state.savedBusinessIds,
         likedPostIds: state.likedPostIds,
         userComments: state.userComments,
         inAppSalesCount: state.inAppSalesCount,
@@ -1416,6 +1451,7 @@ export const useStore = create<AppState>()(
         userListings: state.userListings,
         eventRsvps: state.eventRsvps,
         notificationsEnabled: state.notificationsEnabled,
+        darkMode: state.darkMode,
         neighborProfile: state.neighborProfile,
         connectedNeighbors: state.connectedNeighbors,
         likedNeighbors: state.likedNeighbors,

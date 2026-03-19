@@ -21,6 +21,9 @@ export default function ProfileScreen() {
   const logout = useStore((s) => s.logout);
   const userCreatedPosts = useStore((s) => s.userPosts);
   const savedPostIds = useStore((s) => s.savedPostIds);
+  const savedEventIds = useStore((s) => s.savedEventIds);
+  const savedListingIds = useStore((s) => s.savedListingIds);
+  const savedBusinessIds = useStore((s) => s.savedBusinessIds);
   const connections = useStore((s) => s.connections);
   const lifeEvents = useStore((s) => s.lifeEvents);
   const userBusinesses = useStore((s) => s.userBusinesses);
@@ -60,7 +63,7 @@ export default function ProfileScreen() {
   // Dynamic menu items with real counts
   const menuItems = [
     { id: 'posts', label: 'My Posts', icon: FileText, count: totalPosts, route: '/my-posts' },
-    { id: 'saved', label: 'Saved', icon: Bookmark, count: savedPostIds.length, route: '/saved-posts' },
+    { id: 'saved', label: 'Saved', icon: Bookmark, count: savedPostIds.length + savedEventIds.length + savedListingIds.length + savedBusinessIds.length, route: '/saved-posts' },
     { id: 'connections', label: 'Connections', icon: Users, count: connections.length, route: '/connections' },
   ];
 

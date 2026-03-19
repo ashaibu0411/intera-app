@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
-import { sendNewPostNotification } from './notifications';
 import { getCommunityByLocation, getCommunity } from './communities';
+import { sendRemotePushAlert } from './pushAlerts';
 
 /**
  * Get all user IDs in a specific community/city
@@ -96,6 +96,58 @@ export async function notifyCommunityAboutNewPost(
       return;
     }
 
+    // Resolve a canonical city/neighborhood for push targeting.
+    // IMPORTANT: Remote push is the only reliable way to notify devices when the app is closed/backgrounded.
+    let cityForPush: string | null = null;
+    let neighborhoodForPush: string | null = null;
+    try {
+      if (communityId) {
+        const community = await getCommunity(communityId);
+        cityForPush = community?.city ? String((community as any).city).trim() : null;
+      }
+    } catch {}
+    if (!cityForPush && location) {
+      const [beforeDot, afterDot] = location.split('·').map((s) => s.trim());
+      neighborhoodForPush = afterDot || null;
+      const parts = String(beforeDot || '')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      cityForPush = parts[0] ? String(parts[0]).trim() : null;
+    }
+
+    // Fire-and-forget remote push to *all* enabled devices in this city.
+    // This fixes the "same city devices don't get notifications for all posts" issue,
+    // because the previous realtime broadcast only works for connected clients and relies on fragile profile/location matching.
+    if (cityForPush) {
+      sendRemotePushAlert({
+        title: `${author.name} posted`,
+        body: postContent.length > 100 ? postContent.substring(0, 100) + '...' : postContent,
+        scope: 'city',
+        city: cityForPush,
+        neighborhood: null,
+        excludeUserId: authorId,
+        type: 'new_post',
+        actorId: authorId,
+        data: { type: 'new_post', postId, authorId, city: cityForPush, neighborhood: neighborhoodForPush },
+      }).catch(() => null);
+    } else {
+      // Fallback: when city can't be resolved (e.g. iOS with different community/location format),
+      // use global scope so cross-platform notifications still work (iPhone→Android).
+      console.log('[CommunityNotifications] No city resolved; using global scope for push', { communityId, location });
+      sendRemotePushAlert({
+        title: `${author.name} posted`,
+        body: postContent.length > 100 ? postContent.substring(0, 100) + '...' : postContent,
+        scope: 'global',
+        city: null,
+        neighborhood: null,
+        excludeUserId: authorId,
+        type: 'new_post',
+        actorId: authorId,
+        data: { type: 'new_post', postId, authorId },
+      }).catch(() => null);
+    }
+
     let userIds: string[] = [];
 
     // If we have a community ID, get members from that community
@@ -139,15 +191,15 @@ export async function notifyCommunityAboutNewPost(
 
     console.log(`[CommunityNotifications] Notifying ${userIds.length} users about new post`);
 
-    // Create notifications in database for each user
-    // First try to insert into notifications table (if it exists)
+    // Create notifications in database for each user.
+    // Schema must match: recipient_id, actor_id, type, title, body, data (read_at null = unread).
     const notifications = userIds.map(userId => ({
-      user_id: userId,
+      recipient_id: userId,
+      actor_id: authorId,
       type: 'new_post',
       title: `${author.name} posted in your community`,
       body: postContent.length > 100 ? postContent.substring(0, 100) + '...' : postContent,
       data: { postId, authorId, type: 'new_post' },
-      read: false,
     }));
 
     // Try to insert notifications in batches (Supabase has limits)
@@ -247,14 +299,14 @@ export async function notifyCommunityAboutNewEvent(
 
     console.log(`[CommunityNotifications] Notifying ${userIds.length} users about new event`);
 
-    // Create notifications in database
+    // Create notifications in database (recipient_id, actor_id; read_at null = unread)
     const notifications = userIds.map(userId => ({
-      user_id: userId,
+      recipient_id: userId,
+      actor_id: authorId,
       type: 'new_event',
       title: `New event in your community`,
       body: `${author.name} created "${eventTitle}"${eventLocation ? ` at ${eventLocation}` : ''}`,
       data: { eventId, authorId, type: 'new_event' },
-      read: false,
     }));
 
     // Try to insert notifications in batches

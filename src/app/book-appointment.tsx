@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { View, Text, ScrollView, Pressable, Alert, TextInput, Modal, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, Pressable, Alert, TextInput, Modal, ActivityIndicator, Share } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -19,6 +19,7 @@ import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ServiceCard } from '@/components/ServiceCard';
 import { useStore, type BusinessService } from '@/lib/store';
+import { generateAppointmentIcs } from '@/lib/calendarExport';
 import { purchaseBusinessService, priceToGems, calculateFeeBreakdown } from '@/lib/marketplacePayments';
 import { getGemBalance } from '@/lib/giftService';
 import { getBusiness } from '@/lib/marketplace-api';
@@ -29,6 +30,8 @@ import {
   calculateEndTime,
   type DbBusinessService,
 } from '@/lib/booking-api';
+import { sendDirectPushAlert } from '@/lib/pushAlerts';
+import { scheduleAppointmentReminders } from '@/lib/notifications';
 
 type PaymentMethod = 'in_app' | 'cash' | 'card_on_site' | 'gems';
 
@@ -275,6 +278,24 @@ export default function BookAppointmentScreen() {
         throw new Error('Failed to create appointment');
       }
 
+      // Notify business owner of new appointment
+      sendDirectPushAlert({
+        recipientUserId: business.owner_id,
+        excludeUserId: currentUser.id,
+        title: 'New appointment',
+        body: `${currentUser.name || 'A customer'} booked ${selectedService.name} on ${formatDate(selectedDate)} at ${selectedTime}`,
+        data: { type: 'new_appointment', appointmentId: appointment.id, businessId: business.id, businessName: business.name },
+      }).catch(() => {});
+
+      // Schedule local reminders (1 day and 1 hour before)
+      scheduleAppointmentReminders(
+        appointment.id,
+        business.name,
+        selectedService.name,
+        selectedDate.toISOString().split('T')[0],
+        selectedTime
+      ).catch(() => {});
+
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
       const paymentMessage = paymentMethod === 'gems'
@@ -283,10 +304,45 @@ export default function BookAppointmentScreen() {
         ? ' Remember to pay at the location.'
         : '';
 
+      // Add to store for immediate display in My Appointments
+      const addAppointment = useStore.getState().addAppointment;
+      addAppointment({
+        id: appointment.id,
+        businessId: business.id,
+        businessName: business.name,
+        businessImage: business.image,
+        customerId: currentUser.id,
+        customerName: currentUser.name || 'You',
+        service: selectedService,
+        date: selectedDate.toISOString().split('T')[0],
+        time: selectedTime,
+        status: 'pending',
+        isPaid: paymentMethod === 'gems',
+        paymentMethod: paymentMethod === 'gems' ? 'gems' : paymentMethod,
+        createdAt: new Date().toISOString(),
+      });
+
+      const ics = generateAppointmentIcs({
+        title: `${selectedService.name} at ${business.name}`,
+        description: selectedService.description,
+        location: business.address,
+        startDate: selectedDate.toISOString().split('T')[0],
+        startTime: selectedTime,
+        durationMinutes: selectedService.duration,
+        businessName: business.name,
+        serviceName: selectedService.name,
+      });
+
       Alert.alert(
         'Appointment Booked!',
         `Your appointment for ${selectedService.name} on ${formatDate(selectedDate)} at ${selectedTime} has been confirmed.${paymentMessage}`,
-        [{ text: 'OK', onPress: () => router.back() }]
+        [
+          { text: 'Add to Calendar', onPress: () => {
+            Share.share({ message: ics, title: 'Add to Calendar' }).catch(() => {});
+            router.back();
+          }},
+          { text: 'OK', onPress: () => router.back() },
+        ]
       );
     } catch (error) {
       console.error('Error booking appointment:', error);

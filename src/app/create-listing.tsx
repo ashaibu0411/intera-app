@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, Pressable, TextInput, KeyboardAvoidingView, Platform, Modal, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, Pressable, TextInput, KeyboardAvoidingView, Platform, Modal, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
@@ -22,6 +22,8 @@ import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { useStore, MARKETPLACE_CATEGORIES, type MarketplaceListing } from '@/lib/store';
 import { createMarketplaceListing } from '@/lib/marketplace-api';
+import { uploadImages } from '@/lib/posts';
+import { sendRemotePushAlert } from '@/lib/pushAlerts';
 
 const CONDITIONS = [
   { id: 'new', label: 'New', description: 'Brand new, unused' },
@@ -83,50 +85,75 @@ export default function CreateListingScreen() {
     setIsSubmitting(true);
 
     try {
-      // Create the listing object for local store
-      const newListing: MarketplaceListing = {
-        id: `local-${Date.now()}`,
-        seller: currentUser,
+      // Upload images first (DB requires URLs)
+      const uploadedUrls = (await uploadImages(images, currentUser.id)).filter(
+        (u) => typeof u === 'string' && (u.startsWith('http://') || u.startsWith('https://'))
+      );
+
+      if (uploadedUrls.length === 0) {
+        throw new Error('Photo upload failed. Please try again.');
+      }
+
+      const city = selectedLocation?.city || currentCommunity?.city || '';
+
+      const listing = await createMarketplaceListing(currentUser.id, {
         title: title.trim(),
         description: description.trim(),
-        price: price,
+        price: parseFloat(price),
         currency: 'USD',
-        images,
+        images: uploadedUrls,
         category,
         condition,
         location: userLocation,
         isStoreBased,
         storeName: isStoreBased ? storeName.trim() : undefined,
-        createdAt: new Date().toISOString(),
+      });
+
+      // Add to local store for immediate UI update
+      const newListing: MarketplaceListing = {
+        id: listing.id,
+        seller: currentUser,
+        title: listing.title,
+        description: listing.description,
+        price: String(listing.price),
+        currency: 'USD',
+        images: listing.images || uploadedUrls,
+        category: listing.category,
+        condition: listing.condition,
+        location: listing.location || userLocation,
+        isStoreBased,
+        storeName: isStoreBased ? storeName.trim() : undefined,
+        createdAt: listing.created_at || new Date().toISOString(),
         views: 0,
       };
-
-      // Save to local store first (this always works)
       addMarketplaceListing(newListing);
 
-      // Try to save to database as well
-      try {
-        await createMarketplaceListing(currentUser.id, {
-          title: title.trim(),
-          description: description.trim(),
-          price: parseFloat(price),
-          currency: 'USD',
-          images,
-          category,
-          condition,
-          location: userLocation,
-          isStoreBased,
-          storeName: isStoreBased ? storeName.trim() : undefined,
-        });
-      } catch (dbError) {
-        console.log('Database save failed, but local save succeeded:', dbError);
+      // Notify all app users in same city
+      if (city) {
+        sendRemotePushAlert({
+          title: 'New item for sale',
+          body: `${currentUser.name} listed "${title.trim()}" for $${price}`,
+          scope: 'city',
+          city,
+          neighborhood: null,
+          excludeUserId: currentUser.id,
+          type: 'new_listing',
+          actorId: currentUser.id,
+          data: { type: 'new_listing', listingId: listing.id },
+        }).catch(() => {});
       }
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      router.back();
-    } catch (error) {
+      // Navigate to marketplace so user sees their listing (don't use router.back() which can go to wrong screen)
+      router.replace('/marketplace' as any);
+    } catch (error: any) {
       console.error('Error creating listing:', error);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert(
+        'Could not list item',
+        String(error?.message ?? error ?? 'Something went wrong. Please try again.')
+      );
+      // Do NOT navigate on error - stay on form so user can retry
     } finally {
       setIsSubmitting(false);
     }
@@ -145,6 +172,19 @@ export default function CreateListingScreen() {
 
   return (
     <View className="flex-1 bg-cream">
+      {/* Full-screen loading overlay - prevents accidental taps and shows progress */}
+      {isSubmitting && (
+        <View
+          className="absolute inset-0 z-50 bg-black/40 items-center justify-center"
+          pointerEvents="box-only"
+        >
+          <View className="bg-white rounded-2xl px-8 py-6 items-center">
+            <ActivityIndicator size="large" color="#D4673A" />
+            <Text className="text-warmBrown font-semibold mt-3">Listing your item...</Text>
+            <Text className="text-gray-500 text-sm mt-1">Uploading photos</Text>
+          </View>
+        </View>
+      )}
       <SafeAreaView edges={['top']} className="flex-1">
         {/* Header */}
         <Animated.View entering={FadeIn.duration(300)} className="px-5 pt-4 pb-2">
@@ -166,11 +206,11 @@ export default function CreateListingScreen() {
 
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }}>
                 {images.map((uri, index) => (
-                  <View key={index} className="relative mr-3">
+                  <View key={index} className="relative mr-3 bg-gray-100 rounded-xl">
                     <Image
                       source={{ uri }}
                       style={{ width: 100, height: 100, borderRadius: 12 }}
-                      contentFit="cover"
+                      contentFit="contain"
                     />
                     <Pressable
                       onPress={() => handleRemoveImage(index)}

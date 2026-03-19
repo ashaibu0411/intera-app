@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1035697394258",
+    "project_id": "intera-community-app",
+    "storage_bucket": "intera-community-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1035697394258:android:2fed280526a306f430c58b",
+        "android_client_info": {
+          "package_name": "com.vibecode.intera"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDBm8nSIvFGGFJ9YvmOowSQQ54lNCguHfo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

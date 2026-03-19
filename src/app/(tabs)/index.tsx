@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { View, Text, Pressable, ScrollView } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
@@ -7,8 +8,12 @@ import * as Haptics from 'expo-haptics';
 import {
   MapPin,
   Search,
+  Bell,
+  MessageCircle,
 } from 'lucide-react-native';
 import { useStore } from '@/lib/store';
+import { useUnreadStore, useUnreadMessages } from '@/lib/useUnreadMessages';
+import { useUnreadNotificationsStore, useUnreadNotifications } from '@/lib/useUnreadNotifications';
 import { getIncidents, getUtilityReports } from '@/lib/marketplace-api';
 import type { DbIncident, DbUtilityReport } from '@/lib/supabase';
 import { PhotoTile } from '@/components/PhotoTile';
@@ -16,6 +21,23 @@ import { PhotoTile } from '@/components/PhotoTile';
 export default function HomeHubScreen() {
   const selectedLocation = useStore((s) => s.selectedLocation);
   const feedFilter = useStore((s) => s.feedFilter);
+  const messagesUnread = useUnreadStore((s) => s.unreadCount);
+  const notificationsUnread = useUnreadNotificationsStore((s) => s.unreadCount);
+  const { refetch: refetchMessages } = useUnreadMessages();
+  const { refetch: refetchNotifications } = useUnreadNotifications();
+
+  // Refetch counts when home hub comes into focus (e.g. after returning from another screen)
+  // Small delay so any in-flight mark-as-read (from Messages/Notifications) can complete first
+  useFocusEffect(
+    useCallback(() => {
+      const t = setTimeout(() => {
+        refetchMessages();
+        refetchNotifications();
+      }, 400);
+      return () => clearTimeout(t);
+    }, [refetchMessages, refetchNotifications])
+  );
+
   const [incidentCount, setIncidentCount] = useState(0);
   const [utilityIssueCount, setUtilityIssueCount] = useState(0);
 
@@ -109,10 +131,10 @@ export default function HomeHubScreen() {
       <SafeAreaView edges={['top']} className="flex-1">
         {/* Header */}
         <View className="px-4 pt-2 pb-3">
-          <View className="flex-row items-center justify-between">
+          <View className="flex-row items-center" style={{ gap: 8 }}>
             <Pressable
               onPress={() => go('/location-select')}
-              className="flex-row items-center bg-white rounded-2xl border border-gray-100 px-4 py-3 flex-1"
+              className="flex-row items-center bg-white rounded-2xl border border-gray-100 px-4 py-3 flex-1 min-w-0"
             >
               <View className="w-9 h-9 rounded-xl overflow-hidden bg-gray-100">
                 <Image
@@ -122,21 +144,50 @@ export default function HomeHubScreen() {
                   contentFit="cover"
                 />
               </View>
-              <View className="ml-3 flex-1">
-                <Text className="text-base font-bold text-warmBrown">Home</Text>
+              <View className="ml-3 flex-1 min-w-0">
+                <Text className="text-base font-bold text-warmBrown" numberOfLines={1}>Home</Text>
                 <View className="flex-row items-center mt-0.5">
                   <MapPin size={12} color="#8B7355" />
-                  <Text className="text-sm text-gray-500 ml-1">{cityLabel}</Text>
+                  <Text className="text-sm text-gray-500 ml-1" numberOfLines={1}>{cityLabel}</Text>
                 </View>
               </View>
             </Pressable>
 
-            <Pressable
-              onPress={() => go('/app-search')}
-              className="ml-3 w-12 h-12 rounded-2xl bg-white border border-gray-100 items-center justify-center"
-            >
-              <Search size={20} color="#8B7355" />
-            </Pressable>
+            {/* Notification, Message, Search - flexShrink: 0 so they always show on Android */}
+            <View className="flex-row items-center" style={{ flexShrink: 0, gap: 6 }}>
+              <Pressable
+                onPress={() => go('/notifications')}
+                className="w-10 h-10 rounded-xl bg-white border border-gray-100 items-center justify-center relative"
+              >
+                <Bell size={20} color="#8B7355" />
+                {notificationsUnread > 0 && (
+                  <View className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 bg-terracotta-500 rounded-full border-2 border-cream items-center justify-center px-1">
+                    <Text className="text-white text-[9px] font-bold leading-none">
+                      {notificationsUnread > 99 ? '99+' : notificationsUnread}
+                    </Text>
+                  </View>
+                )}
+              </Pressable>
+              <Pressable
+                onPress={() => go('/messages')}
+                className="w-10 h-10 rounded-xl bg-white border border-gray-100 items-center justify-center relative"
+              >
+                <MessageCircle size={20} color="#8B7355" />
+                {messagesUnread > 0 && (
+                  <View className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 bg-red-500 rounded-full border-2 border-cream items-center justify-center px-1">
+                    <Text className="text-white text-[9px] font-bold leading-none">
+                      {messagesUnread > 99 ? '99+' : messagesUnread}
+                    </Text>
+                  </View>
+                )}
+              </Pressable>
+              <Pressable
+                onPress={() => go('/app-search')}
+                className="w-10 h-10 rounded-xl bg-white border border-gray-100 items-center justify-center"
+              >
+                <Search size={20} color="#8B7355" />
+              </Pressable>
+            </View>
           </View>
         </View>
 
@@ -170,6 +221,13 @@ export default function HomeHubScreen() {
                 subtitle="Near you"
                 imageUri="https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=1600&q=90"
                 onPress={() => go('/events')}
+                size="lg"
+              />
+              <PhotoTile
+                title="Groups"
+                subtitle="Faith & community"
+                imageUri="https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=1600&q=90"
+                onPress={() => go('/faith-community')}
                 size="lg"
               />
               <PhotoTile
@@ -222,6 +280,18 @@ export default function HomeHubScreen() {
 
           <View className="px-4 mt-4">
             <View className="flex-row flex-wrap" style={{ gap: 12 }}>
+              <PhotoTile
+                title="Saved"
+                subtitle="Posts, listings & more"
+                imageUri="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1600&q=90"
+                onPress={() => go('/saved-posts')}
+              />
+              <PhotoTile
+                title="My Appointments"
+                subtitle="Bookings"
+                imageUri="https://images.unsplash.com/photo-1506784365847-bbad939e9335?w=1600&q=90"
+                onPress={() => go('/my-appointments')}
+              />
               <PhotoTile
                 title="Businesses"
                 subtitle="Directory"

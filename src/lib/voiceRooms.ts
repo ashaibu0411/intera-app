@@ -8,7 +8,7 @@ import type {
   DbVoiceRoomRecap,
 } from '@/lib/supabase';
 import { v4 as uuidv4 } from 'uuid';
-import { sendRemotePushAlert } from '@/lib/pushAlerts';
+import { sendRemotePushAlert, sendDirectPushAlert } from '@/lib/pushAlerts';
 
 export type VoiceRole = DbVoiceRoomParticipant['role'];
 export type HandRaiseIntent = NonNullable<DbVoiceRoomHandRaise['intent']> extends never
@@ -90,21 +90,26 @@ export async function createVoiceRoom(input: {
       await upsertParticipant({ roomId: created.id, userId: authUserId, role: 'host', isMuted: false });
     } catch {}
 
-    // Notify area/city that a room is live (best-effort)
+    // Notify that a room is live (best-effort)
     try {
-      const scope = (input.scope ?? 'city') as any;
-      const where =
-        scope === 'neighborhood'
-          ? `${input.neighborhood ?? 'your neighborhood'}`
-          : scope === 'city'
-            ? `${input.city ?? 'your city'}`
-            : 'your community';
+      const city = input.city ? String(input.city).trim() : '';
+      const neighborhood = input.neighborhood ? String(input.neighborhood).trim() : '';
+
+      // Default to city-scoped notifications (what you asked for).
+      // Fall back to global only if we don't have a city.
+      const scope = (city ? 'city' : 'global') as const;
+
+      const where = neighborhood
+        ? `${input.neighborhood}`
+        : city
+          ? `${city}`
+          : 'your community';
       await sendRemotePushAlert({
         title: `LIVE: ${input.title}`,
         body: `${input.topic ? `${input.topic} • ` : ''}Join the voice room in ${where}.`,
         scope,
-        city: input.city ?? null,
-        neighborhood: input.neighborhood ?? null,
+        city: city || null,
+        neighborhood: neighborhood || null,
         excludeUserId: authUserId,
         type: 'voice_room_live',
         actorId: authUserId,
@@ -459,7 +464,7 @@ export async function getReactionCounts(roomId: string) {
   return Object.fromEntries(results) as Record<VoiceRoomReactionKind, number>;
 }
 
-export async function sendNoteToHost(roomId: string, userId: string, content: string) {
+export async function sendNoteToHost(roomId: string, userId: string, content: string, senderName?: string) {
   const trimmed = (content || '').trim();
   if (!trimmed) return;
   const { error } = await supabase.from('voice_room_notes').insert({
@@ -468,6 +473,23 @@ export async function sendNoteToHost(roomId: string, userId: string, content: st
     content: trimmed,
   });
   if (error) throw error;
+
+  // Alert host via push notification
+  try {
+    const { data: room } = await supabase.from('voice_rooms').select('creator_id').eq('id', roomId).single();
+    const hostId = (room as { creator_id?: string } | null)?.creator_id;
+    if (hostId && hostId !== userId) {
+      await sendDirectPushAlert({
+        title: 'New note in voice room',
+        body: `${senderName ?? 'Someone'} sent a note: ${trimmed.slice(0, 80)}${trimmed.length > 80 ? '…' : ''}`,
+        recipientUserId: hostId,
+        type: 'voice_room_note',
+        data: { roomId, type: 'voice_room_note' },
+      });
+    }
+  } catch {
+    // best-effort
+  }
 }
 
 export async function listNotes(roomId: string, limit: number = 50): Promise<DbVoiceRoomNote[]> {

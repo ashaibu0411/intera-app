@@ -151,6 +151,30 @@ export async function reportBlockedUser(
 }
 
 /**
+ * Report a marketplace listing
+ */
+export async function reportListing(
+  reporterId: string,
+  sellerId: string,
+  sellerName: string,
+  listingId: string,
+  reason: ViolationType,
+  description?: string
+): Promise<boolean> {
+  console.log(`[Report] Listing ${listingId} reported by ${reporterId} for: ${reason}`);
+
+  return submitReport({
+    reporter_id: reporterId,
+    reported_user_id: sellerId,
+    reported_user_name: sellerName,
+    content_type: 'text',
+    content_id: listingId,
+    reason,
+    description: description || `Marketplace listing ${listingId}`,
+  });
+}
+
+/**
  * Report a comment
  */
 export async function reportComment(

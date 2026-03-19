@@ -111,18 +111,27 @@ export interface DbServiceTemplate {
 
 // ==================== Service Templates ====================
 
-// Hardcoded service templates since the table doesn't exist in the database
+// Generic price list for hair salons & barbers - businesses customize prices when adding
 const SERVICE_TEMPLATES: Record<string, DbServiceTemplate[]> = {
   'hair_salon': [
     { id: '1', business_category: 'hair_salon', name: 'Haircut', description: 'Professional haircut', suggested_duration: 30, suggested_price: 25, currency: 'USD', service_category: 'Hair', display_order: 0, created_at: '' },
     { id: '2', business_category: 'hair_salon', name: 'Hair Coloring', description: 'Full hair coloring service', suggested_duration: 90, suggested_price: 80, currency: 'USD', service_category: 'Hair', display_order: 1, created_at: '' },
     { id: '3', business_category: 'hair_salon', name: 'Blowout', description: 'Wash and blowout styling', suggested_duration: 45, suggested_price: 35, currency: 'USD', service_category: 'Hair', display_order: 2, created_at: '' },
+    { id: 'hs4', business_category: 'hair_salon', name: 'Braiding - Box Braids', description: 'Classic box braids', suggested_duration: 180, suggested_price: 120, currency: 'USD', service_category: 'Braiding', display_order: 3, created_at: '' },
+    { id: 'hs5', business_category: 'hair_salon', name: 'Braiding - Cornrows', description: 'Cornrow styling', suggested_duration: 90, suggested_price: 75, currency: 'USD', service_category: 'Braiding', display_order: 4, created_at: '' },
+    { id: 'hs6', business_category: 'hair_salon', name: 'Relaxer', description: 'Hair relaxer treatment', suggested_duration: 120, suggested_price: 65, currency: 'USD', service_category: 'Treatment', display_order: 5, created_at: '' },
+    { id: 'hs7', business_category: 'hair_salon', name: 'Deep Conditioning', description: 'Deep conditioning treatment', suggested_duration: 45, suggested_price: 40, currency: 'USD', service_category: 'Treatment', display_order: 6, created_at: '' },
+    { id: 'hs8', business_category: 'hair_salon', name: 'Trim', description: 'Hair trim only', suggested_duration: 15, suggested_price: 15, currency: 'USD', service_category: 'Hair', display_order: 7, created_at: '' },
   ],
   'barbershop': [
     { id: '4', business_category: 'barbershop', name: 'Haircut', description: 'Classic haircut', suggested_duration: 30, suggested_price: 20, currency: 'USD', service_category: 'Hair', display_order: 0, created_at: '' },
     { id: '5', business_category: 'barbershop', name: 'Beard Trim', description: 'Beard shaping and trim', suggested_duration: 15, suggested_price: 10, currency: 'USD', service_category: 'Beard', display_order: 1, created_at: '' },
     { id: '6', business_category: 'barbershop', name: 'Haircut & Beard', description: 'Full haircut with beard trim', suggested_duration: 45, suggested_price: 30, currency: 'USD', service_category: 'Combo', display_order: 2, created_at: '' },
     { id: '7', business_category: 'barbershop', name: 'Hot Towel Shave', description: 'Traditional hot towel shave', suggested_duration: 30, suggested_price: 25, currency: 'USD', service_category: 'Shave', display_order: 3, created_at: '' },
+    { id: 'bb5', business_category: 'barbershop', name: 'Fade', description: 'Clean fade with lineup', suggested_duration: 35, suggested_price: 28, currency: 'USD', service_category: 'Hair', display_order: 4, created_at: '' },
+    { id: 'bb6', business_category: 'barbershop', name: 'Lineup', description: 'Hairline and edge cleanup', suggested_duration: 15, suggested_price: 12, currency: 'USD', service_category: 'Hair', display_order: 5, created_at: '' },
+    { id: 'bb7', business_category: 'barbershop', name: 'Kids Haircut', description: 'Haircut for children', suggested_duration: 25, suggested_price: 15, currency: 'USD', service_category: 'Hair', display_order: 6, created_at: '' },
+    { id: 'bb8', business_category: 'barbershop', name: 'Shape Up', description: 'Quick shape and lineup', suggested_duration: 20, suggested_price: 18, currency: 'USD', service_category: 'Hair', display_order: 7, created_at: '' },
   ],
   'beauty_salon': [
     { id: '8', business_category: 'beauty_salon', name: 'Manicure', description: 'Classic manicure', suggested_duration: 30, suggested_price: 20, currency: 'USD', service_category: 'Nails', display_order: 0, created_at: '' },

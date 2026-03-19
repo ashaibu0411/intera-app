@@ -43,7 +43,8 @@ import {
   type Post,
 } from '@/lib/store';
 import { getPost, getComments, createComment } from '@/lib/posts';
-import { moderateText } from '@/lib/contentModeration';
+import { moderateText, REPORT_REASONS, type ViolationType } from '@/lib/contentModeration';
+import { reportPost } from '@/lib/reports';
 import { aiModerateContent } from '@/lib/aiModerateContent';
 import { translateForUi } from '@/lib/aiUiTranslate';
 import { aiReplyCopilot } from '@/lib/aiReplyCopilot';
@@ -62,7 +63,7 @@ export default function PostDetailScreen() {
   const [replyingTo, setReplyingTo] = useState<{ id: string; name: string } | null>(null);
   const [showOptionsModal, setShowOptionsModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
-  const [reportReason, setReportReason] = useState('');
+  const [reportReason, setReportReason] = useState<ViolationType | null>(null);
   const [postTranslation, setPostTranslation] = useState<string | null>(null);
   const [isTranslatingPost, setIsTranslatingPost] = useState(false);
   const [showTranslatedPost, setShowTranslatedPost] = useState(false);
@@ -77,7 +78,6 @@ export default function PostDetailScreen() {
   const userComments = useStore((s) => s.userComments);
   const addComment = useStore((s) => s.addComment);
   const blockUser = useStore((s) => s.blockUser);
-  const reportUser = useStore((s) => s.reportUser);
   const blockedUserIds = useStore((s) => s.blockedUserIds);
   const translatorPrefs = useStore((s) => s.translator);
 
@@ -1036,30 +1036,23 @@ export default function PostDetailScreen() {
             {/* Report Reasons */}
             <View className="px-5 py-4">
               <Text className="text-gray-600 mb-4">Why are you reporting this content?</Text>
-              {[
-                'Spam or misleading',
-                'Harassment or bullying',
-                'Hate speech',
-                'Violence or dangerous content',
-                'Inappropriate content',
-                'Other',
-              ].map((reason) => (
+              {REPORT_REASONS.map((r) => (
                 <Pressable
-                  key={reason}
-                  onPress={() => setReportReason(reason)}
+                  key={r.value}
+                  onPress={() => setReportReason(r.value)}
                   className={`flex-row items-center py-3 px-4 rounded-xl mb-2 ${
-                    reportReason === reason ? 'bg-terracotta-50 border border-terracotta-200' : 'bg-gray-50'
+                    reportReason === r.value ? 'bg-terracotta-50 border border-terracotta-200' : 'bg-gray-50'
                   }`}
                 >
                   <View
                     className={`w-5 h-5 rounded-full border-2 mr-3 items-center justify-center ${
-                      reportReason === reason ? 'border-terracotta-500 bg-terracotta-500' : 'border-gray-300'
+                      reportReason === r.value ? 'border-terracotta-500 bg-terracotta-500' : 'border-gray-300'
                     }`}
                   >
-                    {reportReason === reason && <View className="w-2 h-2 rounded-full bg-white" />}
+                    {reportReason === r.value && <View className="w-2 h-2 rounded-full bg-white" />}
                   </View>
-                  <Text className={reportReason === reason ? 'text-terracotta-700 font-medium' : 'text-gray-700'}>
-                    {reason}
+                  <Text className={reportReason === r.value ? 'text-terracotta-700 font-medium' : 'text-gray-700'}>
+                    {r.label}
                   </Text>
                 </Pressable>
               ))}
@@ -1068,12 +1061,12 @@ export default function PostDetailScreen() {
             {/* Submit Button */}
             <View className="px-5 pb-6">
               <Pressable
-                onPress={() => {
-                  if (reportReason && post) {
+                onPress={async () => {
+                  if (reportReason && post && currentUser) {
                     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                    reportUser(post.author.id, reportReason);
+                    await reportPost(currentUser.id, post.author.id, post.author.name, post.id, reportReason);
                     setShowReportModal(false);
-                    setReportReason('');
+                    setReportReason(null);
                     Alert.alert(
                       'Report Submitted',
                       'Thank you for reporting. Our team will review this content.',

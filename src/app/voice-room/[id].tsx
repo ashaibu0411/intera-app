@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, Pressable, ActivityIndicator, ScrollView, Modal, Alert, Linking, TextInput, Platform, Animated, Easing } from 'react-native';
+import { View, Text, Pressable, ActivityIndicator, ScrollView, Modal, Alert, Linking, TextInput, Platform } from 'react-native';
 import { Stack, useLocalSearchParams, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import * as Haptics from 'expo-haptics';
-import { Mic, MicOff, Hand, Gift, Crown, UserPlus, X, Users, AudioLines, Trash2, Square, ChevronDown, Volume2, VolumeX, UserMinus, MoreVertical, HelpCircle, Lightbulb, Megaphone, Sparkles, Pin, FileText, MessageSquare, ThumbsUp, Flame, HeartHandshake } from 'lucide-react-native';
+import { Mic, MicOff, Gift, Crown, UserPlus, X, Users, Trash2, Square, ChevronDown, Volume2, VolumeX, UserMinus, MoreVertical, Pin, FileText, MessageSquare } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Audio } from 'expo-av';
 import { useStore } from '@/lib/store';
@@ -19,8 +19,6 @@ import {
   raiseHand,
   restartVoiceRoom,
   updateVoiceRoomContext,
-  sendReaction,
-  getReactionCounts,
   sendNoteToHost,
   listNotes,
   getRecap,
@@ -32,14 +30,13 @@ import {
   kickParticipant,
   demoteToListener,
   type ParticipantWithProfile,
-  type HandRaiseIntent
 } from '@/lib/voiceRooms';
 import { startVoiceRoomHighlight, stopVoiceRoomHighlight } from '@/lib/voiceRoomEgress';
 import { createClip } from '@/lib/clips-api';
 import { buildVoiceRoomHighlightClipDescription } from '@/lib/voiceRoomMarkers';
 import { aiVoiceRoomContext } from '@/lib/aiVoiceRoomContext';
 import { sendGift } from '@/lib/giftService';
-import { LiveKitRoom, RoomAudioRenderer, useRoomContext, isLiveKitAvailable, getLiveKitModule } from '@/lib/livekit-wrapper';
+import { LiveKitRoom, RoomAudioRenderer, useRoomContext, useRemoteParticipants, isLiveKitAvailable, getLiveKitModule } from '@/lib/livekit-wrapper';
 
 const GIFTS = [
   { id: 'heart', name: 'Heart', value: 1, emoji: '❤️' },
@@ -49,79 +46,6 @@ const GIFTS = [
   { id: 'crown', name: 'Crown', value: 100, emoji: '👑' },
   { id: 'sparkle', name: 'Sparkle', value: 500, emoji: '✨' },
 ] as const;
-
-type ReactionKind = 'agree' | 'heart' | 'clap' | 'fire';
-
-function ReactionBurst({
-  emoji,
-  onDone,
-}: {
-  emoji: string;
-  onDone: () => void;
-}) {
-  const opacity = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(0)).current;
-  const scale = useRef(new Animated.Value(0.8)).current;
-  const driftX = useRef(new Animated.Value((Math.random() * 60 - 30) | 0)).current;
-
-  useEffect(() => {
-    const anim = Animated.parallel([
-      Animated.timing(opacity, {
-        toValue: 1,
-        duration: 90,
-        easing: Easing.out(Easing.quad),
-        useNativeDriver: true,
-      }),
-      Animated.timing(scale, {
-        toValue: 1,
-        duration: 140,
-        easing: Easing.out(Easing.back(1.2)),
-        useNativeDriver: true,
-      }),
-      Animated.timing(translateY, {
-        toValue: -110,
-        duration: 850,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-    ]);
-
-    anim.start(() => {
-      Animated.timing(opacity, {
-        toValue: 0,
-        duration: 120,
-        easing: Easing.in(Easing.quad),
-        useNativeDriver: true,
-      }).start(onDone);
-    });
-
-    return () => {
-      opacity.stopAnimation();
-      translateY.stopAnimation();
-      scale.stopAnimation();
-      driftX.stopAnimation();
-    };
-  }, [driftX, onDone, opacity, scale, translateY]);
-
-  return (
-    <Animated.View
-      pointerEvents="none"
-      style={{
-        position: 'absolute',
-        left: '50%',
-        bottom: 130,
-        transform: [
-          { translateX: driftX },
-          { translateY },
-          { scale },
-        ],
-        opacity,
-      }}
-    >
-      <Text style={{ fontSize: 28 }}>{emoji}</Text>
-    </Animated.View>
-  );
-}
 
 function MicSync({ enabled }: { enabled: boolean }) {
   const room = useRoomContext() as { localParticipant?: { setMicrophoneEnabled?: (enabled: boolean) => Promise<void> } } | null;
@@ -140,6 +64,21 @@ interface LiveKitRoomContext {
   activeSpeakers?: Array<{ identity?: string }>;
   on?: (event: string, handler: () => void) => void;
   off?: (event: string, handler: () => void) => void;
+}
+
+function RemoteMuteSync({ mutedUserIds }: { mutedUserIds: Set<string> }) {
+  const remoteParticipants = useRemoteParticipants();
+  useEffect(() => {
+    for (const p of remoteParticipants) {
+      const vol = mutedUserIds.has(String(p?.identity ?? '')) ? 0 : 1;
+      try {
+        (p as any)?.setVolume?.(vol);
+      } catch {
+        // ignore
+      }
+    }
+  }, [mutedUserIds, remoteParticipants]);
+  return null;
 }
 
 function LiveKitSpeakingBridge({
@@ -185,7 +124,7 @@ function LiveKitAudioSessionSync({ enabled }: { enabled: boolean }) {
           await Audio.setAudioModeAsync({
             allowsRecordingIOS: true,
             playsInSilentModeIOS: true,
-            staysActiveInBackground: false,
+            staysActiveInBackground: true,
             shouldDuckAndroid: false,
             playThroughEarpieceAndroid: false,
           });
@@ -440,18 +379,20 @@ function SpeakerAvatar({
     <>
       <Pressable
         onPress={() => canModerate && !isCurrentUser && setShowActions(true)}
-        className="items-center mx-2 mb-3"
+        className="items-center mb-4"
+        style={{ width: '33.3333%' }}
       >
         {isSpeakingNow && !participant.is_muted ? (
           <View
             pointerEvents="none"
             style={{
               position: 'absolute',
-              top: -6,
-              left: -6,
-              width: 80,
-              height: 80,
-              borderRadius: 28,
+              top: 2,
+              left: '50%',
+              marginLeft: -44,
+              width: 88,
+              height: 88,
+              borderRadius: 32,
               borderWidth: 3,
               borderColor: '#10B981',
               shadowColor: '#10B981',
@@ -465,9 +406,9 @@ function SpeakerAvatar({
           colors={ringColor as [string, string]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={{ width: 68, height: 68, borderRadius: 24, padding: 3 }}
+          style={{ width: 84, height: 84, borderRadius: 30, padding: 3 }}
         >
-          <View className="flex-1 rounded-[21px] bg-cream overflow-hidden items-center justify-center">
+          <View className="flex-1 rounded-[27px] bg-cream overflow-hidden items-center justify-center">
             {avatar ? (
               <Image source={{ uri: avatar }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
             ) : (
@@ -478,7 +419,31 @@ function SpeakerAvatar({
           </View>
         </LinearGradient>
 
-        <Text className="text-warmBrown font-semibold text-sm mt-2" numberOfLines={1}>
+        {/* Mic badge like Clubhouse */}
+        <View
+          style={{
+            position: 'absolute',
+            top: 58,
+            left: '50%',
+            marginLeft: 22,
+            width: 26,
+            height: 26,
+            borderRadius: 13,
+            backgroundColor: '#FFFFFF',
+            borderWidth: 1,
+            borderColor: 'rgba(17, 24, 39, 0.08)',
+            alignItems: 'center',
+            justifyContent: 'center',
+            shadowColor: '#000',
+            shadowOpacity: 0.08,
+            shadowRadius: 8,
+            shadowOffset: { width: 0, height: 2 },
+          }}
+        >
+          {participant.is_muted ? <MicOff size={14} color="#6B7280" /> : <Mic size={14} color="#10B981" />}
+        </View>
+
+        <Text className="text-warmBrown font-semibold text-sm mt-2 px-2" numberOfLines={1}>
           {isCurrentUser ? 'You' : name.split(' ')[0]}
         </Text>
 
@@ -487,7 +452,7 @@ function SpeakerAvatar({
         </View>
 
         {canModerate && !isCurrentUser && (
-          <View className="absolute top-0 right-0 bg-warmBrown/80 rounded-full p-1">
+          <View className="absolute top-0 right-3 bg-warmBrown/80 rounded-full p-1">
             <MoreVertical size={12} color="#fff" />
           </View>
         )}
@@ -561,17 +526,7 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
   const [gifts, setGifts] = useState<DbGiftTransaction[]>([]);
   const [giftsOpen, setGiftsOpen] = useState(false);
   const [peopleOpen, setPeopleOpen] = useState(false);
-  const [testMicOpen, setTestMicOpen] = useState(false);
   const [lkSpeaking, setLkSpeaking] = useState<boolean | null>(null);
-  const [testRecording, setTestRecording] = useState<Audio.Recording | null>(null);
-  const [testRecordingUri, setTestRecordingUri] = useState<string | null>(null);
-  const [testSound, setTestSound] = useState<Audio.Sound | null>(null);
-  const webTestAudioRef = useRef<any>(null);
-  const [testBusy, setTestBusy] = useState(false);
-  const [testSeconds, setTestSeconds] = useState(0);
-  const [pauseLiveKitForTest, setPauseLiveKitForTest] = useState(false);
-  const [testPermGranted, setTestPermGranted] = useState<boolean | null>(null);
-
   const [lkUrl, setLkUrl] = useState<string | null>(null);
   const [lkToken, setLkToken] = useState<string | null>(null);
   const [lkError, setLkError] = useState<string | null>(null);
@@ -580,17 +535,13 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
   const [loading, setLoading] = useState(true);
   const [micEnabled, setMicEnabled] = useState(false);
   const autoMicTriedRef = useRef(false);
-  const lastHandToastIdRef = useRef<string | null>(null);
-  const [handToast, setHandToast] = useState<{ name: string; emoji: string; intentLabel: string } | null>(null);
-  const [intentOpen, setIntentOpen] = useState(false);
   const [contextOpen, setContextOpen] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
   const [noteText, setNoteText] = useState('');
   const [notesOpen, setNotesOpen] = useState(false);
   const [notes, setNotes] = useState<Array<{ id: string; user_id: string; content: string; created_at: string }>>([]);
-  const [reactions, setReactions] = useState<{ agree: number; heart: number; clap: number; fire: number }>({
-    agree: 0, heart: 0, clap: 0, fire: 0,
-  });
+  const [unreadNotesCount, setUnreadNotesCount] = useState(0);
+  const [chatExpanded, setChatExpanded] = useState(false);
   const [activeSpeakerIds, setActiveSpeakerIds] = useState<string[]>([]);
   const [recap, setRecap] = useState<any>(null);
 
@@ -661,19 +612,20 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
     return room.creator_id === effectiveUserId || me?.role === 'host' || me?.role === 'moderator';
   }, [effectiveUserId, me?.role, room]);
 
-  // Audience can speak by unmuting (open mic), unless the host locked them.
+  // Only speakers/mods/hosts can publish audio. Listeners must "ask to speak" to get promoted.
   const muteLocked = !!(me as any)?.mute_locked;
-  const canSpeakEffective = !muteLocked;
+  const canSpeakByRole = me?.role === 'host' || me?.role === 'moderator' || me?.role === 'speaker' || isHost;
+  const canSpeakEffective = !!(canSpeakByRole && !muteLocked);
 
   const roleLabel = me?.role ?? (isHost ? 'host' : null);
 
-  // If server-side state says we're muted or a listener, force local mic off.
+  // If server-side state says we're muted/locked or not allowed to speak, force local mic off.
   useEffect(() => {
     if (!me) return;
-    if (muteLocked && micEnabled) {
+    if ((!canSpeakEffective || muteLocked) && micEnabled) {
       setMicEnabled(false);
     }
-  }, [me?.id, muteLocked, micEnabled]);
+  }, [me?.id, muteLocked, micEnabled, canSpeakEffective]);
 
   const ensureMicPermission = useCallback(async (): Promise<boolean> => {
     try {
@@ -694,7 +646,21 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
   const toggleMic = useCallback(async () => {
     if (!canSpeakEffective) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      Alert.alert('Muted by host', 'The host muted and locked you. You can’t unmute until the host unlocks you.');
+      if (muteLocked) {
+        Alert.alert('Muted by host', 'The host muted and locked you. You can’t unmute until the host unlocks you.');
+      } else {
+        // Clubhouse-style: audience can request to speak (host promotes to speaker).
+        const already = !!hands.find((h) => h.user_id === effectiveUserId);
+        try {
+          if (already) {
+            await lowerHand(id, effectiveUserId);
+          } else {
+            await raiseHand(id, effectiveUserId);
+          }
+        } catch (e: any) {
+          Alert.alert('Could not update request', String(e?.message ?? e));
+        }
+      }
       return;
     }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -714,7 +680,7 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
         .then(() => null)
         .catch(() => null);
     }
-  }, [canSpeakEffective, effectiveUserId, ensureMicPermission, id, micEnabled]);
+  }, [canSpeakEffective, effectiveUserId, ensureMicPermission, hands, id, micEnabled, muteLocked]);
 
   // Auto-enable mic for hosts/speakers (best-effort, one time)
   useEffect(() => {
@@ -839,29 +805,40 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
     };
   }, [id]);
 
-  // Load reactions + subscribe to reaction inserts
+  // Subscribe to notes + alert host on new notes
   useEffect(() => {
     if (!id) return;
-    let cancelled = false;
-
-    const loadCounts = async () => {
+    const loadNotes = async () => {
       try {
-        const counts = await getReactionCounts(id);
-        if (!cancelled) setReactions(counts);
-      } catch {}
+        const n = await listNotes(id, 50);
+        setNotes(n);
+      } catch (e) {
+        console.log('[VoiceRoom] loadNotes failed:', String((e as any)?.message ?? e));
+      }
     };
-
     const channel = supabase
-      .channel(`voice-room-reactions:${id}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'voice_room_reactions', filter: `room_id=eq.${id}` }, loadCounts)
+      .channel(`voice-room-notes:${id}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'voice_room_notes', filter: `room_id=eq.${id}` },
+        (payload) => {
+          loadNotes();
+          if (effectiveUserId && room?.creator_id === effectiveUserId) {
+            setUnreadNotesCount((c) => c + 1);
+            const content = (payload.new as { content?: string })?.content ?? '';
+            Alert.alert('New note', `${content.slice(0, 100)}${content.length > 100 ? '…' : ''}`, [
+              { text: 'View', onPress: () => { setNotesOpen(true); setUnreadNotesCount(0); setChatExpanded(true); } },
+              { text: 'Dismiss', style: 'cancel', onPress: () => setUnreadNotesCount(0) },
+            ]);
+          }
+        }
+      )
       .subscribe();
-
-    loadCounts();
+    loadNotes();
     return () => {
-      cancelled = true;
       supabase.removeChannel(channel);
     };
-  }, [id]);
+  }, [id, room?.creator_id, effectiveUserId]);
 
   // Load recap (public or host) + subscribe to changes
   useEffect(() => {
@@ -948,7 +925,7 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
     };
   }, [currentUser?.id, currentUser?.name, effectiveUserId, id, room, liveKitEnabled, joinNonce]);
 
-  // Refresh token when role changes
+  // Refresh token when role/mute-lock changes
   useEffect(() => {
     if (!id || !effectiveUserId || !room || !me?.role) return;
     let cancelled = false;
@@ -959,7 +936,7 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
         roomName: room.provider_room_name,
         identity: effectiveUserId,
         name: currentUser?.name ?? undefined,
-        canPublish: me.role === 'host' || me.role === 'moderator' || me.role === 'speaker',
+        canPublish: (me.role === 'host' || me.role === 'moderator' || me.role === 'speaker') && !(me as any)?.mute_locked,
       });
       if (cancelled) return;
       setLkUrl(tokenResp.url);
@@ -972,52 +949,13 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
       setLkError(String(e?.message ?? e));
     });
     return () => { cancelled = true; };
-  }, [currentUser?.id, currentUser?.name, effectiveUserId, id, me?.role, room, liveKitEnabled]);
+  }, [currentUser?.id, currentUser?.name, effectiveUserId, id, me?.role, (me as any)?.mute_locked, room, liveKitEnabled]);
 
   // Leave room on unmount
   useEffect(() => {
     if (!id || !effectiveUserId) return;
     return () => { leaveRoom(id, effectiveUserId).catch(() => null); };
   }, [effectiveUserId, id]);
-
-  // Test recording timer
-  useEffect(() => {
-    if (!testRecording) {
-      setTestSeconds(0);
-      return;
-    }
-    const t = setInterval(async () => {
-      try {
-        const s = await testRecording.getStatusAsync();
-        if ('durationMillis' in s && typeof s.durationMillis === 'number') {
-          setTestSeconds(Math.floor(s.durationMillis / 1000));
-        }
-      } catch {}
-    }, 350);
-    return () => clearInterval(t);
-  }, [testRecording]);
-
-  const toggleHand = async () => {
-    if (!id || !effectiveUserId) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const already = !!hands.find((h) => h.user_id === effectiveUserId);
-    try {
-      if (already) await lowerHand(id, effectiveUserId);
-      else setIntentOpen(true);
-    } catch (e: any) {
-      Alert.alert('Could not update hand', String(e?.message ?? e));
-    }
-  };
-
-  const submitRaiseIntent = async (intent: HandRaiseIntent) => {
-    if (!id || !effectiveUserId) return;
-    setIntentOpen(false);
-    try {
-      await raiseHand(id, effectiveUserId, intent);
-    } catch (e: any) {
-      Alert.alert('Could not raise hand', String(e?.message ?? e));
-    }
-  };
 
   const promote = async (userId: string) => {
     if (!id) return;
@@ -1079,131 +1017,6 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
       }
       if (res?.error) Alert.alert('Gift failed', String(res.error));
       return;
-    }
-  };
-
-  const cleanupTestAudio = async () => {
-    try {
-      if (webTestAudioRef.current) {
-        webTestAudioRef.current.pause?.();
-        webTestAudioRef.current.src = '';
-        webTestAudioRef.current = null;
-      }
-    } catch {}
-    try { await testSound?.unloadAsync(); } catch {}
-    setTestSound(null);
-  };
-
-  const cleanupTestRecording = async () => {
-    try {
-      if (testRecording) {
-        const status = await testRecording.getStatusAsync().catch(() => null as any);
-        if (status?.isRecording) await testRecording.stopAndUnloadAsync().catch(() => null);
-      }
-    } catch {}
-    setTestRecording(null);
-  };
-
-  const startTestRecording = async () => {
-    if (testBusy || testRecording) return;
-    setTestBusy(true);
-    try {
-      setMicEnabled(false);
-      setPauseLiveKitForTest(true);
-      await cleanupTestAudio();
-      await cleanupTestRecording();
-      setTestRecordingUri(null);
-
-      const perm = await Audio.requestPermissionsAsync();
-      setTestPermGranted(!!perm.granted);
-      if (!perm.granted) {
-        Alert.alert('Microphone permission denied', 'Enable microphone in Settings.', [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Open Settings', onPress: () => Linking.openSettings().catch(() => null) },
-        ]);
-        return;
-      }
-
-      // `setAudioModeAsync` is not consistently supported on web.
-      if (Platform.OS !== 'web') {
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: true,
-          playsInSilentModeIOS: true,
-          staysActiveInBackground: false,
-          shouldDuckAndroid: true,
-          playThroughEarpieceAndroid: false,
-        });
-      }
-
-      const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
-      setTestRecording(recording);
-    } catch (e: unknown) {
-      const errorMessage = e instanceof Error ? e.message : String(e);
-      Alert.alert('Mic test failed', errorMessage);
-    } finally {
-      setTestBusy(false);
-    }
-  };
-
-  const stopTestRecording = async () => {
-    if (testBusy || !testRecording) return;
-    setTestBusy(true);
-    try {
-      await testRecording.stopAndUnloadAsync();
-      const uri = testRecording.getURI();
-      setTestRecording(null);
-      setTestRecordingUri(uri ?? null);
-    } catch (e: any) {
-      Alert.alert('Could not stop recording', String(e?.message ?? e));
-    } finally {
-      setTestBusy(false);
-    }
-  };
-
-  const playTestRecording = async () => {
-    if (!testRecordingUri || testBusy) return;
-    setTestBusy(true);
-    try {
-      await cleanupTestAudio();
-      if (Platform.OS === 'web') {
-        // Web fallback: expo-av playback can be flaky; use browser Audio.
-        const WebAudio = (globalThis as any).Audio;
-        if (!WebAudio) throw new Error('Audio playback is not available in this browser.');
-        const a = new WebAudio(testRecordingUri);
-        a.volume = 1.0;
-        a.onended = () => {
-          try {
-            a.pause?.();
-            a.src = '';
-          } catch {}
-          if (webTestAudioRef.current === a) webTestAudioRef.current = null;
-        };
-        webTestAudioRef.current = a;
-        await a.play();
-      } else {
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: false,
-          playsInSilentModeIOS: true,
-          staysActiveInBackground: false,
-          shouldDuckAndroid: true,
-          playThroughEarpieceAndroid: false,
-        });
-        const { sound } = await Audio.Sound.createAsync({ uri: testRecordingUri }, { shouldPlay: false });
-        await sound.setVolumeAsync(1.0);
-        sound.setOnPlaybackStatusUpdate((status) => {
-          if (!status.isLoaded) return;
-          if (status.didJustFinish) {
-            sound.unloadAsync().catch(() => null);
-            setTestSound(null);
-          }
-        });
-        setTestSound(sound);
-        await sound.playAsync();
-      }
-    } catch (e: any) {
-      Alert.alert('Could not play recording', String(e?.message ?? e));
-    } finally {
-      setTestBusy(false);
     }
   };
 
@@ -1273,72 +1086,17 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
     return !p.is_muted;
   }).length;
   const listeningCount = activeParticipants.length;
-  const iRaised = !!hands.find((h) => h.user_id === effectiveUserId);
-  const reactionBurstsRef = useRef<Array<{ id: string; emoji: string }>>([]);
-  const [reactionBursts, setReactionBursts] = useState<Array<{ id: string; emoji: string }>>([]);
-
-  const addBurst = useCallback((emoji: string) => {
-    const item = { id: `${Date.now()}_${Math.random().toString(16).slice(2)}`, emoji };
-    reactionBurstsRef.current = [...reactionBurstsRef.current, item].slice(-10);
-    setReactionBursts(reactionBurstsRef.current);
-  }, []);
-
-  const reactOptimistic = useCallback(async (kind: ReactionKind, emoji: string) => {
-    if (!currentUser?.id || !id) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => null);
-    addBurst(emoji);
-    setReactions((p) => ({ ...p, [kind]: ((p as any)[kind] || 0) + 1 }));
-    try {
-      await sendReaction(id, currentUser.id, kind as any);
-    } catch (e: any) {
-      // Roll back and surface a subtle error (avoid blocking alerts during conversation).
-      setReactions((p) => ({ ...p, [kind]: Math.max(0, ((p as any)[kind] || 0) - 1) }));
-      console.log('[VoiceRoom] reaction failed:', String(e?.message ?? e));
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => null);
-    }
-  }, [addBurst, currentUser?.id, id]);
 
   // Get hand raise user profiles
-  const handRaisesWithProfiles = hands.map(h => {
+  const requestsWithProfiles = hands.map(h => {
     const participant = participants.find(p => p.user_id === h.user_id);
     return { ...h, profile: participant?.profile };
   });
 
-  const intentLabel = (intent?: string | null) =>
-    intent === 'insight' ? 'Insight'
-    : intent === 'announcement' ? 'Announcement'
-    : intent === 'testimony' ? 'Testimony'
-    : 'Question';
-
-  const intentIcon = (intent?: string | null) =>
-    intent === 'insight' ? Lightbulb
-    : intent === 'announcement' ? Megaphone
-    : intent === 'testimony' ? Sparkles
-    : HelpCircle;
-
-  // Host: show a big toast when someone raises their hand
-  useEffect(() => {
-    if (!isHost) return;
-    if (!hands || hands.length === 0) return;
-    const latest = hands[hands.length - 1];
-    if (!latest?.id) return;
-    if (lastHandToastIdRef.current === latest.id) return;
-    lastHandToastIdRef.current = latest.id;
-
-    const p = participants.find((x) => x.user_id === latest.user_id);
-    const name = p?.profile?.name || 'Someone';
-    const intent = String((latest as any)?.intent || 'question');
-    const emoji =
-      intent === 'insight' ? '💡'
-      : intent === 'announcement' ? '📢'
-      : intent === 'testimony' ? '✨'
-      : '✋';
-    const label = intentLabel((latest as any)?.intent);
-    setHandToast({ name, emoji, intentLabel: label });
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => null);
-    const t = setTimeout(() => setHandToast(null), 900);
-    return () => clearTimeout(t);
-  }, [hands, intentLabel, isHost, participants]);
+  const mutedUserIds = useMemo(
+    () => new Set(participants.filter((p) => p.is_muted).map((p) => p.user_id)),
+    [participants]
+  );
 
   return (
     <View className="flex-1 bg-cream">
@@ -1507,16 +1265,17 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
             {/* LiveKit Connection */}
             {lkUrl && lkToken ? (
               <LiveKitRoom
-                key={`${lkToken}:${pauseLiveKitForTest ? 'paused' : 'on'}`}
+                key={lkToken}
                 serverUrl={lkUrl}
                 token={lkToken}
-                connect={!pauseLiveKitForTest}
-                audio={true}
+                connect
+                audio={!!(canSpeakEffective && micEnabled)}
                 video={false}
               >
                 <RoomAudioRenderer />
-                <LiveKitAudioSessionSync enabled={!pauseLiveKitForTest} />
+                <LiveKitAudioSessionSync enabled />
                 <MicSync enabled={!!(canSpeakEffective && micEnabled)} />
+                <RemoteMuteSync mutedUserIds={mutedUserIds} />
                 <LiveKitSpeakingBridge onSpeakingChange={setLkSpeaking} onActiveSpeakersChange={setActiveSpeakerIds} />
                 <View className="h-0 w-0" />
               </LiveKitRoom>
@@ -1568,7 +1327,7 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
             {/* Only render diagnostics inside LiveKit context to avoid hook crashes */}
             {lkUrl && lkToken ? (
               <LiveKitRoom
-                key={`diag:${lkToken}:${pauseLiveKitForTest ? 'paused' : 'on'}`}
+                key={`diag:${lkToken}`}
                 serverUrl={lkUrl}
                 token={lkToken}
                 connect={false}
@@ -1607,14 +1366,25 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
                 </View>
               ) : null}
 
-              {/* Stage Section */}
+              {/* Speakers / Stage */}
               <View className="px-4 mt-4">
-                <Text className="text-warmBrown font-bold text-lg mb-3">On Stage</Text>
-                <View className="bg-white rounded-2xl p-4">
+                <View className="flex-row items-center justify-between mb-3">
+                  <Text className="text-warmBrown font-bold text-lg">Speakers</Text>
+                  <View className="flex-row items-center">
+                    <Text className="text-gray-500 font-semibold mr-3">{stage.length}</Text>
+                    <Pressable
+                      onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setPeopleOpen(true); }}
+                      className="bg-gray-100 rounded-full px-3 py-1.5"
+                    >
+                      <Text className="text-gray-700 font-semibold text-xs">See all</Text>
+                    </Pressable>
+                  </View>
+                </View>
+                <View className="bg-white rounded-3xl p-4 border border-gray-100">
                   {stage.length === 0 ? (
                     <Text className="text-gray-500 text-center py-4">No speakers yet</Text>
                   ) : (
-                    <View className="flex-row flex-wrap justify-center">
+                    <View className="flex-row flex-wrap">
                       {stage.map((p) => (
                         <SpeakerAvatar
                           key={p.id}
@@ -1633,31 +1403,24 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
                 </View>
               </View>
 
-              {/* Raised Hands (Host only) */}
-              {isHost && handRaisesWithProfiles.length > 0 && (
+              {/* Requests to speak (Host only) */}
+              {isHost && requestsWithProfiles.length > 0 && (
                 <View className="px-4 mt-4">
-                  <Text className="text-warmBrown font-bold text-lg mb-3">Raised Hands</Text>
+                  <Text className="text-warmBrown font-bold text-lg mb-3">Requests</Text>
                   <View className="bg-gold-50 border border-gold-200 rounded-2xl p-4">
-                    {handRaisesWithProfiles.map((h) => (
+                    {requestsWithProfiles.map((h) => (
                       <View key={h.id} className="flex-row items-center justify-between py-2">
                         <View className="flex-row items-center">
-                          <Hand size={18} color="#C9A227" />
-                          <Text className="text-warmBrown font-medium ml-2">
+                          <Text className="text-warmBrown font-medium">
                             {h.profile?.name || 'Anonymous'}
                           </Text>
-                          <View className="ml-2 bg-white/80 border border-gold-200 rounded-full px-2 py-1 flex-row items-center">
-                            {React.createElement(intentIcon((h as any).intent), { size: 12, color: '#92400E' })}
-                            <Text className="text-amber-800 text-xs font-semibold ml-1">
-                              {intentLabel((h as any).intent)}
-                            </Text>
-                          </View>
                         </View>
                         <Pressable
                           onPress={() => promote(h.user_id)}
                           className="bg-forest-600 rounded-full px-4 py-2 flex-row items-center"
                         >
                           <UserPlus size={14} color="#fff" />
-                          <Text className="text-white font-semibold ml-1.5 text-sm">Promote</Text>
+                          <Text className="text-white font-semibold ml-1.5 text-sm">Make speaker</Text>
                         </Pressable>
                       </View>
                     ))}
@@ -1667,69 +1430,71 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
 
               {/* Audience Section */}
               <View className="px-4 mt-4">
-                <Text className="text-warmBrown font-bold text-lg mb-3">Audience ({audienceCount})</Text>
-                <View className="bg-white rounded-2xl p-4">
+                <View className="flex-row items-center justify-between mb-3">
+                  <Text className="text-warmBrown font-bold text-lg">Audience</Text>
+                  <View className="flex-row items-center">
+                    <Text className="text-gray-500 font-semibold mr-3">{audienceCount}</Text>
+                    <Pressable
+                      onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setPeopleOpen(true); }}
+                      className="bg-gray-100 rounded-full px-3 py-1.5"
+                    >
+                      <Text className="text-gray-700 font-semibold text-xs">See all</Text>
+                    </Pressable>
+                  </View>
+                </View>
+                <View className="bg-white rounded-3xl p-4 border border-gray-100">
                   {audience.length === 0 ? (
                     <Text className="text-gray-500 text-center py-2">No audience yet</Text>
                   ) : (
                     <View className="flex-row flex-wrap">
-                      {audience.slice(0, 12).map((p) => (
-                        <View key={p.id} className="items-center mx-2 mb-2">
-                          <View className="w-12 h-12 rounded-full bg-gray-100 overflow-hidden">
+                      {audience.slice(0, 36).map((p) => (
+                        <View key={p.id} className="items-center mb-3" style={{ width: '25%' }}>
+                          <View
+                            style={{
+                              width: 56,
+                              height: 56,
+                              borderRadius: 28,
+                              backgroundColor: '#F3F4F6',
+                              overflow: 'hidden',
+                              borderWidth: 1,
+                              borderColor: 'rgba(17, 24, 39, 0.06)',
+                            }}
+                          >
                             {p.profile?.avatar_url ? (
-                              <Image source={{ uri: p.profile.avatar_url }} style={{ width: 48, height: 48 }} contentFit="cover" />
+                              <Image source={{ uri: p.profile.avatar_url }} style={{ width: 56, height: 56 }} contentFit="cover" />
                             ) : (
                               <View className="w-full h-full items-center justify-center">
-                                <Text className="text-gray-500 font-medium">{(p.profile?.name || 'A').charAt(0)}</Text>
+                                <Text className="text-gray-700 font-bold">{(p.profile?.name || 'A').charAt(0).toUpperCase()}</Text>
                               </View>
                             )}
                           </View>
-                          <Text className="text-gray-600 text-xs mt-1" numberOfLines={1}>
+                          <Text className="text-gray-700 text-xs mt-1 px-1" numberOfLines={1}>
                             {p.profile?.name?.split(' ')[0] || 'Anon'}
                           </Text>
                         </View>
                       ))}
-                      {audience.length > 12 && (
-                        <View className="items-center mx-2 mb-2">
-                          <View className="w-12 h-12 rounded-full bg-gray-200 items-center justify-center">
-                            <Text className="text-gray-600 font-bold text-sm">+{audience.length - 12}</Text>
+                      {audience.length > 36 ? (
+                        <View className="items-center mb-3" style={{ width: '25%' }}>
+                          <View
+                            style={{
+                              width: 56,
+                              height: 56,
+                              borderRadius: 28,
+                              backgroundColor: '#E5E7EB',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}
+                          >
+                            <Text className="text-gray-700 font-bold text-sm">+{audience.length - 36}</Text>
                           </View>
+                          <Text className="text-gray-500 text-xs mt-1">more</Text>
                         </View>
-                      )}
+                      ) : null}
                     </View>
                   )}
                 </View>
               </View>
             </ScrollView>
-
-            {/* Big host hand-raise toast */}
-            {isHost && handToast ? (
-              <View className="absolute left-0 right-0 top-16 items-center">
-                <View className="bg-warmBrown/90 rounded-2xl px-5 py-4 border border-white/10">
-                  <Text style={{ fontSize: 36, textAlign: 'center' }}>{handToast.emoji}</Text>
-                  <Text className="text-white font-bold text-base text-center mt-1">
-                    {handToast.name} raised a hand
-                  </Text>
-                  <Text className="text-white/80 font-semibold text-sm text-center mt-0.5">
-                    {handToast.intentLabel}
-                  </Text>
-                </View>
-              </View>
-            ) : null}
-
-            {/* Reaction bursts (visual feedback) */}
-            <View pointerEvents="none" className="absolute left-0 right-0 bottom-0">
-              {reactionBursts.map((b) => (
-                <ReactionBurst
-                  key={b.id}
-                  emoji={b.emoji}
-                  onDone={() => {
-                    reactionBurstsRef.current = reactionBurstsRef.current.filter((x) => x.id !== b.id);
-                    setReactionBursts(reactionBurstsRef.current);
-                  }}
-                />
-              ))}
-            </View>
 
             {/* Bottom Controls */}
             <View className="absolute left-0 right-0 bottom-0 bg-cream/95 border-t border-gray-100 px-4 pb-6 pt-3">
@@ -1798,61 +1563,6 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
                 </Pressable>
               </View>
 
-              {/* Secondary Actions */}
-              <View className="flex-row mt-3 gap-2">
-                <Pressable
-                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setTestMicOpen(true); }}
-                  className="flex-1 bg-white border border-gray-200 rounded-xl py-3 flex-row items-center justify-center"
-                >
-                  <AudioLines size={16} color="#2D1F1A" />
-                  <Text className="text-warmBrown font-medium ml-2">Test Mic</Text>
-                </Pressable>
-
-                <Pressable
-                  onPress={toggleHand}
-                  className="flex-1 rounded-xl py-3 flex-row items-center justify-center"
-                  style={{ backgroundColor: iRaised ? '#FEF3C7' : '#D4673A' }}
-                >
-                  <Hand size={16} color={iRaised ? '#D97706' : '#fff'} />
-                  <Text className={`font-medium ml-2 ${iRaised ? 'text-amber-700' : 'text-white'}`}>
-                    {iRaised ? 'Lower Hand' : 'Raise Hand'}
-                  </Text>
-                </Pressable>
-              </View>
-
-              {/* Silent participation */}
-              <View className="flex-row mt-3 gap-2">
-                <Pressable
-                  onPress={() => reactOptimistic('agree', '👍')}
-                  className="flex-1 bg-white border border-gray-200 rounded-xl py-3 flex-row items-center justify-center"
-                >
-                  <ThumbsUp size={16} color="#1B4D3E" />
-                  <Text className="text-warmBrown font-semibold ml-2">Agree</Text>
-                  <Text className="text-gray-500 font-semibold ml-2">{reactions.agree || 0}</Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => reactOptimistic('heart', '❤️')}
-                  className="w-16 bg-white border border-gray-200 rounded-xl py-3 items-center justify-center"
-                >
-                  <HeartHandshake size={18} color="#C45C26" />
-                  <Text className="text-gray-500 font-semibold text-xs mt-1">{reactions.heart || 0}</Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => reactOptimistic('clap', '👏')}
-                  className="w-16 bg-white border border-gray-200 rounded-xl py-3 items-center justify-center"
-                >
-                  <Text style={{ fontSize: 18 }}>👏</Text>
-                  <Text className="text-gray-500 font-semibold text-xs mt-1">{reactions.clap || 0}</Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => reactOptimistic('fire', '🔥')}
-                  className="w-16 bg-white border border-gray-200 rounded-xl py-3 items-center justify-center"
-                >
-                  <Flame size={18} color="#DC2626" />
-                  <Text className="text-gray-500 font-semibold text-xs mt-1">{reactions.fire || 0}</Text>
-                </Pressable>
-              </View>
-
               {/* Note to host */}
               <View className="flex-row mt-3 gap-2">
                 <Pressable
@@ -1873,10 +1583,12 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
                   <Pressable
                     onPress={async () => {
                       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setUnreadNotesCount(0);
                       try {
                         const n = await listNotes(id, 50);
                         setNotes(n);
                         setNotesOpen(true);
+                        setChatExpanded(true);
                       } catch (e: any) {
                         Alert.alert('Could not load notes', String(e?.message ?? e));
                       }
@@ -1884,9 +1596,63 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
                     className="bg-forest-600 rounded-xl px-4 py-3 flex-row items-center justify-center"
                   >
                     <Text className="text-white font-semibold">View notes</Text>
+                    {unreadNotesCount > 0 ? (
+                      <View className="ml-2 bg-amber-400 rounded-full min-w-[20px] h-5 items-center justify-center px-1.5">
+                        <Text className="text-forest-800 font-bold text-xs">{unreadNotesCount > 99 ? '99+' : unreadNotesCount}</Text>
+                      </View>
+                    ) : null}
                   </Pressable>
                 ) : null}
               </View>
+
+              {/* Chat / Notes panel - visible in voice room space */}
+              <Pressable
+                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setChatExpanded((e) => !e); }}
+                className="mt-3 bg-white border border-gray-200 rounded-xl p-3 flex-row items-center justify-between"
+              >
+                <View className="flex-row items-center">
+                  <MessageSquare size={18} color="#2D1F1A" />
+                  <Text className="text-warmBrown font-semibold ml-2">Chat & notes</Text>
+                  {notes.length > 0 && (
+                    <Text className="text-gray-500 text-sm ml-2">({notes.length})</Text>
+                  )}
+                  {isHost && unreadNotesCount > 0 && (
+                    <View className="ml-2 bg-amber-400 rounded-full min-w-[18px] h-4.5 items-center justify-center px-1">
+                      <Text className="text-forest-800 font-bold text-xs">{unreadNotesCount > 99 ? '99+' : unreadNotesCount}</Text>
+                    </View>
+                  )}
+                </View>
+                <ChevronDown size={20} color="#6B7280" style={{ transform: [{ rotate: chatExpanded ? '180deg' : '0deg' }] }} />
+              </Pressable>
+              {chatExpanded && (
+                <View className="mt-2 bg-gray-50 border border-gray-100 rounded-xl p-3 max-h-48">
+                  <ScrollView showsVerticalScrollIndicator={false} className="max-h-32">
+                    {notes.length === 0 ? (
+                      <Text className="text-gray-500 text-sm">No notes yet. Send a note to the host above.</Text>
+                    ) : (
+                      notes.slice(0, 10).map((n) => (
+                        <View key={n.id} className="bg-white rounded-lg p-2 mb-2 border border-gray-100">
+                          <Text className="text-gray-700 text-sm">{n.content}</Text>
+                          <Text className="text-gray-400 text-xs mt-1">{new Date(n.created_at).toLocaleTimeString()}</Text>
+                        </View>
+                      ))
+                    )}
+                  </ScrollView>
+                  <Pressable
+                    onPress={() => {
+                      if (!currentUser?.id) {
+                        Alert.alert('Sign in required', 'Please sign in to send a note.');
+                        return;
+                      }
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setNoteOpen(true);
+                    }}
+                    className="mt-2 bg-terracotta-500 rounded-lg py-2 items-center"
+                  >
+                    <Text className="text-white font-semibold text-sm">Send note</Text>
+                  </Pressable>
+                </View>
+              )}
 
               {/* Host highlight recording */}
               {isHost ? (
@@ -2131,7 +1897,7 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
                           if (!currentUser?.id || !id) return;
                           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                           try {
-                            await sendNoteToHost(id, currentUser.id, noteText);
+                            await sendNoteToHost(id, currentUser.id, noteText, currentUser.name ?? undefined);
                             setNoteText('');
                             setNoteOpen(false);
                           } catch (e: any) {
@@ -2227,38 +1993,6 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
                     </View>
                   </Pressable>
                 </View>
-              </Pressable>
-            </Modal>
-
-            {/* Intent picker modal */}
-            <Modal visible={intentOpen} transparent animationType="fade" onRequestClose={() => setIntentOpen(false)}>
-              <Pressable className="flex-1 bg-black/40 items-center justify-center px-5" onPress={() => setIntentOpen(false)}>
-                <Pressable onPress={(e) => e.stopPropagation()} className="w-full">
-                  <View className="bg-cream rounded-3xl p-5">
-                    <Text className="text-warmBrown font-bold text-xl">Raise hand as…</Text>
-                    <Text className="text-gray-500 mt-1">Choose why you want to speak so the host knows.</Text>
-
-                    {([
-                      { id: 'question' as const, label: 'Question', icon: HelpCircle },
-                      { id: 'insight' as const, label: 'Insight', icon: Lightbulb },
-                      { id: 'announcement' as const, label: 'Announcement', icon: Megaphone },
-                      { id: 'testimony' as const, label: 'Testimony / Story', icon: Sparkles },
-                    ]).map((o) => (
-                      <Pressable
-                        key={o.id}
-                        onPress={() => submitRaiseIntent(o.id)}
-                        className="mt-3 bg-white border border-gray-200 rounded-2xl p-4 flex-row items-center"
-                      >
-                        <o.icon size={18} color="#1B4D3E" />
-                        <Text className="text-warmBrown font-semibold ml-3">{o.label}</Text>
-                      </Pressable>
-                    ))}
-
-                    <Pressable onPress={() => setIntentOpen(false)} className="mt-4 bg-gray-100 rounded-xl p-4 items-center">
-                      <Text className="text-gray-600 font-medium">Cancel</Text>
-                    </Pressable>
-                  </View>
-                </Pressable>
               </Pressable>
             </Modal>
 
@@ -2389,85 +2123,6 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
               </Pressable>
             </Modal>
 
-            {/* Test Mic Modal */}
-            <Modal
-              visible={testMicOpen}
-              transparent
-              animationType="slide"
-              onRequestClose={() => {
-                cleanupTestAudio();
-                cleanupTestRecording();
-                setPauseLiveKitForTest(false);
-                setTestMicOpen(false);
-              }}
-            >
-              <Pressable className="flex-1 bg-black/40" onPress={() => {
-                cleanupTestAudio();
-                cleanupTestRecording();
-                setPauseLiveKitForTest(false);
-                setTestMicOpen(false);
-              }}>
-                <View className="flex-1 justify-end">
-                  <Pressable onPress={(e) => e.stopPropagation()}>
-                    <View className="bg-cream rounded-t-3xl p-5">
-                      <View className="flex-row items-center justify-between mb-4">
-                        <Text className="text-warmBrown font-bold text-lg">Test Your Mic</Text>
-                        <Pressable onPress={async () => {
-                          await cleanupTestAudio();
-                          await cleanupTestRecording();
-                          setPauseLiveKitForTest(false);
-                          setTestMicOpen(false);
-                        }}>
-                          <X size={24} color="#2D1F1A" />
-                        </Pressable>
-                      </View>
-
-                      {pauseLiveKitForTest && (
-                        <View className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4">
-                          <Text className="text-amber-800 font-medium">Room audio paused while testing</Text>
-                        </View>
-                      )}
-
-                      <View className="bg-white rounded-xl p-4 mb-4">
-                        <Text className="text-warmBrown font-semibold mb-2">Record & Playback</Text>
-                        <Text className="text-gray-500 text-sm mb-4">
-                          Record yourself and play it back to check your mic quality.
-                        </Text>
-
-                        <Text className="text-gray-400 text-sm mb-3">
-                          Permission: {testPermGranted === null ? 'Unknown' : testPermGranted ? 'Granted' : 'Denied'} •
-                          Recording: {testRecording ? `${testSeconds}s` : testRecordingUri ? 'Ready' : 'Not started'}
-                        </Text>
-
-                        <View className="flex-row gap-3">
-                          <Pressable
-                            onPress={testRecording ? stopTestRecording : startTestRecording}
-                            disabled={testBusy}
-                            className="flex-1 rounded-xl py-3 items-center"
-                            style={{ backgroundColor: testRecording ? '#DC2626' : '#1B4D3E' }}
-                          >
-                            <Text className="text-white font-semibold">
-                              {testRecording ? 'Stop' : 'Record'}
-                            </Text>
-                          </Pressable>
-
-                          <Pressable
-                            onPress={playTestRecording}
-                            disabled={!testRecordingUri || testBusy}
-                            className="flex-1 rounded-xl py-3 items-center"
-                            style={{ backgroundColor: testRecordingUri ? '#C9A227' : '#E5E7EB' }}
-                          >
-                            <Text className={testRecordingUri ? 'text-white font-semibold' : 'text-gray-400 font-semibold'}>
-                              Play
-                            </Text>
-                          </Pressable>
-                        </View>
-                      </View>
-                    </View>
-                  </Pressable>
-                </View>
-              </Pressable>
-            </Modal>
           </>
         )}
       </SafeAreaView>

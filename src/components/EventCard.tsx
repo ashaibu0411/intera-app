@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Calendar, Clock, MapPin, Users, CheckCircle, Star } from 'lucide-react-native';
+import { Calendar, Clock, MapPin, Users, CheckCircle, Star, Bookmark } from 'lucide-react-native';
 import Animated, { FadeIn, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
@@ -14,6 +14,8 @@ interface EventCardProps {
   isRsvped?: boolean;
   rsvpStatus?: 'interested' | 'going' | null;
   onRsvp?: (status: 'interested' | 'going') => void;
+  isSaved?: boolean;
+  onToggleSave?: () => void;
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -50,6 +52,8 @@ export function EventCard({
   isRsvped = false,
   rsvpStatus = null,
   onRsvp,
+  isSaved = false,
+  onToggleSave,
 }: EventCardProps) {
   const scale = useSharedValue(1);
 
@@ -158,8 +162,24 @@ export function EventCard({
               <Text className="text-white text-xs font-semibold">{event.category}</Text>
             </View>
 
+            {/* Bookmark */}
+            {onToggleSave && (
+              <Pressable
+                onPress={(e) => {
+                  e.stopPropagation();
+                  onToggleSave();
+                }}
+                className="absolute top-3 right-3 bg-white/90 rounded-full p-2 shadow-sm z-10"
+              >
+                <Bookmark size={20} color="#D4673A" fill={isSaved ? '#D4673A' : 'transparent'} />
+              </Pressable>
+            )}
+
             {/* Date Badge */}
-            <View className="absolute top-3 right-3 bg-white rounded-lg px-2.5 py-1.5 items-center shadow-sm">
+            <View
+              className="absolute top-3 right-3 bg-white rounded-lg px-2.5 py-1.5 items-center shadow-sm"
+              style={onToggleSave ? { right: 52 } : undefined}
+            >
               <Text className="text-warmBrown font-bold text-sm">
                 {new Date(event.date).getDate()}
               </Text>

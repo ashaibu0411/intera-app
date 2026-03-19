@@ -5,24 +5,34 @@ import { Image } from 'expo-image';
 import { Home, Calendar, Film, User, Users, Mic } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useStore } from '@/lib/store';
+import { useUnreadMessages } from '@/lib/useUnreadMessages';
+import { useUnreadNotifications } from '@/lib/useUnreadNotifications';
 
 export default function TabLayout() {
   const currentUserAvatar = useStore((s) => s.currentUser?.avatar);
+  const darkMode = useStore((s) => s.darkMode);
+
+  // Run hooks so notification + message counts are always fetched when user is on tabs
+  useUnreadMessages();
+  useUnreadNotifications();
+
+  const tabBarBg = darkMode ? '#1F2937' : '#FAF7F2';
+  const tabBarBorder = darkMode ? '#374151' : '#EDE8E0';
 
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: '#FAF7F2',
+          backgroundColor: tabBarBg,
           borderTopWidth: 1,
-          borderTopColor: '#EDE8E0',
+          borderTopColor: tabBarBorder,
           height: 85,
           paddingTop: 10,
           paddingBottom: 25,
         },
-        tabBarActiveTintColor: '#D4673A',
-        tabBarInactiveTintColor: '#8B7355',
+        tabBarActiveTintColor: darkMode ? '#F59E0B' : '#D4673A',
+        tabBarInactiveTintColor: darkMode ? '#9CA3AF' : '#8B7355',
         tabBarShowLabel: false,
       }}
       screenListeners={{

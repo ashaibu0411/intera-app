@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { View, Text, ScrollView, Pressable, RefreshControl, Alert } from 'react-native';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { View, Text, ScrollView, Pressable, RefreshControl, Alert, Share } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -11,16 +11,56 @@ import {
   CheckCircle,
   XCircle,
   AlertCircle,
-  MoreVertical,
   Phone,
   MessageCircle,
+  CalendarPlus,
 } from 'lucide-react-native';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { useStore, type Appointment } from '@/lib/store';
+import { getCustomerAppointments, updateAppointmentStatus, type DbAppointment } from '@/lib/booking-api';
+import { generateAppointmentIcs } from '@/lib/calendarExport';
 
 type FilterType = 'upcoming' | 'past' | 'cancelled';
+
+function dbToAppointment(db: DbAppointment): Appointment {
+  const service = db.service;
+  const business = db.business;
+  return {
+    id: db.id,
+    businessId: db.business_id,
+    businessName: business?.name || 'Business',
+    businessImage: business?.image || undefined,
+    customerId: db.customer_id,
+    customerName: (db.customer as any)?.name || 'Customer',
+    customerAvatar: (db.customer as any)?.avatar_url || undefined,
+    customerPhone: db.customer_phone || (db.customer as any)?.phone || undefined,
+    service: {
+      id: service?.id || '',
+      businessId: db.business_id,
+      name: service?.name || 'Service',
+      description: service?.description || '',
+      duration: service?.duration || 30,
+      price: service?.price || 0,
+      currency: service?.currency || 'USD',
+      category: service?.category || 'general',
+      isActive: true,
+    },
+    date: db.date,
+    time: (() => {
+      const t = db.start_time || '09:00';
+      if (t.includes('AM') || t.includes('PM')) return t;
+      const [h, m] = t.split(':').map(Number);
+      const hour = h > 12 ? h - 12 : h === 0 ? 12 : h;
+      return `${hour}:${String(m || 0).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
+    })(),
+    status: db.status as Appointment['status'],
+    isPaid: db.payment_status === 'paid',
+    paymentMethod: db.payment_method as Appointment['paymentMethod'],
+    createdAt: db.created_at,
+  };
+}
 
 const STATUS_CONFIG = {
   pending: { label: 'Pending', color: '#F59E0B', bgColor: '#FEF3C7', icon: AlertCircle },
@@ -29,91 +69,14 @@ const STATUS_CONFIG = {
   cancelled: { label: 'Cancelled', color: '#EF4444', bgColor: '#FEE2E2', icon: XCircle },
 };
 
-// Mock appointments for demo
-const MOCK_APPOINTMENTS: Appointment[] = [
-  {
-    id: 'apt_1',
-    businessId: 'barber_1',
-    businessName: "King's Kutz Barbershop",
-    businessImage: 'https://images.unsplash.com/photo-1585747860715-2ba37e788b70?w=800&h=400&fit=crop',
-    customerId: 'user_1',
-    customerName: 'John Doe',
-    service: {
-      id: 'svc_1',
-      businessId: 'barber_1',
-      name: 'Haircut + Beard Trim',
-      description: 'Full haircut with precision beard shaping',
-      duration: 45,
-      price: 40,
-      currency: 'USD',
-      category: 'Haircuts',
-      isActive: true,
-    },
-    date: '2025-01-05',
-    time: '10:00 AM',
-    status: 'confirmed',
-    isPaid: false,
-    paymentMethod: 'cash',
-    createdAt: '2024-12-30T10:00:00Z',
-  },
-  {
-    id: 'apt_2',
-    businessId: 'salon_1',
-    businessName: "Queen's Beauty Salon",
-    businessImage: 'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=800&h=400&fit=crop',
-    customerId: 'user_1',
-    customerName: 'John Doe',
-    service: {
-      id: 'svc_2',
-      businessId: 'salon_1',
-      name: 'Braiding - Box Braids',
-      description: 'Classic box braids, medium length',
-      duration: 180,
-      price: 150,
-      currency: 'USD',
-      category: 'Braiding',
-      isActive: true,
-    },
-    date: '2025-01-08',
-    time: '2:00 PM',
-    status: 'pending',
-    isPaid: true,
-    paymentMethod: 'in_app',
-    createdAt: '2024-12-29T14:00:00Z',
-  },
-  {
-    id: 'apt_3',
-    businessId: 'barber_1',
-    businessName: "King's Kutz Barbershop",
-    businessImage: 'https://images.unsplash.com/photo-1585747860715-2ba37e788b70?w=800&h=400&fit=crop',
-    customerId: 'user_1',
-    customerName: 'John Doe',
-    service: {
-      id: 'svc_1',
-      businessId: 'barber_1',
-      name: 'Classic Haircut',
-      description: 'Traditional haircut',
-      duration: 30,
-      price: 25,
-      currency: 'USD',
-      category: 'Haircuts',
-      isActive: true,
-    },
-    date: '2024-12-20',
-    time: '11:00 AM',
-    status: 'completed',
-    isPaid: true,
-    paymentMethod: 'cash',
-    createdAt: '2024-12-15T09:00:00Z',
-  },
-];
-
 function AppointmentCard({
   appointment,
   onCancel,
+  onAddToCalendar,
 }: {
   appointment: Appointment;
   onCancel: () => void;
+  onAddToCalendar: () => void;
 }) {
   const status = STATUS_CONFIG[appointment.status];
   const StatusIcon = status.icon;
@@ -132,7 +95,7 @@ function AppointmentCard({
 
   const handleCall = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    // Would integrate with phone dialer
+    router.push(`/business/${appointment.businessId}` as any);
   };
 
   const handleMessage = () => {
@@ -212,30 +175,34 @@ function AppointmentCard({
 
           {/* Actions */}
           {isUpcoming && (
-            <View className="flex-row mt-4 gap-2">
-              <Pressable
-                onPress={handleCall}
-                className="flex-1 bg-gray-100 rounded-full py-2.5 flex-row items-center justify-center"
-              >
-                <Phone size={16} color="#6B7280" />
-                <Text className="text-gray-600 font-medium ml-2">Call</Text>
-              </Pressable>
-              <Pressable
-                onPress={handleMessage}
-                className="flex-1 bg-gray-100 rounded-full py-2.5 flex-row items-center justify-center"
-              >
-                <MessageCircle size={16} color="#6B7280" />
-                <Text className="text-gray-600 font-medium ml-2">Message</Text>
-              </Pressable>
-              {canCancel && (
+            <View className="mt-4 gap-2">
+              <View className="flex-row gap-2">
                 <Pressable
-                  onPress={onCancel}
-                  className="flex-1 bg-red-50 rounded-full py-2.5 flex-row items-center justify-center"
+                  onPress={onAddToCalendar}
+                  className="flex-1 bg-forest-100 rounded-full py-2.5 flex-row items-center justify-center"
                 >
-                  <XCircle size={16} color="#EF4444" />
-                  <Text className="text-red-500 font-medium ml-2">Cancel</Text>
+                  <CalendarPlus size={16} color="#1B4D3E" />
+                  <Text className="text-forest-700 font-medium ml-2">Add to Calendar</Text>
                 </Pressable>
-              )}
+                <Pressable
+                  onPress={handleMessage}
+                  className="flex-1 bg-gray-100 rounded-full py-2.5 flex-row items-center justify-center"
+                >
+                  <MessageCircle size={16} color="#6B7280" />
+                  <Text className="text-gray-600 font-medium ml-2">Message</Text>
+                </Pressable>
+              </View>
+              <View className="flex-row gap-2">
+                {canCancel && (
+                  <Pressable
+                    onPress={onCancel}
+                    className="flex-1 bg-red-50 rounded-full py-2.5 flex-row items-center justify-center"
+                  >
+                    <XCircle size={16} color="#EF4444" />
+                    <Text className="text-red-500 font-medium ml-2">Cancel</Text>
+                  </Pressable>
+                )}
+              </View>
             </View>
           )}
         </View>
@@ -247,14 +214,28 @@ function AppointmentCard({
 export default function MyAppointmentsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<FilterType>('upcoming');
+  const [dbAppointments, setDbAppointments] = useState<Appointment[]>([]);
 
+  const currentUser = useStore((s) => s.currentUser);
   const userAppointments = useStore((s) => s.userAppointments);
   const cancelAppointment = useStore((s) => s.cancelAppointment);
 
-  // Combine store appointments with mock data for demo
+  const loadAppointments = useCallback(async () => {
+    if (!currentUser?.id) return;
+    const db = await getCustomerAppointments(currentUser.id, { limit: 100 });
+    setDbAppointments(db.map(dbToAppointment));
+  }, [currentUser?.id]);
+
+  useEffect(() => {
+    loadAppointments();
+  }, [loadAppointments]);
+
+  // Combine DB appointments with any in-memory store appointments (e.g. just booked)
   const allAppointments = useMemo(() => {
-    return [...userAppointments, ...MOCK_APPOINTMENTS];
-  }, [userAppointments]);
+    const fromDb = new Set(dbAppointments.map((a) => a.id));
+    const fromStore = userAppointments.filter((a) => !fromDb.has(a.id));
+    return [...dbAppointments, ...fromStore];
+  }, [dbAppointments, userAppointments]);
 
   // Filter appointments
   const filteredAppointments = useMemo(() => {
@@ -285,8 +266,26 @@ export default function MyAppointmentsScreen() {
   const onRefresh = async () => {
     setRefreshing(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    await loadAppointments();
     setRefreshing(false);
+  };
+
+  const handleAddToCalendar = (appointment: Appointment) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const ics = generateAppointmentIcs({
+      title: `${appointment.service.name} at ${appointment.businessName}`,
+      description: appointment.service.description,
+      location: undefined,
+      startDate: appointment.date,
+      startTime: appointment.time,
+      durationMinutes: appointment.service.duration,
+      businessName: appointment.businessName,
+      serviceName: appointment.service.name,
+    });
+    Share.share({
+      message: ics,
+      title: 'Add to Calendar',
+    }).catch(() => {});
   };
 
   const handleCancelAppointment = (appointment: Appointment) => {
@@ -298,9 +297,16 @@ export default function MyAppointmentsScreen() {
         {
           text: 'Cancel',
           style: 'destructive',
-          onPress: () => {
-            cancelAppointment(appointment.id);
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          onPress: async () => {
+            try {
+              await updateAppointmentStatus(appointment.id, 'cancelled', 'customer');
+              cancelAppointment(appointment.id);
+              setDbAppointments((prev) => prev.map((a) => (a.id === appointment.id ? { ...a, status: 'cancelled' as const } : a)));
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            } catch {
+              cancelAppointment(appointment.id);
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            }
           },
         },
       ]
@@ -402,6 +408,7 @@ export default function MyAppointmentsScreen() {
                 key={appointment.id}
                 appointment={appointment}
                 onCancel={() => handleCancelAppointment(appointment)}
+                onAddToCalendar={() => handleAddToCalendar(appointment)}
               />
             ))
           ) : (

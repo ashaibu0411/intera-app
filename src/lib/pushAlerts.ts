@@ -23,8 +23,9 @@ export async function sendRemotePushAlert(payload: {
         data: payload.data ?? {},
       },
     });
-  } catch {
-    // best-effort
+  } catch (e) {
+    // best-effort; log for debugging cross-platform notification issues
+    console.warn('[PushAlerts] sendRemotePushAlert failed:', String((e as any)?.message ?? e));
   }
 }
 

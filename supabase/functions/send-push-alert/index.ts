@@ -49,7 +49,7 @@ function uniq<T>(arr: T[]): T[] {
   return Array.from(new Set(arr));
 }
 
-async function sendExpoPush(messages: Array<{ to: string; title: string; body: string; data?: any }>) {
+async function sendExpoPush(messages: Array<{ to: string; title: string; body: string; data?: any; sound?: any; channelId?: string }>) {
   if (messages.length === 0) return { sent: 0, tickets: [] as any[] };
 
   // Expo allows up to 100 messages per request
@@ -57,26 +57,35 @@ async function sendExpoPush(messages: Array<{ to: string; title: string; body: s
   for (let i = 0; i < messages.length; i += 100) chunks.push(messages.slice(i, i + 100));
 
   const tickets: any[] = [];
+  const requestErrors: Array<{ status?: number; error: string }> = [];
   for (const chunk of chunks) {
-    const resp = await fetch('https://exp.host/--/api/v2/push/send', {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Accept-Encoding': 'gzip, deflate',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(chunk),
-    });
-    const j = await resp.json().catch(() => null);
-    if (!resp.ok) {
-      console.log('[send-push-alert] Expo push error', resp.status, j);
+    try {
+      const resp = await fetch('https://exp.host/--/api/v2/push/send', {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Accept-Encoding': 'gzip, deflate',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(chunk),
+      });
+      const j = await resp.json().catch(() => null);
+      if (!resp.ok) {
+        console.log('[send-push-alert] Expo push error', resp.status, j);
+        requestErrors.push({ status: resp.status, error: JSON.stringify(j ?? {}) });
+        continue;
+      }
+      const data = (j as any)?.data;
+      if (Array.isArray(data)) tickets.push(...data);
+    } catch (e) {
+      const msg = String((e as any)?.message ?? e);
+      console.log('[send-push-alert] Expo push request failed', msg);
+      requestErrors.push({ error: msg });
       continue;
     }
-    const data = (j as any)?.data;
-    if (Array.isArray(data)) tickets.push(...data);
   }
 
-  return { sent: messages.length, tickets };
+  return { sent: messages.length, tickets, requestErrors };
 }
 
 Deno.serve(async (req) => {
@@ -135,8 +144,8 @@ Deno.serve(async (req) => {
       recipientUserIds = [String(body.recipientUserId)];
     } else if (body?.scope) {
       const scope = body.scope;
-      const city = body?.city ? String(body.city) : '';
-      const neighborhood = body?.neighborhood ? String(body.neighborhood) : '';
+      const city = body?.city ? String(body.city).trim() : '';
+      const neighborhood = body?.neighborhood ? String(body.neighborhood).trim() : '';
 
       let q = admin
         .from('push_tokens')
@@ -144,14 +153,29 @@ Deno.serve(async (req) => {
         .eq('enabled', true);
 
       if (scope === 'neighborhood') {
-        if (neighborhood) q = q.eq('neighborhood', neighborhood);
-        if (city) q = q.eq('city', city);
+        if (neighborhood) q = q.ilike('neighborhood', neighborhood);
+        if (city) q = q.ilike('city', city);
       } else if (scope === 'city') {
-        if (city) q = q.eq('city', city);
+        // Include both city-matched tokens AND tokens with null/empty city (e.g. TestFlight users
+        // who haven't synced location yet) so iOS→Android and cross-platform notifications work.
+        if (city) {
+          q = q.or(`city.ilike.${city},city.is.null`);
+        }
       }
 
       const { data } = await q.limit(5000);
       recipientUserIds = (data ?? []).map((r: any) => String(r.user_id));
+
+      // Fallback: if city/neighborhood scope returned no recipients, try global (avoids missing
+      // users whose push_tokens have null city, e.g. on TestFlight or before location sync).
+      if (recipientUserIds.length === 0 && (scope === 'city' || scope === 'neighborhood')) {
+        const { data: fallbackData } = await admin
+          .from('push_tokens')
+          .select('user_id')
+          .eq('enabled', true)
+          .limit(5000);
+        recipientUserIds = (fallbackData ?? []).map((r: any) => String(r.user_id));
+      }
     } else {
       return json(400, { error: 'Missing recipientUserId or scope' });
     }
@@ -181,21 +205,45 @@ Deno.serve(async (req) => {
     // Get Expo push tokens for recipients
     const { data: tokenRows } = await admin
       .from('push_tokens')
-      .select('token,user_id')
+      .select('token,user_id,platform')
       .in('user_id', recipientUserIds)
       .eq('enabled', true)
       .limit(10000);
 
-    const tokens = uniq((tokenRows ?? []).map((r: any) => String(r.token)).filter(Boolean));
-    console.log('[send-push-alert] resolved', { recipients: recipientUserIds.length, tokens: tokens.length });
-    const expoMessages = tokens.map((t) => ({ to: t, title, body: messageBody, data: dataPayload }));
+    const tokenObjs = uniq((tokenRows ?? []).map((r: any) => JSON.stringify({
+      token: String(r?.token ?? ''),
+      platform: String(r?.platform ?? 'unknown'),
+    })))
+      .map((s) => {
+        try { return JSON.parse(s) as { token: string; platform: string }; } catch { return { token: '', platform: 'unknown' }; }
+      })
+      .filter((x) => !!x.token);
+
+    console.log('[send-push-alert] resolved', { recipients: recipientUserIds.length, tokens: tokenObjs.length });
+
+    const expoMessages = tokenObjs.map((t) => ({
+      to: t.token,
+      title,
+      body: messageBody,
+      data: dataPayload,
+      sound: 'default',
+      // Android: if channelId is not set, notifications may land on a low-importance default channel.
+      ...(t.platform === 'android' ? { channelId: 'alerts' } : null),
+    }));
 
     const expo = await sendExpoPush(expoMessages);
     const failedTickets = (expo.tickets || []).filter((t: any) => t?.status === 'error');
     if (failedTickets.length) {
       console.log('[send-push-alert] expo ticket errors', failedTickets.slice(0, 10));
     }
-    return json(200, { ok: true, recipients: recipientUserIds.length, tokens: tokens.length, sent: expo.sent });
+    return json(200, {
+      ok: true,
+      recipients: recipientUserIds.length,
+      tokens: tokenObjs.length,
+      sent: expo.sent,
+      ticketErrors: failedTickets.slice(0, 5),
+      requestErrors: (expo as any)?.requestErrors?.slice?.(0, 3) ?? [],
+    });
   } catch (err) {
     console.log('[send-push-alert] Unexpected error:', String(err));
     return json(500, { error: 'Unexpected error', details: String(err) });

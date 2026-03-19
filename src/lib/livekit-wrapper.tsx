@@ -14,6 +14,7 @@ type LiveKitModuleLike = {
   LiveKitRoom?: React.ComponentType<any>;
   RoomAudioRenderer?: React.ComponentType<any>;
   useRoomContext?: () => unknown;
+  useRemoteParticipants?: () => Array<{ identity: string; setVolume?: (v: number) => void }>;
   registerGlobals?: () => void;
   AudioSession?: {
     startAudioSession?: () => Promise<void> | void;
@@ -35,6 +36,7 @@ let LiveKitRoomComponent:
 let RoomAudioRendererComponent: React.ComponentType<any> | null = null;
 
 let _useRoomContext: (() => unknown) | null = null;
+let _useRemoteParticipants: (() => Array<unknown>) | null = null;
 let _initialized = false;
 let _available = false;
 let _module: LiveKitModuleLike | null = null;
@@ -65,6 +67,7 @@ function initializeLiveKit() {
     LiveKitRoomComponent = livekit.LiveKitRoom;
     RoomAudioRendererComponent = livekit.RoomAudioRenderer ?? null;
     _useRoomContext = livekit.useRoomContext;
+    _useRemoteParticipants = livekit.useRemoteParticipants ?? null;
     _available = true;
   } catch (e) {
     console.log('[LiveKit] Not available in this build:', String((e as any)?.message ?? e));
@@ -133,4 +136,16 @@ export function RoomAudioRenderer(): React.ReactElement | null {
 export function isLiveKitAvailable(): boolean {
   initializeLiveKit();
   return _available;
+}
+
+/** Hook to get remote participants - must be called inside LiveKitRoom */
+export function useRemoteParticipants(): Array<{ identity: string; setVolume?: (v: number) => void }> {
+  initializeLiveKit();
+  const useRemote = _useRemoteParticipants;
+  if (!useRemote) return [];
+  try {
+    return (useRemote() as Array<{ identity: string; setVolume?: (v: number) => void }>) ?? [];
+  } catch {
+    return [];
+  }
 }

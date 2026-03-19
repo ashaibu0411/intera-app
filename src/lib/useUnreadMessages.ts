@@ -193,24 +193,24 @@ export function useUnreadMessages() {
     refetch();
 
     // Poll every 5 seconds
-    pollIntervalRef.current = setInterval(() => {
-      refetch();
-    }, 5000);
+    pollIntervalRef.current = setInterval(refetch, 5000);
 
-    // Also refresh when app comes to foreground
+    // Refresh when app comes to foreground
     const handleAppStateChange = (nextAppState: AppStateStatus) => {
-      if (nextAppState === 'active') {
-        refetch();
-      }
+      if (nextAppState === 'active') refetch();
     };
-
     const appStateSubscription = AppState.addEventListener('change', handleAppStateChange);
 
+    // Realtime: refetch when messages are inserted or updated (new message or marked read)
+    const channel = supabase.channel(`unread-messages:${currentUserId}`);
+    channel.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, () => refetch());
+    channel.on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages' }, () => refetch());
+    channel.subscribe();
+
     return () => {
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
-      }
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
       appStateSubscription.remove();
+      supabase.removeChannel(channel);
     };
   }, [currentUserId, refetch]);
 

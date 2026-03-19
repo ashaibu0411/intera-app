@@ -30,6 +30,8 @@ import * as FileSystem from 'expo-file-system';
 import { useStore, MOCK_COMMUNITIES, MARKETPLACE_CATEGORIES, EVENT_CATEGORIES } from '@/lib/store';
 import { router, useLocalSearchParams } from 'expo-router';
 import { createPost as createDbPost, uploadImages, uploadVideo } from '@/lib/posts';
+import { createMarketplaceListing } from '@/lib/marketplace-api';
+import { createEvent } from '@/lib/marketplace-api';
 import { sendRemotePushAlert } from '@/lib/pushAlerts';
 import { aiPostCopilot } from '@/lib/aiPostCopilot';
 import { aiModerateContent } from '@/lib/aiModerateContent';
@@ -127,11 +129,25 @@ export default function CreateScreen() {
   }
 
   if (mode === 'sell') {
-    return <CreateListingForm user={currentUser} community={displayCommunity} onBack={handleBack} />;
+    return (
+      <CreateListingForm
+        user={currentUser}
+        community={displayCommunity}
+        onBack={handleBack}
+        returnTo={returnTo}
+      />
+    );
   }
 
   if (mode === 'event') {
-    return <CreateEventForm user={currentUser} community={displayCommunity} onBack={handleBack} />;
+    return (
+      <CreateEventForm
+        user={currentUser}
+        community={displayCommunity}
+        onBack={handleBack}
+        returnTo={returnTo}
+      />
+    );
   }
 
   return null;
@@ -535,14 +551,16 @@ function CreatePostForm({
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
     // Optional true remote push to neighborhood/city (best for urgent posts)
+    // Always send city-wide for business/faith/association posts (public org announcements)
     const shouldAutoNotifyNeighborhood = scope === 'neighborhood';
-    if (sendPushToArea || shouldAutoNotifyNeighborhood) {
+    const isFromOrganization = !!business;
+    if (sendPushToArea || shouldAutoNotifyNeighborhood || (isFromOrganization && city)) {
       sendRemotePushAlert({
-        title: `${user.name} posted`,
-        body: formattedContent,
-        scope: scope as any,
-        city,
-        neighborhood,
+        title: isFromOrganization ? `${business?.name ?? user.name} posted` : `${user.name} posted`,
+        body: formattedContent.length > 100 ? formattedContent.substring(0, 100) + '...' : formattedContent,
+        scope: isFromOrganization && city ? 'city' : (scope as any),
+        city: city || undefined,
+        neighborhood: isFromOrganization ? null : neighborhood,
         excludeUserId: user.id,
         data: { type: 'post', postId },
       }).catch(() => {});
@@ -759,7 +777,17 @@ function CreatePostForm({
 }
 
 // Sell Item Form
-function CreateListingForm({ user, community, onBack }: { user: any; community: any; onBack: () => void }) {
+function CreateListingForm({
+  user,
+  community,
+  onBack,
+  returnTo,
+}: {
+  user: any;
+  community: any;
+  onBack: () => void;
+  returnTo?: string;
+}) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState('');
@@ -767,6 +795,7 @@ function CreateListingForm({ user, community, onBack }: { user: any; community: 
   const [condition, setCondition] = useState<'new' | 'used' | 'refurbished'>('new');
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const addMarketplaceListing = useStore((s) => s.addMarketplaceListing);
 
   const handlePickImage = async () => {
@@ -784,47 +813,103 @@ function CreateListingForm({ user, community, onBack }: { user: any; community: 
     }
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!title.trim() || !price || !category || selectedImages.length === 0) return;
 
-    // Create the listing object
-    const newListing = {
-      id: `local-${Date.now()}`,
-      seller: {
-        id: user.id,
-        name: user.name,
-        username: user.username,
-        avatar: user.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&h=200&fit=crop&crop=face',
-        bio: user.bio || '',
-        location: user.location || community.city,
-        interests: user.interests || [],
-        joinedDate: user.joinedDate || new Date().toISOString(),
-      },
-      title: title.trim(),
-      description: description.trim(),
-      price: price,
-      currency: 'USD',
-      images: selectedImages,
-      category,
-      condition,
-      location: community.city,
-      isStoreBased: false,
-      storeName: undefined,
-      createdAt: new Date().toISOString(),
-      views: 0,
-    };
+    setSubmitting(true);
+    try {
+      // Upload images first
+      const uploadedUrls = (await uploadImages(selectedImages, user.id)).filter(
+        (u) => typeof u === 'string' && (u.startsWith('http://') || u.startsWith('https://'))
+      );
 
-    // Save to store
-    addMarketplaceListing(newListing);
+      if (uploadedUrls.length === 0) {
+        Alert.alert('Upload failed', 'Your photos could not be uploaded. Please try again.');
+        return;
+      }
 
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    router.navigate('/');
+      const city = useStore.getState().selectedLocation?.city || community?.city || '';
+      const listing = await createMarketplaceListing(user.id, {
+        title: title.trim(),
+        description: description.trim(),
+        price: parseFloat(price) || 0,
+        currency: 'USD',
+        images: uploadedUrls,
+        category,
+        condition,
+        location: city || community?.city,
+        isStoreBased: false,
+        storeName: undefined,
+      });
+
+      // Also add to local store for immediate UI update
+      addMarketplaceListing({
+        id: listing.id,
+        seller: {
+          id: user.id,
+          name: user.name,
+          username: user.username,
+          avatar: user.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&h=200&fit=crop&crop=face',
+          bio: user.bio || '',
+          location: user.location || community.city,
+          interests: user.interests || [],
+          joinedDate: user.joinedDate || new Date().toISOString(),
+        },
+        title: listing.title,
+        description: listing.description,
+        price: String(listing.price),
+        currency: 'USD',
+        images: listing.images || uploadedUrls,
+        category: listing.category,
+        condition: listing.condition,
+        location: listing.location || community.city,
+        isStoreBased: false,
+        storeName: undefined,
+        createdAt: listing.created_at || new Date().toISOString(),
+        views: 0,
+      });
+
+      // Notify all app users in same city
+      if (city) {
+        sendRemotePushAlert({
+          title: 'New item for sale',
+          body: `${user.name} listed "${title.trim()}" for $${price}`,
+          scope: 'city',
+          city,
+          neighborhood: null,
+          excludeUserId: user.id,
+          type: 'new_listing',
+          actorId: user.id,
+          data: { type: 'new_listing', listingId: listing.id },
+        }).catch(() => {});
+      }
+
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      // Navigate to marketplace so user sees their listing
+      router.replace('/marketplace' as any);
+    } catch (e: any) {
+      Alert.alert('Could not list item', String(e?.message ?? e ?? 'Something went wrong. Please try again.'));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const canSubmit = title.trim().length > 0 && price.length > 0 && category.length > 0 && selectedImages.length > 0;
 
   return (
     <View className="flex-1 bg-cream">
+      {/* Full-screen loading overlay when submitting */}
+      {submitting && (
+        <View
+          className="absolute inset-0 z-50 bg-black/40 items-center justify-center"
+          pointerEvents="box-only"
+        >
+          <View className="bg-white rounded-2xl px-8 py-6 items-center">
+            <ActivityIndicator size="large" color="#1B4D3E" />
+            <Text className="text-warmBrown font-semibold mt-3">Listing your item...</Text>
+          </View>
+        </View>
+      )}
       <SafeAreaView edges={['top']} className="flex-1">
         {/* Header */}
         <View className="flex-row items-center justify-between px-5 py-4 border-b border-gray-100">
@@ -832,12 +917,16 @@ function CreateListingForm({ user, community, onBack }: { user: any; community: 
             <X size={24} color="#2D1F1A" />
           </Pressable>
           <Text className="text-lg font-bold text-warmBrown">Sell an Item</Text>
-          <Pressable onPress={handleSubmit} disabled={!canSubmit}>
+          <Pressable onPress={handleSubmit} disabled={!canSubmit || submitting}>
             <LinearGradient
-              colors={canSubmit ? ['#1B4D3E', '#153D31'] : ['#D1D5DB', '#9CA3AF']}
-              style={{ borderRadius: 20, paddingVertical: 10, paddingHorizontal: 16 }}
+              colors={canSubmit && !submitting ? ['#1B4D3E', '#153D31'] : ['#D1D5DB', '#9CA3AF']}
+              style={{ borderRadius: 20, paddingVertical: 10, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center' }}
             >
-              <Text className="text-white font-semibold">List Item</Text>
+              {submitting ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text className="text-white font-semibold">List Item</Text>
+              )}
             </LinearGradient>
           </Pressable>
         </View>
@@ -853,8 +942,8 @@ function CreateListingForm({ user, community, onBack }: { user: any; community: 
                   <Text className="text-gray-400 text-xs mt-1">Add</Text>
                 </Pressable>
                 {selectedImages.map((uri, index) => (
-                  <View key={index} className="mr-3 relative">
-                    <Image source={{ uri }} style={{ width: 96, height: 96, borderRadius: 12 }} contentFit="cover" />
+                  <View key={index} className="mr-3 relative bg-gray-100 rounded-xl">
+                    <Image source={{ uri }} style={{ width: 96, height: 96, borderRadius: 12 }} contentFit="contain" />
                     <Pressable onPress={() => setSelectedImages((prev) => prev.filter((_, i) => i !== index))} className="absolute -top-2 -right-2 bg-warmBrown rounded-full p-1">
                       <X size={12} color="#FFFFFF" />
                     </Pressable>
@@ -971,7 +1060,17 @@ function CreateListingForm({ user, community, onBack }: { user: any; community: 
 }
 
 // Event Form
-function CreateEventForm({ user, community, onBack }: { user: any; community: any; onBack: () => void }) {
+function CreateEventForm({
+  user,
+  community,
+  onBack,
+  returnTo,
+}: {
+  user: any;
+  community: any;
+  onBack: () => void;
+  returnTo?: string;
+}) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [date, setDate] = useState('');
@@ -982,6 +1081,7 @@ function CreateEventForm({ user, community, onBack }: { user: any; community: an
   const [eventImage, setEventImage] = useState<string | null>(null);
   const [reach, setReach] = useState<'city' | 'nearby' | 'global'>('city');
   const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const handlePickImage = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -995,10 +1095,55 @@ function CreateEventForm({ user, community, onBack }: { user: any; community: an
     }
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!title.trim() || !date || !time || !address.trim()) return;
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    router.navigate('/');
+
+    setSubmitting(true);
+    try {
+      let imageUrl: string | undefined;
+      if (eventImage && !eventImage.startsWith('http')) {
+        const urls = await uploadImages([eventImage], user.id);
+        imageUrl = urls.find((u) => typeof u === 'string' && u.startsWith('http')) ?? undefined;
+      }
+
+      const city = useStore.getState().selectedLocation?.city || community?.city || '';
+
+      const event = await createEvent(user.id, {
+        title: title.trim(),
+        description: description.trim(),
+        date: date.trim(),
+        time: time.trim(),
+        location: city || address,
+        address: address.trim(),
+        image: imageUrl,
+        category: category || 'General',
+        isPublic,
+        scope: reach,
+      });
+
+      // Notify all app users in same city
+      if (city) {
+        sendRemotePushAlert({
+          title: 'New event',
+          body: `${user.name} created "${title.trim()}"${address ? ` at ${address.slice(0, 50)}` : ''}`,
+          scope: 'city',
+          city,
+          neighborhood: null,
+          excludeUserId: user.id,
+          type: 'new_event',
+          actorId: user.id,
+          data: { type: 'new_event', eventId: event.id },
+        }).catch(() => {});
+      }
+
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      const target = typeof returnTo === 'string' && returnTo.trim().length > 0 ? returnTo : '/community';
+      router.replace(target as any);
+    } catch (e: any) {
+      Alert.alert('Could not create event', String(e?.message ?? e));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const canSubmit = title.trim().length > 0 && date.length > 0 && time.length > 0 && address.trim().length > 0;
@@ -1012,12 +1157,16 @@ function CreateEventForm({ user, community, onBack }: { user: any; community: an
             <X size={24} color="#2D1F1A" />
           </Pressable>
           <Text className="text-lg font-bold text-warmBrown">Create Event</Text>
-          <Pressable onPress={handleSubmit} disabled={!canSubmit}>
+          <Pressable onPress={handleSubmit} disabled={!canSubmit || submitting}>
             <LinearGradient
-              colors={canSubmit ? ['#C9A227', '#A6841F'] : ['#D1D5DB', '#9CA3AF']}
-              style={{ borderRadius: 20, paddingVertical: 10, paddingHorizontal: 16 }}
+              colors={canSubmit && !submitting ? ['#C9A227', '#A6841F'] : ['#D1D5DB', '#9CA3AF']}
+              style={{ borderRadius: 20, paddingVertical: 10, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center' }}
             >
-              <Text className="text-white font-semibold">Create</Text>
+              {submitting ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text className="text-white font-semibold">Create</Text>
+              )}
             </LinearGradient>
           </Pressable>
         </View>
@@ -1029,8 +1178,8 @@ function CreateEventForm({ user, community, onBack }: { user: any; community: an
               <Text className="text-warmBrown font-semibold mb-3">Event Flyer / Cover (optional)</Text>
               <Pressable onPress={handlePickImage}>
                 {eventImage ? (
-                  <View className="relative">
-                    <Image source={{ uri: eventImage }} style={{ width: '100%', height: 180, borderRadius: 16 }} contentFit="cover" />
+                  <View className="relative bg-gray-100 rounded-2xl" style={{ minHeight: 200 }}>
+                    <Image source={{ uri: eventImage }} style={{ width: '100%', height: 240, borderRadius: 16 }} contentFit="contain" />
                     <Pressable onPress={() => setEventImage(null)} className="absolute top-2 right-2 bg-warmBrown rounded-full p-2">
                       <X size={16} color="#FFFFFF" />
                     </Pressable>

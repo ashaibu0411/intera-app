@@ -167,7 +167,7 @@ export async function sendMessage(conversationId: string, senderId: string, cont
     .update({ updated_at: new Date().toISOString() })
     .eq('id', conversationId);
 
-  // Best-effort: send remote push + create in-app notification via Edge Function
+  // Send push notification to the recipient when they receive a DM
   try {
     const { data: participants } = await supabase
       .from('conversation_participants')
@@ -175,10 +175,11 @@ export async function sendMessage(conversationId: string, senderId: string, cont
       .eq('conversation_id', conversationId);
     const other = (participants || []).map((p: any) => p.user_id).find((uid: string) => uid && uid !== authenticatedUserId);
     if (other) {
+      const senderName = (data as any)?.sender?.name || 'Someone';
       await sendDirectPushAlert({
         recipientUserId: other,
         excludeUserId: authenticatedUserId,
-        title: `New message`,
+        title: `${senderName} sent you a message`,
         body: content.length > 120 ? content.slice(0, 120) + '…' : content,
         type: 'new_message',
         actorId: authenticatedUserId,
@@ -189,8 +190,8 @@ export async function sendMessage(conversationId: string, senderId: string, cont
         },
       });
     }
-  } catch {
-    // best-effort
+  } catch (e) {
+    console.warn('[Messages] Push notification failed:', String((e as any)?.message ?? e));
   }
 
   return data;

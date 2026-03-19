@@ -123,7 +123,7 @@
         "react-native-maps": "1.20.1",
         "react-native-markdown-display": "^7.0.2",
         "react-native-mask-text": "^0.15.0",
-        "react-native-mmkv": "^3.2.0",
+        "react-native-mmkv": "2.12.2",
         "react-native-pager-view": "6.7.1",
         "react-native-purchases": "^9.6.7",
         "react-native-purchases-ui": "^9.6.7",
@@ -2273,7 +2273,7 @@
 
     "react-native-mask-text": ["react-native-mask-text@0.15.0", "", { "dependencies": { "bignumber.js": "^9.0.1" }, "peerDependencies": { "react": "*", "react-native": "*" } }, "sha512-KtE/DKFtf6/Glyt3uFRMa+8/RpgTDJVV9rrkZYbwMiGO3AzvDPsRxp5FoLNJk0NXhRCRn8Frs8Z2S6a+uB2ZdQ=="],
 
-    "react-native-mmkv": ["react-native-mmkv@3.3.3", "", { "peerDependencies": { "react": "*", "react-native": "*" } }, "sha512-GMsfOmNzx0p5+CtrCFRVtpOOMYNJXuksBVARSQrCFaZwjUyHJdQzcN900GGaFFNTxw2fs8s5Xje//RDKj9+PZA=="],
+    "react-native-mmkv": ["react-native-mmkv@2.12.2", "", { "peerDependencies": { "react": "*", "react-native": ">=0.71.0" } }, "sha512-6058Aq0p57chPrUutLGe9fYoiDVDNMU2PKV+lLFUJ3GhoHvUrLdsS1PDSCLr00yqzL4WJQ7TTzH+V8cpyrNcfg=="],
 
     "react-native-pager-view": ["react-native-pager-view@6.7.1", "", { "peerDependencies": { "react": "*", "react-native": "*" } }, "sha512-cBSr6xw4g5N7Kd3VGWcf+kmaH7iBWb0DXAf2bVo3bXkzBcBbTOmYSvc0LVLHhUPW8nEq5WjT9LCIYAzgF++EXw=="],
 

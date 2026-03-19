@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, Pressable, Switch, Linking, Modal } from 'react-native';
+import { View, Text, ScrollView, Pressable, Switch, Linking, Modal, Share, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Bell, BellOff, ChevronRight, Shield, CircleHelp, LogOut, Trash2, AlertTriangle, Ban, X, Eye, EyeOff } from 'lucide-react-native';
+import { ArrowLeft, Bell, BellOff, ChevronRight, Shield, CircleHelp, LogOut, Trash2, AlertTriangle, Ban, X, Eye, EyeOff, Moon, Sun, UserPlus, Share2 } from 'lucide-react-native';
 import { Image } from 'expo-image';
 import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -14,6 +14,8 @@ import { supabase } from '@/lib/supabase';
 export default function SettingsScreen() {
   const notificationsEnabled = useStore((s) => s.notificationsEnabled);
   const setNotificationsEnabled = useStore((s) => s.setNotificationsEnabled);
+  const darkMode = useStore((s) => s.darkMode);
+  const setDarkMode = useStore((s) => s.setDarkMode);
   const currentUser = useStore((s) => s.currentUser);
   const blockedUserDetails = useStore((s) => s.blockedUserDetails);
   const unblockUser = useStore((s) => s.unblockUser);
@@ -194,6 +196,49 @@ export default function SettingsScreen() {
                   <ChevronRight size={18} color="#B45309" />
                 </Pressable>
               )}
+
+              {/* Dark Mode Toggle */}
+              <View className="flex-row items-center p-4 border-t border-gray-100">
+                <View className="bg-gray-100 rounded-full p-2.5 mr-3">
+                  {darkMode ? (
+                    <Moon size={20} color="#7C3AED" />
+                  ) : (
+                    <Sun size={20} color="#F59E0B" />
+                  )}
+                </View>
+                <View className="flex-1">
+                  <Text className="text-warmBrown font-medium">Dark Mode</Text>
+                  <Text className="text-gray-500 text-sm mt-0.5">
+                    Use dark theme across the app
+                  </Text>
+                </View>
+                <Switch
+                  value={darkMode}
+                  onValueChange={(v) => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setDarkMode(v);
+                  }}
+                  trackColor={{ false: '#E5E7EB', true: '#7C3AED' }}
+                  thumbColor="#FFFFFF"
+                />
+              </View>
+
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  router.push('/push-debug');
+                }}
+                className="flex-row items-center p-4 border-t border-gray-100"
+              >
+                <View className="bg-gray-100 rounded-full p-2.5 mr-3">
+                  <Bell size={20} color="#111827" />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-warmBrown font-medium">Push diagnostics</Text>
+                  <Text className="text-gray-500 text-sm mt-0.5">Test token sync + send a test push</Text>
+                </View>
+                <ChevronRight size={18} color="#9CA3AF" />
+              </Pressable>
             </View>
           </Animated.View>
 
@@ -220,13 +265,39 @@ export default function SettingsScreen() {
 
               <Pressable
                 onPress={() => Linking.openURL('mailto:diasporaapp.app@gmail.com?subject=Help%20Request')}
-                className="flex-row items-center p-4"
+                className="flex-row items-center p-4 border-b border-gray-100"
               >
                 <View className="bg-gold-50 rounded-full p-2.5 mr-3">
                   <CircleHelp size={20} color="#C9A227" />
                 </View>
                 <Text className="flex-1 text-warmBrown font-medium">Help & Support</Text>
                 <ChevronRight size={18} color="#9CA3AF" />
+              </Pressable>
+
+              <Pressable
+                onPress={async () => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  const code = currentUser?.id ? currentUser.id.slice(0, 8).toUpperCase() : 'INTERA';
+                  const message = `Join me on Intera! Use my referral code ${code} when you sign up. Download the app and connect with your community.`;
+                  try {
+                    await Share.share({
+                      message,
+                      title: 'Invite to Intera',
+                    });
+                  } catch {
+                    Alert.alert('Share', 'Could not open share dialog.');
+                  }
+                }}
+                className="flex-row items-center p-4"
+              >
+                <View className="bg-emerald-50 rounded-full p-2.5 mr-3">
+                  <UserPlus size={20} color="#10B981" />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-warmBrown font-medium">Invite Friends</Text>
+                  <Text className="text-gray-500 text-sm mt-0.5">Share your referral code</Text>
+                </View>
+                <Share2 size={18} color="#9CA3AF" />
               </Pressable>
             </View>
           </Animated.View>

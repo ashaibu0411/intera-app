@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, ScrollView, Pressable, TextInput, Modal, ActivityIndicator, Alert, Share } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
-import { ChevronLeft, MapPin, Star, CheckCircle, ShieldCheck, Phone, MessageCircle, Navigation, Plus, Package, ShoppingBag, CheckCircle2, Sparkles, Lock, Minus, ShoppingCart } from 'lucide-react-native';
+import { ChevronLeft, MapPin, Star, CheckCircle, ShieldCheck, Phone, MessageCircle, Navigation, Plus, Package, ShoppingBag, CheckCircle2, Sparkles, Lock, Minus, ShoppingCart, Calendar, Bookmark } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useStore } from '@/lib/store';
@@ -65,6 +65,9 @@ export default function BusinessDetailScreen() {
 
   const canInteract = !!currentUser?.id && !isGuest;
   const isOwner = !!currentUser?.id && !!business?.owner_id && currentUser.id === business.owner_id;
+  const savedBusinessIds = useStore((s) => s.savedBusinessIds);
+  const toggleSaveBusiness = useStore((s) => s.toggleSaveBusiness);
+  const isSaved = businessId ? savedBusinessIds.includes(businessId) : false;
 
   // Pickup cart / ordering
   const [cart, setCart] = useState<Record<string, { item: InventoryItem; quantity: number }>>({});
@@ -103,6 +106,7 @@ export default function BusinessDetailScreen() {
     setTrust(t);
     setInventory((inv || []) as InventoryItem[]);
     setLoadingInventory(false);
+    setBookingSettings(settings);
 
     // Calculate and set business status
     const status = getBusinessStatus(hours, settings);
@@ -412,11 +416,12 @@ export default function BusinessDetailScreen() {
     try {
       const conversationId = await getOrCreateConversation(currentUser.id, ownerId);
       router.push({
-        pathname: '/conversation/[id]',
+        pathname: '/chat/[id]',
         params: {
           id: conversationId,
-          otherUserName: business?.name || 'Business',
-          otherUserAvatar: business?.logo || business?.image,
+          name: business?.name || 'Business',
+          avatar: business?.logo || business?.image || '',
+          recipientId: ownerId,
         },
       } as any);
     } catch (error) {
@@ -440,12 +445,13 @@ export default function BusinessDetailScreen() {
     try {
       const conversationId = await getOrCreateConversation(currentUser.id, ownerId);
       router.push({
-        pathname: '/conversation/[id]',
+        pathname: '/chat/[id]',
         params: {
           id: conversationId,
-          otherUserName: business?.name || 'Business',
-          otherUserAvatar: business?.logo || business?.image,
-          initialMessage: `Hi! I'm interested in "${item.name}" ($${item.price.toFixed(2)}). Is it still available?`,
+          name: business?.name || 'Business',
+          avatar: business?.logo || business?.image || '',
+          recipientId: ownerId,
+          prefill: encodeURIComponent(`Hi! I'm interested in "${item.name}" ($${item.price.toFixed(2)}). Is it still available?`),
         },
       } as any);
     } catch (error) {
@@ -498,12 +504,25 @@ export default function BusinessDetailScreen() {
                 <Text className="text-sm text-gray-500 ml-1" numberOfLines={1}>{displayLocation}</Text>
               </View>
             </View>
-            <Pressable
-              onPress={() => setShowReview(true)}
-              className="bg-forest-600 rounded-full p-2.5"
-            >
-              <Plus size={20} color="#fff" />
-            </Pressable>
+            <View className="flex-row items-center gap-2">
+              {!isOwner && (
+                <Pressable
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    if (businessId) toggleSaveBusiness(businessId);
+                  }}
+                  className="bg-white rounded-full p-2.5 shadow-sm"
+                >
+                  <Bookmark size={20} color={isSaved ? '#D4673A' : '#9CA3AF'} fill={isSaved ? '#D4673A' : 'transparent'} />
+                </Pressable>
+              )}
+              <Pressable
+                onPress={() => setShowReview(true)}
+                className="bg-forest-600 rounded-full p-2.5"
+              >
+                <Plus size={20} color="#fff" />
+              </Pressable>
+            </View>
           </View>
         </View>
 
@@ -603,6 +622,58 @@ export default function BusinessDetailScreen() {
                   </Text>
                 </Pressable>
               </View>
+
+              {/* Book Appointment - show when booking enabled and user is not owner */}
+              {bookingSettings?.is_booking_enabled && !isOwner && (
+                <Pressable
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                    if (!canInteract) {
+                      router.push('/signup');
+                      return;
+                    }
+                    router.push({
+                      pathname: '/book-appointment',
+                      params: { businessId, businessName: business?.name },
+                    } as any);
+                  }}
+                  className="mt-3 bg-forest-600 rounded-full py-3 flex-row items-center justify-center"
+                >
+                  <Calendar size={18} color="#fff" />
+                  <Text className="text-white font-semibold ml-2">Book Appointment</Text>
+                </Pressable>
+              )}
+
+              {/* Owner: Manage Appointments & Calendar */}
+              {isOwner && (
+                <View className="flex-row mt-3 gap-2">
+                  <Pressable
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      router.push({
+                        pathname: '/business-appointments',
+                        params: { businessId, businessName: business?.name },
+                      } as any);
+                    }}
+                    className="flex-1 bg-forest-600 rounded-full py-3 flex-row items-center justify-center"
+                  >
+                    <Calendar size={18} color="#fff" />
+                    <Text className="text-white font-semibold ml-2">Appointments</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      router.push({
+                        pathname: '/manage-booking-calendar',
+                        params: { businessId, businessName: business?.name, businessCategory: business?.category || business?.type },
+                      } as any);
+                    }}
+                    className="flex-1 bg-forest-100 rounded-full py-3 flex-row items-center justify-center"
+                  >
+                    <Text className="text-forest-700 font-semibold">Calendar</Text>
+                  </Pressable>
+                </View>
+              )}
 
               <View className="flex-row items-center mt-3 pt-3 border-t border-gray-100">
                 <Pressable

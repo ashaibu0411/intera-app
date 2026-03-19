@@ -270,6 +270,8 @@ export default function EventsScreen() {
   const selectedLocation = useStore((s) => s.selectedLocation);
   const eventRsvps = useStore((s) => s.eventRsvps);
   const setEventRsvp = useStore((s) => s.setEventRsvp);
+  const savedEventIds = useStore((s) => s.savedEventIds);
+  const toggleSaveEvent = useStore((s) => s.toggleSaveEvent);
 
   const cityName = selectedLocation?.city || 'Denver';
   const neighborhoodName = selectedLocation?.neighborhood?.trim();
@@ -711,6 +713,8 @@ export default function EventsScreen() {
                     event={event}
                     rsvpStatus={rsvp?.status}
                     onRsvp={(status) => handleRsvp(event.id, status)}
+                    isSaved={savedEventIds.includes(event.id)}
+                    onToggleSave={() => toggleSaveEvent(event.id)}
                   />
                 </Animated.View>
               );

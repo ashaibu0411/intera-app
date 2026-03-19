@@ -26,6 +26,7 @@ import { useStore, FAITH_TYPES } from '@/lib/store';
 import { createFaithEvent } from '@/lib/marketplace-api';
 import { createPost as createDbPost } from '@/lib/posts';
 import { uploadImages } from '@/lib/posts';
+import { sendRemotePushAlert } from '@/lib/pushAlerts';
 import { encodeEventMetadata, type EventReach } from '@/lib/eventMetadata';
 
 const RECURRING_OPTIONS = [
@@ -92,8 +93,7 @@ export default function CreateFaithEventScreen() {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       quality: 0.9,
-      allowsEditing: true,
-      aspect: [4, 5],
+      allowsEditing: false,
     });
 
     if (!result.canceled && result.assets.length > 0) {
@@ -189,6 +189,22 @@ export default function CreateFaithEventScreen() {
         contactPhone: contactPhone.trim() || undefined,
         contactEmail: contactEmail.trim() || undefined,
       });
+
+      // Notify all app users in same city (faith events are public)
+      const city = selectedLocation?.city || currentCommunity?.city || '';
+      if (city) {
+        sendRemotePushAlert({
+          title: 'New faith event',
+          body: `${organizationName.trim()} · ${title.trim()}${address ? ` at ${address.slice(0, 40)}` : ''}`,
+          scope: 'city',
+          city,
+          neighborhood: null,
+          excludeUserId: currentUser.id,
+          type: 'new_faith_event',
+          actorId: currentUser.id,
+          data: { type: 'new_faith_event' },
+        }).catch(() => {});
+      }
 
       if (shareToCommunityFeed) {
         const faithEmoji =
@@ -301,11 +317,11 @@ export default function CreateFaithEventScreen() {
               <Text className="text-lg font-bold text-warmBrown mb-4">Event Flyer (optional)</Text>
               <Pressable onPress={handlePickFlyer}>
                 {eventFlyer ? (
-                  <View className="rounded-2xl overflow-hidden">
+                  <View className="rounded-2xl overflow-hidden bg-gray-100" style={{ minHeight: 280 }}>
                     <Image
                       source={{ uri: eventFlyer }}
-                      style={{ width: '100%', height: 220, borderRadius: 16 }}
-                      contentFit="cover"
+                      style={{ width: '100%', height: 320, borderRadius: 16 }}
+                      contentFit="contain"
                     />
                     <Pressable
                       onPress={() => setEventFlyer(null)}
