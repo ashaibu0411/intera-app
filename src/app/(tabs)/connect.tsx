@@ -20,7 +20,8 @@ import {
 } from 'lucide-react-native';
 import Animated, { FadeInDown, FadeInUp, FadeIn } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
+import { OpenConnectPanel } from '@/components/OpenConnectPanel';
 import { useFocusEffect } from '@react-navigation/native';
 import { useStore } from '@/lib/store';
 import {
@@ -336,32 +337,80 @@ export default function ConnectScreen() {
   const pendingCount = pendingRequests.length;
   const talkNowCount = talkers.length;
 
+  const params = useLocalSearchParams<{ openConnect?: string }>();
+  const [connectSegment, setConnectSegment] = useState<'people' | 'open'>(
+    () => (params.openConnect === '1' ? 'open' : 'people')
+  );
+
+  useEffect(() => {
+    if (params.openConnect === '1') {
+      setConnectSegment('open');
+    }
+  }, [params.openConnect]);
+
   return (
     <View className="flex-1 bg-cream">
       <SafeAreaView edges={['top']} className="flex-1">
         {/* Header */}
         <Animated.View
           entering={FadeInDown.duration(400).delay(100)}
-          className="px-5 pt-2 pb-4"
+          className="px-5 pt-2 pb-3"
         >
           <View className="flex-row items-center justify-between">
-            <View>
+            <View className="flex-1">
               <Text className="text-3xl font-bold text-warmBrown">Connect</Text>
-              <View className="flex-row items-center mt-1">
-                <MapPin size={14} color="#D4673A" />
-                <Text className="text-gray-500 ml-1">People near {cityName}</Text>
-              </View>
+              {connectSegment === 'people' ? (
+                <View className="flex-row items-center mt-1">
+                  <MapPin size={14} color="#D4673A" />
+                  <Text className="text-gray-500 ml-1">People near {cityName}</Text>
+                </View>
+              ) : (
+                <Text className="text-gray-500 mt-1 text-sm">Lobby in your city & nearby posts</Text>
+              )}
             </View>
 
+            {connectSegment === 'people' ? (
+              <Pressable
+                onPress={handleSetupProfile}
+                className="bg-white rounded-full p-3 shadow-sm"
+              >
+                <Settings size={22} color="#1B4D3E" />
+              </Pressable>
+            ) : null}
+          </View>
+
+          <View className="flex-row mt-4 p-1 rounded-xl bg-gray-100">
             <Pressable
-              onPress={handleSetupProfile}
-              className="bg-white rounded-full p-3 shadow-sm"
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setConnectSegment('people');
+              }}
+              className={`flex-1 py-2.5 rounded-lg items-center ${connectSegment === 'people' ? 'bg-white shadow-sm' : ''}`}
             >
-              <Settings size={22} color="#1B4D3E" />
+              <Text
+                className={`font-semibold ${connectSegment === 'people' ? 'text-warmBrown' : 'text-gray-500'}`}
+              >
+                People
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setConnectSegment('open');
+              }}
+              className={`flex-1 py-2.5 rounded-lg items-center ${connectSegment === 'open' ? 'bg-white shadow-sm' : ''}`}
+            >
+              <Text
+                className={`font-semibold ${connectSegment === 'open' ? 'text-warmBrown' : 'text-gray-500'}`}
+              >
+                Open to connect
+              </Text>
             </Pressable>
           </View>
         </Animated.View>
 
+        {connectSegment === 'people' ? (
+          <>
         {/* Search Bar */}
         <Animated.View
           entering={FadeInDown.duration(400).delay(150)}
@@ -614,6 +663,10 @@ export default function ConnectScreen() {
             </View>
           ) : null}
         </ScrollView>
+          </>
+        ) : (
+          <OpenConnectPanel />
+        )}
       </SafeAreaView>
     </View>
   );

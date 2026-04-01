@@ -200,6 +200,7 @@ export interface DbPost {
   video?: string | null;
   location: string | null;
   community_id: string | null;
+  connect_post?: boolean;
   created_at: string;
   updated_at: string;
   // Joined data

@@ -15,6 +15,8 @@ import { type DbCommunity } from '@/lib/supabase';
 import { getPosts } from '@/lib/posts';
 import { subscribeToPostInserts } from '@/lib/postsRealtime';
 
+type FeedTab = 'all' | 'connect';
+
 export default function CommunityUpdatesScreen() {
   const selectedLocation = useStore((s) => s.selectedLocation);
   const userPosts = useStore((s) => s.userPosts);
@@ -23,6 +25,7 @@ export default function CommunityUpdatesScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [realCommunity, setRealCommunity] = useState<DbCommunity | null>(null);
   const [dbPosts, setDbPosts] = useState<Post[]>([]);
+  const [feedTab, setFeedTab] = useState<FeedTab>('all');
 
   const locationLabel = useMemo(() => {
     const city = selectedLocation?.city?.trim();
@@ -45,10 +48,17 @@ export default function CommunityUpdatesScreen() {
     const community = await getCommunityByLocation(city, country);
     setRealCommunity(community);
 
-    const posts = await getPosts(community?.id || undefined, 50);
-    setDbPosts(posts);
+    try {
+      const posts = await getPosts(community?.id || undefined, 50, {
+        connectOnly: feedTab === 'connect',
+      });
+      setDbPosts(posts);
+    } catch (e) {
+      console.warn('[CommunityUpdates] fetch posts:', e);
+      setDbPosts([]);
+    }
     return community;
-  }, [selectedLocation?.city, selectedLocation?.country]);
+  }, [selectedLocation?.city, selectedLocation?.country, feedTab]);
 
   useFocusEffect(
     useCallback(() => {
@@ -79,10 +89,12 @@ export default function CommunityUpdatesScreen() {
     const uniquePosts = combined.filter(
       (post, index, self) => index === self.findIndex((p) => p.id === post.id)
     );
-    return uniquePosts
-      .filter((post) => !blockedUserIds.includes(post.author.id))
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }, [blockedUserIds, dbPosts, userPosts]);
+    let list = uniquePosts.filter((post) => !blockedUserIds.includes(post.author.id));
+    if (feedTab === 'connect') {
+      list = list.filter((p) => p.connectPost || (p.content && p.content.includes('👋 Nearby:')));
+    }
+    return list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [blockedUserIds, dbPosts, userPosts, feedTab]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -112,6 +124,28 @@ export default function CommunityUpdatesScreen() {
               <Text className="text-xl font-bold text-warmBrown">Community updates</Text>
               <Text className="text-xs text-gray-500 -mt-0.5">{locationLabel}</Text>
             </View>
+          </View>
+          <View className="flex-row mt-3 bg-gray-100 rounded-full p-1">
+            <Pressable
+              onPress={() => {
+                Haptics.selectionAsync();
+                setFeedTab('all');
+              }}
+              className={`flex-1 py-2 rounded-full items-center ${feedTab === 'all' ? 'bg-white shadow-sm' : ''}`}
+            >
+              <Text className={feedTab === 'all' ? 'text-warmBrown font-bold' : 'text-gray-500 font-medium'}>All</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => {
+                Haptics.selectionAsync();
+                setFeedTab('connect');
+              }}
+              className={`flex-1 py-2 rounded-full items-center ${feedTab === 'connect' ? 'bg-white shadow-sm' : ''}`}
+            >
+              <Text className={feedTab === 'connect' ? 'text-warmBrown font-bold' : 'text-gray-500 font-medium'}>
+                Open to connect
+              </Text>
+            </Pressable>
           </View>
         </View>
 
@@ -157,19 +191,29 @@ export default function CommunityUpdatesScreen() {
             </View>
           ) : (
             <View className="mx-4 mt-10 p-6 bg-white rounded-2xl border border-gray-100 items-center">
-              <Text className="text-gray-900 font-semibold text-xl">Nothing posted yet</Text>
+              <Text className="text-gray-900 font-semibold text-xl">
+                {feedTab === 'connect' ? 'No connect posts yet' : 'Nothing posted yet'}
+              </Text>
               <Text className="text-gray-500 text-center mt-1">
-                Be the first to share a photo, video, or update.
+                {feedTab === 'connect'
+                  ? 'Go to Open to connect and post with Nearby — or switch to All for the full feed.'
+                  : 'Be the first to share a photo, video, or update.'}
               </Text>
               <Pressable
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                   const returnTo = encodeURIComponent('/community-updates');
-                  router.push(`/create?returnTo=${returnTo}` as never);
+                  if (feedTab === 'connect') {
+                    router.push('/open-connect' as never);
+                  } else {
+                    router.push(`/create?returnTo=${returnTo}` as never);
+                  }
                 }}
                 className="mt-4 bg-gray-900 px-6 py-3 rounded-full"
               >
-                <Text className="text-white font-semibold">Create a post</Text>
+                <Text className="text-white font-semibold">
+                  {feedTab === 'connect' ? 'Open to connect' : 'Create a post'}
+                </Text>
               </Pressable>
             </View>
           )}

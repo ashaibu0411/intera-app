@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { View, Text, ScrollView, Pressable, Alert, TextInput, Modal, ActivityIndicator, Share } from 'react-native';
+import { View, Text, ScrollView, Pressable, Alert, TextInput, Modal, ActivityIndicator, Share, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -13,6 +13,7 @@ import {
   CheckCircle,
   Gem,
   Store,
+  Smartphone,
 } from 'lucide-react-native';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -32,6 +33,7 @@ import {
 } from '@/lib/booking-api';
 import { sendDirectPushAlert } from '@/lib/pushAlerts';
 import { scheduleAppointmentReminders } from '@/lib/notifications';
+import { payBookingWithCard, isStripeBookingConfigured } from '@/lib/bookingStripePayment';
 
 type PaymentMethod = 'in_app' | 'cash' | 'card_on_site' | 'gems';
 
@@ -67,6 +69,7 @@ export default function BookAppointmentScreen() {
     logo?: string;
     address: string;
     owner_id: string;
+    stripe_connect_account_id?: string | null;
   } | null>(null);
   const [services, setServices] = useState<BusinessService[]>([]);
 
@@ -90,6 +93,13 @@ export default function BookAppointmentScreen() {
   useEffect(() => {
     loadBusinessData();
   }, [businessId]);
+
+  // If owner removes Stripe Connect, don't keep an unavailable payment method selected
+  useEffect(() => {
+    if (paymentMethod === 'in_app' && business && !business.stripe_connect_account_id) {
+      setPaymentMethod('cash');
+    }
+  }, [business?.stripe_connect_account_id, business, paymentMethod]);
 
   // Load gem balance
   useEffect(() => {
@@ -119,6 +129,7 @@ export default function BookAppointmentScreen() {
       ]);
 
       if (businessData) {
+        const row = businessData as { stripe_connect_account_id?: string | null };
         setBusiness({
           id: businessData.id,
           name: businessData.name,
@@ -126,6 +137,7 @@ export default function BookAppointmentScreen() {
           logo: businessData.logo,
           address: businessData.address || businessData.location || 'Contact for address',
           owner_id: businessData.owner_id,
+          stripe_connect_account_id: row.stripe_connect_account_id ?? null,
         });
       }
 
@@ -215,6 +227,29 @@ export default function BookAppointmentScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
 
     try {
+      // In-app card (Stripe) — charge before creating the appointment
+      if (paymentMethod === 'in_app') {
+        if (!isStripeBookingConfigured()) {
+          setIsBooking(false);
+          Alert.alert(
+            'Card checkout unavailable',
+            'Stripe is not set up yet. Add EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY and deploy the create-booking-payment-intent Edge Function.',
+          );
+          return;
+        }
+        const paid = await payBookingWithCard({
+          businessId: business.id,
+          serviceId: selectedService.id,
+          customerName: currentUser.name ?? undefined,
+        });
+        if (!paid.ok) {
+          setIsBooking(false);
+          if (paid.canceled) return;
+          Alert.alert('Payment failed', paid.error);
+          return;
+        }
+      }
+
       // Handle gem payment
       if (paymentMethod === 'gems') {
         const gemPrice = priceToGems(selectedService.price);
@@ -267,7 +302,14 @@ export default function BookAppointmentScreen() {
         date: selectedDate.toISOString().split('T')[0],
         start_time: selectedTime,
         end_time: endTime,
-        payment_method: paymentMethod === 'gems' ? 'gems' : paymentMethod === 'card_on_site' ? 'card_on_site' : 'cash',
+        payment_method:
+          paymentMethod === 'gems'
+            ? 'gems'
+            : paymentMethod === 'in_app'
+              ? 'in_app'
+              : paymentMethod === 'card_on_site'
+                ? 'card_on_site'
+                : 'cash',
         payment_amount: selectedService.price,
         gems_paid: paymentMethod === 'gems' ? priceToGems(selectedService.price) : undefined,
         notes: notes || undefined,
@@ -298,11 +340,14 @@ export default function BookAppointmentScreen() {
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-      const paymentMessage = paymentMethod === 'gems'
-        ? ' Payment has been processed.'
-        : paymentMethod === 'cash'
-        ? ' Remember to pay at the location.'
-        : '';
+      const paymentMessage =
+        paymentMethod === 'gems'
+          ? ' Payment has been processed.'
+          : paymentMethod === 'in_app'
+            ? ' Your card was charged in the app.'
+            : paymentMethod === 'cash'
+              ? ' Remember to pay at the location.'
+              : ' Remember to pay with your card when you arrive.';
 
       // Add to store for immediate display in My Appointments
       const addAppointment = useStore.getState().addAppointment;
@@ -317,8 +362,8 @@ export default function BookAppointmentScreen() {
         date: selectedDate.toISOString().split('T')[0],
         time: selectedTime,
         status: 'pending',
-        isPaid: paymentMethod === 'gems',
-        paymentMethod: paymentMethod === 'gems' ? 'gems' : paymentMethod,
+        isPaid: paymentMethod === 'gems' || paymentMethod === 'in_app',
+        paymentMethod,
         createdAt: new Date().toISOString(),
       });
 
@@ -605,13 +650,42 @@ export default function BookAppointmentScreen() {
                   <CreditCard size={24} color="#3B82F6" />
                 </View>
                 <View className="flex-1 ml-3">
-                  <Text className="text-warmBrown font-semibold">Pay with Card</Text>
-                  <Text className="text-gray-500 text-sm">Card payment at the location</Text>
+                  <Text className="text-warmBrown font-semibold">Card at the business</Text>
+                  <Text className="text-gray-500 text-sm">Pay with card when you arrive (in person)</Text>
                 </View>
                 {paymentMethod === 'card_on_site' && (
                   <CheckCircle size={20} color="#E07A5F" />
                 )}
               </Pressable>
+
+              {Platform.OS !== 'web' &&
+              isStripeBookingConfigured() &&
+              !!business?.stripe_connect_account_id ? (
+                <Pressable
+                  onPress={() => setPaymentMethod('in_app')}
+                  className={`bg-white rounded-xl p-4 mb-3 flex-row items-center border-2 ${
+                    paymentMethod === 'in_app' ? 'border-terracotta-500' : 'border-transparent'
+                  }`}
+                >
+                  <View className="bg-indigo-100 rounded-full p-3">
+                    <Smartphone size={24} color="#4F46E5" />
+                  </View>
+                  <View className="flex-1 ml-3">
+                    <Text className="text-warmBrown font-semibold">Pay now with card</Text>
+                    <Text className="text-gray-500 text-sm">
+                      Card, Apple Pay, or Google Pay in the app (processed by Stripe)
+                    </Text>
+                  </View>
+                  {paymentMethod === 'in_app' && <CheckCircle size={20} color="#E07A5F" />}
+                </Pressable>
+              ) : Platform.OS !== 'web' && isStripeBookingConfigured() && !business?.stripe_connect_account_id ? (
+                <View className="bg-gray-100 rounded-xl p-4 mb-3 border border-gray-200">
+                  <Text className="text-warmBrown font-semibold">Pay now with card</Text>
+                  <Text className="text-gray-500 text-sm mt-1">
+                    This business has not connected Stripe payouts yet. Choose cash, card at the business, or gems.
+                  </Text>
+                </View>
+              ) : null}
 
               <Pressable
                 onPress={() => setPaymentMethod('gems')}

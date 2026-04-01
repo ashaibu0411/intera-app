@@ -705,9 +705,14 @@ export function PostCard({ post, onLike, onComment, onShare, showGuidelines = fa
               <Text className="text-xs text-gray-400 ml-2">announcement</Text>
             </View>
           )}
-          <View className="flex-row items-center">
+          <View className="flex-row items-center flex-wrap">
             <Text className="text-warmBrown font-semibold text-lg">{post.author.name}</Text>
             <Text className="ml-1.5" style={{ fontSize: 16 }}>{countryFlag}</Text>
+            {(post.connectPost || (post.content && post.content.includes('👋 Nearby:'))) && (
+              <View className="bg-emerald-100 rounded-full px-2 py-0.5 ml-2 mt-1">
+                <Text className="text-xs text-emerald-900 font-semibold">Open to connect</Text>
+              </View>
+            )}
           </View>
           {/* Community-First Identity Headline */}
           <View className="flex-row items-center mt-0.5">

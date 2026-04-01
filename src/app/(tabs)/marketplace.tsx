@@ -37,6 +37,8 @@ import { purchaseMarketplaceListing, priceToGems, calculateFeeBreakdown } from '
 import { getGemBalance } from '@/lib/giftService';
 import { aiTrustSafety, type AiTrustSafetyResult } from '@/lib/aiTrustSafety';
 import { subscribeToInventoryUpdates } from '@/lib/inventoryRealtime';
+import { REPORT_REASONS, type ViolationType } from '@/lib/contentModeration';
+import { reportListing } from '@/lib/reports';
 
 interface DbListing {
   id: string;

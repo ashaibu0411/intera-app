@@ -50,6 +50,7 @@ import Animated, {
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import * as Haptics from 'expo-haptics';
 import { router, useFocusEffect } from 'expo-router';
+import { useIsFocused } from '@react-navigation/native';
 import * as DropdownMenu from 'zeego/dropdown-menu';
 import { useStore } from '@/lib/store';
 import { supabase } from '@/lib/supabase';
@@ -1193,6 +1194,20 @@ export default function ClipsTabScreen() {
   const blockUser = useStore((s) => s.blockUser);
   const blockedUserIds = useStore((s) => s.blockedUserIds);
 
+  /** False when user switches to another tab or navigates away — stops all clip playback */
+  const isClipsTabFocused = useIsFocused();
+
+  /** Pause video while modals cover the feed (comments, report, block, gifts) */
+  const clipPlaybackAllowed = useMemo(
+    () =>
+      isClipsTabFocused &&
+      !showCommentsModal &&
+      !showReportModal &&
+      !showBlockConfirmModal &&
+      !showGiftsModal,
+    [isClipsTabFocused, showCommentsModal, showReportModal, showBlockConfirmModal, showGiftsModal]
+  );
+
   // Function to load clips
   const loadClips = useCallback(async () => {
     try {
@@ -1602,7 +1617,7 @@ export default function ClipsTabScreen() {
             renderItem={({ item, index }) => (
               <ClipItem
                 clip={item}
-                isActive={index === activeIndex}
+                isActive={index === activeIndex && clipPlaybackAllowed}
                 isMuted={isMuted}
                 onToggleMute={toggleMute}
                 onBlockUser={() => handleBlockUser({ id: item.user.id, name: item.user.name, avatar: item.user.avatar })}

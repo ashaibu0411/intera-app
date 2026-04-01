@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>Intera — Open to connect (design preview)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --cream: #faf7f2;
+      --warm: #2d1f1a;
+      --forest-700: #1b4d3e;
+      --forest-800: #153d31;
+      --forest-600: #2d725e;
+      --forest-50: #f0f7f5;
+      --terra-500: #d4673a;
+      --terra-600: #b85430;
+      --amber-50: #fffbeb;
+      --amber-200: #fde68a;
+      --amber-800: #92400e;
+      --amber-900: #78350f;
+      --gray-100: #f3f4f6;
+      --gray-200: #e5e7eb;
+      --gray-400: #9ca3af;
+      --gray-500: #6b7280;
+      --gray-600: #4b5563;
+      --white: #fff;
+      --shadow: 0 1px 3px rgba(45, 31, 26, 0.08);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "DM Sans", system-ui, sans-serif;
+      background: linear-gradient(160deg, #e8e0d6 0%, var(--cream) 40%, #eef4f1 100%);
+      color: var(--warm);
+      padding: 24px 16px 48px;
+    }
+    .banner {
+      max-width: 720px;
+      margin: 0 auto 20px;
+      padding: 12px 16px;
+      background: var(--white);
+      border-radius: 12px;
+      border: 1px solid var(--gray-200);
+      font-size: 13px;
+      color: var(--gray-600);
+      line-height: 1.5;
+    }
+    .banner strong { color: var(--forest-700); }
+    .phone {
+      max-width: 402px;
+      margin: 0 auto;
+      background: var(--cream);
+      border-radius: 28px;
+      box-shadow: 0 25px 50px -12px rgba(45, 31, 26, 0.2), 0 0 0 1px rgba(45, 31, 26, 0.06);
+      overflow: hidden;
+      min-height: 640px;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--gray-100);
+      background: var(--cream);
+    }
+    .back {
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-left: -8px;
+      border-radius: 12px;
+      color: var(--warm);
+      font-size: 22px;
+    }
+    .header h1 {
+      flex: 1;
+      text-align: center;
+      font-size: 18px;
+      font-weight: 700;
+      margin: 0;
+      padding-right: 32px;
+    }
+    .scroll {
+      padding: 16px 20px 32px;
+      max-height: calc(100vh - 120px);
+      overflow-y: auto;
+    }
+    .hero {
+      background: linear-gradient(135deg, var(--forest-700), var(--forest-800));
+      border-radius: 20px;
+      padding: 20px;
+      margin-bottom: 20px;
+      color: var(--white);
+    }
+    .hero-top {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .hero-icon {
+      width: 36px;
+      height: 36px;
+      background: rgba(255,255,255,0.15);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+    }
+    .hero h2 {
+      margin: 0;
+      font-size: 19px;
+      font-weight: 700;
+      line-height: 1.25;
+    }
+    .hero p {
+      margin: 12px 0 0;
+      font-size: 14px;
+      line-height: 1.55;
+      opacity: 0.9;
+    }
+    .safety {
+      display: flex;
+      gap: 12px;
+      padding: 16px;
+      background: var(--amber-50);
+      border: 1px solid var(--amber-200);
+      border-radius: 16px;
+      margin-bottom: 24px;
+    }
+    .safety-icon { font-size: 22px; margin-top: 2px; }
+    .safety h3 { margin: 0; font-size: 15px; font-weight: 600; color: var(--amber-900); }
+    .safety p { margin: 6px 0 0; font-size: 13px; line-height: 1.5; color: var(--amber-800); }
+    .section-title {
+      font-size: 17px;
+      font-weight: 700;
+      margin: 0 0 6px;
+    }
+    .section-sub {
+      font-size: 13px;
+      color: var(--gray-500);
+      margin: 0 0 12px;
+    }
+    .h-scroll {
+      display: flex;
+      gap: 10px;
+      overflow-x: auto;
+      padding-bottom: 8px;
+      margin-bottom: 24px;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: thin;
+    }
+    .ice-card {
+      flex: 0 0 auto;
+      max-width: 280px;
+      padding: 12px 14px;
+      background: var(--white);
+      border: 1px solid var(--gray-200);
+      border-radius: 16px;
+      font-size: 13px;
+      line-height: 1.45;
+      cursor: default;
+    }
+    .lobby-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .refresh { font-size: 13px; font-weight: 600; color: var(--forest-600); }
+    .lobby-card {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px;
+      background: var(--white);
+      border: 1px solid var(--gray-100);
+      border-radius: 16px;
+      margin-bottom: 12px;
+      box-shadow: var(--shadow);
+    }
+    .avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      object-fit: cover;
+      background: var(--gray-200);
+    }
+    .lobby-meta { flex: 1; min-width: 0; }
+    .lobby-meta .name { font-weight: 600; font-size: 15px; }
+    .lobby-meta .sub { font-size: 12px; color: var(--gray-500); margin-top: 2px; }
+    .lobby-meta .time { font-size: 11px; color: var(--gray-400); margin-top: 4px; }
+    .btn-hi {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 8px 14px;
+      background: var(--forest-600);
+      color: var(--white);
+      border: none;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .card {
+      background: var(--white);
+      border-radius: 16px;
+      padding: 16px;
+      border: 1px solid var(--gray-100);
+      box-shadow: var(--shadow);
+      margin-bottom: 20px;
+    }
+    .row-between {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+    .switch {
+      width: 51px;
+      height: 31px;
+      background: #d1d5db;
+      border-radius: 16px;
+      position: relative;
+      flex-shrink: 0;
+    }
+    .switch.on { background: #10b981; }
+    .switch::after {
+      content: "";
+      position: absolute;
+      width: 27px;
+      height: 27px;
+      background: white;
+      border-radius: 50%;
+      top: 2px;
+      left: 2px;
+      transition: transform 0.2s;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    }
+    .switch.on::after { transform: translateX(20px); }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+    .chip {
+      padding: 8px 16px;
+      border-radius: 999px;
+      border: 1px solid var(--gray-200);
+      background: var(--white);
+      font-size: 14px;
+      color: var(--gray-600);
+    }
+    .chip.on-f { background: var(--forest-600); border-color: var(--forest-600); color: var(--white); }
+    .chip.on-t { background: var(--terra-500); border-color: var(--terra-500); color: var(--white); }
+    .chip.on-d { background: var(--forest-50); border-color: var(--forest-600); color: var(--forest-800); font-weight: 700; }
+    .dur-row { display: flex; gap: 8px; }
+    .dur { flex: 1; text-align: center; padding: 12px; border-radius: 12px; border: 1px solid var(--gray-200); font-size: 14px; }
+    .dur.on { background: var(--forest-50); border-color: var(--forest-600); color: var(--forest-800); font-weight: 700; }
+    .cta {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      padding: 16px;
+      border: none;
+      border-radius: 16px;
+      background: linear-gradient(135deg, var(--terra-500), var(--terra-600));
+      color: var(--white);
+      font-size: 17px;
+      font-weight: 700;
+      margin-top: 8px;
+      cursor: pointer;
+      box-shadow: 0 4px 14px rgba(212, 103, 58, 0.35);
+    }
+    .label { font-size: 15px; font-weight: 600; margin: 20px 0 8px; }
+    .web-note {
+      text-align: center;
+      font-size: 12px;
+      color: var(--gray-400);
+      margin-top: 16px;
+    }
+  </style>
+</head>
+<body>
+  <div class="banner">
+    <strong>Design preview only</strong> — no login, no database. This mimics the <strong>Open to connect</strong> screen in the Intera app.
+    Static preview: <code>npm run preview:connect</code> → <strong>http://localhost:8082/open-connect.html</strong>.
+    Full app: <code>npm run web:8082</code> in <code>intera-app</code> (see <code>design-preview/README.md</code>).
+  </div>
+
+  <div class="phone">
+    <header class="header">
+      <div class="back" aria-hidden="true">‹</div>
+      <h1>Open to connect</h1>
+    </header>
+    <div class="scroll">
+      <div class="hero">
+        <div class="hero-top">
+          <div class="hero-icon">👥</div>
+          <h2>Same moment, anywhere</h2>
+        </div>
+        <p>
+          A gentle way to find company wherever you are — transit, campus, a festival, your neighbourhood, or a new city.
+          You pick a <strong>nickname</strong> for this space; your timer ends and the signal fades. Opt in only; meet in public.
+        </p>
+      </div>
+
+      <div class="safety" style="background:#EEF2FF;border-color:#C7D2FE">
+        <div class="safety-icon">🙈</div>
+        <div>
+          <h3 style="color:#312E81">Privacy &amp; comfort</h3>
+          <p style="color:#3730A3">Lobby shows a connect nickname or a neutral Friend·code — not your account name. Photo hidden unless you turn it on. Share only what you want for this session.</p>
+        </div>
+      </div>
+
+      <div class="safety">
+        <div class="safety-icon">🛡️</div>
+        <div>
+          <h3>Safety</h3>
+          <p>Public places first, easy exits. Block and report if anything feels off. Same city &amp; country anywhere in the world — not US-only.</p>
+        </div>
+      </div>
+
+      <h2 class="section-title">How you appear in the lobby</h2>
+      <p class="section-sub">Nickname, initials, or emoji. Leave blank → Friend·code.</p>
+      <div class="card" style="margin-bottom:10px">
+        <div style="font-size:11px;color:var(--gray-500);text-transform:uppercase;letter-spacing:.05em">Connect nickname</div>
+        <div style="margin-top:8px;padding-bottom:8px;border-bottom:1px solid var(--gray-100);color:var(--warm);font-size:15px;opacity:.6">LayoverSam</div>
+        <div style="margin-top:8px;font-size:12px;color:var(--forest-600)">Lobby preview: <strong>Alex M.</strong> <span style="color:var(--gray-500);font-weight:400">(Intera name on)</span></div>
+      </div>
+      <div class="card row-between" style="margin-bottom:10px">
+        <div>
+          <div style="font-weight:600">Use my Intera profile name</div>
+          <div style="font-size:13px;color:var(--gray-500);margin-top:4px">On = your profile name in the lobby</div>
+        </div>
+        <div class="switch on" aria-hidden="true"></div>
+      </div>
+      <div class="card" style="margin-bottom:10px">
+        <div style="font-size:11px;color:var(--gray-500);text-transform:uppercase">A line about right now (optional)</div>
+        <div style="margin-top:8px;font-size:14px;color:var(--gray-600)">Here till 6pm · happy to split a taxi to the venue</div>
+      </div>
+      <div class="card row-between" style="margin-bottom:24px">
+        <div>
+          <div style="font-weight:600">Show my profile photo</div>
+          <div style="font-size:13px;color:var(--gray-500);margin-top:4px">Off by default</div>
+        </div>
+        <div class="switch" aria-hidden="true"></div>
+      </div>
+
+      <h2 class="section-title">Quick lines</h2>
+      <p class="section-sub">Tap to open the composer — edit before you post.</p>
+      <div class="h-scroll">
+        <div class="ice-card">On a layover here — anyone up for coffee near the gate? Public spot only.</div>
+        <div class="ice-card">Bored at the airport for a few hours. Down to walk and chat if you’re here too.</div>
+        <div class="ice-card">On campus today — looking for a chill study break or coffee between classes.</div>
+      </div>
+
+      <div class="lobby-head">
+        <h2 class="section-title" style="margin:0">Open in your area</h2>
+        <span class="refresh">Refresh</span>
+      </div>
+      <div class="lobby-card">
+        <div class="avatar" style="display:flex;align-items:center;justify-content:center;background:var(--forest-50);font-weight:700;color:var(--forest-800);font-size:18px;border:none">F</div>
+        <div class="lobby-meta">
+          <div class="name">Friend·A3F2</div>
+          <div class="sub" style="color:var(--gray-600);font-size:12px;margin-top:4px">Long layover — anyone for tea inside the terminal?</div>
+          <div class="sub">Travel / transit · 🍽️ Grab food</div>
+          <div class="time">~42 min left</div>
+        </div>
+        <button type="button" class="btn-hi">💬 Hi</button>
+      </div>
+      <div class="lobby-card">
+        <div class="avatar" style="display:flex;align-items:center;justify-content:center;background:var(--forest-50);font-weight:700;color:var(--forest-800);font-size:18px;border:none">夜</div>
+        <div class="lobby-meta">
+          <div class="name">NightOwl</div>
+          <div class="sub">Study / campus · 📚 Study / work</div>
+          <div class="time">~28 min left</div>
+        </div>
+        <button type="button" class="btn-hi">💬 Hi</button>
+      </div>
+
+      <div class="card">
+        <div class="row-between">
+          <div>
+            <div style="font-weight:700;font-size:17px">I’m open right now</div>
+            <div style="font-size:13px;color:var(--gray-500);margin-top:4px">Turn on when you want others to see you’re around.</div>
+          </div>
+          <div class="switch on" aria-label="toggle"></div>
+        </div>
+      </div>
+
+      <div class="label">Where are you?</div>
+      <div class="chips">
+        <span class="chip">Student / campus</span>
+        <span class="chip on-f">Travel / airport</span>
+        <span class="chip">Convention / event</span>
+        <span class="chip">City / nightlife</span>
+        <span class="chip">Same city, online first</span>
+        <span class="chip">General</span>
+      </div>
+
+      <div class="label">Vibe</div>
+      <div class="chips">
+        <span class="chip">💬 Light chat</span>
+        <span class="chip on-t">🍽️ Grab food</span>
+        <span class="chip">🚶 Walk / explore</span>
+        <span class="chip">📚 Study / work</span>
+      </div>
+
+      <div class="label">How long?</div>
+      <div class="dur-row">
+        <div class="dur">30 min</div>
+        <div class="dur on">1 hour</div>
+        <div class="dur">90 min</div>
+      </div>
+
+      <button type="button" class="cta">✨ Post to find people nearby</button>
+      <p class="web-note">Open the mobile app for the full experience.</p>
+    </div>
+  </div>
+</body>
+</html>

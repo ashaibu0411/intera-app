@@ -361,7 +361,7 @@ export default function MyAppointmentsScreen() {
           ))}
         </Animated.View>
 
-        {/* Stats */}
+        {/* Stats - use same logic as filtered list for consistency */}
         <Animated.View
           entering={FadeInUp.duration(400).delay(150)}
           className="mx-4 mb-4"
@@ -369,7 +369,12 @@ export default function MyAppointmentsScreen() {
           <View className="bg-white rounded-xl p-4 shadow-sm flex-row">
             <View className="flex-1 items-center">
               <Text className="text-2xl font-bold text-terracotta-500">
-                {allAppointments.filter((a) => a.status === 'confirmed' || a.status === 'pending').length}
+                {allAppointments.filter((a) => {
+                  const aptDate = new Date(a.date);
+                  const today = new Date();
+                  today.setHours(0, 0, 0, 0);
+                  return aptDate >= today && a.status !== 'cancelled' && a.status !== 'completed';
+                }).length}
               </Text>
               <Text className="text-gray-500 text-xs mt-1">Upcoming</Text>
             </View>

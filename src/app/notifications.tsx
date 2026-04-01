@@ -2,7 +2,7 @@ import React, { useMemo, useEffect, useState, useCallback } from 'react';
 import { View, Text, ScrollView, Pressable, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
-import { Bell, Heart, MessageCircle, Calendar, AlertTriangle, Check, ArrowLeft, ShoppingBag } from 'lucide-react-native';
+import { Bell, Heart, MessageCircle, Calendar, AlertTriangle, Check, ArrowLeft, ShoppingBag, Sparkles } from 'lucide-react-native';
 import Animated, { FadeIn, FadeInUp, FadeInRight } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { formatDistanceToNow } from 'date-fns';
@@ -12,7 +12,7 @@ import { supabase, type DbNotification } from '@/lib/supabase';
 import { useStore } from '@/lib/store';
 import { useUnreadNotifications } from '@/lib/useUnreadNotifications';
 
-type NotificationFilter = 'all' | 'neighborhood' | 'activity' | 'alerts';
+type NotificationFilter = 'all' | 'connect' | 'neighborhood' | 'activity' | 'alerts';
 
 type UiNotification = {
   id: string;
@@ -27,6 +27,7 @@ type UiNotification = {
 
 const FILTERS: { id: NotificationFilter; label: string }[] = [
   { id: 'all', label: 'All' },
+  { id: 'connect', label: 'Open to connect' },
   { id: 'neighborhood', label: 'Neighborhood' },
   { id: 'activity', label: 'My Activity' },
   { id: 'alerts', label: 'Alerts' },
@@ -41,6 +42,7 @@ function NotificationIcon({ type }: { type: string }) {
   if (t.includes('inventory')) return <ShoppingBag size={16} color="#C9A227" />;
   if (t.includes('order')) return <ShoppingBag size={16} color="#1B4D3E" />;
   if (t.includes('alert')) return <AlertTriangle size={16} color="#EF4444" />;
+  if (t.includes('connect_post')) return <Sparkles size={16} color="#7C3AED" />;
   return <Bell size={16} color="#8B7355" />;
 }
 
@@ -56,7 +58,12 @@ function NotificationItem({ notification, index, onRead }: { notification: UiNot
     const type = String(data?.type || notification.type || '');
 
     if (type === 'event' && data?.eventId) return router.push(`/event/${String(data.eventId)}` as any);
-    if ((type === 'post' || type === 'new_post') && data?.postId) return router.push(`/post/${String(data.postId)}` as any);
+    if (
+      (type === 'post' || type === 'new_post' || type === 'connect_post') &&
+      data?.postId
+    ) {
+      return router.push(`/post/${String(data.postId)}` as any);
+    }
     if (type === 'inventory_update' && data?.businessId) return router.push(`/business/${String(data.businessId)}` as any);
     if (type === 'business_order') {
       const role = String(data?.role || '');
@@ -82,6 +89,15 @@ function NotificationItem({ notification, index, onRead }: { notification: UiNot
     }
     if (type === 'voice_room_live' && data?.roomId) {
       return router.push(`/voice-room/${String(data.roomId)}` as any);
+    }
+    if (type === 'new_appointment' && data?.businessId) {
+      return router.push({
+        pathname: '/business-appointments',
+        params: { businessId: String(data.businessId), businessName: String(data.businessName || 'Appointments') },
+      } as any);
+    }
+    if (type === 'appointment_reminder' && data?.appointmentId) {
+      return router.push('/my-appointments' as any);
     }
 
     return router.push('/(tabs)/community' as any);
@@ -153,7 +169,7 @@ export default function NotificationsScreen() {
     setLoading(true);
     const { data, error } = await supabase
       .from('notifications')
-      .select('id, type, title, body, data, created_at, read_at')
+      .select('id, type, title, body, data, created_at, read_at, actor_id')
       .eq('recipient_id', currentUser.id)
       .order('created_at', { ascending: false })
       .limit(100);
@@ -165,7 +181,18 @@ export default function NotificationsScreen() {
       return;
     }
 
-    const mapped: UiNotification[] = (data || []).map((n: any) => ({
+    const rows = data || [];
+    const actorIds = [...new Set(rows.map((n: { actor_id?: string }) => n.actor_id).filter(Boolean))] as string[];
+    let avatarByActor: Record<string, string | null> = {};
+    if (actorIds.length > 0) {
+      const { data: profs } = await supabase
+        .from('profiles')
+        .select('id, avatar_url')
+        .in('id', actorIds);
+      avatarByActor = Object.fromEntries((profs || []).map((p: { id: string; avatar_url: string | null }) => [p.id, p.avatar_url]));
+    }
+
+    const mapped: UiNotification[] = rows.map((n: any) => ({
       id: n.id,
       type: n.type,
       title: n.title,
@@ -173,7 +200,7 @@ export default function NotificationsScreen() {
       timestamp: n.created_at,
       read: !!n.read_at,
       data: n.data || {},
-      avatar: null,
+      avatar: n.actor_id ? avatarByActor[n.actor_id] ?? null : null,
     }));
     setNotifications(mapped);
     setLoading(false);
@@ -183,21 +210,17 @@ export default function NotificationsScreen() {
     loadNotifications();
   }, [loadNotifications]);
 
-  // Auto-mark all as read when user opens notifications (clears badge)
-  useFocusEffect(
-    useCallback(() => {
-      if (currentUser?.id && !isGuest) {
-        markAllRead();
-      }
-    }, [currentUser?.id, isGuest])
-  );
-
   useEffect(() => {
     if (isGuest || !currentUser?.id) return;
     const channel = supabase.channel(`notifications:${currentUser.id}`);
     channel.on(
       'postgres_changes',
       { event: 'INSERT', schema: 'public', table: 'notifications', filter: `recipient_id=eq.${currentUser.id}` },
+      () => loadNotifications()
+    );
+    channel.on(
+      'postgres_changes',
+      { event: 'UPDATE', schema: 'public', table: 'notifications', filter: `recipient_id=eq.${currentUser.id}` },
       () => loadNotifications()
     );
     channel.subscribe();
@@ -241,14 +264,31 @@ export default function NotificationsScreen() {
     await refetchUnreadCount(); // Update badge count immediately
   };
 
-  const filteredNotifications = useMemo(() => notifications.filter((n) => {
-    if (activeFilter === 'all') return true;
-    const t = String(n.type || '');
-    if (activeFilter === 'neighborhood') return t.includes('event') || t.includes('new_post') || t.includes('inventory');
-    if (activeFilter === 'activity') return t.includes('like') || t.includes('comment') || t.includes('message');
-    if (activeFilter === 'alerts') return t.includes('alert') || t.includes('order');
-    return true;
-  }), [notifications, activeFilter]);
+  const filteredNotifications = useMemo(
+    () =>
+      notifications.filter((n) => {
+        if (activeFilter === 'all') return true;
+        const t = String(n.type || '');
+        const d = n.data || {};
+        if (activeFilter === 'connect') {
+          return t === 'connect_post' || d.connectPost === true;
+        }
+        if (activeFilter === 'neighborhood') {
+          return (
+            t.includes('event') ||
+            t.includes('new_post') ||
+            t.includes('connect_post') ||
+            t.includes('inventory')
+          );
+        }
+        if (activeFilter === 'activity') {
+          return t.includes('like') || t.includes('comment') || t.includes('message');
+        }
+        if (activeFilter === 'alerts') return t.includes('alert') || t.includes('order');
+        return true;
+      }),
+    [notifications, activeFilter]
+  );
 
   const unreadCount = useMemo(() => notifications.filter((n) => !n.read).length, [notifications]);
 

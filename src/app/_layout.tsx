@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useEffect, useState, useRef } from 'react';
 import { AppState, AppStateStatus, View } from 'react-native';
+import * as Notifications from 'expo-notifications';
 import { addNotificationResponseListener, requestNotificationPermissions } from '@/lib/notifications';
 import { syncPushTokenFromStore } from '@/lib/pushTokens';
 import { useMessageNotifications } from '@/lib/useMessageNotifications';
@@ -14,6 +15,7 @@ import { useStore } from '@/lib/store';
 import { markUserOnline, markUserOffline } from '@/lib/onlineStatus';
 import { clearInvalidSession } from '@/lib/supabase';
 import { FloatingAskIntera } from '@/components/FloatingAskIntera';
+import { StripeProvider } from '@stripe/stripe-react-native';
 
 export const unstable_settings = {
   initialRouteName: '(tabs)',
@@ -43,6 +45,8 @@ function RootLayoutNav() {
   const currentUser = useStore((s) => s.currentUser);
   const selectedLocation = useStore((s) => s.selectedLocation);
   const notificationsEnabled = useStore((s) => s.notificationsEnabled);
+  const notifyGeneralPostPushes = useStore((s) => s.notifyGeneralPostPushes);
+  const notifyConnectNearbyPushes = useStore((s) => s.notifyConnectNearbyPushes);
   const darkMode = useStore((s) => s.darkMode);
   const [isHydrated, setIsHydrated] = useState(false);
   const segments = useSegments();
@@ -55,80 +59,78 @@ function RootLayoutNav() {
     clearInvalidSession();
   }, []);
 
-  // Handle notification taps (deep-links)
+  // Handle notification taps (deep-links) - both live taps and cold start
   useEffect(() => {
+    const navigateFromNotification = (data: Record<string, unknown>) => {
+      const type = String(data?.type || '');
+      if (type === 'event' && data?.eventId) {
+        router.push(`/event/${String(data.eventId)}` as any);
+        return;
+      }
+      if (type === 'post' || type === 'new_post' || type === 'connect_post') {
+        if (data?.postId) router.push(`/post/${String(data.postId)}` as any);
+        return;
+      }
+      if (type === 'connection_request') {
+        router.push('/connect' as any);
+        return;
+      }
+      if (type === 'talk_request' && data?.requesterId) {
+        router.push({ pathname: `/chat/${String(data.requesterId)}` as any, params: { recipientId: String(data.requesterId), talkSessionId: data?.talkSessionId ? String(data.talkSessionId) : undefined } });
+        return;
+      }
+      if (type === 'inventory_update' && data?.businessId) {
+        router.push(`/business/${String(data.businessId)}` as any);
+        return;
+      }
+      if (type === 'business_order') {
+        const role = String(data?.role || '');
+        router.push((role === 'owner' ? '/business-orders' : '/my-orders') as any);
+        return;
+      }
+      if (type === 'new_message') {
+        const conversationId = data?.conversationId ? String(data.conversationId) : '';
+        const senderId = data?.senderId ? String(data.senderId) : '';
+        if (conversationId) {
+          router.push({ pathname: `/chat/${conversationId}` as any, params: { recipientId: senderId || undefined } });
+        } else {
+          router.push('/messages' as any);
+        }
+        return;
+      }
+      if (type === 'voice_room_live' && data?.roomId) {
+        router.push(`/voice-room/${String(data.roomId)}` as any);
+        return;
+      }
+      if (type === 'new_appointment' && data?.businessId) {
+        router.push({ pathname: '/business-appointments', params: { businessId: String(data.businessId), businessName: String(data.businessName || 'Appointments') } } as any);
+        return;
+      }
+      if (type === 'appointment_reminder' && data?.appointmentId) {
+        router.push('/my-appointments' as any);
+        return;
+      }
+    };
+
     const sub = addNotificationResponseListener((response) => {
       try {
         const data: any = response?.notification?.request?.content?.data || {};
-        const type = String(data?.type || '');
-        if (type === 'event' && data?.eventId) {
-          router.push(`/event/${String(data.eventId)}` as any);
-          return;
-        }
-        if (type === 'post' && data?.postId) {
-          router.push(`/post/${String(data.postId)}` as any);
-          return;
-        }
-        if (type === 'new_post' && data?.postId) {
-          router.push(`/post/${String(data.postId)}` as any);
-          return;
-        }
-        if (type === 'connection_request') {
-          router.push('/connect' as any);
-          return;
-        }
-        if (type === 'talk_request' && data?.requesterId) {
-          router.push({
-            pathname: `/chat/${String(data.requesterId)}` as any,
-            params: {
-              recipientId: String(data.requesterId),
-              talkSessionId: data?.talkSessionId ? String(data.talkSessionId) : undefined,
-            },
-          });
-          return;
-        }
-        if (type === 'inventory_update' && data?.businessId) {
-          router.push(`/business/${String(data.businessId)}` as any);
-          return;
-        }
-        if (type === 'business_order') {
-          const role = String(data?.role || '');
-          if (role === 'owner') {
-            router.push('/business-orders' as any);
-            return;
-          }
-          router.push('/my-orders' as any);
-          return;
-        }
-        if (type === 'new_message') {
-          // Prefer opening the conversation if we have it; otherwise open inbox.
-          const conversationId = data?.conversationId ? String(data.conversationId) : '';
-          const senderId = data?.senderId ? String(data.senderId) : '';
-          if (conversationId) {
-            router.push({
-              pathname: `/chat/${conversationId}` as any,
-              params: {
-                recipientId: senderId || undefined,
-              },
-            });
-            return;
-          }
-          router.push('/messages' as any);
-          return;
-        }
-        if (type === 'voice_room_live' && data?.roomId) {
-          router.push(`/voice-room/${String(data.roomId)}` as any);
-          return;
-        }
-        if (type === 'new_appointment' && data?.businessId) {
-          router.push({
-            pathname: '/business-appointments',
-            params: { businessId: String(data.businessId), businessName: String(data.businessName || 'Appointments') },
-          } as any);
-          return;
-        }
+        navigateFromNotification(data);
       } catch {}
     });
+
+    // Cold start: when app launches from a notification tap, the listener may not fire; check last response
+    const handleColdStart = async () => {
+      await new Promise((r) => setTimeout(r, 800));
+      try {
+        const lastResponse = await Notifications.getLastNotificationResponseAsync();
+        if (lastResponse?.notification?.request?.content?.data) {
+          navigateFromNotification(lastResponse.notification.request.content.data as Record<string, unknown>);
+        }
+      } catch {}
+    };
+    handleColdStart();
+
     return () => {
       sub.remove();
     };
@@ -139,7 +141,15 @@ function RootLayoutNav() {
     if (!isHydrated) return;
     // Do not block UI
     syncPushTokenFromStore().catch(() => {});
-  }, [isHydrated, currentUser?.id, selectedLocation?.city, selectedLocation?.neighborhood, notificationsEnabled]);
+  }, [
+    isHydrated,
+    currentUser?.id,
+    selectedLocation?.city,
+    selectedLocation?.neighborhood,
+    notificationsEnabled,
+    notifyGeneralPostPushes,
+    notifyConnectNearbyPushes,
+  ]);
 
   // Track online status based on app state
   useEffect(() => {
@@ -258,7 +268,9 @@ function RootLayoutNav() {
         <Stack.Screen name="create-listing" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="register-business" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="create-faith-event" options={{ animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="create-group" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="serve-connect" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="open-connect" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="register-talent" options={{ animation: 'slide_from_bottom' }} />
         <Stack.Screen name="trusted-providers" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="register-provider" options={{ animation: 'slide_from_bottom' }} />
@@ -349,8 +361,11 @@ function StatusBarTheme() {
   return <StatusBar style={darkMode ? 'light' : 'dark'} />;
 }
 
+const STRIPE_PUBLISHABLE_KEY = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? '';
+const STRIPE_MERCHANT_ID = process.env.EXPO_PUBLIC_STRIPE_MERCHANT_IDENTIFIER;
+
 export default function RootLayout() {
-  return (
+  const tree = (
     <QueryClientProvider client={queryClient}>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <StatusBarTheme />
@@ -358,4 +373,18 @@ export default function RootLayout() {
       </GestureHandlerRootView>
     </QueryClientProvider>
   );
+
+  if (STRIPE_PUBLISHABLE_KEY.startsWith('pk_')) {
+    return (
+      <StripeProvider
+        publishableKey={STRIPE_PUBLISHABLE_KEY}
+        urlScheme="vibecode"
+        merchantIdentifier={STRIPE_MERCHANT_ID || undefined}
+      >
+        {tree}
+      </StripeProvider>
+    );
+  }
+
+  return tree;
 }

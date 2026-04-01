@@ -56,6 +56,10 @@ export async function syncPushToken(params: {
   neighborhood?: string | null;
   country?: string | null;
   adminArea?: string | null;
+  /** Stored for send-push-alert — Open to connect / Nearby posts */
+  notifyConnectPosts?: boolean;
+  /** Stored for send-push-alert — general new_post in your area */
+  notifyGeneralPosts?: boolean;
 }) {
   const token = await getExpoPushToken();
   if (!token) return;
@@ -64,24 +68,42 @@ export async function syncPushToken(params: {
   const neighborhood = params.neighborhood != null ? String(params.neighborhood).trim() : null;
   const country = params.country != null ? String(params.country).trim() : null;
   const adminArea = params.adminArea != null ? String(params.adminArea).trim() : null;
+  const notifyConnect =
+    params.notifyConnectPosts !== undefined ? !!params.notifyConnectPosts : true;
+  const notifyGeneral =
+    params.notifyGeneralPosts !== undefined ? !!params.notifyGeneralPosts : true;
 
   const deviceId = `${Device.modelId || 'unknown'}:${Device.osInternalBuildId || Device.osBuildId || '0'}`;
-  const { error } = await supabase
-    .from('push_tokens')
-    .upsert(
-      {
-        user_id: params.userId,
-        token,
-        platform: Platform.OS,
-        device_id: deviceId,
-        enabled: params.enabled,
-        city,
-        neighborhood,
-        country,
-        admin_area: adminArea,
-      },
-      { onConflict: 'token' }
-    );
+  const row = {
+    user_id: params.userId,
+    token,
+    platform: Platform.OS,
+    device_id: deviceId,
+    enabled: params.enabled,
+    city,
+    neighborhood,
+    country,
+    admin_area: adminArea,
+    notify_connect_posts: notifyConnect,
+    notify_general_posts: notifyGeneral,
+  };
+
+  let { error } = await supabase.from('push_tokens').upsert(row, { onConflict: 'token' });
+
+  // Older DBs: retry without preference columns
+  if (
+    error &&
+    (String(error.message || '').includes('notify_connect_posts') ||
+      String(error.message || '').includes('notify_general_posts') ||
+      String((error as any).code || '') === 'PGRST204')
+  ) {
+    const { notify_connect_posts: _c, notify_general_posts: _g, ...legacy } = row as Record<
+      string,
+      unknown
+    >;
+    const retry = await supabase.from('push_tokens').upsert(legacy, { onConflict: 'token' });
+    error = retry.error;
+  }
 
   if (error) {
     const msg = String(error.message || '');
@@ -109,13 +131,16 @@ export async function syncPushTokenFromStore() {
   if (!userId) return;
 
   const loc = s.selectedLocation;
+  const master = !!s.notificationsEnabled;
   await syncPushToken({
     userId,
-    enabled: !!s.notificationsEnabled,
+    enabled: master,
     city: loc?.city ?? null,
     neighborhood: loc?.neighborhood ?? null,
     country: loc?.country ?? null,
     adminArea: loc?.state ?? null,
+    notifyConnectPosts: master && !!s.notifyConnectNearbyPushes,
+    notifyGeneralPosts: master && !!s.notifyGeneralPostPushes,
   });
 }
 

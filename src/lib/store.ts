@@ -128,6 +128,8 @@ export interface Post {
   createdAt: string;
   isLiked: boolean;
   location: string;
+  /** True when posted from Open to connect / Nearby intent flow */
+  connectPost?: boolean;
 }
 
 export interface Community {
@@ -600,6 +602,10 @@ interface AppState {
 
   // Settings
   notificationsEnabled: boolean;
+  /** Area pushes for normal community posts (new_post) — requires notificationsEnabled */
+  notifyGeneralPostPushes: boolean;
+  /** Area pushes when someone posts from Open to connect / Nearby — requires notificationsEnabled */
+  notifyConnectNearbyPushes: boolean;
   darkMode: boolean;
 
   // Notifications inbox (in-app)
@@ -681,6 +687,8 @@ interface AppState {
   deleteLifeEvent: (eventId: string) => void;
   setEventRsvp: (eventId: string, status: 'interested' | 'going' | null) => void;
   setNotificationsEnabled: (enabled: boolean) => void;
+  setNotifyGeneralPostPushes: (enabled: boolean) => void;
+  setNotifyConnectNearbyPushes: (enabled: boolean) => void;
   setDarkMode: (enabled: boolean) => void;
   setLocationDetectionDismissed: (dismissed: boolean) => void;
   setLastDetectedCity: (city: string | null) => void;
@@ -770,6 +778,8 @@ export const useStore = create<AppState>()(
       businessBookingSettings: [] as BusinessBookingSettings[],
       inAppSalesCount: 0,
       notificationsEnabled: true,
+      notifyGeneralPostPushes: true,
+      notifyConnectNearbyPushes: true,
       darkMode: false,
       notifications: INITIAL_NOTIFICATIONS as Notification[],
       addNotification: (notification) => set((state) => ({
@@ -1102,6 +1112,8 @@ export const useStore = create<AppState>()(
         return { eventRsvps: [...state.eventRsvps, { eventId, status }] };
       }),
       setNotificationsEnabled: (enabled: boolean) => set({ notificationsEnabled: enabled }),
+      setNotifyGeneralPostPushes: (enabled: boolean) => set({ notifyGeneralPostPushes: enabled }),
+      setNotifyConnectNearbyPushes: (enabled: boolean) => set({ notifyConnectNearbyPushes: enabled }),
       setDarkMode: (enabled: boolean) => set({ darkMode: enabled }),
       setLocationDetectionDismissed: (dismissed: boolean) => set({ locationDetectionDismissed: dismissed }),
       setLastDetectedCity: (city: string | null) => set({ lastDetectedCity: city }),
@@ -1451,6 +1463,8 @@ export const useStore = create<AppState>()(
         userListings: state.userListings,
         eventRsvps: state.eventRsvps,
         notificationsEnabled: state.notificationsEnabled,
+        notifyGeneralPostPushes: state.notifyGeneralPostPushes,
+        notifyConnectNearbyPushes: state.notifyConnectNearbyPushes,
         darkMode: state.darkMode,
         neighborProfile: state.neighborProfile,
         connectedNeighbors: state.connectedNeighbors,

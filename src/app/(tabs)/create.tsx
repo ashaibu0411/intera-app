@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, TextInput, ScrollView, Pressable, KeyboardAvoidingView, Platform, Modal, Switch, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
@@ -36,19 +36,45 @@ import { sendRemotePushAlert } from '@/lib/pushAlerts';
 import { aiPostCopilot } from '@/lib/aiPostCopilot';
 import { aiModerateContent } from '@/lib/aiModerateContent';
 import { moderateText } from '@/lib/contentModeration';
+import {
+  POST_INTENT_CHIPS,
+  STARTER_PROMPTS_FOR_POSTS,
+  CONNECT_ICEBREAKERS,
+  getPostingAudienceLabel,
+  applyIntentPrefix,
+  type PostIntentId,
+} from '@/lib/socialConnectHelpers';
 
 type CreateMode = 'select' | 'post' | 'sell' | 'event';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
+function normParam(v: string | string[] | undefined): string | undefined {
+  if (Array.isArray(v)) return v[0];
+  return v;
+}
+
 export default function CreateScreen() {
-  const { returnTo } = useLocalSearchParams<{ returnTo?: string }>();
+  const params = useLocalSearchParams<{
+    returnTo?: string | string[];
+    openPost?: string | string[];
+    preIntent?: string | string[];
+    icebreakerId?: string | string[];
+  }>();
+  const returnTo = normParam(params.returnTo);
+  const openPost = normParam(params.openPost);
+  const preIntent = normParam(params.preIntent);
+  const icebreakerId = normParam(params.icebreakerId);
   const [mode, setMode] = useState<CreateMode>('select');
   const [postAsBusinessId, setPostAsBusinessId] = useState<string | null>(null);
   const currentUser = useStore((s) => s.currentUser);
   const isGuest = useStore((s) => s.isGuest);
   const currentCommunity = useStore((s) => s.currentCommunity);
   const userBusinesses = useStore((s) => s.userBusinesses);
+
+  useEffect(() => {
+    if (openPost === '1') setMode('post');
+  }, [openPost]);
 
   const displayCommunity = currentCommunity ?? MOCK_COMMUNITIES[0];
 
@@ -124,6 +150,9 @@ export default function CreateScreen() {
         onBack={handleBack}
         business={business || null}
         returnTo={returnTo}
+        preIntentFromDeepLink={preIntent}
+        icebreakerIdFromParams={icebreakerId}
+        fromOpenConnectFlow={openPost === '1'}
       />
     );
   }
@@ -305,12 +334,18 @@ function CreatePostForm({
   onBack,
   business,
   returnTo,
+  preIntentFromDeepLink,
+  icebreakerIdFromParams,
+  fromOpenConnectFlow,
 }: {
   user: any;
   community: any;
   onBack: () => void;
   business: any | null;
   returnTo?: string;
+  preIntentFromDeepLink?: string;
+  icebreakerIdFromParams?: string;
+  fromOpenConnectFlow?: boolean;
 }) {
   const [content, setContent] = useState('');
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
@@ -318,8 +353,39 @@ function CreatePostForm({
   const [sendPushToArea, setSendPushToArea] = useState(false);
   const [aiBusy, setAiBusy] = useState(false);
   const [aiNotes, setAiNotes] = useState<string[]>([]);
+  const [postIntent, setPostIntent] = useState<PostIntentId | null>(null);
   const buttonScale = useSharedValue(1);
   const addPost = useStore((s) => s.addPost);
+  const feedFilter = useStore((s) => s.feedFilter);
+  const selectedLocation = useStore((s) => s.selectedLocation);
+
+  const audienceLabel = useMemo(
+    () =>
+      getPostingAudienceLabel(
+        feedFilter as 'global' | 'city' | 'neighborhood',
+        selectedLocation,
+        community?.city || 'your area'
+      ),
+    [feedFilter, selectedLocation, community?.city]
+  );
+
+  useEffect(() => {
+    if (
+      preIntentFromDeepLink &&
+      POST_INTENT_CHIPS.some((c) => c.id === preIntentFromDeepLink)
+    ) {
+      setPostIntent(preIntentFromDeepLink as PostIntentId);
+    }
+  }, [preIntentFromDeepLink]);
+
+  useEffect(() => {
+    if (!icebreakerIdFromParams) return;
+    const line = CONNECT_ICEBREAKERS.find((b) => b.id === icebreakerIdFromParams);
+    if (line) {
+      setPostIntent('nearby');
+      setContent(line.text);
+    }
+  }, [icebreakerIdFromParams]);
 
   const runCopilot = async (mode: 'rewrite' | 'shorten' | 'expand') => {
     if (!content.trim() || aiBusy) return;
@@ -418,8 +484,10 @@ function CreatePostForm({
     // Allow posting if there's content, video, or images
     if (!content.trim() && !selectedVideo && selectedImages.length === 0) return;
 
+    const bodyText = applyIntentPrefix(postIntent, content.trim());
     const formattedContent =
-      business?.name ? `🏪 ${business.name}\n\n${content.trim()}` : content.trim();
+      business?.name ? `🏪 ${business.name}\n\n${bodyText}` : bodyText;
+    const markConnectPost = postIntent === 'nearby' || !!fromOpenConnectFlow;
 
     // Moderation gate (local fast filter + AI check) - only if there's text content
     if (formattedContent.trim()) {
@@ -504,13 +572,32 @@ function CreatePostForm({
     try {
       const communityIdForDb =
         typeof community?.id === 'string' && community.id !== 'custom' ? community.id : undefined;
+      const markConnectPost =
+        postIntent === 'nearby' || !!fromOpenConnectFlow;
+
+      const connectNotifyAudience =
+        feedFilter === 'global'
+          ? 'global'
+          : feedFilter === 'neighborhood' && neighborhood
+            ? 'neighborhood'
+            : 'city';
+
       const dbPost = await createDbPost(
         user.id,
         formattedContent,
         uploadedImageUrls,
         postLocationLabel,
         communityIdForDb,
-        uploadedVideoUrl
+        uploadedVideoUrl,
+        markConnectPost
+          ? {
+              connectPost: true,
+              notifyAudience: connectNotifyAudience,
+              pushCity: city || null,
+              pushNeighborhood: neighborhood || null,
+              pushCountry: country || null,
+            }
+          : undefined
       );
       if (dbPost?.id) {
         postId = dbPost.id;
@@ -543,6 +630,7 @@ function CreatePostForm({
         createdAt: new Date().toISOString(),
         isLiked: false,
         location: postLocationLabel,
+        connectPost: markConnectPost || undefined,
       };
 
       addPost(newPost);
@@ -626,6 +714,60 @@ function CreatePostForm({
                   <Text className="text-sm text-gray-500 ml-1">{community.city}</Text>
                 </View>
               </View>
+            </View>
+
+            <View className="px-5 pb-3">
+              <Text className="text-xs text-gray-500 uppercase tracking-wide">Posting to</Text>
+              <Text className="text-warmBrown font-semibold mt-1">{audienceLabel}</Text>
+            </View>
+
+            <View className="px-5 pb-3">
+              <Text className="text-xs text-gray-500 uppercase tracking-wide mb-2">What kind of post?</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                <Pressable
+                  onPress={() => {
+                    Haptics.selectionAsync();
+                    setPostIntent(null);
+                  }}
+                  className={`px-4 py-2 rounded-full border ${postIntent === null ? 'bg-forest-600 border-forest-600' : 'bg-white border-gray-200'}`}
+                >
+                  <Text className={postIntent === null ? 'text-white font-semibold' : 'text-gray-600'}>None</Text>
+                </Pressable>
+                {POST_INTENT_CHIPS.map((chip) => (
+                  <Pressable
+                    key={chip.id}
+                    onPress={() => {
+                      Haptics.selectionAsync();
+                      setPostIntent(chip.id);
+                    }}
+                    className={`px-4 py-2 rounded-full border ${
+                      postIntent === chip.id ? 'bg-forest-600 border-forest-600' : 'bg-white border-gray-200'
+                    }`}
+                  >
+                    <Text className={postIntent === chip.id ? 'text-white font-semibold' : 'text-gray-600'}>
+                      {chip.label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </View>
+
+            <View className="px-5 pb-3">
+              <Text className="text-xs text-gray-500 uppercase tracking-wide mb-2">Starter ideas (tap to add)</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 8 }}>
+                {STARTER_PROMPTS_FOR_POSTS.map((prompt, idx) => (
+                  <Pressable
+                    key={idx}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setContent((prev) => (prev.trim() ? `${prev.trim()}\n\n${prompt}` : prompt));
+                    }}
+                    className="max-w-[280px] bg-amber-50 border border-amber-200 rounded-2xl px-3 py-2"
+                  >
+                    <Text className="text-amber-900 text-sm leading-5">{prompt}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
             </View>
 
             <View className="px-5 pb-2">

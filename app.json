@@ -9,7 +9,7 @@
       "resizeMode": "contain",
       "backgroundColor": "#FFFFFF"
     },
-    "version": "2.0.6",
+    "version": "2.0.8",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": false,
@@ -33,13 +33,13 @@
           "audio"
         ]
       },
-      "buildNumber": "50"
+      "buildNumber": "62"
     },
     "android": {
       "label": "Intera: Community App",
       "package": "com.vibecode.intera",
       "googleServicesFile": "./google-services.json",
-      "versionCode": 53,
+      "versionCode": 66,
       "splash": {
         "image": "./assets/icon.png",
         "resizeMode": "contain",
@@ -90,6 +90,14 @@
       ]
     },
     "plugins": [
+      "expo-updates",
+      [
+        "@stripe/stripe-react-native",
+        {
+          "merchantIdentifier": "merchant.com.vibecode.intera",
+          "enableGooglePay": true
+        }
+      ],
       "expo-router",
       "expo-apple-authentication",
       "./plugins/withLivekitWebrtcPod",
@@ -102,7 +110,8 @@
             "minSdkVersion": 24,
             "buildToolsVersion": "35.0.0",
             "kotlinVersion": "2.0.21",
-            "ndkVersion": "27.2.12479018"
+            "ndkVersion": "28.0.13004108",
+            "useLegacyPackaging": false
           },
           "ios": {
             "deploymentTarget": "15.1"
@@ -129,8 +138,8 @@
       "policy": "appVersion"
     },
     "updates": {
-      "enabled": false,
-      "checkAutomatically": "NEVER",
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD",
       "fallbackToCacheTimeout": 0,
       "url": "https://u.expo.dev/090ff57c-7051-4df7-b53e-60eaa2cfe0f6"
     }

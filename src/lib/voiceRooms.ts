@@ -202,20 +202,34 @@ export async function upsertParticipant(input: {
   role: VoiceRole;
   isMuted?: boolean;
   handRaised?: boolean;
+  muteLocked?: boolean;
 }): Promise<void> {
+  // RLS requires user_id === auth.uid(). Never trust client profile id alone (can race ahead of JWT on Android).
+  const { data: authData } = await supabase.auth.getUser();
+  const authUid = authData?.user?.id ?? null;
+  if (!authUid) {
+    throw new Error('Sign in required to join this room.');
+  }
+  if (input.userId !== authUid) {
+    console.warn('[VoiceRooms] upsertParticipant userId != auth.uid(); using auth uid for RLS', {
+      inputUserId: input.userId,
+      authUid,
+    });
+  }
+  const payload: Record<string, unknown> = {
+    room_id: input.roomId,
+    user_id: authUid,
+    role: input.role,
+    is_muted: input.isMuted ?? false,
+    hand_raised: input.handRaised ?? false,
+    last_seen: new Date().toISOString(),
+  };
+  if (input.muteLocked !== undefined) {
+    (payload as any).mute_locked = !!input.muteLocked;
+  }
   const { error } = await supabase
     .from('voice_room_participants')
-    .upsert(
-      {
-        room_id: input.roomId,
-        user_id: input.userId,
-        role: input.role,
-        is_muted: input.isMuted ?? false,
-        hand_raised: input.handRaised ?? false,
-        last_seen: new Date().toISOString(),
-      },
-      { onConflict: 'room_id,user_id' }
-    );
+    .upsert(payload, { onConflict: 'room_id,user_id' });
   if (error) throw error;
 }
 
@@ -245,8 +259,8 @@ export async function raiseHand(roomId: string, userId: string, intent: HandRais
     .eq('room_id', roomId)
     .eq('user_id', userId);
   if (updateErr) {
-    // If participant row doesn't exist yet, create as listener (audience).
-    await upsertParticipant({ roomId, userId, role: 'listener', isMuted: true, handRaised: true });
+    // If participant row doesn't exist yet, create as listener (audience). Audience is muted and locked.
+    await upsertParticipant({ roomId, userId, role: 'listener', isMuted: true, handRaised: true, muteLocked: true });
   }
   const { error } = await supabase.from('voice_room_hand_raises').upsert(
     {
@@ -341,10 +355,21 @@ export async function unmuteParticipant(roomId: string, userId: string): Promise
   await setParticipantMuted(roomId, userId, false);
 }
 
-export async function demoteToListener(roomId: string, userId: string): Promise<void> {
+/** Unlock a participant so they can unmute themselves. Does not change is_muted. */
+export async function unlockParticipant(roomId: string, userId: string): Promise<void> {
   const { error } = await supabase
     .from('voice_room_participants')
-    .update({ role: 'listener' })
+    .update({ mute_locked: false, last_seen: new Date().toISOString() })
+    .eq('room_id', roomId)
+    .eq('user_id', userId);
+  if (error) throw error;
+}
+
+export async function demoteToListener(roomId: string, userId: string): Promise<void> {
+  // Audience is always muted and locked - cannot unmute themselves
+  const { error } = await supabase
+    .from('voice_room_participants')
+    .update({ role: 'listener', is_muted: true, mute_locked: true })
     .eq('room_id', roomId)
     .eq('user_id', userId);
   if (error) throw error;

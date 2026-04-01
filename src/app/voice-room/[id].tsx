@@ -4,7 +4,7 @@ import { Stack, useLocalSearchParams, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import * as Haptics from 'expo-haptics';
-import { Mic, MicOff, Gift, Crown, UserPlus, X, Users, Trash2, Square, ChevronDown, Volume2, VolumeX, UserMinus, MoreVertical, Pin, FileText, MessageSquare } from 'lucide-react-native';
+import { Mic, MicOff, Gift, Crown, UserPlus, X, Users, Trash2, Square, ChevronDown, Volume2, VolumeX, UserMinus, MoreVertical, Pin, FileText, MessageSquare, Unlock } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Audio } from 'expo-av';
 import { useStore } from '@/lib/store';
@@ -349,6 +349,7 @@ function SpeakerAvatar({
   isSpeakingNow,
   canModerate,
   onMute,
+  onUnlock,
   onDemote,
   onKick
 }: {
@@ -358,6 +359,7 @@ function SpeakerAvatar({
   isSpeakingNow?: boolean;
   canModerate: boolean;
   onMute?: () => void;
+  onUnlock?: () => void;
   onDemote?: () => void;
   onKick?: () => void;
 }) {
@@ -495,6 +497,16 @@ function SpeakerAvatar({
                 <Text className="text-warmBrown font-medium ml-3">{participant.is_muted ? 'Unmute' : 'Mute'}</Text>
               </Pressable>
 
+              {participant.is_muted && (participant as any)?.mute_locked && (
+                <Pressable
+                  onPress={() => { setShowActions(false); onUnlock?.(); }}
+                  className="flex-row items-center bg-white rounded-xl p-4 mb-2"
+                >
+                  <Unlock size={20} color="#1B4D3E" />
+                  <Text className="text-warmBrown font-medium ml-3">Unlock to allow self-unmute</Text>
+                </Pressable>
+              )}
+
               <Pressable
                 onPress={() => { setShowActions(false); onKick?.(); }}
                 className="flex-row items-center bg-red-50 rounded-xl p-4 mb-2"
@@ -572,21 +584,34 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
   const liveKitEnabled = isLiveKitAvailable();
   const hasRoomAudioRenderer = !!getLiveKitModule()?.RoomAudioRenderer;
 
-  // Prefer the authenticated user id for all RLS comparisons (more reliable than local profile state).
+  // Prefer JWT user id for RLS / LiveKit identity. Session can hydrate after Zustand on Android — wait before join.
   const [authUserId, setAuthUserId] = useState<string | null>(null);
+  const [authResolved, setAuthResolved] = useState(false);
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const { data } = await supabase.auth.getUser();
-        if (cancelled) return;
-        setAuthUserId(data?.user?.id ?? null);
-      } catch {
-        if (!cancelled) setAuthUserId(null);
-      }
-    })();
+    let mounted = true;
+    supabase.auth
+      .getSession()
+      .then(({ data: { session } }) => {
+        if (!mounted) return;
+        setAuthUserId(session?.user?.id ?? null);
+        setAuthResolved(true);
+      })
+      .catch(() => {
+        if (mounted) {
+          setAuthUserId(null);
+          setAuthResolved(true);
+        }
+      });
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!mounted) return;
+      setAuthUserId(session?.user?.id ?? null);
+      setAuthResolved(true);
+    });
     return () => {
-      cancelled = true;
+      mounted = false;
+      subscription.unsubscribe();
     };
   }, []);
 
@@ -647,15 +672,17 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
     if (!canSpeakEffective) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       if (muteLocked) {
-        Alert.alert('Muted by host', 'The host muted and locked you. You can’t unmute until the host unlocks you.');
+        Alert.alert('Muted', 'You can only unmute when the host unmutes you or unlocks you to unmute yourself.’');
       } else {
         // Clubhouse-style: audience can request to speak (host promotes to speaker).
-        const already = !!hands.find((h) => h.user_id === effectiveUserId);
+        const handUid = authUserId ?? effectiveUserId;
+        if (!handUid) return;
+        const already = !!hands.find((h) => h.user_id === handUid);
         try {
           if (already) {
-            await lowerHand(id, effectiveUserId);
+            await lowerHand(id, handUid);
           } else {
-            await raiseHand(id, effectiveUserId);
+            await raiseHand(id, handUid);
           }
         } catch (e: any) {
           Alert.alert('Could not update request', String(e?.message ?? e));
@@ -670,21 +697,21 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
       if (!ok) return;
     }
     setMicEnabled(next);
-    // Sync mute state to DB (best-effort)
-    if (id && effectiveUserId) {
+    // Sync mute state to DB (best-effort) — use JWT id so RLS matches Android/iOS reliably.
+    if (id && authUserId) {
       supabase
         .from('voice_room_participants')
         .update({ is_muted: !next, last_seen: new Date().toISOString() })
         .eq('room_id', id)
-        .eq('user_id', effectiveUserId)
+        .eq('user_id', authUserId)
         .then(() => null)
         .catch(() => null);
     }
-  }, [canSpeakEffective, effectiveUserId, ensureMicPermission, hands, id, micEnabled, muteLocked]);
+  }, [authUserId, canSpeakEffective, effectiveUserId, ensureMicPermission, hands, id, micEnabled, muteLocked]);
 
   // Auto-enable mic for hosts/speakers (best-effort, one time)
   useEffect(() => {
-    if (!id || !effectiveUserId) return;
+    if (!id || !authUserId) return;
     if (!liveKitEnabled) return;
     if (!isHost) return;
     if (micEnabled) return;
@@ -698,13 +725,13 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
         .from('voice_room_participants')
         .update({ is_muted: false, last_seen: new Date().toISOString() })
         .eq('room_id', id)
-        .eq('user_id', effectiveUserId);
+        .eq('user_id', authUserId);
     })().catch(() => null);
-  }, [effectiveUserId, ensureMicPermission, id, isHost, liveKitEnabled, micEnabled]);
+  }, [authUserId, ensureMicPermission, id, isHost, liveKitEnabled, micEnabled]);
 
   // Keep presence fresh (best-effort heartbeat)
   useEffect(() => {
-    if (!id || !effectiveUserId) return;
+    if (!id || !authUserId) return;
     let cancelled = false;
     const tick = async () => {
       if (cancelled) return;
@@ -714,7 +741,7 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
           .from('voice_room_participants')
           .update({ last_seen: new Date().toISOString(), is_muted: shouldMuted })
           .eq('room_id', id)
-          .eq('user_id', effectiveUserId);
+          .eq('user_id', authUserId);
       } catch {}
     };
     const t = setInterval(tick, 25000);
@@ -723,7 +750,7 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
       cancelled = true;
       clearInterval(t);
     };
-  }, [effectiveUserId, id, micEnabled]);
+  }, [authUserId, id, micEnabled]);
 
   // Load room data
   useEffect(() => {
@@ -884,6 +911,7 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
   useEffect(() => {
     if (!id || !room) return;
     if (room.status === 'ended') return;
+    if (!authResolved) return;
     let cancelled = false;
 
     const join = async () => {
@@ -891,13 +919,20 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
       setLkUrl(null);
       setLkToken(null);
 
-      if (!effectiveUserId) {
+      if (!authUserId) {
         setLkError('Sign in required to join this room.');
         return;
       }
-      // Always upsert presence so counts work even if LiveKit isn't available
-      const roleResolved = room.creator_id === effectiveUserId ? 'host' : 'listener';
-      await upsertParticipant({ roomId: id, userId: effectiveUserId, role: roleResolved, isMuted: roleResolved === 'listener' });
+      // Always upsert presence so counts work even if LiveKit isn't available.
+      // Audience (listeners) join muted and locked - cannot unmute themselves until host unmutes or unlocks them.
+      const roleResolved = room.creator_id === authUserId ? 'host' : 'listener';
+      await upsertParticipant({
+        roomId: id,
+        userId: authUserId,
+        role: roleResolved,
+        isMuted: roleResolved === 'listener',
+        muteLocked: roleResolved === 'listener',
+      });
 
       if (!liveKitEnabled) {
         setLkError('LiveKit native modules are not available in this build. Build a dev/EAS client (not Expo Go) to use voice rooms.');
@@ -906,7 +941,7 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
 
       const tokenResp = await getLiveKitToken({
         roomName: room.provider_room_name,
-        identity: effectiveUserId,
+        identity: authUserId,
         name: currentUser?.name ?? undefined,
         canPublish: roleResolved !== 'listener',
       });
@@ -923,18 +958,18 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
     return () => {
       cancelled = true;
     };
-  }, [currentUser?.id, currentUser?.name, effectiveUserId, id, room, liveKitEnabled, joinNonce]);
+  }, [authResolved, authUserId, currentUser?.id, currentUser?.name, id, room, liveKitEnabled, joinNonce]);
 
   // Refresh token when role/mute-lock changes
   useEffect(() => {
-    if (!id || !effectiveUserId || !room || !me?.role) return;
+    if (!id || !authUserId || !room || !me?.role) return;
     let cancelled = false;
     (async () => {
       if (!liveKitEnabled) return;
       setLkError(null);
       const tokenResp = await getLiveKitToken({
         roomName: room.provider_room_name,
-        identity: effectiveUserId,
+        identity: authUserId,
         name: currentUser?.name ?? undefined,
         canPublish: (me.role === 'host' || me.role === 'moderator' || me.role === 'speaker') && !(me as any)?.mute_locked,
       });
@@ -949,18 +984,19 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
       setLkError(String(e?.message ?? e));
     });
     return () => { cancelled = true; };
-  }, [currentUser?.id, currentUser?.name, effectiveUserId, id, me?.role, (me as any)?.mute_locked, room, liveKitEnabled]);
+  }, [authUserId, currentUser?.id, currentUser?.name, id, me?.role, (me as any)?.mute_locked, room, liveKitEnabled]);
 
   // Leave room on unmount
   useEffect(() => {
-    if (!id || !effectiveUserId) return;
-    return () => { leaveRoom(id, effectiveUserId).catch(() => null); };
-  }, [effectiveUserId, id]);
+    if (!id || !authUserId) return;
+    return () => { leaveRoom(id, authUserId).catch(() => null); };
+  }, [authUserId, id]);
 
   const promote = async (userId: string) => {
     if (!id) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     await updateParticipantRole(id, userId, 'speaker');
+    await unmuteParticipant(id, userId); // Unmute and unlock so they can speak
     await lowerHand(id, userId);
   };
 
@@ -970,6 +1006,12 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
     const p = participants.find((x) => x.user_id === userId);
     if (p?.is_muted) await unmuteParticipant(id, userId);
     else await muteParticipant(id, userId);
+  };
+
+  const handleUnlock = async (userId: string) => {
+    if (!id) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    await unlockParticipant(id, userId);
   };
 
   const handleDemote = async (userId: string) => {
@@ -1269,7 +1311,9 @@ function VoiceRoomScreenContent({ id }: { id: string }) {
                 serverUrl={lkUrl}
                 token={lkToken}
                 connect
-                audio={!!(canSpeakEffective && micEnabled)}
+                // Must stay true for audience: iOS needs the audio session active to *hear* remote tracks.
+                // Local mic publish is still gated by token canPublish + MicSync.
+                audio
                 video={false}
               >
                 <RoomAudioRenderer />

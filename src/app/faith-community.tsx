@@ -62,6 +62,7 @@ export default function FaithCommunityScreen() {
   const [activeTab, setActiveTab] = useState<FaithTab>('groups');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFaithType, setSelectedFaithType] = useState<string | null>(null);
+  const [selectedGroupCategory, setSelectedGroupCategory] = useState<string | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<FaithEvent | null>(null);
   const [dbEvents, setDbEvents] = useState<DbFaithEvent[]>([]);
   const [faithGroups, setFaithGroups] = useState<DbGroup[]>([]);
@@ -79,14 +80,18 @@ export default function FaithCommunityScreen() {
   const selectedLocation = useStore((s) => s.selectedLocation);
   const currentCommunity = useStore((s) => s.currentCommunity);
 
+  const FAITH_GROUP_CATEGORIES = ['church', 'mosque', 'temple', 'synagogue', 'association', 'community'] as const;
+
   const fetchData = async () => {
     try {
-      const [eventsData, groupsData] = await Promise.all([
+      const [eventsData, ...groupsByCategory] = await Promise.all([
         getFaithEvents(),
-        getGroupsByCategory('church'),
+        ...FAITH_GROUP_CATEGORIES.map((cat) => getGroupsByCategory(cat)),
       ]);
       setDbEvents(eventsData || []);
-      setFaithGroups(groupsData || []);
+      const allGroups = (groupsByCategory.flat() as DbGroup[]).filter(Boolean);
+      const uniqueById = Array.from(new Map(allGroups.map((g) => [g.id, g])).values());
+      setFaithGroups(uniqueById.sort((a, b) => (b.member_count || 0) - (a.member_count || 0)));
     } catch (error) {
       console.error('Error fetching faith data:', error);
     } finally {
@@ -683,10 +688,42 @@ export default function FaithCommunityScreen() {
                     </LinearGradient>
                   </Animated.View>
 
+                  {/* Group Category Filter */}
+                  <Animated.View entering={FadeInUp.duration(400).delay(80)} className="mb-3">
+                    <Text className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                      Browse by type
+                    </Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }}>
+                      {[
+                        { key: null, label: 'All' },
+                        { key: 'church', label: 'Church' },
+                        { key: 'mosque', label: 'Mosque' },
+                        { key: 'temple', label: 'Temple' },
+                        { key: 'association', label: 'Association' },
+                        { key: 'community', label: 'Community' },
+                      ].map((opt) => (
+                        <Pressable
+                          key={opt.key ?? 'all'}
+                          onPress={() => {
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            setSelectedGroupCategory(opt.key);
+                          }}
+                          className={`px-4 py-2 rounded-full mr-2 ${
+                            selectedGroupCategory === opt.key ? 'bg-forest-600' : 'bg-white'
+                          }`}
+                        >
+                          <Text className={selectedGroupCategory === opt.key ? 'text-white font-medium' : 'text-gray-600'}>
+                            {opt.label}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </ScrollView>
+                  </Animated.View>
+
                   {/* Groups from Database */}
                   <Animated.View entering={FadeInUp.duration(400).delay(100)} className="mb-3">
                     <Text className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">
-                      Featured Groups
+                      Groups
                     </Text>
                   </Animated.View>
 
@@ -695,8 +732,12 @@ export default function FaithCommunityScreen() {
                       <ActivityIndicator size="small" color="#C9A227" />
                       <Text className="text-gray-500 mt-2">Loading groups...</Text>
                     </View>
-                  ) : faithGroups.length > 0 ? (
-                    faithGroups.map((group, index) => (
+                  ) : (() => {
+                    const filtered = selectedGroupCategory
+                      ? faithGroups.filter((g) => g.category === selectedGroupCategory)
+                      : faithGroups;
+                    return filtered.length > 0 ? (
+                    filtered.map((group, index) => (
                       <Animated.View key={group.id} entering={FadeInUp.duration(300).delay(index * 50)}>
                         <Pressable
                           onPress={() => router.push(`/group/${group.id}` as never)}
@@ -709,7 +750,10 @@ export default function FaithCommunityScreen() {
                           />
                           <View className="flex-1 ml-3">
                             <Text className="text-warmBrown font-semibold" numberOfLines={1}>{group.name}</Text>
-                            <Text className="text-gray-500 text-sm">{group.member_count || 0} members • {group.visibility === 'public' ? 'Public' : 'Private'}</Text>
+                            <Text className="text-gray-500 text-sm">
+                              {group.member_count || 0} members • {group.visibility === 'public' ? 'Public' : 'Private'}
+                              {group.category && group.category !== 'other' ? ` • ${group.category}` : ''}
+                            </Text>
                           </View>
                           <ChevronRight size={20} color="#9CA3AF" />
                         </Pressable>
@@ -718,15 +762,20 @@ export default function FaithCommunityScreen() {
                   ) : (
                     <View className="bg-white rounded-2xl p-6 items-center">
                       <Users size={32} color="#9CA3AF" />
-                      <Text className="text-gray-500 mt-2 text-center">No groups yet</Text>
+                      <Text className="text-gray-500 mt-2 text-center">
+                        {selectedGroupCategory ? `No ${selectedGroupCategory} groups yet` : 'No groups yet'}
+                      </Text>
                       <Pressable
                         onPress={() => router.push('/create-group')}
                         className="mt-3 bg-forest-600 rounded-full px-4 py-2"
                       >
-                        <Text className="text-white font-semibold">Create the first group</Text>
+                        <Text className="text-white font-semibold">
+                          {selectedGroupCategory ? `Create first ${selectedGroupCategory} group` : 'Create the first group'}
+                        </Text>
                       </Pressable>
                     </View>
-                  )}
+                  );
+                  })()}
 
                   <View className="h-4" />
 

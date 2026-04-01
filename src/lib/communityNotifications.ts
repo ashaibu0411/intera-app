@@ -27,6 +27,33 @@ export async function getCommunityUserIds(communityId: string): Promise<string[]
 /**
  * Get all user IDs in a city (by location string matching)
  */
+/**
+ * Narrow a list of user IDs to those whose profile location string likely matches a neighborhood hint.
+ * Best-effort: used when targeting connect posts to "neighborhood" audience.
+ */
+export async function filterUserIdsByLocationSubstring(
+  userIds: string[],
+  substring: string
+): Promise<string[]> {
+  const hint = substring.trim();
+  if (!hint || userIds.length === 0) return userIds;
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id')
+      .in('id', userIds)
+      .ilike('location', `%${hint}%`);
+    if (error) {
+      console.warn('[CommunityNotifications] neighborhood filter failed:', error);
+      return userIds;
+    }
+    const matched = (data || []).map((p: { id: string }) => p.id);
+    return matched.length > 0 ? matched : userIds;
+  } catch {
+    return userIds;
+  }
+}
+
 export async function getCityUserIds(city: string, country: string): Promise<string[]> {
   try {
     // First, try to get community ID (only if country is available)
@@ -78,6 +105,19 @@ async function getAuthorProfile(userId: string): Promise<{ name: string; avatar_
   }
 }
 
+export type NotifyNewPostOptions = {
+  /** Open to connect / Nearby composer — uses distinct copy and always fans out by area */
+  connectPost?: boolean;
+  /** When connectPost: match feed scope (city vs neighborhood vs global) */
+  notifyAudience?: 'city' | 'neighborhood' | 'global';
+  /** Override parsed city from post location (reliable targeting from selectedLocation) */
+  pushCity?: string | null;
+  /** Override parsed neighborhood from post location */
+  pushNeighborhood?: string | null;
+  /** Used when fan-out list is empty but we have an explicit city (connect posts) */
+  pushCountry?: string | null;
+};
+
 /**
  * Notify all users in a community about a new post
  */
@@ -86,7 +126,8 @@ export async function notifyCommunityAboutNewPost(
   authorId: string,
   postContent: string,
   communityId: string | null,
-  location: string | null
+  location: string | null,
+  notifyOptions?: NotifyNewPostOptions
 ): Promise<void> {
   try {
     // Get author info
@@ -116,36 +157,114 @@ export async function notifyCommunityAboutNewPost(
       cityForPush = parts[0] ? String(parts[0]).trim() : null;
     }
 
-    // Fire-and-forget remote push to *all* enabled devices in this city.
-    // This fixes the "same city devices don't get notifications for all posts" issue,
-    // because the previous realtime broadcast only works for connected clients and relies on fragile profile/location matching.
-    if (cityForPush) {
-      sendRemotePushAlert({
-        title: `${author.name} posted`,
-        body: postContent.length > 100 ? postContent.substring(0, 100) + '...' : postContent,
-        scope: 'city',
+    if (notifyOptions?.pushCity?.trim()) {
+      cityForPush = notifyOptions.pushCity.trim();
+    }
+    if (notifyOptions?.pushNeighborhood?.trim()) {
+      neighborhoodForPush = notifyOptions.pushNeighborhood.trim();
+    }
+
+    const bodyShort =
+      postContent.length > 100 ? postContent.substring(0, 100) + '...' : postContent;
+
+    // Open to connect posts: always send an area push (city, neighborhood, or global per feed scope).
+    if (notifyOptions?.connectPost) {
+      const audience = notifyOptions.notifyAudience ?? 'city';
+      const title = `${author.name} · open to connect nearby`;
+      const pushType = 'connect_post';
+      const baseData = {
+        type: pushType,
+        postId,
+        authorId,
+        connectPost: true,
         city: cityForPush,
-        neighborhood: null,
-        excludeUserId: authorId,
-        type: 'new_post',
-        actorId: authorId,
-        data: { type: 'new_post', postId, authorId, city: cityForPush, neighborhood: neighborhoodForPush },
-      }).catch(() => null);
+        neighborhood: neighborhoodForPush,
+      };
+
+      if (audience === 'global') {
+        sendRemotePushAlert({
+          title,
+          body: bodyShort,
+          scope: 'global',
+          city: null,
+          neighborhood: null,
+          excludeUserId: authorId,
+          type: pushType,
+          actorId: authorId,
+          data: baseData,
+        }).catch(() => null);
+      } else if (audience === 'neighborhood' && cityForPush && neighborhoodForPush) {
+        sendRemotePushAlert({
+          title,
+          body: bodyShort,
+          scope: 'neighborhood',
+          city: cityForPush,
+          neighborhood: neighborhoodForPush,
+          excludeUserId: authorId,
+          type: pushType,
+          actorId: authorId,
+          data: baseData,
+        }).catch(() => null);
+      } else if (cityForPush) {
+        sendRemotePushAlert({
+          title,
+          body: bodyShort,
+          scope: 'city',
+          city: cityForPush,
+          neighborhood: null,
+          excludeUserId: authorId,
+          type: pushType,
+          actorId: authorId,
+          data: { ...baseData, neighborhood: null },
+        }).catch(() => null);
+      } else {
+        console.log('[CommunityNotifications] Connect post: no city for push; using global', {
+          communityId,
+          location,
+        });
+        sendRemotePushAlert({
+          title,
+          body: bodyShort,
+          scope: 'global',
+          city: null,
+          neighborhood: null,
+          excludeUserId: authorId,
+          type: pushType,
+          actorId: authorId,
+          data: baseData,
+        }).catch(() => null);
+      }
     } else {
-      // Fallback: when city can't be resolved (e.g. iOS with different community/location format),
-      // use global scope so cross-platform notifications still work (iPhone→Android).
-      console.log('[CommunityNotifications] No city resolved; using global scope for push', { communityId, location });
-      sendRemotePushAlert({
-        title: `${author.name} posted`,
-        body: postContent.length > 100 ? postContent.substring(0, 100) + '...' : postContent,
-        scope: 'global',
-        city: null,
-        neighborhood: null,
-        excludeUserId: authorId,
-        type: 'new_post',
-        actorId: authorId,
-        data: { type: 'new_post', postId, authorId },
-      }).catch(() => null);
+      // Standard posts: unchanged behavior (city push when we can resolve a city).
+      if (cityForPush) {
+        sendRemotePushAlert({
+          title: `${author.name} posted`,
+          body: bodyShort,
+          scope: 'city',
+          city: cityForPush,
+          neighborhood: null,
+          excludeUserId: authorId,
+          type: 'new_post',
+          actorId: authorId,
+          data: { type: 'new_post', postId, authorId, city: cityForPush, neighborhood: neighborhoodForPush },
+        }).catch(() => null);
+      } else {
+        console.log('[CommunityNotifications] No city resolved; using global scope for push', {
+          communityId,
+          location,
+        });
+        sendRemotePushAlert({
+          title: `${author.name} posted`,
+          body: bodyShort,
+          scope: 'global',
+          city: null,
+          neighborhood: null,
+          excludeUserId: authorId,
+          type: 'new_post',
+          actorId: authorId,
+          data: { type: 'new_post', postId, authorId },
+        }).catch(() => null);
+      }
     }
 
     let userIds: string[] = [];
@@ -181,8 +300,22 @@ export async function notifyCommunityAboutNewPost(
       }
     }
 
+    // Open to connect: if post row had no resolvable community membership, still notify by city.
+    if (notifyOptions?.connectPost && userIds.length === 0 && cityForPush) {
+      const ctry = notifyOptions.pushCountry?.trim() || '';
+      userIds = await getCityUserIds(cityForPush, ctry);
+    }
+
     // Remove the author from the list (don't notify yourself)
-    userIds = userIds.filter(id => id !== authorId);
+    userIds = userIds.filter((id) => id !== authorId);
+
+    if (
+      notifyOptions?.connectPost &&
+      (notifyOptions.notifyAudience ?? 'city') === 'neighborhood' &&
+      neighborhoodForPush
+    ) {
+      userIds = await filterUserIdsByLocationSubstring(userIds, neighborhoodForPush);
+    }
 
     if (userIds.length === 0) {
       console.log('[CommunityNotifications] No community members to notify');
@@ -191,15 +324,20 @@ export async function notifyCommunityAboutNewPost(
 
     console.log(`[CommunityNotifications] Notifying ${userIds.length} users about new post`);
 
+    const inAppType = notifyOptions?.connectPost ? 'connect_post' : 'new_post';
+    const inAppTitle = notifyOptions?.connectPost
+      ? `${author.name} is open to connect nearby`
+      : `${author.name} posted in your community`;
+
     // Create notifications in database for each user.
     // Schema must match: recipient_id, actor_id, type, title, body, data (read_at null = unread).
-    const notifications = userIds.map(userId => ({
+    const notifications = userIds.map((userId) => ({
       recipient_id: userId,
       actor_id: authorId,
-      type: 'new_post',
-      title: `${author.name} posted in your community`,
+      type: inAppType,
+      title: inAppTitle,
       body: postContent.length > 100 ? postContent.substring(0, 100) + '...' : postContent,
-      data: { postId, authorId, type: 'new_post' },
+      data: { postId, authorId, type: inAppType, connectPost: !!notifyOptions?.connectPost },
     }));
 
     // Try to insert notifications in batches (Supabase has limits)
@@ -244,6 +382,7 @@ export async function notifyCommunityAboutNewPost(
           communityId,
           location,
           userIds, // List of users who should receive this
+          connectPost: !!notifyOptions?.connectPost,
         },
       });
 

@@ -14,6 +14,10 @@ import { supabase } from '@/lib/supabase';
 export default function SettingsScreen() {
   const notificationsEnabled = useStore((s) => s.notificationsEnabled);
   const setNotificationsEnabled = useStore((s) => s.setNotificationsEnabled);
+  const notifyGeneralPostPushes = useStore((s) => s.notifyGeneralPostPushes);
+  const setNotifyGeneralPostPushes = useStore((s) => s.setNotifyGeneralPostPushes);
+  const notifyConnectNearbyPushes = useStore((s) => s.notifyConnectNearbyPushes);
+  const setNotifyConnectNearbyPushes = useStore((s) => s.setNotifyConnectNearbyPushes);
   const darkMode = useStore((s) => s.darkMode);
   const setDarkMode = useStore((s) => s.setDarkMode);
   const currentUser = useStore((s) => s.currentUser);
@@ -101,12 +105,14 @@ export default function SettingsScreen() {
       if (granted) {
         setSystemNotificationsEnabled(true);
         setNotificationsEnabled(true);
+        syncPushTokenFromStore().catch(() => null);
       } else {
         // Open settings if permission denied
         Linking.openSettings();
       }
     } else {
       setNotificationsEnabled(value);
+      syncPushTokenFromStore().catch(() => null);
     }
   };
 
@@ -172,15 +178,59 @@ export default function SettingsScreen() {
                   )}
                 </View>
                 <View className="flex-1">
-                  <Text className="text-warmBrown font-medium">Local Post Alerts</Text>
+                  <Text className="text-warmBrown font-medium">Push notifications</Text>
                   <Text className="text-gray-500 text-sm mt-0.5">
-                    Get notified when someone posts in your city
+                    Allow alerts on this device (community, connect, messages)
                   </Text>
                 </View>
                 <Switch
                   value={notificationsEnabled}
                   onValueChange={handleToggleNotifications}
                   trackColor={{ false: '#E5E7EB', true: '#D4673A' }}
+                  thumbColor="#FFFFFF"
+                />
+              </View>
+
+              <View
+                className={`flex-row items-center p-4 border-b border-gray-100 ${
+                  !notificationsEnabled ? 'opacity-45' : ''
+                }`}
+              >
+                <View className="flex-1 pl-1">
+                  <Text className="text-warmBrown font-medium">Community posts in your area</Text>
+                  <Text className="text-gray-500 text-sm mt-0.5">
+                    When someone posts updates for your city or neighborhood
+                  </Text>
+                </View>
+                <Switch
+                  value={notifyGeneralPostPushes}
+                  disabled={!notificationsEnabled}
+                  onValueChange={(v) => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setNotifyGeneralPostPushes(v);
+                    syncPushTokenFromStore().catch(() => null);
+                  }}
+                  trackColor={{ false: '#E5E7EB', true: '#1B4D3E' }}
+                  thumbColor="#FFFFFF"
+                />
+              </View>
+
+              <View className={`flex-row items-center p-4 border-b border-gray-100 ${!notificationsEnabled ? 'opacity-45' : ''}`}>
+                <View className="flex-1 pl-1">
+                  <Text className="text-warmBrown font-medium">Open to connect nearby</Text>
+                  <Text className="text-gray-500 text-sm mt-0.5">
+                    When someone nearby posts to find company (same area as your location)
+                  </Text>
+                </View>
+                <Switch
+                  value={notifyConnectNearbyPushes}
+                  disabled={!notificationsEnabled}
+                  onValueChange={(v) => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setNotifyConnectNearbyPushes(v);
+                    syncPushTokenFromStore().catch(() => null);
+                  }}
+                  trackColor={{ false: '#E5E7EB', true: '#7C3AED' }}
                   thumbColor="#FFFFFF"
                 />
               </View>

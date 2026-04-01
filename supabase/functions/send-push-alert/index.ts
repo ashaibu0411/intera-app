@@ -1,251 +1,228 @@
-// Supabase Edge Function: send-push-alert
-// Sends remote push notifications via Expo Push API and writes to public.notifications.
-//
-// Secrets required (Supabase Dashboard -> Edge Functions -> Secrets):
-// - SUPABASE_URL
-// - SUPABASE_SERVICE_ROLE_KEY
-//
-// Payload supports:
-// - direct: { recipientUserId, title, body, data?, excludeUserId? }
-// - scoped: { scope: 'global'|'city'|'neighborhood', city?, neighborhood?, title, body, data?, excludeUserId? }
-
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+/**
+ * Supabase Edge Function: targeted Expo push using public.push_tokens.
+ *
+ * Deploy: supabase functions deploy send-push-alert --no-verify-jwt
+ *   (Or verify JWT — see docs/PUSH_ALERTS.md)
+ *
+ * Secrets: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY
+ * Optional: EXPO_ACCESS_TOKEN (Expo dashboard → Access tokens)
+ */
+import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 
 const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-function json(status: number, body: unknown) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, 'content-type': 'application/json' },
-  });
+function norm(s: string | null | undefined): string {
+  return (s || '').trim().toLowerCase();
 }
 
-type Scope = 'neighborhood' | 'city' | 'global';
-
-type Body = {
-  title?: string;
-  body?: string;
-  data?: Record<string, unknown>;
-  excludeUserId?: string | null;
-
-  // direct
-  recipientUserId?: string;
-
-  // scoped
-  scope?: Scope;
-  city?: string | null;
-  neighborhood?: string | null;
-
-  // optional metadata for in-app notifications
-  type?: string;
-  actorId?: string | null;
-};
-
-function uniq<T>(arr: T[]): T[] {
-  return Array.from(new Set(arr));
+function cityMatch(rowCity: string | null, target: string | null): boolean {
+  const a = norm(rowCity);
+  const b = norm(target);
+  if (!a || !b) return false;
+  return a === b || a.includes(b) || b.includes(a);
 }
 
-async function sendExpoPush(messages: Array<{ to: string; title: string; body: string; data?: any; sound?: any; channelId?: string }>) {
-  if (messages.length === 0) return { sent: 0, tickets: [] as any[] };
+function neighborhoodMatch(rowN: string | null, target: string | null): boolean {
+  const a = norm(rowN);
+  const b = norm(target);
+  if (!b) return true;
+  if (!a) return false;
+  return a === b || a.includes(b) || b.includes(a);
+}
 
-  // Expo allows up to 100 messages per request
-  const chunks: typeof messages[] = [];
-  for (let i = 0; i < messages.length; i += 100) chunks.push(messages.slice(i, i + 100));
+function stringifyData(data: Record<string, unknown>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(data)) {
+    if (v === undefined || v === null) continue;
+    out[k] = typeof v === 'string' ? v : JSON.stringify(v);
+  }
+  return out;
+}
 
-  const tickets: any[] = [];
-  const requestErrors: Array<{ status?: number; error: string }> = [];
-  for (const chunk of chunks) {
-    try {
-      const resp = await fetch('https://exp.host/--/api/v2/push/send', {
-        method: 'POST',
-        headers: {
-          Accept: 'application/json',
-          'Accept-Encoding': 'gzip, deflate',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(chunk),
-      });
-      const j = await resp.json().catch(() => null);
-      if (!resp.ok) {
-        console.log('[send-push-alert] Expo push error', resp.status, j);
-        requestErrors.push({ status: resp.status, error: JSON.stringify(j ?? {}) });
-        continue;
-      }
-      const data = (j as any)?.data;
-      if (Array.isArray(data)) tickets.push(...data);
-    } catch (e) {
-      const msg = String((e as any)?.message ?? e);
-      console.log('[send-push-alert] Expo push request failed', msg);
-      requestErrors.push({ error: msg });
-      continue;
-    }
+async function sendExpoBatch(
+  tokens: string[],
+  title: string,
+  body: string,
+  data: Record<string, unknown>
+) {
+  if (tokens.length === 0) return;
+
+  const messages = tokens.map((to) => ({
+    to,
+    title,
+    body,
+    sound: 'default',
+    priority: 'high',
+    data: stringifyData(data),
+  }));
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+    'Accept-Encoding': 'gzip, deflate',
+  };
+  const access = Deno.env.get('EXPO_ACCESS_TOKEN');
+  if (access) {
+    headers.Authorization = `Bearer ${access}`;
   }
 
-  return { sent: messages.length, tickets, requestErrors };
+  const res = await fetch('https://exp.host/--/api/v2/push/send', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(messages),
+  });
+  if (!res.ok) {
+    const t = await res.text();
+    console.warn('[send-push-alert] Expo HTTP', res.status, t);
+  }
 }
 
-Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
-  if (req.method !== 'POST') return json(405, { error: 'Method not allowed' });
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
+  }
 
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
-    const serviceKey =
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ??
-      Deno.env.get('SERVICE_ROLE_KEY') ??
-      Deno.env.get('SUPABASE_SERVICE_KEY') ??
-      '';
-    if (!supabaseUrl || !serviceKey) {
-      return json(500, {
-        error:
-          'Missing SUPABASE_URL or service role key. Set one of: SUPABASE_SERVICE_ROLE_KEY, SERVICE_ROLE_KEY, SUPABASE_SERVICE_KEY',
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
+
+    if (!supabaseUrl || !serviceKey || !anonKey) {
+      return new Response(JSON.stringify({ error: 'Missing Supabase env' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    const authHeader = req.headers.get('Authorization') ?? '';
-    // Verify the caller is authenticated (prevents abuse).
-    const authClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY') ?? serviceKey, {
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const userClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
-      auth: { persistSession: false },
     });
-    const { data: userData } = await authClient.auth.getUser();
-    if (!userData?.user?.id) return json(401, { error: 'Unauthorized' });
+    const {
+      data: { user },
+      error: authErr,
+    } = await userClient.auth.getUser();
+    if (authErr || !user) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
-    const body = (await req.json().catch(() => ({}))) as Body;
-    const title = String(body?.title ?? '').trim();
-    const messageBody = String(body?.body ?? '').trim();
-    if (!title || !messageBody) return json(400, { error: 'Missing title/body' });
+    const admin = createClient(supabaseUrl, serviceKey);
+    const body = (await req.json()) as Record<string, unknown>;
 
-    const excludeUserId = body?.excludeUserId ? String(body.excludeUserId) : null;
+    const title = String(body.title ?? '');
+    const msgBody = body.body != null ? String(body.body) : '';
+    if (!title || !msgBody) {
+      return new Response(JSON.stringify({ error: 'title and body required' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
-    const type = typeof body?.type === 'string' && body.type.trim().length ? body.type.trim() : 'alert';
-    const actorId = body?.actorId ? String(body.actorId) : null;
-    const dataPayload = (body?.data ?? {}) as Record<string, unknown>;
+    const recipientUserId = body.recipientUserId as string | undefined;
+    const excludeUserId = body.excludeUserId as string | null | undefined;
+    const scope = String(body.scope ?? 'city').toLowerCase();
+    const city = (body.city as string | null) ?? null;
+    const neighborhood = (body.neighborhood as string | null) ?? null;
+    const type = body.type as string | undefined;
+    const actorId = (body.actorId as string | null) ?? null;
+    const data = (body.data as Record<string, unknown>) ?? {};
 
-    console.log('[send-push-alert] request', {
-      caller: userData.user.id,
-      direct: !!body?.recipientUserId,
-      scope: body?.scope ?? null,
-      city: body?.city ?? null,
-      neighborhood: body?.neighborhood ?? null,
-      excludeUserId,
-      type,
-      actorId,
-    });
-
-    const admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
-
-    let recipientUserIds: string[] = [];
-    if (body?.recipientUserId) {
-      recipientUserIds = [String(body.recipientUserId)];
-    } else if (body?.scope) {
-      const scope = body.scope;
-      const city = body?.city ? String(body.city).trim() : '';
-      const neighborhood = body?.neighborhood ? String(body.neighborhood).trim() : '';
-
-      let q = admin
+    // Direct push (DM, connection request to one user, etc.)
+    if (recipientUserId) {
+      const { data: rows, error } = await admin
         .from('push_tokens')
-        .select('user_id')
+        .select('token')
+        .eq('user_id', recipientUserId)
         .eq('enabled', true);
 
-      if (scope === 'neighborhood') {
-        if (neighborhood) q = q.ilike('neighborhood', neighborhood);
-        if (city) q = q.ilike('city', city);
-      } else if (scope === 'city') {
-        // Include both city-matched tokens AND tokens with null/empty city (e.g. TestFlight users
-        // who haven't synced location yet) so iOS→Android and cross-platform notifications work.
-        if (city) {
-          q = q.or(`city.ilike.${city},city.is.null`);
-        }
-      }
-
-      const { data } = await q.limit(5000);
-      recipientUserIds = (data ?? []).map((r: any) => String(r.user_id));
-
-      // Fallback: if city/neighborhood scope returned no recipients, try global (avoids missing
-      // users whose push_tokens have null city, e.g. on TestFlight or before location sync).
-      if (recipientUserIds.length === 0 && (scope === 'city' || scope === 'neighborhood')) {
-        const { data: fallbackData } = await admin
-          .from('push_tokens')
-          .select('user_id')
-          .eq('enabled', true)
-          .limit(5000);
-        recipientUserIds = (fallbackData ?? []).map((r: any) => String(r.user_id));
-      }
-    } else {
-      return json(400, { error: 'Missing recipientUserId or scope' });
+      if (error) throw error;
+      const tokens = (rows ?? []).map((r: { token: string }) => r.token).filter(Boolean);
+      await sendExpoBatch(tokens, title, msgBody, {
+        ...data,
+        type: type ?? (data.type as string) ?? 'direct',
+        actorId: actorId ?? undefined,
+      });
+      return new Response(JSON.stringify({ ok: true, sent: tokens.length }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
-    recipientUserIds = uniq(recipientUserIds).filter(Boolean);
-    if (excludeUserId) recipientUserIds = recipientUserIds.filter((id) => id !== excludeUserId);
-    if (recipientUserIds.length === 0) {
-      console.log('[send-push-alert] no recipients after filters');
-      return json(200, { ok: true, recipients: 0, tokens: 0, sent: 0 });
-    }
+    const notificationType = String(type ?? data?.type ?? 'alert');
+    const isConnect = notificationType === 'connect_post' || data?.connectPost === true;
+    const isGeneralAreaPost = notificationType === 'new_post' || notificationType === 'post';
 
-    // Insert in-app notifications (best-effort)
-    try {
-      const rows = recipientUserIds.map((rid) => ({
-        recipient_id: rid,
-        actor_id: actorId,
-        type,
-        title,
-        body: messageBody,
-        data: { ...dataPayload, type },
-      }));
-      await admin.from('notifications').insert(rows);
-    } catch (e) {
-      console.log('[send-push-alert] notifications insert failed (non-fatal):', String((e as any)?.message ?? e));
-    }
-
-    // Get Expo push tokens for recipients
-    const { data: tokenRows } = await admin
+    const { data: rows, error: qerr } = await admin
       .from('push_tokens')
-      .select('token,user_id,platform')
-      .in('user_id', recipientUserIds)
-      .eq('enabled', true)
-      .limit(10000);
+      .select(
+        'token, user_id, city, neighborhood, notify_connect_posts, notify_general_posts'
+      )
+      .eq('enabled', true);
 
-    const tokenObjs = uniq((tokenRows ?? []).map((r: any) => JSON.stringify({
-      token: String(r?.token ?? ''),
-      platform: String(r?.platform ?? 'unknown'),
-    })))
-      .map((s) => {
-        try { return JSON.parse(s) as { token: string; platform: string }; } catch { return { token: '', platform: 'unknown' }; }
-      })
-      .filter((x) => !!x.token);
-
-    console.log('[send-push-alert] resolved', { recipients: recipientUserIds.length, tokens: tokenObjs.length });
-
-    const expoMessages = tokenObjs.map((t) => ({
-      to: t.token,
-      title,
-      body: messageBody,
-      data: dataPayload,
-      sound: 'default',
-      // Android: if channelId is not set, notifications may land on a low-importance default channel.
-      ...(t.platform === 'android' ? { channelId: 'alerts' } : null),
-    }));
-
-    const expo = await sendExpoPush(expoMessages);
-    const failedTickets = (expo.tickets || []).filter((t: any) => t?.status === 'error');
-    if (failedTickets.length) {
-      console.log('[send-push-alert] expo ticket errors', failedTickets.slice(0, 10));
+    if (qerr) {
+      // Table missing — don’t 500 the app
+      console.warn('[send-push-alert] push_tokens query:', qerr.message);
+      return new Response(JSON.stringify({ ok: false, skipped: true, reason: 'no_push_tokens' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
-    return json(200, {
-      ok: true,
-      recipients: recipientUserIds.length,
-      tokens: tokenObjs.length,
-      sent: expo.sent,
-      ticketErrors: failedTickets.slice(0, 5),
-      requestErrors: (expo as any)?.requestErrors?.slice?.(0, 3) ?? [],
+
+    const filtered = (rows ?? []).filter((row: Record<string, unknown>) => {
+      if (excludeUserId && row.user_id === excludeUserId) return false;
+
+      if (isConnect && row.notify_connect_posts === false) return false;
+      if (isGeneralAreaPost && row.notify_general_posts === false) return false;
+
+      if (scope === 'global') return true;
+      if (!city) return false;
+      if (!cityMatch(row.city as string | null, city)) return false;
+      if (scope === 'neighborhood') {
+        return neighborhoodMatch(row.neighborhood as string | null, neighborhood);
+      }
+      return true;
     });
-  } catch (err) {
-    console.log('[send-push-alert] Unexpected error:', String(err));
-    return json(500, { error: 'Unexpected error', details: String(err) });
+
+    const tokens = filtered.map((r: { token: string }) => r.token).filter(Boolean);
+    const chunk = 99;
+    let sent = 0;
+    for (let i = 0; i < tokens.length; i += chunk) {
+      const slice = tokens.slice(i, i + chunk);
+      await sendExpoBatch(slice, title, msgBody, {
+        ...data,
+        type: notificationType,
+        postId: data.postId,
+        authorId: (data.authorId as string) || actorId || undefined,
+      });
+      sent += slice.length;
+    }
+
+    return new Response(
+      JSON.stringify({
+        ok: true,
+        candidates: (rows ?? []).length,
+        matched: tokens.length,
+        sent,
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  } catch (e) {
+    console.error(e);
+    return new Response(JSON.stringify({ error: String((e as Error)?.message ?? e) }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 });

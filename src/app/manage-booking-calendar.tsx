@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, Pressable, Switch, TextInput, Modal, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, Pressable, Switch, TextInput, Modal, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
@@ -18,6 +18,7 @@ import {
   RefreshCw,
   Palmtree,
   Phone,
+  Wallet,
 } from 'lucide-react-native';
 import Animated, { FadeIn, FadeInUp, FadeInDown } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -44,6 +45,9 @@ import {
   type DbServiceTemplate,
   type BusinessStatusType,
 } from '@/lib/booking-api';
+import { getBusiness } from '@/lib/marketplace-api';
+import { isStripeBookingConfigured } from '@/lib/bookingStripePayment';
+import { openStripeConnectOnboarding } from '@/lib/stripeConnectOnboarding';
 
 const DAYS_OF_WEEK = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 
@@ -119,6 +123,9 @@ export default function ManageBookingCalendarScreen() {
     reason: 'Lunch Break',
   });
 
+  const [stripeConnectAccountId, setStripeConnectAccountId] = useState<string | null>(null);
+  const [stripeConnectLoading, setStripeConnectLoading] = useState(false);
+
   const remainingFreeBookings = Math.max(0, FREE_BOOKING_LIMIT - (bookingSettings?.total_bookings_received || 0));
   const needsSubscription = (bookingSettings?.total_bookings_received || 0) >= FREE_BOOKING_LIMIT && !bookingSettings?.has_business_pro;
 
@@ -132,13 +139,18 @@ export default function ManageBookingCalendarScreen() {
 
     setIsLoading(true);
     try {
-      const [servicesData, hoursData, settingsData, blockedData, templatesData] = await Promise.all([
+      const [servicesData, hoursData, settingsData, blockedData, templatesData, businessRow] = await Promise.all([
         getBusinessServices(businessId),
         getBusinessHours(businessId),
         getBusinessBookingSettings(businessId),
         getBlockedSlots(businessId),
         businessCategory ? getServiceTemplates(businessCategory) : Promise.resolve([]),
+        getBusiness(businessId),
       ]);
+
+      setStripeConnectAccountId(
+        (businessRow as { stripe_connect_account_id?: string | null } | null)?.stripe_connect_account_id ?? null,
+      );
 
       setServices(servicesData);
       setBlockedSlots(blockedData);
@@ -325,6 +337,33 @@ export default function ManageBookingCalendarScreen() {
     router.push('/business-pro-paywall');
   };
 
+  const handleStripeConnect = async () => {
+    if (!businessId) return;
+    if (!isStripeBookingConfigured()) {
+      Alert.alert(
+        'Stripe not configured',
+        'Add EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY to the app and deploy Supabase Edge Functions.',
+      );
+      return;
+    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setStripeConnectLoading(true);
+    try {
+      const res = await openStripeConnectOnboarding(businessId);
+      if (!res.ok && res.error !== 'Canceled') {
+        Alert.alert('Could not open Stripe', res.error);
+      }
+      const b = await getBusiness(businessId);
+      setStripeConnectAccountId(
+        (b as { stripe_connect_account_id?: string | null } | null)?.stripe_connect_account_id ?? null,
+      );
+    } catch (e) {
+      Alert.alert('Stripe Connect', String((e as Error)?.message ?? e));
+    } finally {
+      setStripeConnectLoading(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <View className="flex-1 bg-cream justify-center items-center">
@@ -370,6 +409,48 @@ export default function ManageBookingCalendarScreen() {
         </Animated.View>
 
         <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+          {isStripeBookingConfigured() ? (
+            <Animated.View entering={FadeInUp.duration(400).delay(50)} className="px-5 mt-4">
+              <LinearGradient
+                colors={['#312E81', '#1E1B4B']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={{ borderRadius: 16, padding: 16 }}
+              >
+                <View className="flex-row items-start">
+                  <View className="bg-white/15 rounded-full p-2">
+                    <Wallet size={22} color="#FFFFFF" />
+                  </View>
+                  <View className="flex-1 ml-3">
+                    <Text className="text-white font-semibold text-base">Card payouts (Stripe Connect)</Text>
+                    <Text className="text-white/75 text-sm mt-1">
+                      Connect Stripe so customers can use &quot;Pay now with card&quot; in the app. Money goes to your
+                      Stripe account (platform fee optional).
+                    </Text>
+                    {stripeConnectAccountId ? (
+                      <Text className="text-emerald-300 text-xs mt-2">Account linked — finish verification in Stripe if prompted.</Text>
+                    ) : (
+                      <Text className="text-amber-200 text-xs mt-2">Not linked yet — in-app card checkout stays hidden for your business.</Text>
+                    )}
+                    <Pressable
+                      onPress={handleStripeConnect}
+                      disabled={stripeConnectLoading}
+                      className="mt-3 bg-white/95 rounded-xl py-3 px-4 items-center"
+                    >
+                      {stripeConnectLoading ? (
+                        <ActivityIndicator color="#312E81" />
+                      ) : (
+                        <Text className="text-indigo-950 font-semibold">
+                          {stripeConnectAccountId ? 'Continue / update Stripe setup' : 'Connect Stripe payouts'}
+                        </Text>
+                      )}
+                    </Pressable>
+                  </View>
+                </View>
+              </LinearGradient>
+            </Animated.View>
+          ) : null}
+
           {/* Free Tier / Subscription Status */}
           <Animated.View entering={FadeInUp.duration(400).delay(100)} className="px-5 mt-4">
             {needsSubscription ? (

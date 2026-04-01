@@ -84,7 +84,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="marketplace"
         options={{
-          href: null, // Hidden from tab bar
+          href: null, // Hidden from tab bar (open via /marketplace from Home hub)
         }}
       />
       <Tabs.Screen

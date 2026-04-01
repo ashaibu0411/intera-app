@@ -1,6 +1,92 @@
 import { supabase, DbMessage, DbConversation } from './supabase';
 import { sendDirectPushAlert } from './pushAlerts';
 
+/** Max conversation_ids per .in() filter — avoids URL limits on large accounts */
+const MESSAGE_QUERY_CHUNK = 60;
+
+/**
+ * Unread = messages from others where read is false OR null (NULL does not match .eq(false)).
+ */
+export async function countUnreadMessagesForUser(userId: string): Promise<number> {
+  try {
+    const { data: participations } = await supabase
+      .from('conversation_participants')
+      .select('conversation_id')
+      .eq('user_id', userId);
+
+    if (!participations || participations.length === 0) return 0;
+
+    const conversationIds = [...new Set(participations.map((p) => p.conversation_id))];
+    let total = 0;
+
+    for (let i = 0; i < conversationIds.length; i += MESSAGE_QUERY_CHUNK) {
+      const chunk = conversationIds.slice(i, i + MESSAGE_QUERY_CHUNK);
+      const [rFalse, rNull] = await Promise.all([
+        supabase
+          .from('messages')
+          .select('*', { count: 'exact', head: true })
+          .in('conversation_id', chunk)
+          .neq('sender_id', userId)
+          .eq('read', false),
+        supabase
+          .from('messages')
+          .select('*', { count: 'exact', head: true })
+          .in('conversation_id', chunk)
+          .neq('sender_id', userId)
+          .is('read', null),
+      ]);
+
+      if (rFalse.error) {
+        console.log('[Messages] countUnread (read=false):', rFalse.error.message);
+      }
+      if (rNull.error) {
+        console.log('[Messages] countUnread (read null):', rNull.error.message);
+      }
+
+      total += (rFalse.count ?? 0) + (rNull.count ?? 0);
+    }
+
+    return total;
+  } catch (e) {
+    console.log('[Messages] countUnreadMessagesForUser exception:', e);
+    return 0;
+  }
+}
+
+async function unreadCountInConversation(conversationId: string, userId: string): Promise<number> {
+  const [rFalse, rNull] = await Promise.all([
+    supabase
+      .from('messages')
+      .select('*', { count: 'exact', head: true })
+      .eq('conversation_id', conversationId)
+      .neq('sender_id', userId)
+      .eq('read', false),
+    supabase
+      .from('messages')
+      .select('*', { count: 'exact', head: true })
+      .eq('conversation_id', conversationId)
+      .neq('sender_id', userId)
+      .is('read', null),
+  ]);
+  return (rFalse.count ?? 0) + (rNull.count ?? 0);
+}
+
+/** Mark other people's messages read in one conversation (handles read = false or null). */
+async function markOthersMessagesReadInConversation(conversationId: string, userId: string) {
+  await supabase
+    .from('messages')
+    .update({ read: true })
+    .eq('conversation_id', conversationId)
+    .neq('sender_id', userId)
+    .eq('read', false);
+  await supabase
+    .from('messages')
+    .update({ read: true })
+    .eq('conversation_id', conversationId)
+    .neq('sender_id', userId)
+    .is('read', null);
+}
+
 // Get or create a conversation between two users
 export async function getOrCreateConversation(userId1: string, userId2: string) {
   // First, try to find an existing conversation
@@ -82,19 +168,13 @@ export async function getConversations(userId: string) {
         .limit(1)
         .single();
 
-      // Count unread messages
-      const { count: unreadCount } = await supabase
-        .from('messages')
-        .select('*', { count: 'exact', head: true })
-        .eq('conversation_id', convId)
-        .eq('read', false)
-        .neq('sender_id', userId);
+      const unreadCount = await unreadCountInConversation(convId, userId);
 
       return {
         id: convId,
         otherUser: participants?.user,
         lastMessage,
-        unreadCount: unreadCount || 0,
+        unreadCount,
       };
     })
   );
@@ -146,6 +226,7 @@ export async function sendMessage(conversationId: string, senderId: string, cont
       conversation_id: conversationId,
       sender_id: authenticatedUserId, // Use authenticated ID for RLS compliance
       content,
+      read: false,
     })
     .select(`
       *,
@@ -239,20 +320,22 @@ export async function markAllMessagesAsRead(userId: string) {
     const conversationIds = participations.map((p) => p.conversation_id);
     console.log('Found conversation IDs:', conversationIds);
 
-    // Mark all unread messages from others as read
-    const { data, error } = await supabase
-      .from('messages')
-      .update({ read: true })
-      .in('conversation_id', conversationIds)
-      .neq('sender_id', userId)
-      .eq('read', false)
-      .select();
-
-    if (error) {
-      console.log('Error marking all messages as read:', error);
-    } else {
-      console.log('Marked messages as read:', data?.length || 0);
+    for (let i = 0; i < conversationIds.length; i += MESSAGE_QUERY_CHUNK) {
+      const chunk = conversationIds.slice(i, i + MESSAGE_QUERY_CHUNK);
+      await supabase
+        .from('messages')
+        .update({ read: true })
+        .in('conversation_id', chunk)
+        .neq('sender_id', userId)
+        .eq('read', false);
+      await supabase
+        .from('messages')
+        .update({ read: true })
+        .in('conversation_id', chunk)
+        .neq('sender_id', userId)
+        .is('read', null);
     }
+    console.log('Marked all messages read across', conversationIds.length, 'conversations');
   } catch (err) {
     console.error('Failed to mark all messages as read:', err);
   }
@@ -289,13 +372,7 @@ export function unsubscribeFromMessages(conversationId: string) {
 export async function deleteConversation(conversationId: string, userId: string) {
   try {
     // First, mark all messages in this conversation as read for this user
-    // This ensures the unread count is updated correctly
-    await supabase
-      .from('messages')
-      .update({ read: true })
-      .eq('conversation_id', conversationId)
-      .neq('sender_id', userId)
-      .eq('read', false);
+    await markOthersMessagesReadInConversation(conversationId, userId);
 
     // Remove the user from conversation participants
     const { error: removeError } = await supabase

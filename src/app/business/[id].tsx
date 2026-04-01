@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, ScrollView, Pressable, TextInput, Modal, ActivityIndicator, Alert, Share } from 'react-native';
+import { View, Text, ScrollView, Pressable, TextInput, Modal, ActivityIndicator, Alert, Share, Linking, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { ChevronLeft, MapPin, Star, CheckCircle, ShieldCheck, Phone, MessageCircle, Navigation, Plus, Package, ShoppingBag, CheckCircle2, Sparkles, Lock, Minus, ShoppingCart, Calendar, Bookmark } from 'lucide-react-native';
@@ -402,6 +402,46 @@ export default function BusinessDetailScreen() {
     }
   };
 
+  const handleOpenDirections = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const address = business?.address || business?.location || '';
+    if (!address) {
+      Alert.alert('No Address', 'This business has no address on file.');
+      return;
+    }
+    const encoded = encodeURIComponent(address);
+    Alert.alert(
+      'Open in Maps',
+      'Choose a map app to get directions',
+      [
+        {
+          text: 'Google Maps',
+          onPress: () => Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encoded}`),
+        },
+        {
+          text: 'Apple Maps',
+          onPress: () => Linking.openURL(Platform.OS === 'ios' ? `maps:?q=${encoded}` : `https://maps.apple.com/?q=${encoded}`),
+        },
+        {
+          text: 'Waze',
+          onPress: () => Linking.openURL(`https://waze.com/ul?q=${encoded}`),
+        },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    );
+  };
+
+  const handleCallBusiness = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const phone = business?.phone;
+    if (!phone) {
+      Alert.alert('No Phone', 'This business has no phone number on file.');
+      return;
+    }
+    const tel = phone.replace(/[\s\-\(\)\.]/g, '');
+    Linking.openURL(`tel:${tel}`);
+  };
+
   const handleMessageBusiness = async () => {
     if (!canInteract || !currentUser?.id) {
       router.push('/signup');
@@ -677,28 +717,22 @@ export default function BusinessDetailScreen() {
 
               <View className="flex-row items-center mt-3 pt-3 border-t border-gray-100">
                 <Pressable
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    Alert.alert('Call', business.phone ? business.phone : 'No phone number');
-                  }}
-                  className="flex-1 flex-row items-center"
+                  onPress={handleCallBusiness}
+                  className="flex-1 flex-row items-center justify-center"
                 >
                   <Phone size={16} color="#1B4D3E" />
                   <Text className="text-forest-700 font-semibold ml-2">Call</Text>
                 </Pressable>
                 <Pressable
                   onPress={handleMessageBusiness}
-                  className="flex-1 flex-row items-center"
+                  className="flex-1 flex-row items-center justify-center"
                 >
                   <MessageCircle size={16} color="#C9A227" />
                   <Text className="text-gold-700 font-semibold ml-2">Message</Text>
                 </Pressable>
                 <Pressable
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    Alert.alert('Directions', business.address || 'No address');
-                  }}
-                  className="flex-1 flex-row items-center"
+                  onPress={handleOpenDirections}
+                  className="flex-1 flex-row items-center justify-center"
                 >
                   <Navigation size={16} color="#D4673A" />
                   <Text className="text-terracotta-600 font-semibold ml-2">Directions</Text>

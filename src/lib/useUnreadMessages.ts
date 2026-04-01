@@ -1,7 +1,12 @@
 import { useEffect, useCallback, useRef } from 'react';
-import { AppState, AppStateStatus } from 'react-native';
+import { AppState, AppStateStatus, Platform } from 'react-native';
 import { create } from 'zustand';
 import { supabase } from './supabase';
+import {
+  countUnreadMessagesForUser,
+  markMessagesAsRead,
+  markAllMessagesAsRead,
+} from './messages';
 
 // Global store for unread message count
 interface UnreadMessagesStore {
@@ -22,39 +27,8 @@ const useUnreadStore = create<UnreadMessagesStore>((set) => ({
   setLastRefreshTime: (time) => set({ lastRefreshTime: time }),
 }));
 
-// Fetch unread count directly from database
 async function fetchUnreadCountFromDb(userId: string): Promise<number> {
-  try {
-    // Get all conversations user is part of
-    const { data: participations } = await supabase
-      .from('conversation_participants')
-      .select('conversation_id')
-      .eq('user_id', userId);
-
-    if (!participations || participations.length === 0) {
-      return 0;
-    }
-
-    const conversationIds = participations.map((p) => p.conversation_id);
-
-    // Count unread messages not sent by this user
-    const { count, error } = await supabase
-      .from('messages')
-      .select('*', { count: 'exact', head: true })
-      .in('conversation_id', conversationIds)
-      .neq('sender_id', userId)
-      .eq('read', false);
-
-    if (error) {
-      console.log('[UnreadMessages] Error fetching count:', error);
-      return 0;
-    }
-
-    return count || 0;
-  } catch (error) {
-    console.log('[UnreadMessages] Exception fetching count:', error);
-    return 0;
-  }
+  return countUnreadMessagesForUser(userId);
 }
 
 // Mark all messages as read in database and return the new count
@@ -62,30 +36,13 @@ export async function markAllMessagesAsReadAndRefresh(userId: string): Promise<n
   try {
     // Prefer safe RPC (works even when RLS blocks direct UPDATE)
     const { error: rpcError } = await supabase.rpc('mark_all_messages_read');
-
     if (rpcError) {
-      // Fallback to direct update if RPC isn't deployed yet
-      const { data: participations } = await supabase
-        .from('conversation_participants')
-        .select('conversation_id')
-        .eq('user_id', userId);
-
-      if (!participations || participations.length === 0) {
-        return 0;
-      }
-
-      const conversationIds = participations.map((p) => p.conversation_id);
-
-      await supabase
-        .from('messages')
-        .update({ read: true })
-        .in('conversation_id', conversationIds)
-        .neq('sender_id', userId)
-        .eq('read', false);
+      console.log('[UnreadMessages] mark_all_messages_read RPC:', rpcError.message);
     }
+    // Always run client updates: RPCs often only flip read=false and miss read IS NULL
+    await markAllMessagesAsRead(userId);
 
-    // Wait a bit for database to sync
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await new Promise((resolve) => setTimeout(resolve, 150));
 
     // Fetch the new count to confirm it's 0
     const newCount = await fetchUnreadCountFromDb(userId);
@@ -111,13 +68,7 @@ export async function markConversationAsRead(conversationId: string, userId: str
     });
 
     if (rpcError) {
-      // Fallback if RPC isn't deployed yet
-      await supabase
-        .from('messages')
-        .update({ read: true })
-        .eq('conversation_id', conversationId)
-        .neq('sender_id', userId)
-        .eq('read', false);
+      await markMessagesAsRead(conversationId, userId);
     }
 
     // Refresh the global count after marking
@@ -201,6 +152,18 @@ export function useUnreadMessages() {
     };
     const appStateSubscription = AppState.addEventListener('change', handleAppStateChange);
 
+    // Web: AppState "active" is unreliable; refetch when tab becomes visible again
+    let onVisibility: (() => void) | undefined;
+    let onFocus: (() => void) | undefined;
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof document !== 'undefined') {
+      onVisibility = () => {
+        if (document.visibilityState === 'visible') refetch();
+      };
+      document.addEventListener('visibilitychange', onVisibility);
+      onFocus = () => refetch();
+      window.addEventListener('focus', onFocus);
+    }
+
     // Realtime: refetch when messages are inserted or updated (new message or marked read)
     const channel = supabase.channel(`unread-messages:${currentUserId}`);
     channel.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, () => refetch());
@@ -210,6 +173,10 @@ export function useUnreadMessages() {
     return () => {
       if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
       appStateSubscription.remove();
+      if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof document !== 'undefined') {
+        if (onVisibility) document.removeEventListener('visibilitychange', onVisibility);
+        if (onFocus) window.removeEventListener('focus', onFocus);
+      }
       supabase.removeChannel(channel);
     };
   }, [currentUserId, refetch]);

@@ -12,8 +12,9 @@ import {
   MessageCircle,
 } from 'lucide-react-native';
 import { useStore } from '@/lib/store';
-import { useUnreadStore, useUnreadMessages } from '@/lib/useUnreadMessages';
+import { useUnreadStore, refreshUnreadCount } from '@/lib/useUnreadMessages';
 import { useUnreadNotificationsStore, useUnreadNotifications } from '@/lib/useUnreadNotifications';
+import { supabase } from '@/lib/supabase';
 import { getIncidents, getUtilityReports } from '@/lib/marketplace-api';
 import type { DbIncident, DbUtilityReport } from '@/lib/supabase';
 import { PhotoTile } from '@/components/PhotoTile';
@@ -23,19 +24,19 @@ export default function HomeHubScreen() {
   const feedFilter = useStore((s) => s.feedFilter);
   const messagesUnread = useUnreadStore((s) => s.unreadCount);
   const notificationsUnread = useUnreadNotificationsStore((s) => s.unreadCount);
-  const { refetch: refetchMessages } = useUnreadMessages();
   const { refetch: refetchNotifications } = useUnreadNotifications();
 
-  // Refetch counts when home hub comes into focus (e.g. after returning from another screen)
-  // Small delay so any in-flight mark-as-read (from Messages/Notifications) can complete first
+  // Refetch counts when home hub comes into focus (e.g. after returning from chat on web)
+  // useUnreadMessages runs in (tabs)/_layout only — refresh here so badge updates without double-polling
   useFocusEffect(
     useCallback(() => {
-      const t = setTimeout(() => {
-        refetchMessages();
+      const t = setTimeout(async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user?.id) await refreshUnreadCount(user.id);
         refetchNotifications();
       }, 400);
       return () => clearTimeout(t);
-    }, [refetchMessages, refetchNotifications])
+    }, [refetchNotifications])
   );
 
   const [incidentCount, setIncidentCount] = useState(0);
@@ -214,6 +215,13 @@ export default function HomeHubScreen() {
                 subtitle="Feed"
                 imageUri="https://images.unsplash.com/photo-1517486808906-6ca8b3f04846?w=1600&q=90"
                 onPress={() => go('/community')}
+                size="lg"
+              />
+              <PhotoTile
+                title="Open to connect"
+                subtitle="Same place, same moment"
+                imageUri="https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=1600&q=90"
+                onPress={() => go('/(tabs)/connect?openConnect=1')}
                 size="lg"
               />
               <PhotoTile

@@ -1,7 +1,7 @@
 import { supabase, DbPost, DbComment, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase';
 import { Platform } from 'react-native';
 import { decode } from 'base64-arraybuffer';
-import { notifyCommunityAboutNewPost } from './communityNotifications';
+import { notifyCommunityAboutNewPost, type NotifyNewPostOptions } from './communityNotifications';
 
 function encodePath(path: string) {
   // encode each segment but keep slashes
@@ -167,8 +167,13 @@ export async function uploadImages(uris: string[], userId: string): Promise<stri
   return uploadedUrls;
 }
 
+export type GetPostsOptions = {
+  /** Only posts marked as Open to connect / Nearby */
+  connectOnly?: boolean;
+};
+
 // Posts API
-export async function getPosts(communityId?: string, limit = 20) {
+export async function getPosts(communityId?: string, limit = 20, options?: GetPostsOptions) {
   let query = supabase
     .from('posts')
     .select(`
@@ -184,12 +189,42 @@ export async function getPosts(communityId?: string, limit = 20) {
     query = query.eq('community_id', communityId);
   }
 
-  const { data, error } = await query;
+  let connectFallbackFilter = false;
+
+  if (options?.connectOnly) {
+    query = query.eq('connect_post', true);
+  }
+
+  let { data, error } = await query;
+
+  if (
+    error &&
+    options?.connectOnly &&
+    (error.message?.includes('connect_post') || JSON.stringify(error).includes('connect_post'))
+  ) {
+    connectFallbackFilter = true;
+    let q2 = supabase
+      .from('posts')
+      .select(
+        `
+      *,
+      author:profiles(*),
+      likes:likes(count),
+      comments:comments(count)
+    `
+      )
+      .order('created_at', { ascending: false })
+      .limit(Math.min(limit * 3, 80));
+    if (communityId) q2 = q2.eq('community_id', communityId);
+    const retry = await q2;
+    data = retry.data;
+    error = retry.error;
+  }
 
   if (error) throw error;
 
   // Transform the data to match the expected Post format
-  return (data || []).map(post => {
+  const mapped = (data || []).map(post => {
     const authorData = post.author as any;
     return {
       id: post.id,
@@ -211,8 +246,18 @@ export async function getPosts(communityId?: string, limit = 20) {
       createdAt: post.created_at,
       isLiked: false,
       location: post.location || '',
+      connectPost: !!(post as { connect_post?: boolean }).connect_post,
     };
   });
+
+  if (options?.connectOnly && connectFallbackFilter) {
+    return mapped.filter(
+      (p) =>
+        p.connectPost || (typeof p.content === 'string' && p.content.includes('👋 Nearby:'))
+    );
+  }
+
+  return mapped;
 }
 
 export async function getPost(postId: string) {
@@ -229,13 +274,21 @@ export async function getPost(postId: string) {
   return data;
 }
 
+export type CreatePostOptions = {
+  connectPost?: boolean;
+} & Pick<
+  NotifyNewPostOptions,
+  'notifyAudience' | 'pushCity' | 'pushNeighborhood' | 'pushCountry'
+>;
+
 export async function createPost(
   authorId: string,
   content: string,
   images: string[] = [],
   location?: string,
   communityId?: string,
-  video?: string | null
+  video?: string | null,
+  options?: CreatePostOptions
 ) {
   // Build the insert payload - only include video if provided
   // Note: Some databases may not have the video column yet
@@ -252,19 +305,26 @@ export async function createPost(
     insertPayload.video = video;
   }
 
+  if (options?.connectPost) {
+    insertPayload.connect_post = true;
+  }
+
   let data: any = null;
   let error: any = null;
 
-  // First try with video field
-  const result = await supabase
-    .from('posts')
-    .insert(insertPayload)
-    .select(`
-      *,
-      author:profiles(*)
-    `)
-    .single();
+  const tryInsert = async (payload: Record<string, unknown>) => {
+    return supabase
+      .from('posts')
+      .insert(payload)
+      .select(`
+        *,
+        author:profiles(*)
+      `)
+      .single();
+  };
 
+  // First try with full payload
+  let result = await tryInsert(insertPayload);
   data = result.data;
   error = result.error;
 
@@ -272,17 +332,9 @@ export async function createPost(
   if (error?.message?.includes('video') || error?.code === 'PGRST204') {
     console.log('[Posts] Video column not in DB, retrying without video field');
     const { video: _, ...payloadWithoutVideo } = insertPayload;
-    const retryResult = await supabase
-      .from('posts')
-      .insert(payloadWithoutVideo)
-      .select(`
-        *,
-        author:profiles(*)
-      `)
-      .single();
-
-    data = retryResult.data;
-    error = retryResult.error;
+    result = await tryInsert(payloadWithoutVideo);
+    data = result.data;
+    error = result.error;
 
     // If we had a video URL, store it locally for this post
     if (video && data?.id) {
@@ -290,17 +342,39 @@ export async function createPost(
     }
   }
 
+  // connect_post column missing until migration
+  if (
+    error &&
+    (error?.message?.includes('connect_post') ||
+      (error?.code === 'PGRST204' && JSON.stringify(error).includes('connect')))
+  ) {
+    const { connect_post: _cp, ...withoutConnect } = insertPayload;
+    result = await tryInsert(withoutConnect);
+    data = result.data;
+    error = result.error;
+  }
+
   if (error) throw error;
 
   // Notify community members about the new post (async, don't block)
   if (data) {
+    const notifyOpts: NotifyNewPostOptions | undefined = options?.connectPost
+      ? {
+          connectPost: true,
+          notifyAudience: options.notifyAudience ?? 'city',
+          pushCity: options.pushCity ?? null,
+          pushNeighborhood: options.pushNeighborhood ?? null,
+          pushCountry: options.pushCountry ?? null,
+        }
+      : undefined;
     notifyCommunityAboutNewPost(
       data.id,
       authorId,
       content,
       communityId || null,
-      location || null
-    ).catch(err => {
+      location || null,
+      notifyOpts
+    ).catch((err) => {
       console.error('[Posts] Error notifying community about new post:', err);
     });
   }

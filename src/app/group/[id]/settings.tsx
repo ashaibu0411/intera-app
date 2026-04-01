@@ -26,7 +26,9 @@ import {
 } from 'lucide-react-native';
 import { useStore } from '@/lib/store';
 import {
+  getGroup,
   getGroupSettings,
+  updateGroup,
   updateGroupSettings,
   type GroupSettings,
   DEFAULT_GROUP_SETTINGS,
@@ -143,7 +145,11 @@ export default function GroupSettingsScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     try {
-      const success = await updateGroupSettings(id, settings);
+      const [settingsSuccess, groupSuccess] = await Promise.all([
+        updateGroupSettings(id, settings),
+        updateGroup(id, { visibility }),
+      ]);
+      const success = settingsSuccess && groupSuccess !== null;
       if (success) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         setHasChanges(false);
@@ -218,6 +224,59 @@ export default function GroupSettingsScreen() {
                 These settings control who can perform actions in your group. Only admins can access this page.
               </Text>
             </View>
+
+            {/* Visibility (Public/Private) */}
+            <Animated.View entering={FadeInUp.duration(300).delay(50)}>
+              <View className="bg-white rounded-2xl mx-4 mb-4 overflow-hidden">
+                <View className="p-4 border-b border-gray-100">
+                  <View className="flex-row items-center">
+                    {visibility === 'public' ? (
+                      <Globe size={24} color="#1B4D3E" />
+                    ) : (
+                      <Lock size={24} color="#6B7280" />
+                    )}
+                    <View className="ml-3 flex-1">
+                      <Text className="text-lg font-semibold text-gray-900">Visibility</Text>
+                      <Text className="text-gray-500 text-sm mt-0.5">
+                        {visibility === 'public' ? 'Anyone can find and view your group' : 'Only members can see the group'}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+                <View className="flex-row">
+                  <Pressable
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setVisibility('public');
+                      setHasChanges(true);
+                    }}
+                    className={`flex-1 flex-row items-center justify-center py-4 border-r border-gray-100 ${
+                      visibility === 'public' ? 'bg-forest-50' : ''
+                    }`}
+                  >
+                    <Globe size={20} color={visibility === 'public' ? '#1B4D3E' : '#9CA3AF'} />
+                    <Text className={`ml-2 font-medium ${visibility === 'public' ? 'text-forest-700' : 'text-gray-500'}`}>
+                      Public
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setVisibility('private');
+                      setHasChanges(true);
+                    }}
+                    className={`flex-1 flex-row items-center justify-center py-4 ${
+                      visibility === 'private' ? 'bg-gray-100' : ''
+                    }`}
+                  >
+                    <Lock size={20} color={visibility === 'private' ? '#374151' : '#9CA3AF'} />
+                    <Text className={`ml-2 font-medium ${visibility === 'private' ? 'text-gray-700' : 'text-gray-500'}`}>
+                      Private
+                    </Text>
+                  </Pressable>
+                </View>
+              </View>
+            </Animated.View>
 
             {/* Membership Settings */}
             <Animated.View entering={FadeInUp.duration(300).delay(100)}>
