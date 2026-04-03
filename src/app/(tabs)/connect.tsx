@@ -365,7 +365,9 @@ export default function ConnectScreen() {
                   <Text className="text-gray-500 ml-1">People near {cityName}</Text>
                 </View>
               ) : (
-                <Text className="text-gray-500 mt-1 text-sm">Lobby in your city & nearby posts</Text>
+                <Text className="text-gray-500 mt-1 text-sm">
+                  Local-first: same city &amp; country as your set location (change location to browse elsewhere)
+                </Text>
               )}
             </View>
 
@@ -665,7 +667,7 @@ export default function ConnectScreen() {
         </ScrollView>
           </>
         ) : (
-          <OpenConnectPanel />
+          <OpenConnectPanel onDeclineAgeGate={() => setConnectSegment('people')} />
         )}
       </SafeAreaView>
     </View>

@@ -31,6 +31,28 @@ export async function getCommunityUserIds(communityId: string): Promise<string[]
  * Narrow a list of user IDs to those whose profile location string likely matches a neighborhood hint.
  * Best-effort: used when targeting connect posts to "neighborhood" audience.
  */
+/** Only profiles that joined Open to connect (server flag). */
+export async function filterUserIdsByOpenConnectOptIn(userIds: string[]): Promise<string[]> {
+  const unique = [...new Set(userIds.filter(Boolean))];
+  if (unique.length === 0) return [];
+  const out: string[] = [];
+  const chunk = 150;
+  for (let i = 0; i < unique.length; i += chunk) {
+    const slice = unique.slice(i, i + chunk);
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id')
+      .in('id', slice)
+      .eq('open_connect_opt_in', true);
+    if (error) {
+      console.warn('[CommunityNotifications] open_connect_opt_in filter:', error.message);
+      continue;
+    }
+    out.push(...(data || []).map((r: { id: string }) => r.id));
+  }
+  return out;
+}
+
 export async function filterUserIdsByLocationSubstring(
   userIds: string[],
   substring: string
@@ -135,6 +157,21 @@ export async function notifyCommunityAboutNewPost(
     if (!author) {
       console.log('[CommunityNotifications] Author not found, skipping notifications');
       return;
+    }
+
+    if (notifyOptions?.connectPost) {
+      const { data: authorRow, error: authorOptErr } = await supabase
+        .from('profiles')
+        .select('open_connect_opt_in')
+        .eq('id', authorId)
+        .maybeSingle();
+      if (authorOptErr) {
+        console.warn('[CommunityNotifications] connect author opt-in check:', authorOptErr.message);
+      }
+      if (!(authorRow as { open_connect_opt_in?: boolean } | null)?.open_connect_opt_in) {
+        console.log('[CommunityNotifications] connect post: author has not joined Open to connect; skip notify');
+        return;
+      }
     }
 
     // Resolve a canonical city/neighborhood for push targeting.
@@ -308,6 +345,10 @@ export async function notifyCommunityAboutNewPost(
 
     // Remove the author from the list (don't notify yourself)
     userIds = userIds.filter((id) => id !== authorId);
+
+    if (notifyOptions?.connectPost && userIds.length > 0) {
+      userIds = await filterUserIdsByOpenConnectOptIn(userIds);
+    }
 
     if (
       notifyOptions?.connectPost &&

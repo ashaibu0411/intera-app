@@ -168,6 +168,12 @@ CREATE POLICY "Users can view their own trust score" ON user_trust_scores
 CREATE POLICY "System can update trust scores" ON user_trust_scores
   FOR UPDATE USING (true);
 
+-- Authenticated users can create their own row (client bootstrap); triggers use SECURITY DEFINER.
+DROP POLICY IF EXISTS "Users can insert own trust score" ON user_trust_scores;
+CREATE POLICY "Users can insert own trust score" ON user_trust_scores
+  FOR INSERT TO authenticated
+  WITH CHECK (user_id = auth.uid());
+
 -- User Vouches Policies
 CREATE POLICY "Anyone can view vouches" ON user_vouches
   FOR SELECT USING (true);
@@ -215,6 +221,7 @@ CREATE TRIGGER update_user_trust_scores_updated_at
 -- FUNCTION to recalculate trust score
 -- =====================================================
 
+-- SECURITY DEFINER: trigger runs as reviewer; RLS on user_trust_scores would block INSERT otherwise.
 CREATE OR REPLACE FUNCTION recalculate_user_trust_score(target_user_id UUID)
 RETURNS INTEGER AS $$
 DECLARE
@@ -280,7 +287,7 @@ BEGIN
 
   RETURN new_score;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- =====================================================
 -- TRIGGER to auto-update trust score on new review

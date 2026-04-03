@@ -17,7 +17,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Image } from 'expo-image';
-import { Users, Shield, Sparkles, MessageCircle, EyeOff } from 'lucide-react-native';
+import { Users, Shield, Sparkles, MessageCircle, EyeOff, ChevronRight } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
@@ -44,6 +44,8 @@ import {
   type OpenConnectLobbyRow,
 } from '@/lib/openConnectSessions';
 import { getOrCreateConversation } from '@/lib/messages';
+import { getConnectWallAgeAttested, setConnectWallAgeAttested } from '@/lib/connectWallAgeGate';
+import { OpenConnectMembershipPrompt } from '@/components/OpenConnectMembershipPrompt';
 
 const STORAGE_KEY = 'intera_open_connect_v1';
 
@@ -69,9 +71,14 @@ function minsLeftFromIso(untilIso: string): number {
 
 export type OpenConnectPanelProps = {
   composerReturnTo?: string;
+  /** When user leaves the 18+ gate (e.g. switch Connect tab to People) */
+  onDeclineAgeGate?: () => void;
 };
 
-export function OpenConnectPanel({ composerReturnTo = CONNECT_TAB_OPEN_RETURN }: OpenConnectPanelProps) {
+export function OpenConnectPanel({
+  composerReturnTo = CONNECT_TAB_OPEN_RETURN,
+  onDeclineAgeGate,
+}: OpenConnectPanelProps) {
   const currentUser = useStore((s) => s.currentUser);
   const isGuest = useStore((s) => s.isGuest);
   const selectedLocation = useStore((s) => s.selectedLocation);
@@ -88,6 +95,10 @@ export function OpenConnectPanel({ composerReturnTo = CONNECT_TAB_OPEN_RETURN }:
   const [revealAvatar, setRevealAvatar] = useState(false);
   const [useProfileName, setUseProfileName] = useState(false);
   const [panelRefreshing, setPanelRefreshing] = useState(false);
+  const [ageLoading, setAgeLoading] = useState(true);
+  const [ageVerified, setAgeVerified] = useState(false);
+  /** Server opt-in: lobby fetch/sync only when true (see OpenConnectMembershipPrompt). */
+  const [connectFeedAllowed, setConnectFeedAllowed] = useState(false);
 
   const city = selectedLocation?.city?.trim() || '';
   const country = selectedLocation?.country?.trim() || '';
@@ -186,6 +197,26 @@ export function OpenConnectPanel({ composerReturnTo = CONNECT_TAB_OPEN_RETURN }:
     }
   }, [currentUser, isGuest]);
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const ok = await getConnectWallAgeAttested();
+      if (!cancelled) {
+        setAgeVerified(ok);
+        setAgeLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const onConfirmAge = useCallback(async () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    await setConnectWallAgeAttested();
+    setAgeVerified(true);
+  }, []);
+
   const onPanelRefresh = useCallback(async () => {
     setPanelRefreshing(true);
     try {
@@ -196,14 +227,16 @@ export function OpenConnectPanel({ composerReturnTo = CONNECT_TAB_OPEN_RETURN }:
   }, [refreshLobby, syncFromServer]);
 
   useEffect(() => {
+    if (!ageVerified || !connectFeedAllowed) return;
     loadFromStorage();
-  }, [loadFromStorage]);
+  }, [ageVerified, connectFeedAllowed, loadFromStorage]);
 
   useFocusEffect(
     useCallback(() => {
+      if (!ageVerified || !connectFeedAllowed) return;
       refreshLobby();
       syncFromServer();
-    }, [refreshLobby, syncFromServer])
+    }, [refreshLobby, syncFromServer, ageVerified, connectFeedAllowed])
   );
 
   useEffect(() => {
@@ -360,20 +393,81 @@ export function OpenConnectPanel({ composerReturnTo = CONNECT_TAB_OPEN_RETURN }:
       ? Math.max(1, Math.ceil((sessionUntil - Date.now()) / 60000))
       : 0;
 
+  if (ageLoading) {
+    return (
+      <View className="flex-1 items-center justify-center py-20 px-5">
+        <ActivityIndicator size="large" color="#1B4D3E" />
+      </View>
+    );
+  }
+
+  if (!ageVerified) {
+    return (
+      <ScrollView
+        className="flex-1 px-5 pt-2"
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ paddingBottom: 32 }}
+      >
+        <View className="bg-violet-900 rounded-3xl p-6">
+          <View className="flex-row items-center mb-3">
+            <Shield size={28} color="#E9D5FF" />
+            <Text className="text-white text-xl font-bold ml-3 flex-1">Before you enter</Text>
+          </View>
+          <Text className="text-violet-100 leading-6 text-base">
+            The <Text className="font-semibold text-white">Open to connect lobby</Text> (and the connect post wall) are
+            for adults <Text className="font-semibold text-white">18+</Text> who want to meet others nearby.
+          </Text>
+          <Text className="text-violet-200/90 leading-6 mt-4">
+            Sexual content, harassment, and hate are not allowed. We use moderation and reporting — violations can
+            lead to removal or account action.
+          </Text>
+          <Text className="text-violet-200/80 text-sm mt-4 leading-5">
+            This is a self-confirmation on your device only; we do not upload your age here. Meet in public first and
+            use block/report if anything feels off.
+          </Text>
+        </View>
+
+        <Pressable
+          onPress={onConfirmAge}
+          className="mt-6 bg-violet-700 py-4 rounded-2xl items-center active:opacity-90"
+        >
+          <Text className="text-white font-bold text-lg">I am 18 or older — continue</Text>
+        </Pressable>
+
+        <Pressable
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            if (onDeclineAgeGate) onDeclineAgeGate();
+            else router.back();
+          }}
+          className="mt-4 py-3 items-center"
+        >
+          <Text className="text-gray-600 font-semibold">Go back</Text>
+        </Pressable>
+      </ScrollView>
+    );
+  }
+
   return (
-    <ScrollView
-      className="flex-1 px-5 pt-1"
-      keyboardShouldPersistTaps="handled"
-      contentContainerStyle={{ paddingBottom: 32 }}
-      refreshControl={
-        <RefreshControl
-          refreshing={panelRefreshing}
-          onRefresh={onPanelRefresh}
-          tintColor="#1B4D3E"
-          colors={['#1B4D3E']}
-        />
-      }
+    <OpenConnectMembershipPrompt
+      userId={currentUser?.id}
+      isGuest={!!isGuest}
+      areaLabel={areaLabel}
+      onOptInChanged={setConnectFeedAllowed}
     >
+      <ScrollView
+        className="flex-1 px-5 pt-1"
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ paddingBottom: 32 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={panelRefreshing}
+            onRefresh={onPanelRefresh}
+            tintColor="#1B4D3E"
+            colors={['#1B4D3E']}
+          />
+        }
+      >
       <LinearGradient
         colors={['#1B4D3E', '#153D31']}
         start={{ x: 0, y: 0 }}
@@ -390,6 +484,25 @@ export function OpenConnectPanel({ composerReturnTo = CONNECT_TAB_OPEN_RETURN }:
           fades. Opt in only; meet in public; trust your gut.
         </Text>
       </LinearGradient>
+
+      <Pressable
+        onPress={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          router.push('/open-connect-posts' as any);
+        }}
+        className="bg-white rounded-2xl border border-violet-200 p-4 mb-4 flex-row items-center shadow-sm active:opacity-90"
+      >
+        <View className="bg-violet-100 rounded-full p-2.5">
+          <Sparkles size={22} color="#5B21B6" />
+        </View>
+        <View className="flex-1 ml-3">
+          <Text className="text-warmBrown font-bold text-base">Connect post wall</Text>
+          <Text className="text-gray-500 text-sm mt-0.5 leading-5">
+            Hangouts, dates &amp; networking posts — not mixed with community updates
+          </Text>
+        </View>
+        <ChevronRight size={22} color="#6D28D9" />
+      </Pressable>
 
       <View className="bg-indigo-50 border border-indigo-200 rounded-2xl p-4 mb-4 flex-row">
         <EyeOff size={22} color="#4338CA" style={{ marginTop: 2 }} />
@@ -679,5 +792,6 @@ export function OpenConnectPanel({ composerReturnTo = CONNECT_TAB_OPEN_RETURN }:
         <Text className="text-gray-400 text-center text-sm mb-4">Open the mobile app for the full experience.</Text>
       ) : null}
     </ScrollView>
+    </OpenConnectMembershipPrompt>
   );
 }

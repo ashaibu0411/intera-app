@@ -29,6 +29,20 @@ export async function sendRemotePushAlert(payload: {
   }
 }
 
+/**
+ * SMS to the business listing phone (Twilio via Edge Function). Best-effort; skips if Twilio or phone unset.
+ * Caller must be the booking customer (enforced server-side).
+ */
+export async function sendBusinessAppointmentSms(appointmentId: string) {
+  try {
+    await supabase.functions.invoke('send-appointment-sms', {
+      body: { appointmentId },
+    });
+  } catch (e) {
+    console.warn('[PushAlerts] sendBusinessAppointmentSms failed:', String((e as any)?.message ?? e));
+  }
+}
+
 export async function sendDirectPushAlert(payload: {
   title: string;
   body: string;

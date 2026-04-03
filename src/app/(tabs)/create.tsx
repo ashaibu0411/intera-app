@@ -44,6 +44,7 @@ import {
   applyIntentPrefix,
   type PostIntentId,
 } from '@/lib/socialConnectHelpers';
+import { fetchOpenConnectOptIn, setOpenConnectOptIn } from '@/lib/openConnectMembership';
 
 type CreateMode = 'select' | 'post' | 'sell' | 'event';
 
@@ -488,6 +489,28 @@ function CreatePostForm({
     const formattedContent =
       business?.name ? `🏪 ${business.name}\n\n${bodyText}` : bodyText;
     const markConnectPost = postIntent === 'nearby' || !!fromOpenConnectFlow;
+
+    if (markConnectPost) {
+      let opted = await fetchOpenConnectOptIn(user.id);
+      if (!opted) {
+        const join = await new Promise<boolean>((resolve) => {
+          Alert.alert(
+            'Join Open to connect',
+            'Connect posts are only shown to people in your area who joined Open to connect. Join to post to this community.',
+            [
+              { text: 'Not now', style: 'cancel', onPress: () => resolve(false) },
+              { text: 'Join & post', onPress: () => resolve(true) },
+            ]
+          );
+        });
+        if (!join) return;
+        const jr = await setOpenConnectOptIn(user.id, true);
+        if (!jr.ok) {
+          Alert.alert('Could not join', jr.error || 'Try again from Settings.');
+          return;
+        }
+      }
+    }
 
     // Moderation gate (local fast filter + AI check) - only if there's text content
     if (formattedContent.trim()) {

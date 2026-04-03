@@ -4,18 +4,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import Animated, { FadeInUp } from 'react-native-reanimated';
-import { ArrowLeft, Plus } from 'lucide-react-native';
+import { ArrowLeft, Plus, Sparkles, ChevronRight } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import { PostCard } from '@/components/PostCard';
 import { useStore, type Post } from '@/lib/store';
 import { getCommunityByLocation } from '@/lib/communities';
-import { type DbCommunity } from '@/lib/supabase';
-import { getPosts } from '@/lib/posts';
+import { getPosts, isConnectStylePost } from '@/lib/posts';
 import { subscribeToPostInserts } from '@/lib/postsRealtime';
-
-type FeedTab = 'all' | 'connect';
 
 export default function CommunityUpdatesScreen() {
   const selectedLocation = useStore((s) => s.selectedLocation);
@@ -23,9 +20,7 @@ export default function CommunityUpdatesScreen() {
   const blockedUserIds = useStore((s) => s.blockedUserIds);
 
   const [refreshing, setRefreshing] = useState(false);
-  const [realCommunity, setRealCommunity] = useState<DbCommunity | null>(null);
   const [dbPosts, setDbPosts] = useState<Post[]>([]);
-  const [feedTab, setFeedTab] = useState<FeedTab>('all');
 
   const locationLabel = useMemo(() => {
     const city = selectedLocation?.city?.trim();
@@ -40,25 +35,21 @@ export default function CommunityUpdatesScreen() {
     const country = selectedLocation?.country?.trim();
 
     if (!city || !country) {
-      setRealCommunity(null);
       setDbPosts([]);
       return null;
     }
 
     const community = await getCommunityByLocation(city, country);
-    setRealCommunity(community);
 
     try {
-      const posts = await getPosts(community?.id || undefined, 50, {
-        connectOnly: feedTab === 'connect',
-      });
+      const posts = await getPosts(community?.id || undefined, 50, { excludeConnect: true });
       setDbPosts(posts);
     } catch (e) {
       console.warn('[CommunityUpdates] fetch posts:', e);
       setDbPosts([]);
     }
     return community;
-  }, [selectedLocation?.city, selectedLocation?.country, feedTab]);
+  }, [selectedLocation?.city, selectedLocation?.country]);
 
   useFocusEffect(
     useCallback(() => {
@@ -89,12 +80,11 @@ export default function CommunityUpdatesScreen() {
     const uniquePosts = combined.filter(
       (post, index, self) => index === self.findIndex((p) => p.id === post.id)
     );
-    let list = uniquePosts.filter((post) => !blockedUserIds.includes(post.author.id));
-    if (feedTab === 'connect') {
-      list = list.filter((p) => p.connectPost || (p.content && p.content.includes('👋 Nearby:')));
-    }
-    return list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }, [blockedUserIds, dbPosts, userPosts, feedTab]);
+    return uniquePosts
+      .filter((post) => !blockedUserIds.includes(post.author.id))
+      .filter((post) => !isConnectStylePost(post))
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [blockedUserIds, dbPosts, userPosts]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -123,30 +113,30 @@ export default function CommunityUpdatesScreen() {
             <View className="flex-1">
               <Text className="text-xl font-bold text-warmBrown">Community updates</Text>
               <Text className="text-xs text-gray-500 -mt-0.5">{locationLabel}</Text>
+              <Text className="text-xs text-gray-400 mt-0.5">
+                News &amp; local updates — connect posts live on their own wall
+              </Text>
             </View>
           </View>
-          <View className="flex-row mt-3 bg-gray-100 rounded-full p-1">
-            <Pressable
-              onPress={() => {
-                Haptics.selectionAsync();
-                setFeedTab('all');
-              }}
-              className={`flex-1 py-2 rounded-full items-center ${feedTab === 'all' ? 'bg-white shadow-sm' : ''}`}
-            >
-              <Text className={feedTab === 'all' ? 'text-warmBrown font-bold' : 'text-gray-500 font-medium'}>All</Text>
-            </Pressable>
-            <Pressable
-              onPress={() => {
-                Haptics.selectionAsync();
-                setFeedTab('connect');
-              }}
-              className={`flex-1 py-2 rounded-full items-center ${feedTab === 'connect' ? 'bg-white shadow-sm' : ''}`}
-            >
-              <Text className={feedTab === 'connect' ? 'text-warmBrown font-bold' : 'text-gray-500 font-medium'}>
-                Open to connect
+
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              router.push('/open-connect-posts' as never);
+            }}
+            className="mt-3 flex-row items-center bg-violet-50 border border-violet-200 rounded-2xl px-4 py-3 active:opacity-90"
+          >
+            <View className="bg-violet-100 rounded-full p-2">
+              <Sparkles size={20} color="#5B21B6" />
+            </View>
+            <View className="flex-1 ml-3">
+              <Text className="text-violet-950 font-semibold">Open to connect wall</Text>
+              <Text className="text-violet-800/90 text-xs mt-0.5">
+                Members only, scoped to your set city &amp; country — meant for meeting nearby
               </Text>
-            </Pressable>
-          </View>
+            </View>
+            <ChevronRight size={20} color="#6D28D9" />
+          </Pressable>
         </View>
 
         <ScrollView
@@ -191,29 +181,19 @@ export default function CommunityUpdatesScreen() {
             </View>
           ) : (
             <View className="mx-4 mt-10 p-6 bg-white rounded-2xl border border-gray-100 items-center">
-              <Text className="text-gray-900 font-semibold text-xl">
-                {feedTab === 'connect' ? 'No connect posts yet' : 'Nothing posted yet'}
-              </Text>
+              <Text className="text-gray-900 font-semibold text-xl">Nothing posted yet</Text>
               <Text className="text-gray-500 text-center mt-1">
-                {feedTab === 'connect'
-                  ? 'Go to Open to connect and post with Nearby — or switch to All for the full feed.'
-                  : 'Be the first to share a photo, video, or update.'}
+                Be the first to share a photo, video, or local update.
               </Text>
               <Pressable
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                   const returnTo = encodeURIComponent('/community-updates');
-                  if (feedTab === 'connect') {
-                    router.push('/open-connect' as never);
-                  } else {
-                    router.push(`/create?returnTo=${returnTo}` as never);
-                  }
+                  router.push(`/create?returnTo=${returnTo}` as never);
                 }}
                 className="mt-4 bg-gray-900 px-6 py-3 rounded-full"
               >
-                <Text className="text-white font-semibold">
-                  {feedTab === 'connect' ? 'Open to connect' : 'Create a post'}
-                </Text>
+                <Text className="text-white font-semibold">Create a post</Text>
               </Pressable>
             </View>
           )}
@@ -253,4 +233,3 @@ export default function CommunityUpdatesScreen() {
     </View>
   );
 }
-

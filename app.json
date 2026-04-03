@@ -9,7 +9,7 @@
       "resizeMode": "contain",
       "backgroundColor": "#FFFFFF"
     },
-    "version": "2.0.8",
+    "version": "2.0.9",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": false,
@@ -33,13 +33,13 @@
           "audio"
         ]
       },
-      "buildNumber": "62"
+      "buildNumber": "68"
     },
     "android": {
       "label": "Intera: Community App",
       "package": "com.vibecode.intera",
       "googleServicesFile": "./google-services.json",
-      "versionCode": 66,
+      "versionCode": 71,
       "splash": {
         "image": "./assets/icon.png",
         "resizeMode": "contain",

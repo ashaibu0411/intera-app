@@ -84,8 +84,13 @@ export default function ProviderDetailScreen() {
       setShowReview(false);
       setReviewText('');
       setRating(5);
-    } catch {
-      Alert.alert('Could not save review', 'Please try again.');
+    } catch (e: unknown) {
+      const msg =
+        e && typeof e === 'object' && 'message' in e
+          ? String((e as { message?: string }).message)
+          : String(e);
+      console.warn('[ProviderDetail] save review failed:', e);
+      Alert.alert('Could not save review', msg ? `${msg}\n\nPlease try again.` : 'Please try again.');
     } finally {
       setSavingReview(false);
     }

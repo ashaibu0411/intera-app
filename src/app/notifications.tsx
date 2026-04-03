@@ -58,10 +58,20 @@ function NotificationItem({ notification, index, onRead }: { notification: UiNot
     const type = String(data?.type || notification.type || '');
 
     if (type === 'event' && data?.eventId) return router.push(`/event/${String(data.eventId)}` as any);
-    if (
-      (type === 'post' || type === 'new_post' || type === 'connect_post') &&
-      data?.postId
-    ) {
+    const connectFlag = data?.connectPost === true || String(data?.connectPost) === 'true';
+    const connectWallPost =
+      type === 'connect_post' || (connectFlag && (type === 'post' || type === 'new_post'));
+
+    if (connectWallPost && data?.postId) {
+      return router.push({
+        pathname: '/open-connect-posts',
+        params: { postId: String(data.postId) },
+      } as any);
+    }
+    if (connectWallPost && !data?.postId) {
+      return router.push('/open-connect-posts' as any);
+    }
+    if ((type === 'post' || type === 'new_post') && data?.postId) {
       return router.push(`/post/${String(data.postId)}` as any);
     }
     if (type === 'inventory_update' && data?.businessId) return router.push(`/business/${String(data.businessId)}` as any);

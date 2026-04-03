@@ -31,7 +31,7 @@ import {
   calculateEndTime,
   type DbBusinessService,
 } from '@/lib/booking-api';
-import { sendDirectPushAlert } from '@/lib/pushAlerts';
+import { sendDirectPushAlert, sendBusinessAppointmentSms } from '@/lib/pushAlerts';
 import { scheduleAppointmentReminders } from '@/lib/notifications';
 import { payBookingWithCard, isStripeBookingConfigured } from '@/lib/bookingStripePayment';
 
@@ -320,7 +320,7 @@ export default function BookAppointmentScreen() {
         throw new Error('Failed to create appointment');
       }
 
-      // Notify business owner of new appointment
+      // Notify business owner of new appointment (push + optional SMS to business phone on file)
       sendDirectPushAlert({
         recipientUserId: business.owner_id,
         excludeUserId: currentUser.id,
@@ -328,6 +328,7 @@ export default function BookAppointmentScreen() {
         body: `${currentUser.name || 'A customer'} booked ${selectedService.name} on ${formatDate(selectedDate)} at ${selectedTime}`,
         data: { type: 'new_appointment', appointmentId: appointment.id, businessId: business.id, businessName: business.name },
       }).catch(() => {});
+      sendBusinessAppointmentSms(appointment.id).catch(() => null);
 
       // Schedule local reminders (1 day and 1 hour before)
       scheduleAppointmentReminders(

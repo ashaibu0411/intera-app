@@ -26,7 +26,7 @@ import { StoryAvatar } from '@/components/StoryAvatar';
 import { useStore, type Post, type UserStory } from '@/lib/store';
 import { getCommunityByLocation, subscribeToCommunityUpdates, getOrCreateCommunity, joinCommunity } from '@/lib/communities';
 import { DbCommunity } from '@/lib/supabase';
-import { getPosts } from '@/lib/posts';
+import { getPosts, isConnectStylePost } from '@/lib/posts';
 import { subscribeToPostInserts } from '@/lib/postsRealtime';
 import { detectCurrentLocation, isLocationDifferent, type DetectedLocation } from '@/lib/locationDetection';
 import { getCurrentUser } from '@/lib/auth';
@@ -118,7 +118,7 @@ export default function HomeScreen() {
 
   const fetchDbPosts = async (communityId?: string | null) => {
     try {
-      const posts = await getPosts(communityId || undefined, 50);
+      const posts = await getPosts(communityId || undefined, 50, { excludeConnect: true });
       setDbPosts(posts);
     } catch (error) {
       setDbPosts([]);
@@ -204,6 +204,7 @@ export default function HomeScreen() {
     );
     return uniquePosts
       .filter((post) => !blockedUserIds.includes(post.author.id))
+      .filter((post) => !isConnectStylePost(post))
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [blockedUserIds, dbPosts, userPosts]);
 

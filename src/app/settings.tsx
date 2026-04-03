@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, Pressable, Switch, Linking, Modal, Share, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Bell, BellOff, ChevronRight, Shield, CircleHelp, LogOut, Trash2, AlertTriangle, Ban, X, Eye, EyeOff, Moon, Sun, UserPlus, Share2 } from 'lucide-react-native';
+import { ArrowLeft, Bell, BellOff, ChevronRight, Shield, CircleHelp, LogOut, Trash2, AlertTriangle, Ban, X, Eye, EyeOff, Moon, Sun, UserPlus, Share2, Sparkles } from 'lucide-react-native';
 import { Image } from 'expo-image';
 import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -10,6 +10,7 @@ import { useStore } from '@/lib/store';
 import { requestNotificationPermissions, areNotificationsEnabled } from '@/lib/notifications';
 import { signOut, deleteAccount, getCurrentUser } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
+import { syncPushTokenFromStore } from '@/lib/pushTokens';
 
 export default function SettingsScreen() {
   const notificationsEnabled = useStore((s) => s.notificationsEnabled);
@@ -29,6 +30,8 @@ export default function SettingsScreen() {
   const [showBlockedUsersModal, setShowBlockedUsersModal] = useState(false);
   const [showOnlineStatus, setShowOnlineStatus] = useState(true);
   const [isUpdatingOnlineStatus, setIsUpdatingOnlineStatus] = useState(false);
+  const [openConnectCommunity, setOpenConnectCommunity] = useState(false);
+  const [openConnectCommunityLoading, setOpenConnectCommunityLoading] = useState(true);
 
   // Load user's online visibility preference
   useEffect(() => {
@@ -52,6 +55,31 @@ export default function SettingsScreen() {
       }
     };
     loadOnlinePreference();
+  }, []);
+
+  useEffect(() => {
+    const loadOpenConnect = async () => {
+      try {
+        const user = await getCurrentUser();
+        if (!user?.id) {
+          setOpenConnectCommunityLoading(false);
+          return;
+        }
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('open_connect_opt_in')
+          .eq('id', user.id)
+          .maybeSingle();
+        if (!error && data && typeof (data as { open_connect_opt_in?: boolean }).open_connect_opt_in === 'boolean') {
+          setOpenConnectCommunity(!!(data as { open_connect_opt_in: boolean }).open_connect_opt_in);
+        }
+      } catch {
+        /* ignore */
+      } finally {
+        setOpenConnectCommunityLoading(false);
+      }
+    };
+    loadOpenConnect();
   }, []);
 
   const handleToggleOnlineStatus = async (value: boolean) => {
@@ -291,6 +319,64 @@ export default function SettingsScreen() {
               </Pressable>
             </View>
           </Animated.View>
+
+          {currentUser && (
+            <Animated.View entering={FadeInUp.duration(300).delay(150)}>
+              <Text className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 mt-6">
+                Open to connect
+              </Text>
+              <View className="bg-white rounded-2xl overflow-hidden shadow-sm">
+                <View
+                  className={`flex-row items-center p-4 ${openConnectCommunityLoading ? 'opacity-50' : ''}`}
+                >
+                  <View className="bg-violet-50 rounded-full p-2.5 mr-3">
+                    <Sparkles size={20} color="#7C3AED" />
+                  </View>
+                  <View className="flex-1 pr-2">
+                    <Text className="text-warmBrown font-medium">Member of Open to connect</Text>
+                    <Text className="text-gray-500 text-sm mt-0.5">
+                      Lobby, connect wall &amp; connect alerts follow your <Text className="font-semibold">set</Text>{' '}
+                      city &amp; country (change location in the app to browse another place). Turn off to leave; you can
+                      rejoin anytime.
+                    </Text>
+                  </View>
+                  <Switch
+                    value={openConnectCommunity}
+                    disabled={openConnectCommunityLoading}
+                    onValueChange={async (v) => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      try {
+                        const user = await getCurrentUser();
+                        if (!user?.id) return;
+                        const { error } = await supabase
+                          .from('profiles')
+                          .update({ open_connect_opt_in: v })
+                          .eq('id', user.id);
+                        if (error) {
+                          const msg = String((error as any)?.message ?? '');
+                          if (msg.includes('open_connect_opt_in')) {
+                            Alert.alert(
+                              'Update database',
+                              'Run the Supabase migration that adds profiles.open_connect_opt_in (see repo migrations).'
+                            );
+                          } else {
+                            Alert.alert('Could not update', msg);
+                          }
+                          return;
+                        }
+                        setOpenConnectCommunity(v);
+                        syncPushTokenFromStore().catch(() => null);
+                      } catch (e) {
+                        Alert.alert('Error', String(e));
+                      }
+                    }}
+                    trackColor={{ false: '#E5E7EB', true: '#7C3AED' }}
+                    thumbColor="#FFFFFF"
+                  />
+                </View>
+              </View>
+            </Animated.View>
+          )}
 
           {/* About Section */}
           <Animated.View entering={FadeInUp.duration(300).delay(200)}>

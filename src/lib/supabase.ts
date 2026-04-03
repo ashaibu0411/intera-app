@@ -190,6 +190,8 @@ export interface DbUser {
   is_online?: boolean;
   last_seen?: string;
   show_online_status?: boolean;
+  /** Joined Open to connect community (lobby + connect wall + connect notifications). */
+  open_connect_opt_in?: boolean;
 }
 
 export interface DbPost {

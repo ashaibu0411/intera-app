@@ -1072,13 +1072,14 @@ export async function upsertBusinessReview(
   rating: number,
   review?: string | null
 ) {
+  // Avoid reviewer:profiles(*) on upsert — nested select can fail RLS and abort a successful write.
   const { data, error } = await supabase
     .from('business_reviews')
     .upsert(
       { business_id: businessId, reviewer_id: reviewerId, rating, review: review ?? null },
       { onConflict: 'business_id,reviewer_id' }
     )
-    .select(`*, reviewer:profiles(*)`)
+    .select('id, business_id, reviewer_id, rating, review, created_at, updated_at')
     .single();
   if (error) throw error;
   return data as unknown as DbBusinessReview;
@@ -1201,7 +1202,7 @@ export async function upsertServiceProviderReview(providerId: string, reviewerId
       { provider_id: providerId, reviewer_id: reviewerId, rating, review: review ?? null },
       { onConflict: 'provider_id,reviewer_id' }
     )
-    .select(`*, reviewer:profiles(*)`)
+    .select('id, provider_id, reviewer_id, rating, review, created_at, updated_at')
     .single();
   if (error) throw error;
   return data as unknown as DbServiceProviderReview;

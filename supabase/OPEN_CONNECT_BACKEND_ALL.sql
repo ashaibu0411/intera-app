@@ -4,7 +4,7 @@
 -- Run this ONCE in: Supabase Dashboard → SQL Editor → New query → Run
 -- Safe to re-run on the same project (IF NOT EXISTS / DROP + CREATE function).
 --
--- Requires: public.profiles(id) (standard Supabase auth-linked profiles).
+-- Requires: public.profiles(id) linked to auth (standard Supabase pattern).
 -- =============================================================================
 
 -- ---------------------------------------------------------------------------
@@ -45,13 +45,50 @@ CREATE INDEX IF NOT EXISTS idx_open_connect_sessions_until
 
 ALTER TABLE public.open_connect_sessions ENABLE ROW LEVEL SECURITY;
 
+-- profiles.open_connect_opt_in required to insert/update session (see migration 20260215120000).
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS open_connect_opt_in boolean NOT NULL DEFAULT false;
+
+COMMENT ON COLUMN public.profiles.open_connect_opt_in IS 'User joined Open to connect: lobby, connect wall, and connect_post notifications/pushes target opted-in members in area.';
+
+CREATE INDEX IF NOT EXISTS idx_profiles_open_connect_opt_in
+  ON public.profiles (open_connect_opt_in)
+  WHERE open_connect_opt_in = true;
+
 DROP POLICY IF EXISTS "open_connect_sessions_own_all" ON public.open_connect_sessions;
-CREATE POLICY "open_connect_sessions_own_all"
-  ON public.open_connect_sessions
-  FOR ALL
-  TO authenticated
+DROP POLICY IF EXISTS "open_connect_sessions_select_own" ON public.open_connect_sessions;
+DROP POLICY IF EXISTS "open_connect_sessions_insert_opted_in" ON public.open_connect_sessions;
+DROP POLICY IF EXISTS "open_connect_sessions_update_opted_in" ON public.open_connect_sessions;
+DROP POLICY IF EXISTS "open_connect_sessions_delete_own" ON public.open_connect_sessions;
+
+CREATE POLICY "open_connect_sessions_select_own"
+  ON public.open_connect_sessions FOR SELECT TO authenticated
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "open_connect_sessions_insert_opted_in"
+  ON public.open_connect_sessions FOR INSERT TO authenticated
+  WITH CHECK (
+    auth.uid() = user_id
+    AND EXISTS (
+      SELECT 1 FROM public.profiles pr
+      WHERE pr.id = auth.uid() AND coalesce(pr.open_connect_opt_in, false) = true
+    )
+  );
+
+CREATE POLICY "open_connect_sessions_update_opted_in"
+  ON public.open_connect_sessions FOR UPDATE TO authenticated
   USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
+  WITH CHECK (
+    auth.uid() = user_id
+    AND EXISTS (
+      SELECT 1 FROM public.profiles pr
+      WHERE pr.id = auth.uid() AND coalesce(pr.open_connect_opt_in, false) = true
+    )
+  );
+
+CREATE POLICY "open_connect_sessions_delete_own"
+  ON public.open_connect_sessions FOR DELETE TO authenticated
+  USING (auth.uid() = user_id);
 
 -- ---------------------------------------------------------------------------
 -- 2) Lobby RPC — returns lobby-only fields (no legal name unless user opted in)
@@ -104,6 +141,12 @@ AS $$
     AND btrim(lower(s.city)) = btrim(lower(coalesce(p_city, '')))
     AND btrim(lower(s.country)) = btrim(lower(coalesce(p_country, '')))
     AND s.user_id <> auth.uid()
+    AND coalesce(p.open_connect_opt_in, false) = true
+    AND EXISTS (
+      SELECT 1 FROM public.profiles viewer
+      WHERE viewer.id = auth.uid()
+        AND coalesce(viewer.open_connect_opt_in, false) = true
+    )
   ORDER BY s.until DESC
   LIMIT 50;
 $$;

@@ -180,7 +180,7 @@ serve(async (req) => {
       });
     }
 
-    const filtered = (rows ?? []).filter((row: Record<string, unknown>) => {
+    let filtered = (rows ?? []).filter((row: Record<string, unknown>) => {
       if (excludeUserId && row.user_id === excludeUserId) return false;
 
       if (isConnect && row.notify_connect_posts === false) return false;
@@ -194,6 +194,29 @@ serve(async (req) => {
       }
       return true;
     });
+
+    // Connect pushes: only users who joined Open to connect (profiles.open_connect_opt_in).
+    if (isConnect && filtered.length > 0) {
+      const userIds = [
+        ...new Set(
+          filtered
+            .map((row: Record<string, unknown>) => String(row.user_id || ''))
+            .filter((id) => id.length > 0)
+        ),
+      ];
+      const { data: profs, error: perr } = await admin
+        .from('profiles')
+        .select('id')
+        .in('id', userIds)
+        .eq('open_connect_opt_in', true);
+      if (perr) {
+        console.warn('[send-push-alert] open_connect_opt_in:', perr.message);
+        filtered = [];
+      } else {
+        const allowed = new Set((profs ?? []).map((p: { id: string }) => p.id));
+        filtered = filtered.filter((row: Record<string, unknown>) => allowed.has(String(row.user_id)));
+      }
+    }
 
     const tokens = filtered.map((r: { token: string }) => r.token).filter(Boolean);
     const chunk = 99;

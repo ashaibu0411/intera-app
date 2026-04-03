@@ -67,8 +67,21 @@ function RootLayoutNav() {
         router.push(`/event/${String(data.eventId)}` as any);
         return;
       }
-      if (type === 'post' || type === 'new_post' || type === 'connect_post') {
-        if (data?.postId) router.push(`/post/${String(data.postId)}` as any);
+      if (type === 'connect_post') {
+        if (data?.postId) {
+          router.push({ pathname: '/open-connect-posts', params: { postId: String(data.postId) } } as any);
+        } else {
+          router.push('/open-connect-posts' as any);
+        }
+        return;
+      }
+      if ((type === 'post' || type === 'new_post') && data?.postId) {
+        const connectFlag = data.connectPost === true || String(data.connectPost) === 'true';
+        if (connectFlag) {
+          router.push({ pathname: '/open-connect-posts', params: { postId: String(data.postId) } } as any);
+          return;
+        }
+        router.push(`/post/${String(data.postId)}` as any);
         return;
       }
       if (type === 'connection_request') {

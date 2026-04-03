@@ -170,7 +170,17 @@ export async function uploadImages(uris: string[], userId: string): Promise<stri
 export type GetPostsOptions = {
   /** Only posts marked as Open to connect / Nearby */
   connectOnly?: boolean;
+  /** Exclude connect / Nearby posts (community feed only) */
+  excludeConnect?: boolean;
 };
+
+/** True if this post belongs on the Open to connect wall, not the general community feed. */
+export function isConnectStylePost(p: { connectPost?: boolean; content?: string }): boolean {
+  return !!(
+    p.connectPost ||
+    (typeof p.content === 'string' && p.content.includes('👋 Nearby:'))
+  );
+}
 
 // Posts API
 export async function getPosts(communityId?: string, limit = 20, options?: GetPostsOptions) {
@@ -193,6 +203,8 @@ export async function getPosts(communityId?: string, limit = 20, options?: GetPo
 
   if (options?.connectOnly) {
     query = query.eq('connect_post', true);
+  } else if (options?.excludeConnect) {
+    query = query.or('connect_post.is.null,connect_post.eq.false');
   }
 
   let { data, error } = await query;
@@ -203,6 +215,29 @@ export async function getPosts(communityId?: string, limit = 20, options?: GetPo
     (error.message?.includes('connect_post') || JSON.stringify(error).includes('connect_post'))
   ) {
     connectFallbackFilter = true;
+    let q2 = supabase
+      .from('posts')
+      .select(
+        `
+      *,
+      author:profiles(*),
+      likes:likes(count),
+      comments:comments(count)
+    `
+      )
+      .order('created_at', { ascending: false })
+      .limit(Math.min(limit * 3, 80));
+    if (communityId) q2 = q2.eq('community_id', communityId);
+    const retry = await q2;
+    data = retry.data;
+    error = retry.error;
+  }
+
+  if (
+    error &&
+    options?.excludeConnect &&
+    (error.message?.includes('connect_post') || JSON.stringify(error).includes('connect_post'))
+  ) {
     let q2 = supabase
       .from('posts')
       .select(
@@ -251,10 +286,12 @@ export async function getPosts(communityId?: string, limit = 20, options?: GetPo
   });
 
   if (options?.connectOnly && connectFallbackFilter) {
-    return mapped.filter(
-      (p) =>
-        p.connectPost || (typeof p.content === 'string' && p.content.includes('👋 Nearby:'))
-    );
+    return mapped.filter((p) => isConnectStylePost(p));
+  }
+
+  // DB filter may miss legacy Nearby-style rows without connect_post set
+  if (options?.excludeConnect) {
+    return mapped.filter((p) => !isConnectStylePost(p));
   }
 
   return mapped;

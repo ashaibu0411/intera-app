@@ -218,9 +218,16 @@ export default function HomeHubScreen() {
                 size="lg"
               />
               <PhotoTile
-                title="Open to connect"
-                subtitle="Same place, same moment"
+                title="Connect post wall"
+                subtitle="Hangouts & dates — 18+"
                 imageUri="https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=1600&q=90"
+                onPress={() => go('/open-connect-posts')}
+                size="lg"
+              />
+              <PhotoTile
+                title="Open to connect"
+                subtitle="Lobby — who’s around"
+                imageUri="https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=1600&q=90"
                 onPress={() => go('/(tabs)/connect?openConnect=1')}
                 size="lg"
               />
