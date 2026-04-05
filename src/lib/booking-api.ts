@@ -655,7 +655,7 @@ export async function createAppointment(appointment: {
       date: appointment.date,
       start_time: appointment.start_time,
       end_time: appointment.end_time,
-      status: 'pending',
+      status: 'confirmed',
       payment_method: appointment.payment_method || null,
       payment_status: appointment.payment_method === 'gems' || appointment.payment_method === 'in_app' ? 'paid' : 'pending',
       payment_amount: appointment.payment_amount || null,
@@ -732,6 +732,11 @@ export async function getAvailableTimeSlots(
   date: string,
   serviceDuration: number
 ): Promise<string[]> {
+  const settings = await getBusinessBookingSettings(businessId);
+  if (settings && settings.is_booking_enabled === false) {
+    return [];
+  }
+
   // Get business hours for the day
   const dayOfWeek = new Date(date).getDay();
   const hours = await getBusinessHours(businessId);
@@ -753,8 +758,6 @@ export async function getAvailableTimeSlots(
     .filter(s => s.date === date || (s.is_recurring && s.day_of_week === dayOfWeek))
     .map(s => ({ start: s.start_time, end: s.end_time }));
 
-  // Get booking settings
-  const settings = await getBusinessBookingSettings(businessId);
   const buffer = settings?.appointment_buffer || 15;
 
   // Generate available slots
